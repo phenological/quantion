@@ -1,4 +1,3 @@
-
 use crate::utilities::{
     cheminfo::lm::{Data2D, LevenbergMarquardtOptions, lm},
     functions::{emg_fn, gaussian_fn, sigma_from_fwhm},

@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use ionic::ion::{IonReader, ReadOptions};
+use ionic::{IonReader, ReadOptions};
 use quantion::utilities::{
     calculate_eic::{EicOptions, EicReader, calculate_eic, get_scan_times},
     find_features::{FindFeaturesOptions, find_features},
@@ -148,7 +148,7 @@ fn time_range() -> FromTo {
 }
 
 fn open(fixture: &Path) -> IonReader {
-    IonReader::open_file(fixture, ReadOptions::default()).expect("open fixture")
+    IonReader::open(fixture, &ReadOptions::default()).expect("open fixture")
 }
 
 fn count_scans(fixture: &Path) -> usize {

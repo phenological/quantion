@@ -175,8 +175,11 @@ pub fn find_peaks(data: &DataXY, options: Option<FindPeaksOptions>) -> Vec<Peak>
 
     let mut candidates: Vec<PeakCandidate> = Vec::with_capacity(positions.len());
     for seed_rt in positions {
-        let b = get_boundaries(boundary_input, seed_rt, Some(bopt));
         let seed_idx = closest_index(&normalized_data.x, seed_rt);
+        if normalized_data.y[seed_idx] <= noise {
+            continue;
+        }
+        let b = get_boundaries(boundary_input, seed_rt, Some(bopt));
         let apex = apex_in_window(&normalized_data, &b);
         let (rt, apex_y) = if let Some(t) = apex {
             t

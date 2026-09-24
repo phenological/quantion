@@ -1,9 +1,12 @@
 pub mod calculate_eic;
+pub mod ion;
 pub mod ion_image;
+pub mod parse_ion;
 pub use calculate_eic::{
     EicOptions, EicReader, FastError, ScanTime, calculate_eic, get_scan_times, plan_eic_ranges,
     read_mz_window,
 };
+pub use parse_ion::{IonInput, parse_ion};
 
 pub mod parallel;
 

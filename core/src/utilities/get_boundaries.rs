@@ -30,8 +30,6 @@ pub struct BoundariesOptions {
     pub method: BoundaryMethod,
     pub min_slope_step: f64,
     pub noise: f64,
-    pub min_ascending_steps: usize,
-    pub min_below_noise_run: usize,
     pub smooth_window: usize,
     pub smooth_polynomial: usize,
 }
@@ -42,8 +40,6 @@ impl Default for BoundariesOptions {
             method: BoundaryMethod::default(),
             min_slope_step: 1e-5,
             noise: 0.0,
-            min_ascending_steps: 3,
-            min_below_noise_run: 2,
             smooth_window: 7,
             smooth_polynomial: 3,
         }

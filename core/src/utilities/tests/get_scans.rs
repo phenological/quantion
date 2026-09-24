@@ -1,19 +1,16 @@
-use std::sync::Arc;
-
 use ionic::{
-    WriteOptions,
-    ion::{BytesSource, IonReader, ReadBytes, ReadOptions},
+    IonReader, ReadOptions, WriteOptions,
     mzml::structs::{
         BinaryDataArray, BinaryDataArrayList, CvParam, MzML, NumericArray, NumericType, Run, Scan,
         ScanList, Spectrum, SpectrumList,
     },
-    write_mzml_to_ion,
 };
 
 use crate::{
     ffi::{FileSource, ParsedFile},
     utilities::{
         calculate_eic::{ScanQuery, TimeUnit, get_scans},
+        ion::write_mzml_to_ion,
         structs::FromTo,
     },
 };
@@ -109,12 +106,7 @@ fn open_split_ion() -> ParsedFile {
         &mut bytes,
     )
     .expect("ion encode failed");
-    let bytes = Arc::from(bytes.into_boxed_slice());
-    let ion = IonReader::open_source(
-        Arc::new(BytesSource::new(bytes)) as Arc<dyn ReadBytes>,
-        ReadOptions::default(),
-    )
-    .expect("open ion failed");
+    let ion = IonReader::from_bytes(&bytes, &ReadOptions::default()).expect("open ion failed");
     ParsedFile::new(FileSource::Lazy(Box::new(ion)))
 }
 

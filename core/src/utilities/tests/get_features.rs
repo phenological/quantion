@@ -2,17 +2,18 @@
 mod tests {
     use std::{cmp::Ordering, fs, sync::Arc};
 
-    use ionic::{WriteOptions, mzml::structs::*, write_mzml_to_ion};
+    use ionic::{WriteOptions, mzml::structs::*};
 
     use crate::utilities::{
         calculate_eic::{CentroidScan, EicOptions, SpectrumKind, SpectrumSummary},
         find_features::{Feature, FindFeaturesOptions, MzScanGrid, MzTolerance},
         get_features::{
-            AlignmentOptions, ConsensusFeature, FeatureClusterer, SearchBounds,
-            TaggedFeature, aggregate_into_consensus, assign_best_per_sample, collect_filled_slots,
+            AlignmentOptions, ConsensusFeature, FeatureClusterer, SearchBounds, TaggedFeature,
+            aggregate_into_consensus, assign_best_per_sample, collect_filled_slots,
             compute_search_bounds, dedup, get_features, require_minimum_frequency, resolve_cluster,
             weighted_centroid_mz,
         },
+        ion::write_mzml_to_ion,
         math::median,
         mz_estimator::MzEstimatorKind,
         structs::FromTo,
@@ -152,10 +153,6 @@ mod tests {
     fn test_median_unsorted_input() {
         assert_eq!(median(&mut [5.0, 1.0, 3.0]), 3.0);
     }
-
-
-
-
 
     #[test]
     fn test_clusterer_empty_input() {
@@ -1398,8 +1395,14 @@ mod tests {
             n_samples: 1,
         };
         assert!(f.mz.is_nan(), "NaN mz stays NaN");
-        assert!(f.rt.is_infinite() && f.rt > 0.0, "positive infinity survives");
-        assert!(f.from.is_infinite() && f.from < 0.0, "negative infinity survives");
+        assert!(
+            f.rt.is_infinite() && f.rt > 0.0,
+            "positive infinity survives"
+        );
+        assert!(
+            f.from.is_infinite() && f.from < 0.0,
+            "negative infinity survives"
+        );
         assert_eq!(f.to, 1.0, "finite values are unchanged");
     }
 
@@ -1457,7 +1460,10 @@ mod tests {
         let summary = SpectrumSummary::unknown();
         assert!(summary.rt_seconds.is_nan(), "rt_seconds stays NaN");
         assert!(summary.base_peak_mz.is_nan(), "base_peak_mz stays NaN");
-        assert!(summary.selected_ion_mz.is_nan(), "selected_ion_mz stays NaN");
+        assert!(
+            summary.selected_ion_mz.is_nan(),
+            "selected_ion_mz stays NaN"
+        );
         assert!(summary.base_peak_int.is_nan(), "base_peak_int stays NaN");
         assert!(
             summary.total_ion_current.is_nan(),
@@ -2546,7 +2552,10 @@ mod tests {
             .map(|last| last + 1)
             .unwrap_or(0);
         let given = tagged.len();
-        println!("{given} features from {samples} samples, {} truth compounds", truth.len());
+        println!(
+            "{given} features from {samples} samples, {} truth compounds",
+            truth.len()
+        );
 
         let began = std::time::Instant::now();
         let clusters = benchmark_clusterer().cluster(tagged);
@@ -2590,7 +2599,10 @@ mod tests {
         println!("features out           : {kept}");
         println!("features lost          : {}", given - kept);
         println!("truth found anywhere   : {anywhere} / {}", truth.len());
-        println!("truth in all {samples} samples : {complete} / {}", truth.len());
+        println!(
+            "truth in all {samples} samples : {complete} / {}",
+            truth.len()
+        );
         println!("elapsed                : {:.1} s", took.as_secs_f64());
 
         assert_eq!(given, kept, "grouping lost features");

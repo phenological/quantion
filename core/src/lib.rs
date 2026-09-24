@@ -3,6 +3,19 @@ pub mod utilities;
 
 pub use utilities::structs::{DataXY, FromTo, Peak, Roi};
 
+pub use ionic;
+
+pub mod io {
+    pub use crate::utilities::{
+        ion::{ScanSource, ScanSummary, write_mzml_to_ion},
+        parse_ion::{IonInput, parse_ion},
+    };
+    pub use ionic::{
+        IonError, IonReader, IonResult, ReadOptions, WriteOptions,
+        mzml::{parse_mzml, structs::MzML},
+    };
+}
+
 pub mod eic {
     pub use crate::utilities::calculate_eic::{
         EicOptions, EicReader, FastError, ScanQuery, TimeUnit, calculate_eic, get_scans,
