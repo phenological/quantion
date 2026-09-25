@@ -35,7 +35,7 @@ pub mod peaks {
 
 pub mod boundaries {
     pub use crate::utilities::get_boundaries::{
-        Boundaries, BoundariesOptions, Boundary, BoundaryMethod, get_boundaries,
+        Boundaries, BoundariesOptions, Boundary, get_boundaries,
     };
 }
 

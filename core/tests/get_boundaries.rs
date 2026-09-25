@@ -21,7 +21,6 @@ struct Feature {
 struct Sample {
     sample: String,
     peak_x: f64,
-    noise: f64,
     expected_from: usize,
     expected_to: usize,
     x: Vec<f64>,
@@ -59,7 +58,6 @@ fn load_cases() -> Vec<Feature> {
         let sample = Sample {
             sample: get("sample").clone(),
             peak_x: get("peak_x").parse().expect("peak_x"),
-            noise: get("noise").parse().expect("noise"),
             expected_from: get("expected_from").parse().expect("expected_from"),
             expected_to: get("expected_to").parse().expect("expected_to"),
             x: eic.time.clone(),
@@ -94,14 +92,7 @@ fn measured_window(sample: &Sample) -> (usize, usize) {
         x: sample.x.clone(),
         y: sample.y.clone(),
     };
-    let edges = get_boundaries(
-        &data,
-        sample.peak_x,
-        Some(BoundariesOptions {
-            noise: sample.noise,
-            ..Default::default()
-        }),
-    );
+    let edges = get_boundaries(&data, sample.peak_x, Some(BoundariesOptions::default()));
     (edges.from.index.expect("from"), edges.to.index.expect("to"))
 }
 

@@ -167,19 +167,31 @@ pub fn find_peaks(data: &DataXY, options: Option<FindPeaksOptions>) -> Vec<Peak>
         return Vec::new();
     }
 
-    let mut bopt = o.boundaries.unwrap_or_default();
-    bopt.noise = noise;
+    let bopt = o.boundaries.unwrap_or_default();
 
     let smoothed_signal = get_smoothed_signal(&normalized_data, filter.kernel_size);
     let boundary_input = smoothed_signal.as_ref().unwrap_or(&normalized_data);
 
-    let mut candidates: Vec<PeakCandidate> = Vec::with_capacity(positions.len());
-    for seed_rt in positions {
-        let seed_idx = closest_index(&normalized_data.x, seed_rt);
-        if normalized_data.y[seed_idx] <= noise {
-            continue;
-        }
-        let b = get_boundaries(boundary_input, seed_rt, Some(bopt));
+    let mut seeds: Vec<usize> = positions
+        .iter()
+        .map(|&seed_rt| closest_index(&normalized_data.x, seed_rt))
+        .filter(|&seed_idx| normalized_data.y[seed_idx] > noise)
+        .collect();
+    seeds.sort_unstable();
+    seeds.dedup();
+
+    let mut candidates: Vec<PeakCandidate> = Vec::with_capacity(seeds.len());
+    for (k, &seed_idx) in seeds.iter().enumerate() {
+        let seed_rt = normalized_data.x[seed_idx];
+        let lo = if k > 0 { seeds[k - 1] } else { 0 };
+        let hi = if k + 1 < seeds.len() { seeds[k + 1] } else { n - 1 };
+        let crop = DataXY {
+            x: boundary_input.x[lo..=hi].to_vec(),
+            y: boundary_input.y[lo..=hi].to_vec(),
+        };
+        let mut b = get_boundaries(&crop, seed_rt, Some(bopt));
+        b.from.index = b.from.index.map(|i| i + lo);
+        b.to.index = b.to.index.map(|i| i + lo);
         let apex = apex_in_window(&normalized_data, &b);
         let (rt, apex_y) = if let Some(t) = apex {
             t
