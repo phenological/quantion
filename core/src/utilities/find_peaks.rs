@@ -249,7 +249,7 @@ pub fn find_peaks(data: &DataXY, options: Option<FindPeaksOptions>) -> Vec<Peak>
     if !peaks.is_empty() {
         let mut cutoff = 0.0_f64;
         if noise > 0.0 {
-            let sn_mult = filter.min_snr.unwrap_or(1.0);
+            let sn_mult = filter.min_snr.or(PeakFilter::default().min_snr).unwrap_or_default();
             cutoff = sn_mult * noise;
         }
         if let Some(user_int) = filter.min_intensity

@@ -2555,11 +2555,9 @@ fn build_peak_options(opts: *const CPeakOptions) -> FindPeaksOptions {
             auto_noise: Some(o.auto_noise != 0),
             auto_baseline: Some(o.auto_baseline != 0),
             allow_overlap: Some(o.allow_overlap != 0),
-            min_snr: Some(if o.min_snr.is_finite() && o.min_snr > 0.0 {
-                o.min_snr
-            } else {
-                1.5
-            }),
+            min_snr: (o.min_snr.is_finite() && o.min_snr > 0.0)
+                .then_some(o.min_snr)
+                .or(PeakFilter::default().min_snr),
             noise_method: None,
             kernel_size: (o.kernel_size > 0).then_some(o.kernel_size as usize),
         }),
