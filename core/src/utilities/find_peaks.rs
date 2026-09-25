@@ -175,13 +175,15 @@ pub fn find_peaks(data: &DataXY, options: Option<FindPeaksOptions>) -> Vec<Peak>
     let mut seeds: Vec<usize> = positions
         .iter()
         .map(|&seed_rt| closest_index(&normalized_data.x, seed_rt))
-        .filter(|&seed_idx| normalized_data.y[seed_idx] > noise)
         .collect();
     seeds.sort_unstable();
     seeds.dedup();
 
     let mut candidates: Vec<PeakCandidate> = Vec::with_capacity(seeds.len());
     for (k, &seed_idx) in seeds.iter().enumerate() {
+        if normalized_data.y[seed_idx] <= noise {
+            continue;
+        }
         let seed_rt = normalized_data.x[seed_idx];
         let lo = if k > 0 { seeds[k - 1] } else { 0 };
         let hi = if k + 1 < seeds.len() { seeds[k + 1] } else { n - 1 };
