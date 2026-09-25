@@ -6,7 +6,7 @@ use std::{
 };
 
 #[cfg(not(all(target_arch = "wasm32", not(target_os = "wasi"))))]
-use ionic::ion::{IonReader, ReadOptions};
+use ionic::{IonReader, ReadOptions};
 #[cfg(not(all(target_arch = "wasm32", not(target_os = "wasi"))))]
 use rayon::prelude::*;
 
@@ -39,7 +39,7 @@ use std::{
 };
 
 #[cfg(not(all(target_arch = "wasm32", not(target_os = "wasi"))))]
-use ionic::{mzml::structs::MzML, parse_mzml};
+use ionic::mzml::{parse_mzml, structs::MzML};
 #[cfg(not(all(target_arch = "wasm32", not(target_os = "wasi"))))]
 use memmap2::Mmap;
 
@@ -261,7 +261,11 @@ impl FeatureClusterer {
         }
     }
 
-    fn group_by_peak(&self, features: &[TaggedFeature], mut indices: Vec<usize>) -> Vec<Vec<usize>> {
+    fn group_by_peak(
+        &self,
+        features: &[TaggedFeature],
+        mut indices: Vec<usize>,
+    ) -> Vec<Vec<usize>> {
         indices.sort_by(|&a, &b| {
             features[a]
                 .feature
@@ -1502,9 +1506,9 @@ fn open_mzml(path: &Path) -> Result<MzML, String> {
 #[cfg(not(all(target_arch = "wasm32", not(target_os = "wasi"))))]
 #[inline]
 fn open_ion(path: &Path) -> Result<IonReader, String> {
-    IonReader::open_file(
+    IonReader::open(
         path,
-        ReadOptions {
+        &ReadOptions {
             max_cached_bytes: ION_CACHE_BYTES,
             ..Default::default()
         },

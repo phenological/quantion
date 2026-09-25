@@ -111,7 +111,7 @@ pub fn shuffle_with_seed<T>(xs: &mut [T], seed: u64) {
 use std::{collections::BTreeMap, path::Path};
 
 use ionic::{
-    ion::{IonReader, ReadOptions},
+    IonReader, ReadOptions,
     mzml::structs::{Chromatogram, NumericArray},
 };
 
@@ -134,9 +134,9 @@ pub fn load_chromatograms(file_name: &str) -> BTreeMap<String, Eic> {
 #[allow(dead_code)]
 pub fn load_chromatograms_from(path: &Path) -> BTreeMap<String, Eic> {
     let bytes = std::fs::read(path).unwrap_or_else(|e| panic!("cannot read {:?}: {}", path, e));
-    let mut reader = IonReader::open(
+    let mut reader = IonReader::from_bytes(
         &bytes,
-        ReadOptions {
+        &ReadOptions {
             verify_checksums: false, // TODO: update the fixtures to the lastest version of Ionic
             ..Default::default()
         },

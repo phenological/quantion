@@ -1,4 +1,3 @@
-use ionic::ScanSource;
 #[cfg(not(all(target_arch = "wasm32", not(target_os = "wasi"))))]
 use rayon::{ThreadPoolBuilder, prelude::*};
 
@@ -7,6 +6,7 @@ use crate::utilities::{
     find_features::max_intensity_centroid,
     find_peaks::FindPeaksOptions,
     get_peak::get_peak,
+    ion::ScanSource,
     structs::{DataXY, FromTo, Peak, Roi},
 };
 

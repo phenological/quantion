@@ -284,7 +284,7 @@ fn find_4_peaks_sarcosine_6() {
                 auto_baseline: Some(true),
                 min_peak_width_points: Some(5),
                 min_intensity: Some(400.0),
-                min_snr: Some(1.0),
+                min_snr: Some(1.5),
                 ..Default::default()
             }),
             artifact_filter: get_artifact_options(),
@@ -512,12 +512,12 @@ fn find_6_peaks_344_226_6() {
     );
 
     dump_peaks(&peaks);
-    assert_eq!(peaks.len(), 2);
+    assert_eq!(peaks.len(), 3);
 
-    assert!(approx_eq(peaks[0].rt, 3.01, 0.03));
-    assert!(approx_eq(peaks[1].rt, 5.60, 0.03));
-    assert!(approx_eq(peaks[0].intensity, 1850.0, 10.0));
-    assert!(approx_eq(peaks[1].intensity, 15356.0, 10.0));
+    assert!(approx_eq(peaks[1].rt, 3.01, 0.03));
+    assert!(approx_eq(peaks[2].rt, 5.60, 0.03));
+    assert!(approx_eq(peaks[1].intensity, 1850.0, 10.0));
+    assert!(approx_eq(peaks[2].intensity, 15356.0, 10.0));
 }
 
 #[test]
@@ -621,7 +621,7 @@ fn find_3_peaks_260_103_6() {
     );
 
     dump_peaks(&peaks);
-    assert_eq!(peaks.len(), 4);
+    assert_eq!(peaks.len(), 5);
 
     assert!(approx_eq(peaks[0].rt, 2.087, 0.03));
     assert!(approx_eq(peaks[1].rt, 2.190, 0.03));
@@ -684,7 +684,7 @@ fn find_covp23_cov02260_peaks_6() {
 
     dump_peaks(&peaks);
 
-    assert_eq!(peaks.len(), 29);
+    assert_eq!(peaks.len(), 31);
 
     assert!(approx_eq(peaks[0].rt, 0.850317, 0.05));
     assert!(approx_eq(peaks[1].rt, 1.037200, 0.05));
@@ -696,25 +696,27 @@ fn find_covp23_cov02260_peaks_6() {
     assert!(approx_eq(peaks[7].rt, 2.035067, 0.05));
     assert!(approx_eq(peaks[8].rt, 2.086650, 0.05));
     assert!(approx_eq(peaks[9].rt, 2.138517, 0.05));
-    assert!(approx_eq(peaks[10].rt, 2.267517, 0.05));
-    assert!(approx_eq(peaks[11].rt, 2.385833, 0.05));
-    assert!(approx_eq(peaks[12].rt, 2.638600, 0.05));
-    assert!(approx_eq(peaks[13].rt, 2.890283, 0.05));
-    assert!(approx_eq(peaks[14].rt, 3.170633, 0.05));
-    assert!(approx_eq(peaks[15].rt, 3.439167, 0.05));
-    assert!(approx_eq(peaks[16].rt, 3.548017, 0.05));
-    assert!(approx_eq(peaks[17].rt, 4.017767, 0.05));
-    assert!(approx_eq(peaks[18].rt, 4.069617, 0.05));
-    assert!(approx_eq(peaks[19].rt, 4.155000, 0.05));
-    assert!(approx_eq(peaks[20].rt, 4.224017, 0.05));
-    assert!(approx_eq(peaks[21].rt, 4.352517, 0.05));
-    assert!(approx_eq(peaks[22].rt, 4.899517, 0.05));
-    assert!(approx_eq(peaks[23].rt, 5.366050, 0.05));
-    assert!(approx_eq(peaks[24].rt, 5.557400, 0.05));
-    assert!(approx_eq(peaks[25].rt, 5.626533, 0.05));
-    assert!(approx_eq(peaks[26].rt, 5.743550, 0.05));
-    assert!(approx_eq(peaks[27].rt, 5.890233, 0.05));
-    assert!(approx_eq(peaks[28].rt, 5.954167, 0.05));
+    assert!(approx_eq(peaks[10].rt, 2.190183, 0.05));
+    assert!(approx_eq(peaks[11].rt, 2.267517, 0.05));
+    assert!(approx_eq(peaks[12].rt, 2.385833, 0.05));
+    assert!(approx_eq(peaks[13].rt, 2.638600, 0.05));
+    assert!(approx_eq(peaks[14].rt, 2.890283, 0.05));
+    assert!(approx_eq(peaks[15].rt, 3.170633, 0.05));
+    assert!(approx_eq(peaks[16].rt, 3.439167, 0.05));
+    assert!(approx_eq(peaks[17].rt, 3.548017, 0.05));
+    assert!(approx_eq(peaks[18].rt, 4.017767, 0.05));
+    assert!(approx_eq(peaks[19].rt, 4.069617, 0.05));
+    assert!(approx_eq(peaks[20].rt, 4.155000, 0.05));
+    assert!(approx_eq(peaks[21].rt, 4.224017, 0.05));
+    assert!(approx_eq(peaks[22].rt, 4.352517, 0.05));
+    assert!(approx_eq(peaks[23].rt, 4.899517, 0.05));
+    assert!(approx_eq(peaks[24].rt, 5.366050, 0.05));
+    assert!(approx_eq(peaks[25].rt, 5.557400, 0.05));
+    assert!(approx_eq(peaks[26].rt, 5.626533, 0.05));
+    assert!(approx_eq(peaks[27].rt, 5.682467, 0.05));
+    assert!(approx_eq(peaks[28].rt, 5.743550, 0.05));
+    assert!(approx_eq(peaks[29].rt, 5.890233, 0.05));
+    assert!(approx_eq(peaks[30].rt, 5.954167, 0.05));
 
     assert!(approx_eq(peaks[0].intensity, 5392.0, 100.0));
     assert!(approx_eq(peaks[1].intensity, 15732.0, 100.0));
@@ -726,25 +728,27 @@ fn find_covp23_cov02260_peaks_6() {
     assert!(approx_eq(peaks[7].intensity, 3342.0, 100.0));
     assert!(approx_eq(peaks[8].intensity, 4690.0, 100.0));
     assert!(approx_eq(peaks[9].intensity, 4240.0, 100.0));
-    assert!(approx_eq(peaks[10].intensity, 27536.0, 100.0));
-    assert!(approx_eq(peaks[11].intensity, 321232.0, 100.0));
-    assert!(approx_eq(peaks[12].intensity, 64716.0, 100.0));
-    assert!(approx_eq(peaks[13].intensity, 26788.0, 100.0));
-    assert!(approx_eq(peaks[14].intensity, 39464.0, 100.0));
-    assert!(approx_eq(peaks[15].intensity, 75180.0, 100.0));
-    assert!(approx_eq(peaks[16].intensity, 24752.0, 100.0));
-    assert!(approx_eq(peaks[17].intensity, 19978.0, 100.0));
-    assert!(approx_eq(peaks[18].intensity, 53348.0, 100.0));
-    assert!(approx_eq(peaks[19].intensity, 109812.0, 100.0));
-    assert!(approx_eq(peaks[20].intensity, 53978.0, 100.0));
-    assert!(approx_eq(peaks[21].intensity, 68226.0, 100.0));
-    assert!(approx_eq(peaks[22].intensity, 4894.0, 100.0));
-    assert!(approx_eq(peaks[23].intensity, 35884.0, 100.0));
-    assert!(approx_eq(peaks[24].intensity, 21636.0, 100.0));
-    assert!(approx_eq(peaks[25].intensity, 30796.0, 100.0));
-    assert!(approx_eq(peaks[26].intensity, 4384.0, 100.0));
-    assert!(approx_eq(peaks[27].intensity, 4324.0, 100.0));
-    assert!(approx_eq(peaks[28].intensity, 84156.0, 100.0));
+    assert!(approx_eq(peaks[10].intensity, 3232.0, 100.0));
+    assert!(approx_eq(peaks[11].intensity, 27536.0, 100.0));
+    assert!(approx_eq(peaks[12].intensity, 321232.0, 100.0));
+    assert!(approx_eq(peaks[13].intensity, 64716.0, 100.0));
+    assert!(approx_eq(peaks[14].intensity, 26788.0, 100.0));
+    assert!(approx_eq(peaks[15].intensity, 39464.0, 100.0));
+    assert!(approx_eq(peaks[16].intensity, 75180.0, 100.0));
+    assert!(approx_eq(peaks[17].intensity, 24752.0, 100.0));
+    assert!(approx_eq(peaks[18].intensity, 19978.0, 100.0));
+    assert!(approx_eq(peaks[19].intensity, 53348.0, 100.0));
+    assert!(approx_eq(peaks[20].intensity, 109812.0, 100.0));
+    assert!(approx_eq(peaks[21].intensity, 53978.0, 100.0));
+    assert!(approx_eq(peaks[22].intensity, 68226.0, 100.0));
+    assert!(approx_eq(peaks[23].intensity, 4894.0, 100.0));
+    assert!(approx_eq(peaks[24].intensity, 35884.0, 100.0));
+    assert!(approx_eq(peaks[25].intensity, 21636.0, 100.0));
+    assert!(approx_eq(peaks[26].intensity, 30796.0, 100.0));
+    assert!(approx_eq(peaks[27].intensity, 3434.0, 100.0));
+    assert!(approx_eq(peaks[28].intensity, 4384.0, 100.0));
+    assert!(approx_eq(peaks[29].intensity, 4324.0, 100.0));
+    assert!(approx_eq(peaks[30].intensity, 84156.0, 100.0));
 }
 
 #[test]
@@ -1144,7 +1148,7 @@ fn find_2_peaks_covp20_cov02037_302_1499_6() {
                 auto_baseline: Some(true),
                 min_peak_width_points: Some(10),
                 min_intensity: None,
-                min_snr: Some(1.0),
+                min_snr: Some(1.5),
                 ..Default::default()
             }),
             artifact_filter: get_artifact_options(),

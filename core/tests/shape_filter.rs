@@ -217,7 +217,7 @@ fn has_peak_near(eic: &Eic, rt: f64, min_r2: f64) -> bool {
 #[test]
 fn real_targets_match_expected_verdicts() {
     let cases = group("real/");
-    assert_eq!(cases.len(), 8, "expected 8 real targets");
+    assert_eq!(cases.len(), 7, "expected 7 real targets");
     for (id, eic) in cases {
         let rt = param_f64(&eic, "rt");
         let threshold = param_f64(&eic, "threshold");

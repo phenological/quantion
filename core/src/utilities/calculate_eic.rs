@@ -1,12 +1,15 @@
 use std::{cmp::Ordering, sync::Arc};
 
 use ionic::{
-    ScanSource, ScanSummary, coalesce_byte_ranges,
-    ion::{ByteRange, IonError, IonReader, Range},
+    ArrayKind, IonError, IonReader, Range,
     mzml::structs::{CvParam, MzML},
+    source::{ByteRange, merge_ranges},
 };
 
-use crate::utilities::structs::{DataXY, FromTo, Peak};
+use crate::utilities::{
+    ion::{ScanSource, ScanSummary},
+    structs::{DataXY, FromTo, Peak},
+};
 
 pub(crate) const MS1_LEVEL: u8 = 1;
 
@@ -14,7 +17,7 @@ fn rt_to_minutes(rt: f64, unit: ionic::TimeUnit) -> f64 {
     match unit {
         ionic::TimeUnit::Second => rt / 60.0,
         ionic::TimeUnit::Millisecond => rt / 60_000.0,
-        ionic::TimeUnit::Minute | ionic::TimeUnit::Other => rt,
+        _ => rt,
     }
 }
 
@@ -74,9 +77,9 @@ const PROFILE_ACCESSION: &str = "MS:1000128";
 
 pub fn get_spectrum_kind(reader: &mut EicReader) -> SpectrumKind {
     match reader {
-        EicReader::Ion(ion) => match ion.spectrum(0) {
-            Ok(Some(spectrum)) => kind_from_params(&spectrum.cv_params),
-            _ => SpectrumKind::Centroid,
+        EicReader::Ion(ion) => match ion.spectrum_metadata_at(0) {
+            Ok(spectrum) => kind_from_params(&spectrum.cv_params),
+            Err(_) => SpectrumKind::Centroid,
         },
         EicReader::Mzml(mzml) => match first_spectrum_params(mzml) {
             Some(params) => kind_from_params(params),
@@ -257,8 +260,10 @@ pub fn read_mz_window(
     match reader {
         EicReader::Ion(ion) => {
             let window = ion
-                .read_window(
+                .spectrum_window(
                     scan_index,
+                    ArrayKind::Mz,
+                    ArrayKind::Intensity,
                     Range {
                         from: mz_from,
                         to: mz_to,
@@ -296,7 +301,7 @@ fn rt_from_minutes(minutes: f64, unit: ionic::TimeUnit) -> f64 {
     match unit {
         ionic::TimeUnit::Second => minutes * 60.0,
         ionic::TimeUnit::Millisecond => minutes * 60_000.0,
-        ionic::TimeUnit::Minute | ionic::TimeUnit::Other => minutes,
+        _ => minutes,
     }
 }
 
@@ -393,7 +398,7 @@ fn ranges_for_scans(
             .map_err(FastError::from)?;
         ranges.extend(scan_ranges);
     }
-    coalesce_byte_ranges(&mut ranges, 0);
+    merge_ranges(&mut ranges, 0);
     Ok(ranges)
 }
 
@@ -406,7 +411,7 @@ fn ranges_for_first_scan_with_data(
             .byte_ranges(*index, whole_scan_mz_range())
             .map_err(FastError::from)?;
         if !ranges.is_empty() {
-            coalesce_byte_ranges(&mut ranges, 0);
+            merge_ranges(&mut ranges, 0);
             return Ok(ranges);
         }
     }
@@ -766,8 +771,6 @@ fn max_in_range(retention_times: &[f64], intensities: &[f64], from_rt: f64, to_r
 
 #[cfg(test)]
 mod tests {
-    use ionic::ScanSummary;
-
     use super::*;
 
     struct MockSource {

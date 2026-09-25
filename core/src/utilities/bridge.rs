@@ -123,7 +123,9 @@ fn size_of_element(element_type: u32) -> Option<u64> {
 }
 
 fn round_up(value: u64) -> Option<u64> {
-    value.checked_add(ALIGNMENT - 1).map(|sum| sum & !(ALIGNMENT - 1))
+    value
+        .checked_add(ALIGNMENT - 1)
+        .map(|sum| sum & !(ALIGNMENT - 1))
 }
 
 #[derive(Clone, Copy)]
@@ -181,8 +183,7 @@ impl BridgeBuilder {
         bytes[4..6].copy_from_slice(&QUANTION_BRIDGE_LAYOUT_VERSION.to_le_bytes());
         bytes[6..8].copy_from_slice(&self.payload_kind.to_le_bytes());
         bytes[8..12].copy_from_slice(&section_count.to_le_bytes());
-        bytes[12..16]
-            .copy_from_slice(&(QUANTION_BRIDGE_HEADER_BYTES as u32).to_le_bytes());
+        bytes[12..16].copy_from_slice(&(QUANTION_BRIDGE_HEADER_BYTES as u32).to_le_bytes());
         bytes[16..24].copy_from_slice(&total_bytes.to_le_bytes());
         bytes[24..32].copy_from_slice(&self.record_count.to_le_bytes());
 
@@ -229,7 +230,10 @@ impl Bridge {
     pub fn write_f64_at(&mut self, id: u32, element_offset: u64, values: &[f64]) {
         let section = self.find_section(id, QUANTION_ELEMENT_F64);
         let end = element_offset + values.len() as u64;
-        assert!(end <= section.element_count, "bridge f64 write out of range");
+        assert!(
+            end <= section.element_count,
+            "bridge f64 write out of range"
+        );
         let source = unsafe {
             slice::from_raw_parts(values.as_ptr() as *const u8, std::mem::size_of_val(values))
         };
@@ -298,9 +302,19 @@ impl Bridge {
 }
 
 pub enum Column<'a> {
-    Numbers { id: u32, values: &'a [f64] },
-    Counts { id: u32, values: &'a [u32] },
-    Text { starts_id: u32, bytes_id: u32, values: &'a [&'a str] },
+    Numbers {
+        id: u32,
+        values: &'a [f64],
+    },
+    Counts {
+        id: u32,
+        values: &'a [u32],
+    },
+    Text {
+        starts_id: u32,
+        bytes_id: u32,
+        values: &'a [&'a str],
+    },
 }
 
 pub fn build_record_bridge(

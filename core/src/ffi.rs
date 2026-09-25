@@ -8,24 +8,20 @@ use std::{
     sync::Arc,
 };
 
+use ionic::{
+    IonReader, ReadOptions, WriteOptions,
+    mzml::{bin_to_mzml as bin_to_mzml_rs, parse_mzml as parse_mzml_rs, structs::MzML},
+    source::{ByteRange, CallbackSource, ReadBytes, header_ranges, merge_ranges},
+};
 #[cfg(not(all(target_arch = "wasm32", not(target_os = "wasi"))))]
-use ionic::{
-    DEFAULT_MZ_WINDOW, IonWriter,
-    ion::{FileWriter, SectionStorage},
-    mzml::MzmlReader,
-};
-use ionic::{
-    ScanSource, ScanSummary, WriteOptions, bin_to_mzml as bin_to_mzml_rs, coalesce_byte_ranges,
-    ion::{ByteRange, BytesSource, CallbackSource, IonReader, ReadBytes, ReadOptions, open_ranges},
-    mzml::structs::MzML,
-    parse_mzml as parse_mzml_rs, write_mzml_to_ion,
-};
+use ionic::{IonWriter, SectionStorage, format::DEFAULT_MZ_WINDOW, mzml::MzmlReader};
 
 #[cfg(not(all(target_arch = "wasm32", not(target_os = "wasi"))))]
 use crate::utilities::find_features::MzTolerance;
 #[cfg(not(all(target_arch = "wasm32", not(target_os = "wasi"))))]
 use crate::utilities::get_features::{AlignmentOptions, get_features as get_features_rs};
 use crate::utilities::{
+    bridge::*,
     calculate_baseline::{BaselineOptions, calculate_baseline as calculate_baseline_rs},
     calculate_eic::{
         EicOptions, EicReader, FastError, ScanQuery, TimeUnit,
@@ -36,13 +32,13 @@ use crate::utilities::{
     find_features::{FindFeaturesOptions, find_features as find_features_rs},
     find_noise_level::find_noise_level as find_noise_level_rs,
     find_peaks::{ArtifactFilter, FindPeaksOptions, PeakFilter, find_peaks as find_peaks_rs},
-    bridge::*,
     fit_peak::{
         PeakParameters, PeakSeed, PeakShape, draw_peak as draw_peak_rs, fit_peak as fit_peak_rs,
     },
     get_peak::get_peak as get_peak_rs,
     get_peaks_from_chrom::get_peaks_from_chrom as get_peaks_from_chrom_rs,
     get_peaks_from_eic::get_peaks_from_eic as get_peaks_from_eic_rs,
+    ion::{ScanSource, ScanSummary, write_mzml_to_ion},
     mz_estimator::MzEstimatorKind,
     structs::{DataXY, FromTo, Roi},
 };
@@ -133,18 +129,18 @@ pub trait RangeReader {
 
 pub fn read_range<R: RangeReader>(
     reader: &R,
-    range: ionic::ion::ByteRange,
-) -> ionic::ion::IonResult<Vec<u8>> {
-    use ionic::ion::IonError;
+    offset: u64,
+    length: u64,
+) -> ionic::IonResult<Vec<u8>> {
+    use ionic::IonError;
 
-    let len = range.length;
-    if len == 0 {
+    if length == 0 {
         return Ok(Vec::new());
     }
-    let len_u32 = u32::try_from(len)
+    let len_u32 = u32::try_from(length)
         .map_err(|_| IonError::from("range read: length exceeds transport limit"))?;
     let mut buf = vec![0u8; len_u32 as usize];
-    let rc = reader.read(range.offset, len, &mut buf);
+    let rc = reader.read(offset, length, &mut buf);
     if rc != 0 {
         return Err(IonError::from(format!("range read failed: {rc}")));
     }
@@ -205,17 +201,20 @@ pub unsafe extern "C" fn parse_ion_source(
     }
     match catch_unwind(AssertUnwindSafe(|| -> Result<(), c_int> {
         let reader = CallerRangeReader { read, context };
-        let ion = IonReader::open_source(
-            Arc::new(CallbackSource::new(move |range| read_range(&reader, range)))
-                as Arc<dyn ReadBytes>,
-            ReadOptions {
+        let ion = IonReader::new(
+            Arc::new(CallbackSource::new(move |range| {
+                read_range(&reader, range.offset, range.length)
+            })) as Arc<dyn ReadBytes>,
+            &ReadOptions {
                 max_cached_bytes: max_cache_size,
                 ..Default::default()
             },
         )
         .map_err(|_| ERR_PARSE)?;
 
-        unsafe { *out = Box::into_raw(Box::new(ParsedFile::new(FileSource::Remote(Box::new(ion))))) };
+        unsafe {
+            *out = Box::into_raw(Box::new(ParsedFile::new(FileSource::Remote(Box::new(ion)))))
+        };
         Ok(())
     })) {
         Ok(Ok(())) => OK,
@@ -388,7 +387,11 @@ pub unsafe extern "C" fn parse_mzml(
     match catch_unwind(AssertUnwindSafe(|| -> Result<(), c_int> {
         let parsed = parse_mzml_rs(unsafe { slice::from_raw_parts(data_ptr, data_len) })
             .map_err(|_| ERR_PARSE)?;
-        unsafe { *dest = Box::into_raw(Box::new(ParsedFile::new(FileSource::Full(Box::new(parsed))))) };
+        unsafe {
+            *dest = Box::into_raw(Box::new(ParsedFile::new(FileSource::Full(Box::new(
+                parsed,
+            )))))
+        };
         Ok(())
     })) {
         Ok(Ok(())) => OK,
@@ -409,17 +412,20 @@ pub unsafe extern "C" fn parse_ion_url(
     }
     match catch_unwind(AssertUnwindSafe(|| -> Result<(), c_int> {
         let reader = WasmRangeReader { source_id };
-        let ion = IonReader::open_source(
-            Arc::new(CallbackSource::new(move |range| read_range(&reader, range)))
-                as Arc<dyn ReadBytes>,
-            ReadOptions {
+        let ion = IonReader::new(
+            Arc::new(CallbackSource::new(move |range| {
+                read_range(&reader, range.offset, range.length)
+            })) as Arc<dyn ReadBytes>,
+            &ReadOptions {
                 max_cached_bytes: cache_bytes,
                 ..Default::default()
             },
         )
         .map_err(|_| ERR_PARSE)?;
 
-        unsafe { *dest = Box::into_raw(Box::new(ParsedFile::new(FileSource::Remote(Box::new(ion))))) };
+        unsafe {
+            *dest = Box::into_raw(Box::new(ParsedFile::new(FileSource::Remote(Box::new(ion)))))
+        };
         Ok(())
     })) {
         Ok(Ok(())) => OK,
@@ -445,17 +451,18 @@ pub unsafe extern "C" fn parse_bin(
         return ERR_INVALID_ARGS;
     }
     match catch_unwind(AssertUnwindSafe(|| -> Result<(), c_int> {
-        let arc: Arc<[u8]> = Arc::from(unsafe { std::slice::from_raw_parts(data_ptr, data_len) });
-        let owned = IonReader::open_source(
-            Arc::new(BytesSource::new(arc)) as Arc<dyn ReadBytes>,
-            ReadOptions {
+        let owned = IonReader::from_bytes(
+            unsafe { std::slice::from_raw_parts(data_ptr, data_len) },
+            &ReadOptions {
                 max_cached_bytes: max_cache_size,
                 ..Default::default()
             },
         )
         .map_err(|_| ERR_PARSE)?;
 
-        unsafe { *dest = Box::into_raw(Box::new(ParsedFile::new(FileSource::Lazy(Box::new(owned))))) };
+        unsafe {
+            *dest = Box::into_raw(Box::new(ParsedFile::new(FileSource::Lazy(Box::new(owned)))))
+        };
         Ok(())
     })) {
         Ok(Ok(())) => OK,
@@ -479,15 +486,19 @@ pub unsafe extern "C" fn parse_ion_path(
             .to_str()
             .map_err(|_| ERR_INVALID_ARGS)?;
         let file_path = std::path::Path::new(path_text);
-        let opened_file = IonReader::open_file(
+        let opened_file = IonReader::open(
             file_path,
-            ReadOptions {
+            &ReadOptions {
                 max_cached_bytes: max_cache_size,
                 ..Default::default()
             },
         )
         .map_err(|_| ERR_PARSE)?;
-        unsafe { *dest = Box::into_raw(Box::new(ParsedFile::new(FileSource::Lazy(Box::new(opened_file))))) };
+        unsafe {
+            *dest = Box::into_raw(Box::new(ParsedFile::new(FileSource::Lazy(Box::new(
+                opened_file,
+            )))))
+        };
         Ok(())
     })) {
         Ok(Ok(())) => OK,
@@ -525,10 +536,10 @@ pub unsafe extern "C" fn plan_open(
 
     match catch_unwind(AssertUnwindSafe(|| -> Result<(), c_int> {
         let header = unsafe { slice::from_raw_parts(header_ptr, header_len) };
-        let mut ranges = open_ranges(header).map_err(|_| ERR_FAST_PATH)?;
+        let mut ranges = header_ranges(header).map_err(|_| ERR_FAST_PATH)?;
         let gap = open_gap_for(&ranges);
-        coalesce_byte_ranges(&mut ranges, gap);
-        let bytes = pack_byte_ranges(&ranges);
+        merge_ranges(&mut ranges, gap);
+        let bytes = pack_byte_ranges(ranges.iter().map(|range| (range.offset, range.length)));
         write_buf(out, bytes);
         Ok(())
     })) {
@@ -645,7 +656,6 @@ pub unsafe extern "C" fn convert_mzml_file_to_ion_file(
 
         let mut reader =
             MzmlReader::open(std::path::Path::new(input_path)).map_err(|_| ERR_PARSE)?;
-        let mut output = FileWriter::open(output_path).map_err(|_| ERR_ENCODE)?;
 
         let config = WriteOptions {
             compression_level,
@@ -656,11 +666,10 @@ pub unsafe extern "C" fn convert_mzml_file_to_ion_file(
             mz_window: DEFAULT_MZ_WINDOW,
         };
 
-        {
-            let mut writer = IonWriter::create(&mut output, config).map_err(|_| ERR_ENCODE)?;
-            writer.write_stream(&mut reader).map_err(|_| ERR_ENCODE)?;
-        }
-        output.flush().map_err(|_| ERR_ENCODE)?;
+        IonWriter::create(std::path::Path::new(output_path), &MzML::default(), &config)
+            .map_err(|_| ERR_ENCODE)?
+            .write_stream(&mut reader)
+            .map_err(|_| ERR_ENCODE)?;
         Ok(())
     })) {
         Ok(Ok(())) => OK,
@@ -1133,7 +1142,7 @@ pub unsafe extern "C" fn plan_eic(
         }
         .map_err(fast_error_to_code)?;
 
-        let bytes = pack_byte_ranges(&ranges);
+        let bytes = pack_byte_ranges(ranges.iter().map(|range| (range.offset, range.length)));
         write_buf(out, bytes);
         Ok(())
     })) {
@@ -1216,7 +1225,7 @@ pub unsafe extern "C" fn plan_scans(
         }
         .map_err(fast_error_to_code)?;
 
-        let bytes = pack_byte_ranges(&ranges);
+        let bytes = pack_byte_ranges(ranges.iter().map(|range| (range.offset, range.length)));
         write_buf(out, bytes);
         Ok(())
     })) {
@@ -1264,7 +1273,7 @@ pub unsafe extern "C" fn plan_image(
         }
         .map_err(fast_error_to_code)?;
 
-        let bytes = pack_byte_ranges(&ranges);
+        let bytes = pack_byte_ranges(ranges.iter().map(|range| (range.offset, range.length)));
         write_buf(out, bytes);
         Ok(())
     })) {
@@ -1455,7 +1464,7 @@ pub unsafe extern "C" fn image_ranges(
         }
         .map_err(fast_error_to_code)?;
 
-        let bytes = pack_byte_ranges(&ranges);
+        let bytes = pack_byte_ranges(ranges.iter().map(|range| (range.offset, range.length)));
         write_buf(out, bytes);
         Ok(())
     })) {
@@ -1904,7 +1913,11 @@ fn build_scans_bridge(
         scan_count + 1,
     );
     builder.add_section(QUANTION_SECTION_MZ, QUANTION_ELEMENT_F64, total_points);
-    builder.add_section(QUANTION_SECTION_INTENSITY, QUANTION_ELEMENT_F64, total_points);
+    builder.add_section(
+        QUANTION_SECTION_INTENSITY,
+        QUANTION_ELEMENT_F64,
+        total_points,
+    );
     for id in SCAN_METADATA_SECTIONS {
         builder.add_section(id, QUANTION_ELEMENT_F64, scan_count);
     }
@@ -1980,7 +1993,11 @@ fn build_image_bridge(image: &crate::utilities::ion_image::IonImage) -> Option<B
     let cell_count = image.data.len() as u64;
     let mut builder = BridgeBuilder::new(QUANTION_PAYLOAD_ION_IMAGE, cell_count);
     builder.add_section(QUANTION_SECTION_IMAGE_SHAPE, QUANTION_ELEMENT_U32, 6);
-    builder.add_section(QUANTION_SECTION_IMAGE_DATA, QUANTION_ELEMENT_F64, cell_count);
+    builder.add_section(
+        QUANTION_SECTION_IMAGE_DATA,
+        QUANTION_ELEMENT_F64,
+        cell_count,
+    );
     builder.add_section(
         QUANTION_SECTION_IMAGE_COUNTS,
         QUANTION_ELEMENT_U32,
@@ -2065,7 +2082,6 @@ fn f64_to_u8(v: &[f64]) -> Box<[u8]> {
     out.into_boxed_slice()
 }
 
-
 fn count_as_u32(value: usize) -> u32 {
     u32::try_from(value).unwrap_or(u32::MAX)
 }
@@ -2076,22 +2092,52 @@ fn build_peaks_bridge(peaks: &[crate::utilities::structs::Peak]) -> Option<Box<[
     let rt: Vec<f64> = peaks.iter().map(|peak| peak.rt).collect();
     let integral: Vec<f64> = peaks.iter().map(|peak| peak.integral).collect();
     let intensity: Vec<f64> = peaks.iter().map(|peak| peak.intensity).collect();
-    let point_count: Vec<u32> = peaks.iter().map(|peak| count_as_u32(peak.n_points)).collect();
+    let point_count: Vec<u32> = peaks
+        .iter()
+        .map(|peak| count_as_u32(peak.n_points))
+        .collect();
     let noise: Vec<f64> = peaks.iter().map(|peak| peak.noise).collect();
-    let r2: Vec<f64> = peaks.iter().map(|peak| peak.r2.unwrap_or(f64::NAN)).collect();
+    let r2: Vec<f64> = peaks
+        .iter()
+        .map(|peak| peak.r2.unwrap_or(f64::NAN))
+        .collect();
 
     build_record_bridge(
         QUANTION_PAYLOAD_PEAKS,
         peaks.len() as u64,
         &[
-            Column::Numbers { id: QUANTION_SECTION_PEAK_FROM, values: &from },
-            Column::Numbers { id: QUANTION_SECTION_PEAK_TO, values: &to },
-            Column::Numbers { id: QUANTION_SECTION_PEAK_RT, values: &rt },
-            Column::Numbers { id: QUANTION_SECTION_PEAK_INTEGRAL, values: &integral },
-            Column::Numbers { id: QUANTION_SECTION_PEAK_INTENSITY, values: &intensity },
-            Column::Counts { id: QUANTION_SECTION_PEAK_POINT_COUNT, values: &point_count },
-            Column::Numbers { id: QUANTION_SECTION_PEAK_NOISE, values: &noise },
-            Column::Numbers { id: QUANTION_SECTION_PEAK_R2, values: &r2 },
+            Column::Numbers {
+                id: QUANTION_SECTION_PEAK_FROM,
+                values: &from,
+            },
+            Column::Numbers {
+                id: QUANTION_SECTION_PEAK_TO,
+                values: &to,
+            },
+            Column::Numbers {
+                id: QUANTION_SECTION_PEAK_RT,
+                values: &rt,
+            },
+            Column::Numbers {
+                id: QUANTION_SECTION_PEAK_INTEGRAL,
+                values: &integral,
+            },
+            Column::Numbers {
+                id: QUANTION_SECTION_PEAK_INTENSITY,
+                values: &intensity,
+            },
+            Column::Counts {
+                id: QUANTION_SECTION_PEAK_POINT_COUNT,
+                values: &point_count,
+            },
+            Column::Numbers {
+                id: QUANTION_SECTION_PEAK_NOISE,
+                values: &noise,
+            },
+            Column::Numbers {
+                id: QUANTION_SECTION_PEAK_R2,
+                values: &r2,
+            },
         ],
     )
 }
@@ -2116,17 +2162,37 @@ fn build_fit_bridge(params: &Option<PeakParameters>) -> Option<Box<[u8]>> {
         QUANTION_PAYLOAD_FIT_RESULT,
         shape.len() as u64,
         &[
-            Column::Numbers { id: QUANTION_SECTION_FIT_SHAPE, values: &shape },
-            Column::Numbers { id: QUANTION_SECTION_FIT_HEIGHT, values: &height },
-            Column::Numbers { id: QUANTION_SECTION_FIT_CENTER, values: &center },
-            Column::Numbers { id: QUANTION_SECTION_FIT_FWHM, values: &fwhm },
-            Column::Numbers { id: QUANTION_SECTION_FIT_TAIL, values: &tail },
-            Column::Numbers { id: QUANTION_SECTION_FIT_R2, values: &r2 },
+            Column::Numbers {
+                id: QUANTION_SECTION_FIT_SHAPE,
+                values: &shape,
+            },
+            Column::Numbers {
+                id: QUANTION_SECTION_FIT_HEIGHT,
+                values: &height,
+            },
+            Column::Numbers {
+                id: QUANTION_SECTION_FIT_CENTER,
+                values: &center,
+            },
+            Column::Numbers {
+                id: QUANTION_SECTION_FIT_FWHM,
+                values: &fwhm,
+            },
+            Column::Numbers {
+                id: QUANTION_SECTION_FIT_TAIL,
+                values: &tail,
+            },
+            Column::Numbers {
+                id: QUANTION_SECTION_FIT_R2,
+                values: &r2,
+            },
         ],
     )
 }
 
-fn build_eic_peaks_bridge(rows: &[(&str, f64, f64, crate::utilities::structs::Peak)]) -> Option<Box<[u8]>> {
+fn build_eic_peaks_bridge(
+    rows: &[(&str, f64, f64, crate::utilities::structs::Peak)],
+) -> Option<Box<[u8]>> {
     let ids: Vec<&str> = rows.iter().map(|row| row.0).collect();
     let ort: Vec<f64> = rows.iter().map(|row| row.1).collect();
     let mz: Vec<f64> = rows.iter().map(|row| row.2).collect();
@@ -2146,44 +2212,96 @@ fn build_eic_peaks_bridge(rows: &[(&str, f64, f64, crate::utilities::structs::Pe
                 bytes_id: QUANTION_SECTION_EIC_PEAK_ID_BYTES,
                 values: &ids,
             },
-            Column::Numbers { id: QUANTION_SECTION_EIC_PEAK_MZ, values: &mz },
-            Column::Numbers { id: QUANTION_SECTION_EIC_PEAK_ORT, values: &ort },
-            Column::Numbers { id: QUANTION_SECTION_EIC_PEAK_RT, values: &rt },
-            Column::Numbers { id: QUANTION_SECTION_EIC_PEAK_FROM, values: &from },
-            Column::Numbers { id: QUANTION_SECTION_EIC_PEAK_TO, values: &to },
-            Column::Numbers { id: QUANTION_SECTION_EIC_PEAK_INTENSITY, values: &intensity },
-            Column::Numbers { id: QUANTION_SECTION_EIC_PEAK_INTEGRAL, values: &integral },
-            Column::Numbers { id: QUANTION_SECTION_EIC_PEAK_NOISE, values: &noise },
+            Column::Numbers {
+                id: QUANTION_SECTION_EIC_PEAK_MZ,
+                values: &mz,
+            },
+            Column::Numbers {
+                id: QUANTION_SECTION_EIC_PEAK_ORT,
+                values: &ort,
+            },
+            Column::Numbers {
+                id: QUANTION_SECTION_EIC_PEAK_RT,
+                values: &rt,
+            },
+            Column::Numbers {
+                id: QUANTION_SECTION_EIC_PEAK_FROM,
+                values: &from,
+            },
+            Column::Numbers {
+                id: QUANTION_SECTION_EIC_PEAK_TO,
+                values: &to,
+            },
+            Column::Numbers {
+                id: QUANTION_SECTION_EIC_PEAK_INTENSITY,
+                values: &intensity,
+            },
+            Column::Numbers {
+                id: QUANTION_SECTION_EIC_PEAK_INTEGRAL,
+                values: &integral,
+            },
+            Column::Numbers {
+                id: QUANTION_SECTION_EIC_PEAK_NOISE,
+                values: &noise,
+            },
         ],
     )
 }
 
-fn build_features_bridge(features: &[crate::utilities::find_features::Feature]) -> Option<Box<[u8]>> {
+fn build_features_bridge(
+    features: &[crate::utilities::find_features::Feature],
+) -> Option<Box<[u8]>> {
     let mz: Vec<f64> = features.iter().map(|item| item.mz).collect();
     let rt: Vec<f64> = features.iter().map(|item| item.rt).collect();
     let from: Vec<f64> = features.iter().map(|item| item.from).collect();
     let to: Vec<f64> = features.iter().map(|item| item.to).collect();
     let intensity: Vec<f64> = features.iter().map(|item| item.intensity).collect();
     let integral: Vec<f64> = features.iter().map(|item| item.integral).collect();
-    let point_count: Vec<u32> = features.iter().map(|item| count_as_u32(item.n_points)).collect();
+    let point_count: Vec<u32> = features
+        .iter()
+        .map(|item| count_as_u32(item.n_points))
+        .collect();
     let noise: Vec<f64> = features.iter().map(|item| item.noise).collect();
 
     build_record_bridge(
         QUANTION_PAYLOAD_FEATURES,
         features.len() as u64,
         &[
-            Column::Numbers { id: QUANTION_SECTION_FEATURE_MZ, values: &mz },
-            Column::Numbers { id: QUANTION_SECTION_FEATURE_RT, values: &rt },
-            Column::Numbers { id: QUANTION_SECTION_FEATURE_FROM, values: &from },
-            Column::Numbers { id: QUANTION_SECTION_FEATURE_TO, values: &to },
-            Column::Numbers { id: QUANTION_SECTION_FEATURE_INTENSITY, values: &intensity },
-            Column::Numbers { id: QUANTION_SECTION_FEATURE_INTEGRAL, values: &integral },
-            Column::Counts { id: QUANTION_SECTION_FEATURE_POINT_COUNT, values: &point_count },
-            Column::Numbers { id: QUANTION_SECTION_FEATURE_NOISE, values: &noise },
+            Column::Numbers {
+                id: QUANTION_SECTION_FEATURE_MZ,
+                values: &mz,
+            },
+            Column::Numbers {
+                id: QUANTION_SECTION_FEATURE_RT,
+                values: &rt,
+            },
+            Column::Numbers {
+                id: QUANTION_SECTION_FEATURE_FROM,
+                values: &from,
+            },
+            Column::Numbers {
+                id: QUANTION_SECTION_FEATURE_TO,
+                values: &to,
+            },
+            Column::Numbers {
+                id: QUANTION_SECTION_FEATURE_INTENSITY,
+                values: &intensity,
+            },
+            Column::Numbers {
+                id: QUANTION_SECTION_FEATURE_INTEGRAL,
+                values: &integral,
+            },
+            Column::Counts {
+                id: QUANTION_SECTION_FEATURE_POINT_COUNT,
+                values: &point_count,
+            },
+            Column::Numbers {
+                id: QUANTION_SECTION_FEATURE_NOISE,
+                values: &noise,
+            },
         ],
     )
 }
-
 
 #[cfg(not(all(target_arch = "wasm32", not(target_os = "wasi"))))]
 fn build_consensus_bridge(
@@ -2201,13 +2319,34 @@ fn build_consensus_bridge(
         QUANTION_PAYLOAD_CONSENSUS_FEATURES,
         features.len() as u64,
         &[
-            Column::Numbers { id: QUANTION_SECTION_CONSENSUS_MZ, values: &mz },
-            Column::Numbers { id: QUANTION_SECTION_CONSENSUS_RT, values: &rt },
-            Column::Numbers { id: QUANTION_SECTION_CONSENSUS_FROM, values: &from },
-            Column::Numbers { id: QUANTION_SECTION_CONSENSUS_TO, values: &to },
-            Column::Numbers { id: QUANTION_SECTION_CONSENSUS_INTENSITY, values: &intensity },
-            Column::Numbers { id: QUANTION_SECTION_CONSENSUS_INTEGRAL, values: &integral },
-            Column::Numbers { id: QUANTION_SECTION_CONSENSUS_FREQUENCY, values: &frequency },
+            Column::Numbers {
+                id: QUANTION_SECTION_CONSENSUS_MZ,
+                values: &mz,
+            },
+            Column::Numbers {
+                id: QUANTION_SECTION_CONSENSUS_RT,
+                values: &rt,
+            },
+            Column::Numbers {
+                id: QUANTION_SECTION_CONSENSUS_FROM,
+                values: &from,
+            },
+            Column::Numbers {
+                id: QUANTION_SECTION_CONSENSUS_TO,
+                values: &to,
+            },
+            Column::Numbers {
+                id: QUANTION_SECTION_CONSENSUS_INTENSITY,
+                values: &intensity,
+            },
+            Column::Numbers {
+                id: QUANTION_SECTION_CONSENSUS_INTEGRAL,
+                values: &integral,
+            },
+            Column::Numbers {
+                id: QUANTION_SECTION_CONSENSUS_FREQUENCY,
+                values: &frequency,
+            },
         ],
     )
 }
@@ -2232,14 +2371,38 @@ fn build_found_features_bridge(rows: &[FoundFeatureOut]) -> Option<Box<[u8]>> {
                 bytes_id: QUANTION_SECTION_FOUND_ID_BYTES,
                 values: &ids,
             },
-            Column::Numbers { id: QUANTION_SECTION_FOUND_MZ, values: &mz },
-            Column::Numbers { id: QUANTION_SECTION_FOUND_RT, values: &rt },
-            Column::Numbers { id: QUANTION_SECTION_FOUND_FROM, values: &from },
-            Column::Numbers { id: QUANTION_SECTION_FOUND_TO, values: &to },
-            Column::Numbers { id: QUANTION_SECTION_FOUND_INTENSITY, values: &intensity },
-            Column::Numbers { id: QUANTION_SECTION_FOUND_INTEGRAL, values: &integral },
-            Column::Counts { id: QUANTION_SECTION_FOUND_POINT_COUNT, values: &point_count },
-            Column::Numbers { id: QUANTION_SECTION_FOUND_NOISE, values: &noise },
+            Column::Numbers {
+                id: QUANTION_SECTION_FOUND_MZ,
+                values: &mz,
+            },
+            Column::Numbers {
+                id: QUANTION_SECTION_FOUND_RT,
+                values: &rt,
+            },
+            Column::Numbers {
+                id: QUANTION_SECTION_FOUND_FROM,
+                values: &from,
+            },
+            Column::Numbers {
+                id: QUANTION_SECTION_FOUND_TO,
+                values: &to,
+            },
+            Column::Numbers {
+                id: QUANTION_SECTION_FOUND_INTENSITY,
+                values: &intensity,
+            },
+            Column::Numbers {
+                id: QUANTION_SECTION_FOUND_INTEGRAL,
+                values: &integral,
+            },
+            Column::Counts {
+                id: QUANTION_SECTION_FOUND_POINT_COUNT,
+                values: &point_count,
+            },
+            Column::Numbers {
+                id: QUANTION_SECTION_FOUND_NOISE,
+                values: &noise,
+            },
         ],
     )
 }
@@ -2260,14 +2423,38 @@ fn build_chrom_peaks_bridge(rows: &[ChromPeakRowOut]) -> Option<Box<[u8]>> {
         QUANTION_PAYLOAD_CHROM_PEAKS,
         rows.len() as u64,
         &[
-            Column::Counts { id: QUANTION_SECTION_CHROM_INDEX, values: &index },
-            Column::Numbers { id: QUANTION_SECTION_CHROM_TARGET_RT, values: &target_rt },
-            Column::Numbers { id: QUANTION_SECTION_CHROM_RT, values: &rt },
-            Column::Numbers { id: QUANTION_SECTION_CHROM_FROM, values: &from },
-            Column::Numbers { id: QUANTION_SECTION_CHROM_TO, values: &to },
-            Column::Numbers { id: QUANTION_SECTION_CHROM_INTENSITY, values: &intensity },
-            Column::Numbers { id: QUANTION_SECTION_CHROM_INTEGRAL, values: &integral },
-            Column::Numbers { id: QUANTION_SECTION_CHROM_TOTAL_AREA, values: &total_area },
+            Column::Counts {
+                id: QUANTION_SECTION_CHROM_INDEX,
+                values: &index,
+            },
+            Column::Numbers {
+                id: QUANTION_SECTION_CHROM_TARGET_RT,
+                values: &target_rt,
+            },
+            Column::Numbers {
+                id: QUANTION_SECTION_CHROM_RT,
+                values: &rt,
+            },
+            Column::Numbers {
+                id: QUANTION_SECTION_CHROM_FROM,
+                values: &from,
+            },
+            Column::Numbers {
+                id: QUANTION_SECTION_CHROM_TO,
+                values: &to,
+            },
+            Column::Numbers {
+                id: QUANTION_SECTION_CHROM_INTENSITY,
+                values: &intensity,
+            },
+            Column::Numbers {
+                id: QUANTION_SECTION_CHROM_INTEGRAL,
+                values: &integral,
+            },
+            Column::Numbers {
+                id: QUANTION_SECTION_CHROM_TOTAL_AREA,
+                values: &total_area,
+            },
             Column::Text {
                 starts_id: QUANTION_SECTION_CHROM_ID_STARTS,
                 bytes_id: QUANTION_SECTION_CHROM_ID_BYTES,
@@ -2335,11 +2522,11 @@ fn push_u64_le(bytes: &mut Vec<u8>, value: u64) {
     bytes.extend_from_slice(&value.to_le_bytes());
 }
 
-fn pack_byte_ranges(ranges: &[ByteRange]) -> Box<[u8]> {
-    let mut bytes = Vec::with_capacity(ranges.len() * 16);
-    for range in ranges {
-        push_u64_le(&mut bytes, range.offset);
-        push_u64_le(&mut bytes, range.length);
+fn pack_byte_ranges(ranges: impl IntoIterator<Item = (u64, u64)>) -> Box<[u8]> {
+    let mut bytes = Vec::new();
+    for (offset, length) in ranges {
+        push_u64_le(&mut bytes, offset);
+        push_u64_le(&mut bytes, length);
     }
     bytes.into_boxed_slice()
 }
@@ -2368,11 +2555,9 @@ fn build_peak_options(opts: *const CPeakOptions) -> FindPeaksOptions {
             auto_noise: Some(o.auto_noise != 0),
             auto_baseline: Some(o.auto_baseline != 0),
             allow_overlap: Some(o.allow_overlap != 0),
-            min_snr: Some(if o.min_snr.is_finite() && o.min_snr > 0.0 {
-                o.min_snr
-            } else {
-                1.5
-            }),
+            min_snr: (o.min_snr.is_finite() && o.min_snr > 0.0)
+                .then_some(o.min_snr)
+                .or(PeakFilter::default().min_snr),
             noise_method: None,
             kernel_size: (o.kernel_size > 0).then_some(o.kernel_size as usize),
         }),
@@ -2394,12 +2579,9 @@ fn build_peak_options(opts: *const CPeakOptions) -> FindPeaksOptions {
 
 #[cfg(test)]
 mod tests {
-    use ionic::{
-        mzml::structs::{
-            BinaryDataArray, BinaryDataArrayList, CvParam, NumericArray, NumericType, Run, Scan,
-            ScanList, Spectrum, SpectrumList,
-        },
-        write_mzml_to_ion,
+    use ionic::mzml::structs::{
+        BinaryDataArray, BinaryDataArrayList, CvParam, NumericArray, NumericType, Run, Scan,
+        ScanList, Spectrum, SpectrumList,
     };
 
     use super::*;
@@ -2426,19 +2608,13 @@ mod tests {
 
     #[test]
     fn zero_len_returns_empty_and_never_calls_read() {
-        use ionic::ion::ByteRange;
-
         let fake = FakeReader {
             data: vec![1, 2, 3, 4, 5],
             call_count: std::sync::atomic::AtomicUsize::new(0),
             return_code: 0,
         };
 
-        let range = ByteRange {
-            offset: 100,
-            length: 0,
-        };
-        let value = read_range(&fake, range).unwrap();
+        let value = read_range(&fake, 100, 0).unwrap();
 
         assert_eq!(value.len(), 0);
         assert_eq!(fake.call_count.load(std::sync::atomic::Ordering::SeqCst), 0);
@@ -2446,57 +2622,39 @@ mod tests {
 
     #[test]
     fn non_zero_read_calls_reader_once() {
-        use ionic::ion::ByteRange;
-
         let fake = FakeReader {
             data: vec![10, 20, 30, 40, 50],
             call_count: std::sync::atomic::AtomicUsize::new(0),
             return_code: 0,
         };
 
-        let range = ByteRange {
-            offset: 0,
-            length: 3,
-        };
-        let _result = read_range(&fake, range).unwrap();
+        let _result = read_range(&fake, 0, 3).unwrap();
 
         assert_eq!(fake.call_count.load(std::sync::atomic::Ordering::SeqCst), 1);
     }
 
     #[test]
     fn negative_return_code_becomes_error() {
-        use ionic::ion::ByteRange;
-
         let fake = FakeReader {
             data: vec![10, 20, 30],
             call_count: std::sync::atomic::AtomicUsize::new(0),
             return_code: -1,
         };
 
-        let range = ByteRange {
-            offset: 0,
-            length: 2,
-        };
-        let result = read_range(&fake, range);
+        let result = read_range(&fake, 0, 2);
 
         assert!(result.is_err());
     }
 
     #[test]
     fn len_exceeding_u32_max_returns_error_without_allocation() {
-        use ionic::ion::ByteRange;
-
         let fake = FakeReader {
             data: vec![1, 2, 3],
             call_count: std::sync::atomic::AtomicUsize::new(0),
             return_code: 0,
         };
 
-        let range = ByteRange {
-            offset: 0,
-            length: u64::from(u32::MAX) + 1,
-        };
-        let result = read_range(&fake, range);
+        let result = read_range(&fake, 0, u64::from(u32::MAX) + 1);
 
         assert!(result.is_err());
         assert_eq!(fake.call_count.load(std::sync::atomic::Ordering::SeqCst), 0);
@@ -2622,12 +2780,8 @@ mod tests {
     }
 
     fn open_ion(bytes: Vec<u8>) -> *mut ParsedFile {
-        let bytes_arc = Arc::from(bytes.into_boxed_slice());
-        let ion = IonReader::open_source(
-            Arc::new(ionic::ion::BytesSource::new(bytes_arc)) as Arc<dyn ionic::ion::ReadBytes>,
-            ReadOptions::default(),
-        )
-        .expect("IonReader::open_bytes failed");
+        let ion = IonReader::from_bytes(&bytes, &ReadOptions::default())
+            .expect("IonReader::from_bytes failed");
         Box::into_raw(Box::new(ParsedFile::new(FileSource::Lazy(Box::new(ion)))))
     }
 
@@ -2731,18 +2885,7 @@ mod tests {
 
     #[test]
     fn pack_byte_ranges_writes_little_endian_pairs() {
-        let ranges = vec![
-            ByteRange {
-                offset: 100,
-                length: 32,
-            },
-            ByteRange {
-                offset: 5000,
-                length: 64,
-            },
-        ];
-
-        let bytes = pack_byte_ranges(&ranges);
+        let bytes = pack_byte_ranges([(100, 32), (5000, 64)]);
 
         assert_eq!(bytes.len(), 32);
         assert_eq!(decode_byte_ranges(&bytes), vec![(100, 32), (5000, 64)]);
@@ -2885,11 +3028,11 @@ mod tests {
         let file_len = bytes.len() as u64;
         let reader = std::sync::Arc::new(RecordingReader::new(bytes));
         let read_source = reader.clone();
-        let mut ion = ionic::ion::IonReader::open_source(
-            Arc::new(ionic::ion::CallbackSource::new(move |range| {
-                read_range(&*read_source, range)
-            })) as Arc<dyn ionic::ion::ReadBytes>,
-            ReadOptions::default(),
+        let mut ion = IonReader::new(
+            Arc::new(CallbackSource::new(move |range| {
+                read_range(&*read_source, range.offset, range.length)
+            })) as Arc<dyn ReadBytes>,
+            &ReadOptions::default(),
         )
         .expect("open_remote failed");
 
@@ -2940,11 +3083,11 @@ mod tests {
         let reader = std::sync::Arc::new(RecordingReader::new(windowed_ion_bytes()));
         reader.set_fail(true);
         let read_source = reader.clone();
-        let result = ionic::ion::IonReader::open_source(
-            Arc::new(ionic::ion::CallbackSource::new(move |range| {
-                read_range(&*read_source, range)
-            })) as Arc<dyn ionic::ion::ReadBytes>,
-            ReadOptions::default(),
+        let result = IonReader::new(
+            Arc::new(CallbackSource::new(move |range| {
+                read_range(&*read_source, range.offset, range.length)
+            })) as Arc<dyn ReadBytes>,
+            &ReadOptions::default(),
         );
         assert!(result.is_err());
     }
@@ -2953,11 +3096,11 @@ mod tests {
     fn eic_compute_errors_cleanly_when_data_read_fails() {
         let reader = std::sync::Arc::new(RecordingReader::new(windowed_ion_bytes()));
         let read_source = reader.clone();
-        let mut ion = ionic::ion::IonReader::open_source(
-            Arc::new(ionic::ion::CallbackSource::new(move |range| {
-                read_range(&*read_source, range)
-            })) as Arc<dyn ionic::ion::ReadBytes>,
-            ReadOptions::default(),
+        let mut ion = IonReader::new(
+            Arc::new(CallbackSource::new(move |range| {
+                read_range(&*read_source, range.offset, range.length)
+            })) as Arc<dyn ReadBytes>,
+            &ReadOptions::default(),
         )
         .expect("open_remote failed");
 
@@ -3003,11 +3146,11 @@ mod tests {
 
     fn open_serving_only(allowed: Vec<(u64, u64)>, data: Vec<u8>) -> bool {
         let reader = PlannedOnly { data, allowed };
-        ionic::ion::IonReader::open_source(
-            Arc::new(ionic::ion::CallbackSource::new(move |range| {
-                read_range(&reader, range)
-            })) as Arc<dyn ionic::ion::ReadBytes>,
-            ReadOptions::default(),
+        IonReader::new(
+            Arc::new(CallbackSource::new(move |range| {
+                read_range(&reader, range.offset, range.length)
+            })) as Arc<dyn ReadBytes>,
+            &ReadOptions::default(),
         )
         .is_ok()
     }
@@ -3080,12 +3223,7 @@ mod tests {
     }
 
     fn reader_for(bytes: Vec<u8>) -> IonReader {
-        let bytes_arc = Arc::from(bytes.into_boxed_slice());
-        IonReader::open_source(
-            Arc::new(ionic::ion::BytesSource::new(bytes_arc)) as Arc<dyn ionic::ion::ReadBytes>,
-            ReadOptions::default(),
-        )
-        .expect("open_source failed")
+        IonReader::from_bytes(&bytes, &ReadOptions::default()).expect("from_bytes failed")
     }
 
     #[test]
@@ -3107,11 +3245,11 @@ mod tests {
             plan_window_ranges(&mut ion, 1.0, 3.0, 499.0, 501.0).expect("minute plan failed");
         let from_seconds = ion
             .eic_byte_ranges(
-                ionic::ion::Range {
+                ionic::Range {
                     from: 499.0,
                     to: 501.0,
                 },
-                Some(ionic::ion::Range {
+                Some(ionic::Range {
                     from: 60.0,
                     to: 180.0,
                 }),
@@ -3131,7 +3269,7 @@ mod tests {
         );
     }
 
-    fn covers(planned: &[(u64, u64)], range: &ionic::ion::ByteRange) -> bool {
+    fn covers(planned: &[(u64, u64)], range: &ByteRange) -> bool {
         planned.iter().any(|(offset, length)| {
             *offset <= range.offset && offset + length >= range.offset + range.length
         })
@@ -3141,12 +3279,11 @@ mod tests {
     fn plan_open_coalesces() {
         let small = windowed_ion_bytes();
         let planned = planned_ranges_for(&small);
-        assert_eq!(
-            planned,
-            vec![(0, small.len() as u64)],
-            "a file under the open gap collapses to one range"
+        assert!(
+            planned[0].0 == 0 && planned[0].1 > 1024,
+            "the header range should merge with the sections next to it: {planned:?}"
         );
-        for range in open_ranges(&small[..1024]).expect("open_ranges") {
+        for range in header_ranges(&small[..1024]).expect("header_ranges") {
             assert!(covers(&planned, &range), "{range:?} is not covered");
         }
 
@@ -3155,7 +3292,7 @@ mod tests {
         assert_eq!(planned.len(), 2, "expected header and tail: {planned:?}");
         assert_eq!(planned[0], (0, 1024));
         assert_eq!(planned[1].0 + planned[1].1, large.len() as u64);
-        for range in open_ranges(&large[..1024]).expect("open_ranges") {
+        for range in header_ranges(&large[..1024]).expect("header_ranges") {
             assert!(covers(&planned, &range), "{range:?} is not covered");
         }
     }
@@ -3191,15 +3328,15 @@ mod tests {
         ]
     }
 
-    fn open_recording_ion(reader: &Arc<RecordingReader>) -> ionic::ion::IonReader {
+    fn open_recording_ion(reader: &Arc<RecordingReader>) -> IonReader {
         let read_source = reader.clone();
-        ionic::ion::IonReader::open_source(
-            Arc::new(ionic::ion::CallbackSource::new(move |range| {
-                read_range(&*read_source, range)
-            })) as Arc<dyn ionic::ion::ReadBytes>,
-            ReadOptions::default(),
+        IonReader::new(
+            Arc::new(CallbackSource::new(move |range| {
+                read_range(&*read_source, range.offset, range.length)
+            })) as Arc<dyn ReadBytes>,
+            &ReadOptions::default(),
         )
-        .expect("open_source failed")
+        .expect("IonReader::new failed")
     }
 
     #[test]
@@ -3295,13 +3432,13 @@ mod tests {
 
             let gate = Arc::new(PlanGate::new(bytes));
             let read_source = gate.clone();
-            let mut served = ionic::ion::IonReader::open_source(
-                Arc::new(ionic::ion::CallbackSource::new(move |range| {
-                    read_range(&*read_source, range)
-                })) as Arc<dyn ionic::ion::ReadBytes>,
-                ReadOptions::default(),
+            let mut served = IonReader::new(
+                Arc::new(CallbackSource::new(move |range| {
+                    read_range(&*read_source, range.offset, range.length)
+                })) as Arc<dyn ReadBytes>,
+                &ReadOptions::default(),
             )
-            .expect("open_source failed");
+            .expect("IonReader::new failed");
 
             let plan = plan_scan_ranges(&mut served, query, TimeUnit::Minutes, 0)
                 .expect("plan_scan_ranges failed");

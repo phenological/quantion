@@ -1,6 +1,6 @@
 [package]
 name = "quantion"
-version = "0.1.2"
+version = "0.1.3"
 edition = "2024"
 
 [lib]
@@ -17,12 +17,16 @@ strip = "symbols"
 
 [dependencies]
 bytes = "1.12.1"
-ionic-rs = "0.1.3"
+ionic-rs = "0.2.0"
 memmap2 = "0.9.11"
 serde = { version = "1.0.229", features = ["derive", "rc"] }
 
 [target.'cfg(not(all(target_arch = "wasm32", not(target_os = "wasi"))))'.dependencies]
 rayon = "1.12.0"
+ureq = { version = "3.4.2", optional = true }
 
 [build-dependencies]
 cbindgen = "0.29.4"
+
+[features]
+http = ["dep:ureq"]

@@ -1,4 +1,4 @@
-use ionic::ion::{ByteRange, IonReader};
+use ionic::{IonReader, source::ByteRange};
 
 use crate::utilities::{
     calculate_eic::{
