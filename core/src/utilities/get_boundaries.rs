@@ -1,3 +1,5 @@
+use std::ops::RangeInclusive;
+
 use crate::utilities::{
     cheminfo::sgg::{SggOptions, sgg},
     closest_index,
@@ -33,6 +35,67 @@ impl Default for BoundariesOptions {
     }
 }
 
+pub(crate) struct SmoothedSignal<'a> {
+    pub(crate) x: &'a [f64],
+    pub(crate) values: Vec<f64>,
+    pub(crate) point_weight: f64,
+    pub(crate) half_window: usize,
+}
+
+impl<'a> SmoothedSignal<'a> {
+    pub(crate) fn new(data: &'a DataXY, options: &BoundariesOptions) -> Self {
+        let Some(window) = usable_window(options.smooth_window, data.y.len()) else {
+            return Self {
+                x: &data.x,
+                values: data.y.to_vec(),
+                point_weight: 1.0,
+                half_window: 0,
+            };
+        };
+        let smoothing = SggOptions {
+            window_size: window,
+            derivative: 0,
+            polynomial: options.smooth_polynomial,
+        };
+        Self {
+            x: &data.x,
+            values: sgg(&data.y, &data.x, smoothing),
+            point_weight: get_point_weight(smoothing),
+            half_window: window / 2,
+        }
+    }
+
+    pub(crate) fn get_noise_band(&self, noise: f64) -> f64 {
+        noise * self.point_weight.sqrt()
+    }
+
+    pub(crate) fn find_top(&self, start: usize) -> usize {
+        let values = &self.values;
+        let mut top = start;
+        loop {
+            let left = top.checked_sub(1);
+            let right = (top + 1 < values.len()).then_some(top + 1);
+            let higher = [left, right]
+                .into_iter()
+                .flatten()
+                .filter(|&index| values[index] > values[top])
+                .max_by(|&left, &right| values[left].total_cmp(&values[right]));
+            match higher {
+                Some(index) => top = index,
+                None => return top,
+            }
+        }
+    }
+}
+
+fn get_point_weight(smoothing: SggOptions) -> f64 {
+    let window = smoothing.window_size;
+    let mut single_point = vec![0.0; 2 * window + 1];
+    single_point[window] = 1.0;
+    let equal_step = [1.0];
+    sgg(&single_point, &equal_step, smoothing)[window]
+}
+
 pub fn get_boundaries(
     data: &DataXY,
     peak_x: f64,
@@ -53,10 +116,29 @@ pub fn get_boundaries(
     }
 
     let options = options.unwrap_or_default();
-    let apex_index = closest_index(&data.x, peak_x);
-    let lowest_value = min_value(&data.y);
+    let smoothed = SmoothedSignal::new(data, &options);
+    let apex_index = smoothed.find_top(closest_index(&data.x, peak_x));
 
-    find_edges(data, apex_index, &options, lowest_value)
+    find_boundaries(&smoothed, apex_index, 0..=n - 1, 0.0, &options)
+}
+
+pub(crate) fn find_boundaries(
+    smoothed: &SmoothedSignal,
+    apex_index: usize,
+    search_range: RangeInclusive<usize>,
+    noise: f64,
+    options: &BoundariesOptions,
+) -> Boundaries {
+    let values = &smoothed.values;
+    let lowest_value = min_value(&values[search_range.clone()]);
+    let floor = lowest_value.max(smoothed.get_noise_band(noise)) + options.min_slope_step;
+    let left_path = (*search_range.start()..apex_index).rev();
+    let right_path = apex_index + 1..=*search_range.end();
+
+    Boundaries {
+        from: boundary_at(smoothed.x, find_edge(values, apex_index, left_path, floor)),
+        to: boundary_at(smoothed.x, find_edge(values, apex_index, right_path, floor)),
+    }
 }
 
 fn min_value(values: &[f64]) -> f64 {
@@ -74,58 +156,35 @@ fn usable_window(requested: usize, length: usize) -> Option<usize> {
     (window >= 5).then_some(window)
 }
 
-fn find_edges(
-    data: &DataXY,
+fn find_edge(
+    values: &[f64],
     apex_index: usize,
-    options: &BoundariesOptions,
-    lowest_value: f64,
-) -> Boundaries {
-    let smoothed = match usable_window(options.smooth_window, data.y.len()) {
-        Some(window) => sgg(
-            &data.y,
-            &data.x,
-            SggOptions {
-                window_size: window,
-                derivative: 0,
-                polynomial: options.smooth_polynomial,
-            },
-        ),
-        None => data.y.to_vec(),
-    };
-
-    let floor = lowest_value + options.min_slope_step;
-
-    Boundaries {
-        from: find_edge(&data.x, &smoothed, apex_index, -1, floor),
-        to: find_edge(&data.x, &smoothed, apex_index, 1, floor),
+    mut path: impl Iterator<Item = usize>,
+    floor: f64,
+) -> usize {
+    let mut lowest_index = apex_index;
+    let mut lowest_value = f64::INFINITY;
+    while let Some(index) = path.next() {
+        if values[index] <= floor {
+            return follow_falling_signal(values, index, path);
+        }
+        if values[index] < lowest_value {
+            lowest_index = index;
+            lowest_value = values[index];
+        }
     }
+    lowest_index
 }
 
-fn find_edge(
-    x: &[f64],
-    smoothed: &[f64],
-    apex_index: usize,
-    direction: isize,
-    floor: f64,
-) -> Boundary {
-    let length = smoothed.len() as isize;
-    let mut current = apex_index as isize;
-    let mut lowest = smoothed[apex_index];
-    let mut lowest_index = apex_index;
-
-    while current + direction >= 0 && current + direction < length {
-        let next = (current + direction) as usize;
-        if smoothed[next] <= floor {
-            return boundary_at(x, next);
+fn follow_falling_signal(values: &[f64], start: usize, path: impl Iterator<Item = usize>) -> usize {
+    let mut current = start;
+    for next in path {
+        if values[next] >= values[current] {
+            break;
         }
-        if smoothed[next] < lowest {
-            lowest = smoothed[next];
-            lowest_index = next;
-        }
-        current = next as isize;
+        current = next;
     }
-
-    boundary_at(x, lowest_index)
+    current
 }
 
 fn boundary_at(x: &[f64], index: usize) -> Boundary {
@@ -280,6 +339,42 @@ mod tests {
         assert!(
             cut_to >= 5.2,
             "right edge {cut_to} should follow the data to its truncated end"
+        );
+    }
+
+    #[test]
+    fn edges_never_return_the_apex() {
+        let x = grid(0.0, 1.0, 40);
+        let y: Vec<f64> = x.iter().map(|&v| bell(v, 0.5, 1.0, 0.1)).collect();
+        let data = DataXY { x, y };
+        let apex = closest_index(&data.x, 0.5);
+
+        let edges = get_boundaries(&data, 0.5, Some(BoundariesOptions::default()));
+        let from = edges.from.index.unwrap();
+        let to = edges.to.index.unwrap();
+
+        assert!(
+            from < apex && apex < to,
+            "edges [{from}, {to}] must bracket the apex {apex}"
+        );
+    }
+
+    #[test]
+    fn walk_starts_from_the_smoothed_top() {
+        let x = grid(0.0, 1.0, 200);
+        let mut y: Vec<f64> = x.iter().map(|&v| bell(v, 0.5, 1.0, 0.03)).collect();
+        let apex = closest_index(&x, 0.5);
+        y[apex] *= 0.85;
+        let seed = x[apex - 2];
+        let data = DataXY { x, y };
+
+        let edges = get_boundaries(&data, seed, Some(BoundariesOptions::default()));
+        let from = edges.from.value.unwrap();
+        let to = edges.to.value.unwrap();
+
+        assert!(
+            from < 0.48 && to > 0.52,
+            "bracket [{from}, {to}] must span the whole peak"
         );
     }
 

@@ -22,6 +22,8 @@ pub use find_noise_level::{find_noise_level, find_noise_level_san_plot};
 
 pub mod find_peaks;
 
+pub(crate) mod merge_tops;
+
 pub mod shape_filter;
 
 pub mod fit_peak;

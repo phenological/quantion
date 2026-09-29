@@ -512,12 +512,12 @@ fn find_6_peaks_344_226_6() {
     );
 
     dump_peaks(&peaks);
-    assert_eq!(peaks.len(), 3);
+    assert_eq!(peaks.len(), 2);
 
-    assert!(approx_eq(peaks[1].rt, 3.01, 0.03));
-    assert!(approx_eq(peaks[2].rt, 5.60, 0.03));
-    assert!(approx_eq(peaks[1].intensity, 1850.0, 10.0));
-    assert!(approx_eq(peaks[2].intensity, 15356.0, 10.0));
+    assert!(approx_eq(peaks[0].rt, 3.01, 0.03));
+    assert!(approx_eq(peaks[1].rt, 5.60, 0.03));
+    assert!(approx_eq(peaks[0].intensity, 1850.0, 10.0));
+    assert!(approx_eq(peaks[1].intensity, 15356.0, 10.0));
 }
 
 #[test]
@@ -621,7 +621,7 @@ fn find_3_peaks_260_103_6() {
     );
 
     dump_peaks(&peaks);
-    assert_eq!(peaks.len(), 5);
+    assert_eq!(peaks.len(), 4);
 
     assert!(approx_eq(peaks[0].rt, 2.087, 0.03));
     assert!(approx_eq(peaks[1].rt, 2.190, 0.03));
