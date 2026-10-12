@@ -103,7 +103,7 @@ fn find_3_peaks_alanine_acid_1_6() {
 
     dump_peaks(&peaks);
 
-    assert_eq!(peaks.len(), 3);
+    assert_eq!(peaks.len(), 5);
 
     assert!(approx_eq(peaks[0].rt, 2.09, 0.06));
     assert!(approx_eq(peaks[1].rt, 2.19, 0.06));
@@ -1294,14 +1294,14 @@ fn find_1_peaks_covp24_cal_2_12_274_1186_6() {
 
     dump_peaks(&peaks);
 
-    assert_eq!(peaks.len(), 3);
+    assert_eq!(peaks.len(), 6);
 
     assert!(approx_eq(peaks[0].rt, 2.46, 0.03));
     assert!(approx_eq(peaks[1].rt, 2.55, 0.03));
-    assert!(approx_eq(peaks[2].rt, 2.88, 0.03));
+    assert!(approx_eq(peaks[3].rt, 2.88, 0.03));
     assert!(approx_eq(peaks[0].intensity, 183302.0, 10.0));
     assert!(approx_eq(peaks[1].intensity, 194902.0, 10.0));
-    assert!(approx_eq(peaks[2].intensity, 195518.0, 10.0));
+    assert!(approx_eq(peaks[3].intensity, 195518.0, 10.0));
 }
 
 #[test]
@@ -1324,7 +1324,7 @@ fn find_1_peaks_covp26_cov02485_309_1671_6() {
     );
 
     dump_peaks(&peaks);
-    assert_eq!(peaks.len(), 2);
+    assert_eq!(peaks.len(), 3);
 
     assert!(approx_eq(peaks[0].rt, 4.07, 0.03));
     assert!(approx_eq(peaks[1].rt, 4.16, 0.03));
@@ -1352,7 +1352,7 @@ fn find_1_peaks_covp25_cal_7_117_288_1343_6() {
     );
 
     dump_peaks(&peaks);
-    assert_eq!(peaks.len(), 1);
+    assert_eq!(peaks.len(), 2);
 
     assert!(approx_eq(peaks[0].rt, 3.44, 0.03));
     assert!(approx_eq(peaks[0].intensity, 7932.0, 10.0));

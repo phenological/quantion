@@ -2,18 +2,19 @@ use crate::utilities::get_boundaries::SmoothedSignal;
 
 const DETECTION_LIMIT_IN_SIGMA: f64 = 3.0;
 
-pub(crate) fn merge_tops(
+pub(crate) fn resolve_apexes(
     signal: &[f64],
     smoothed: &SmoothedSignal,
     seeds: &[usize],
     noise: f64,
+    top_valley_drop: Option<f64>,
 ) -> Vec<usize> {
     let mut tops: Vec<usize> = seeds.iter().map(|&seed| smoothed.find_top(seed)).collect();
     tops.sort_unstable();
     tops.dedup();
 
-    let valley_test = ValleyTest::new(signal, smoothed, noise);
-    while let Some(position) = valley_test.find_weakest_hidden_valley(&tops) {
+    let detector = ValleyDetector::new(signal, smoothed, noise, top_valley_drop);
+    while let Some(position) = detector.find_least_significant_valley(&tops) {
         tops.remove(position);
     }
     tops
@@ -24,15 +25,21 @@ struct Valley {
     depth_in_sigma: f64,
 }
 
-struct ValleyTest<'a> {
+struct ValleyDetector<'a> {
     signal: &'a [f64],
     smoothed: &'a SmoothedSignal<'a>,
     noise_band: f64,
     depth_sigma_per_residual: f64,
+    top_valley_drop: Option<f64>,
 }
 
-impl<'a> ValleyTest<'a> {
-    fn new(signal: &'a [f64], smoothed: &'a SmoothedSignal<'a>, noise: f64) -> Self {
+impl<'a> ValleyDetector<'a> {
+    fn new(
+        signal: &'a [f64],
+        smoothed: &'a SmoothedSignal<'a>,
+        noise: f64,
+        top_valley_drop: Option<f64>,
+    ) -> Self {
         let point_weight = smoothed.point_weight;
         let depth_sigma_per_residual = if point_weight < 1.0 {
             (2.0 * point_weight / (1.0 - point_weight)).sqrt()
@@ -44,10 +51,11 @@ impl<'a> ValleyTest<'a> {
             smoothed,
             noise_band: smoothed.get_noise_band(noise),
             depth_sigma_per_residual,
+            top_valley_drop,
         }
     }
 
-    fn find_weakest_hidden_valley(&self, tops: &[usize]) -> Option<usize> {
+    fn find_least_significant_valley(&self, tops: &[usize]) -> Option<usize> {
         tops.windows(2)
             .enumerate()
             .filter_map(|(position, pair)| self.measure_valley(position, pair[0], pair[1]))
@@ -67,6 +75,12 @@ impl<'a> ValleyTest<'a> {
             (right_top, position + 1)
         };
         let depth = self.value(lower_top) - self.value(bottom);
+        if self
+            .top_valley_drop
+            .is_some_and(|drop| depth >= drop * self.value(lower_top))
+        {
+            return None;
+        }
         let depth_sigma = self.get_depth_sigma(lower_top.min(bottom), lower_top.max(bottom));
         let depth_in_sigma = if depth > 0.0 {
             depth / depth_sigma
@@ -120,7 +134,7 @@ mod tests {
             y,
         };
         let smoothed = SmoothedSignal::new(&data, &BoundariesOptions::default());
-        merge_tops(&data.y, &smoothed, seeds, noise)
+        resolve_apexes(&data.y, &smoothed, seeds, noise, None)
     }
 
     #[test]

@@ -8,7 +8,7 @@ use crate::utilities::{
     fit_peak::PeakShape,
     get_boundaries::{Boundaries, BoundariesOptions, SmoothedSignal, find_boundaries},
     math::xy_integration,
-    merge_tops::merge_tops,
+    resolve_apexes::resolve_apexes,
     scan_for_peaks::scan_for_peaks,
     shape_filter::{Candidate, ShapeFilter},
     structs::{DataXY, Peak},
@@ -125,7 +125,32 @@ impl Default for FindPeaksOptions {
     }
 }
 
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct Separation {
+    pub(crate) valley_drop: f64,
+    pub(crate) top_valley_drop: Option<f64>,
+}
+
+impl Separation {
+    pub(crate) const ANY_PEAK: Self = Self {
+        valley_drop: 0.70,
+        top_valley_drop: None,
+    };
+    pub(crate) const EXPECTED_PEAK: Self = Self {
+        valley_drop: 0.50,
+        top_valley_drop: Some(0.50),
+    };
+}
+
 pub fn find_peaks(data: &DataXY, options: Option<FindPeaksOptions>) -> Vec<Peak> {
+    find_separated_peaks(data, options, Separation::ANY_PEAK)
+}
+
+pub(crate) fn find_separated_peaks(
+    data: &DataXY,
+    options: Option<FindPeaksOptions>,
+    separation: Separation,
+) -> Vec<Peak> {
     let o = options.unwrap_or_default();
     let filter = o.filter.unwrap_or_default();
     let base_opts = o.baseline.unwrap_or_default();
@@ -179,7 +204,13 @@ pub fn find_peaks(data: &DataXY, options: Option<FindPeaksOptions>) -> Vec<Peak>
         .map(|&seed_rt| closest_index(&normalized_data.x, seed_rt))
         .filter(|&seed_index| normalized_data.y[seed_index] > noise)
         .collect();
-    let tops = merge_tops(&boundary_input.y, &smoothed, &seeds, noise);
+    let tops = resolve_apexes(
+        &boundary_input.y,
+        &smoothed,
+        &seeds,
+        noise,
+        separation.top_valley_drop,
+    );
 
     let mut candidates: Vec<PeakCandidate> = Vec::with_capacity(tops.len());
     for (position, &top) in tops.iter().enumerate() {
@@ -261,7 +292,13 @@ pub fn find_peaks(data: &DataXY, options: Option<FindPeaksOptions>) -> Vec<Peak>
     }
 
     if peaks.len() > 1 {
-        peaks = keep_prominent_peaks(data, &normalized_data.y, noise, peaks);
+        peaks = keep_prominent_peaks(
+            data,
+            &normalized_data.y,
+            noise,
+            separation.valley_drop,
+            peaks,
+        );
     }
 
     if !allow_overlap && peaks.len() > 1 {
@@ -515,7 +552,6 @@ fn suppress_contained_peaks(
     out
 }
 
-const SEPARATE_VALLEY_DROP: f64 = 0.70;
 const COMPARABLE_HEIGHT_RATIO: f64 = 0.50;
 const COMPARABLE_MIN_VALLEY_DROP: f64 = 0.10;
 const SEPARATE_PROMINENCE_NOISE_MULT: f64 = 5.0;
@@ -524,6 +560,7 @@ fn keep_prominent_peaks(
     data: &DataXY,
     centered: &[f64],
     noise: f64,
+    valley_drop: f64,
     peaks: Vec<Peak>,
 ) -> Vec<Peak> {
     let mut kept: Vec<Peak> = Vec::with_capacity(peaks.len());
@@ -537,7 +574,7 @@ fn keep_prominent_peaks(
             let smaller = last_height.min(peak_height);
             let taller = last_height.max(peak_height);
             let prominence = (smaller - valley).max(0.0);
-            if !peaks_are_separate(prominence, smaller, taller, noise) {
+            if !are_peaks_resolved(prominence, smaller, taller, noise, valley_drop) {
                 let merged = merge_peaks(data, last, peak);
                 kept.pop();
                 kept.push(merged);
@@ -568,16 +605,17 @@ fn height_at(values: &[f64], index: usize) -> f64 {
     values.get(index).copied().unwrap_or(0.0)
 }
 
-fn peaks_are_separate(
+fn are_peaks_resolved(
     prominence: f64,
     smaller_height: f64,
     taller_height: f64,
     noise: f64,
+    valley_drop: f64,
 ) -> bool {
     if smaller_height <= 0.0 {
         return false;
     }
-    let well_resolved = prominence >= SEPARATE_VALLEY_DROP * smaller_height;
+    let well_resolved = prominence >= valley_drop * smaller_height;
     let comparable_pair = smaller_height >= COMPARABLE_HEIGHT_RATIO * taller_height
         && prominence >= COMPARABLE_MIN_VALLEY_DROP * smaller_height;
     let far_above_noise = noise > 0.0 && prominence > SEPARATE_PROMINENCE_NOISE_MULT * noise;

@@ -7,7 +7,7 @@ use std::{
 use quantion::utilities::{find_noise_level::find_noise_level, structs::DataXY};
 
 mod helpers;
-use helpers::{Eic, approx_eq, load_chromatograms_from};
+use helpers::{Eic, approx_eq, jitter, load_chromatograms_from};
 
 struct Test {
     data: DataXY,
@@ -233,4 +233,30 @@ fn noise_matches_chrom_12() {
     println!("---::>> got: {}, expected{}", noise, test.noise);
     print!("{noise}");
     assert!(approx_eq(test.noise, noise, 0.1));
+}
+
+fn add_peak(y: &mut [f64], center: usize, half_width: usize, height: f64) {
+    let start = center - half_width;
+    let sigma = half_width as f64 / 2.0;
+    for (offset, value) in y[start..=center + half_width].iter_mut().enumerate() {
+        let distance = (start + offset) as f64 - center as f64;
+        *value = height * (-0.5 * (distance / sigma).powi(2)).exp();
+    }
+}
+
+#[test]
+fn noise_ignores_small_peak_next_to_large_peak() {
+    let mut y = vec![0.0; 800];
+    for (step, start) in (0..800).step_by(8).enumerate() {
+        let width = 1 + step % 2;
+        for (offset, value) in y[start..start + width].iter_mut().enumerate() {
+            *value = 60.0 + 100.0 * jitter((start + offset) as u32).abs();
+        }
+    }
+    add_peak(&mut y, 200, 3, 800.0);
+    add_peak(&mut y, 500, 20, 100000.0);
+
+    let noise = find_noise_level(&y);
+
+    assert!(noise.intensity < 200.0);
 }

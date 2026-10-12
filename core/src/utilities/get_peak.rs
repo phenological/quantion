@@ -1,5 +1,5 @@
 use crate::utilities::{
-    find_peaks::{FindPeaksOptions, find_peaks},
+    find_peaks::{FindPeaksOptions, Separation, find_separated_peaks},
     structs::{DataXY, Peak, Roi},
 };
 
@@ -24,7 +24,7 @@ pub fn get_peak(data: &DataXY, roi: &Roi, options: Option<FindPeaksOptions>) -> 
         return Peak::default();
     }
 
-    let peaks = find_peaks(section, options);
+    let peaks = find_separated_peaks(section, options, Separation::EXPECTED_PEAK);
     let max_drift = if range.is_finite() && range > 0.0 {
         range
     } else {

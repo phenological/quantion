@@ -41,11 +41,12 @@ where
     let labels = cluster_intensities(&segments, params);
 
     let noise_label = 0usize;
+    let still_high_chance = find_still_high_chance(&segments, &labels, noise_label);
 
     let mut max_in_noise = f64::NEG_INFINITY;
     let mut max_noise_width = 0usize;
     for (i, &Segment { width, intensity }) in segments.iter().enumerate() {
-        if labels[i] == noise_label {
+        if labels[i] == noise_label && is_noise_run(width, still_high_chance) {
             if intensity.is_finite() && intensity > max_in_noise {
                 max_in_noise = intensity;
             }
@@ -156,6 +157,28 @@ impl Default for ClusterParams {
             intensity_weight: 1.0,
         }
     }
+}
+
+const NOISE_WIDTH_SIGNIFICANCE: f64 = 0.05;
+
+fn find_still_high_chance(segments: &[Segment], labels: &[usize], noise_label: usize) -> f64 {
+    let mut segment_count = 0usize;
+    let mut point_count = 0usize;
+    for (segment, &label) in segments.iter().zip(labels) {
+        if label == noise_label {
+            segment_count += 1;
+            point_count += segment.width;
+        }
+    }
+    if point_count == 0 {
+        return 0.0;
+    }
+    1.0 - segment_count as f64 / point_count as f64
+}
+
+fn is_noise_run(width: usize, still_high_chance: f64) -> bool {
+    let width_chance = still_high_chance.powf((width - 1) as f64);
+    width_chance >= NOISE_WIDTH_SIGNIFICANCE
 }
 
 struct Segment {
