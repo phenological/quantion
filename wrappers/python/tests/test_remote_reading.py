@@ -11,10 +11,10 @@ MZ_TOLERANCE = 0.005
 FILE_TOTAL = 34241
 HEADER_BYTES = 1024
 
-BYTES_TO_OPEN = 28326
+BYTES_TO_OPEN = 16911
 BYTES_NEVER_FETCHED = FILE_TOTAL - BYTES_TO_OPEN
-REQUESTS_TO_OPEN = 3
-CACHE_AFTER_OPEN = [(0, HEADER_BYTES), (0, 2822), (9761, 24480)]
+REQUESTS_TO_OPEN = 4
+CACHE_AFTER_OPEN = [(0, HEADER_BYTES), (0, 2822), (9761, 9598), (30774, 3467)]
 BYTES_FOR_ONE_QUERY = 0
 REQUESTS_FOR_ONE_QUERY = 0
 
@@ -116,7 +116,7 @@ class RemoteReading(unittest.TestCase):
         self.open_remote()
         self.assertEqual(self.server.bytes_sent, BYTES_TO_OPEN)
 
-    def test_opening_takes_three_requests(self):
+    def test_opening_takes_four_requests(self):
         self.open_remote()
         self.assertEqual(self.server.requests, REQUESTS_TO_OPEN)
 
@@ -148,6 +148,11 @@ class RemoteReading(unittest.TestCase):
         self.server.reset()
         self.eic_of(remote)
         self.assertEqual(self.server.requests, 0)
+
+    def test_an_upper_case_scheme_opens_the_file(self):
+        remote = support.quantion.parse_ion(self.server.url.replace("http://", "HTTP://"))
+        self.addCleanup(remote.dispose)
+        self.assertEqual(self.server.requests, REQUESTS_TO_OPEN)
 
     def test_a_file_over_the_gap_is_opened_in_part(self):
         server = support.RangeServer(BIG_FIXTURE)

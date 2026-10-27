@@ -143,6 +143,24 @@ Find one peak near a target retention time in XY data.
 peak = quantion.get_peak(x, y, rt=5.3, range_=0.6, options={"auto_noise": True})
 ```
 
+## Predict retention times
+
+Predict each target's retention time in a sample with an ONNX warp model. The
+model can be a path, a URL, or bytes. You get one `{"rt", "uncertainty"}` per
+target, in the same order, and choose where to use the predicted RT.
+
+```python
+warp = quantion.load_warp_model("paper_model.onnx")
+
+targets = [{"mz": 174.112, "rt": 5.3}, {"mz": 203.156, "rt": 7.1}]
+rts = quantion.predict_rts(warp, sample, targets)
+
+eic = quantion.calculate_eic(sample, target_mz=174.112, from_rt=1, to_rt=15)
+peak = quantion.get_peak(eic["x"], eic["y"], rt=rts[0]["rt"], range_=0.6)
+
+warp.dispose()
+```
+
 ## Find peaks from samples
 
 ### From EICs

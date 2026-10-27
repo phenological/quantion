@@ -4,7 +4,12 @@ declare const __INLINE__: boolean;
 declare const __WASM_DATA_URL__: string | undefined;
 declare var require: any;
 
-import type { Backend, FileHandle, ByteRangeResult } from "./backend";
+import type {
+  Backend,
+  FileHandle,
+  ByteRangeResult,
+  WarpModelHandle,
+} from "./backend";
 import type { NoiseLevel, PeakOptions } from "../types/types";
 import { toUint8 } from "./shared";
 import { readIonImage } from "./imageBridge";
@@ -359,6 +364,29 @@ class WasmExports {
     level: number,
     outBuf: number,
   ) => number;
+  readonly warpModelLoadBytes: (
+    dataPtr: number,
+    dataLen: number,
+    outPtr: number,
+    messageBuf: number,
+  ) => number;
+  readonly warpModelFree: (warp: number) => void;
+  readonly predictRtsFromFile: (
+    warp: number,
+    handle: number,
+    mzPtr: number,
+    rtPtr: number,
+    count: number,
+    outBuf: number,
+  ) => number;
+  readonly planPredictRts: (
+    warp: number,
+    handle: number,
+    mzPtr: number,
+    rtPtr: number,
+    count: number,
+    outBuf: number,
+  ) => number;
   readonly getIonImage: (
     handle: number,
     mz: number,
@@ -444,6 +472,10 @@ class WasmExports {
     this.findFeature = this.resolve(ex, ["find_feature"]);
     this.getScans = this.resolve(ex, ["get_scans"]);
     this.getIonImage = this.resolve(ex, ["get_ion_image"]);
+    this.warpModelLoadBytes = this.resolve(ex, ["warp_model_load_bytes"]);
+    this.warpModelFree = this.resolve(ex, ["warp_model_free"]);
+    this.predictRtsFromFile = this.resolve(ex, ["predict_rts_from_file"]);
+    this.planPredictRts = this.resolve(ex, ["plan_predict_rts"]);
     this.parseIonUrl =
       typeof ex["parse_ion_url"] === "function"
         ? this.guard.watch(
@@ -880,6 +912,81 @@ class WasmApi {
       range_sources.remove(sourceId);
       throw error;
     }
+  }
+
+  loadWarpModelRaw(bytes: Uint8Array): number {
+    const [ptr, len] = this.heap.allocAndWrite(bytes);
+    try {
+      const rc = this.fn.warpModelLoadBytes(
+        ptr,
+        len,
+        this.handleScratchSlot,
+        this.blobScratchSlot,
+      );
+      if (rc !== 0) throw this.warpError("load_warp_model", rc);
+      return this.heap.readU32(this.handleScratchSlot);
+    } finally {
+      this.fn.free(ptr, len);
+    }
+  }
+
+  freeWarpModelRaw(warp: number): void {
+    this.fn.warpModelFree(warp);
+  }
+
+  private warpError(name: string, rc: number): Error {
+    const { ptr, len } = this.heap.readOutputSlot(this.blobScratchSlot);
+    if (len === 0) return rcError(name, rc);
+    const message = this.heap.decoder.decode(this.heap.copyOutAndFree(ptr, len));
+    return new Error(`${name}: ${message}`);
+  }
+
+  private callWithTargets(
+    name: string,
+    call: (mzPtr: number, rtPtr: number, count: number) => number,
+    mzs: Float64Array,
+    rts: Float64Array,
+  ): void {
+    const mzAllocation = this.heap.allocAndWrite(toUint8View(mzs));
+    const rtAllocation = this.heap.allocAndWrite(toUint8View(rts));
+    try {
+      const rc = call(mzAllocation[0], rtAllocation[0], mzs.length);
+      if (rc !== 0) throw this.warpError(name, rc);
+    } finally {
+      this.heap.freeMany([mzAllocation, rtAllocation]);
+    }
+  }
+
+  async predictRts(
+    warp: number,
+    handle: number,
+    mzs: Float64Array,
+    rts: Float64Array,
+  ): Promise<Float64Array> {
+    const sourceId = this.source_id_by_handle.get(handle);
+    if (sourceId !== undefined) {
+      const source = range_sources.get(sourceId);
+      if (!source) {
+        throw new Error("predictRts: remote source is missing");
+      }
+      this.callWithTargets(
+        "plan_predict_rts",
+        (mzPtr, rtPtr, count) =>
+          this.fn.planPredictRts(warp, handle, mzPtr, rtPtr, count, this.blobScratchSlot),
+        mzs,
+        rts,
+      );
+      await prefetchRangesForSource(source, this.readRangesFromSlot(this.blobScratchSlot));
+    }
+    this.callWithTargets(
+      "predict_rts",
+      (mzPtr, rtPtr, count) =>
+        this.fn.predictRtsFromFile(warp, handle, mzPtr, rtPtr, count, this.blobScratchSlot),
+      mzs,
+      rts,
+    );
+    const { ptr, len } = this.heap.readOutputSlot(this.blobScratchSlot);
+    return new Float64Array(this.heap.copyOutAndFree(ptr, len).buffer);
   }
 
   freeRaw(handle: number): void {
@@ -1440,6 +1547,29 @@ export class WasmBackend implements Backend {
 
   freeFile(handle: FileHandle): void {
     this.getApi().freeRaw(handle as number);
+  }
+
+  loadWarpModelPath(_path: string): WarpModelHandle {
+    throw new Error(
+      "loadWarpModel: file paths need the Node backend; pass a URL or bytes in the browser",
+    );
+  }
+
+  loadWarpModelBytes(bytes: Uint8Array): WarpModelHandle {
+    return this.getApi().loadWarpModelRaw(bytes);
+  }
+
+  freeWarpModel(warp: WarpModelHandle): void {
+    this.getApi().freeWarpModelRaw(warp as number);
+  }
+
+  async predictRts(
+    warp: WarpModelHandle,
+    handle: FileHandle,
+    mzs: Float64Array,
+    rts: Float64Array,
+  ): Promise<Float64Array> {
+    return this.getApi().predictRts(warp as number, handle as number, mzs, rts);
   }
 
   fileToMzml(handle: FileHandle): string {

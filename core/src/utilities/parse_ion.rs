@@ -95,7 +95,7 @@ pub fn parse_ion(input: impl Into<IonInput>, options: &ReadOptions) -> IonResult
     }
 }
 
-fn is_url(text: &str) -> bool {
+pub(crate) fn is_url(text: &str) -> bool {
     let head = text.get(..8).unwrap_or(text).to_ascii_lowercase();
     head.starts_with("http://") || head.starts_with("https://")
 }

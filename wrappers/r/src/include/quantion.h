@@ -203,6 +203,8 @@ typedef struct ImageSession ImageSession;
 
 typedef struct ParsedFile ParsedFile;
 
+typedef struct WarpModelHandle WarpModelHandle;
+
 typedef struct Buf {
   uint8_t *ptr;
   uintptr_t len;
@@ -641,3 +643,29 @@ int find_feature(const struct ParsedFile *h,
                  double final_mz,
                  const struct CPeakOptions *peak_opts,
                  struct Buf *out);
+
+int warp_model_load_path(const uint8_t *path_ptr,
+                         uintptr_t path_len,
+                         struct WarpModelHandle **out,
+                         struct Buf *message);
+
+int warp_model_load_bytes(const uint8_t *model_ptr,
+                          uintptr_t model_len,
+                          struct WarpModelHandle **out,
+                          struct Buf *message);
+
+void warp_model_free(struct WarpModelHandle *warp);
+
+int predict_rts_from_file(const struct WarpModelHandle *warp,
+                          const struct ParsedFile *h,
+                          const double *mzs_ptr,
+                          const double *rts_ptr,
+                          uintptr_t n,
+                          struct Buf *out);
+
+int plan_predict_rts(const struct WarpModelHandle *warp,
+                     struct ParsedFile *h,
+                     const double *mzs_ptr,
+                     const double *rts_ptr,
+                     uintptr_t n,
+                     struct Buf *out);

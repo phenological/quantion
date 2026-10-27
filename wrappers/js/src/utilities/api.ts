@@ -1,5 +1,6 @@
 import type { Backend, FileHandle } from "./backend";
 import { SampleFile } from "./sampleFile";
+import { WarpModel } from "./warpModel";
 import { toCores, toUint8 } from "./shared";
 import { encodeTargetIds, unpackTargets } from "./pack";
 import { getIonSource, type IonSource } from "./ionSource";
@@ -11,6 +12,7 @@ import type {
   NoiseLevel,
   Peak,
   Target,
+  PredictedRt,
   ChromItem,
   ChromPeak,
   Feature,
@@ -34,6 +36,7 @@ export type {
   NoiseLevel,
   Peak,
   Target,
+  PredictedRt,
   ChromItem,
   ChromPeak,
   Feature,
@@ -139,6 +142,66 @@ export async function parseIon(
     cacheSize,
   );
   return new SampleFile(fileHandle, selectedBackend);
+}
+
+/**
+ * Load a warp model from a path (Node only), a URL, or bytes.
+ *
+ * @param source - Path, URL, or model bytes.
+ * @returns The loaded warp model.
+ */
+export async function loadWarpModel(source: IonInput): Promise<WarpModel> {
+  const modelSource = getIonSource(source, "loadWarpModel");
+  const selectedBackend = await backendAsync();
+  if (modelSource.kind === "path") {
+    return new WarpModel(
+      selectedBackend.loadWarpModelPath(modelSource.path),
+      selectedBackend,
+    );
+  }
+  const bytes =
+    modelSource.kind === "url"
+      ? await fetchModel(modelSource.url)
+      : modelSource.bytes;
+  return new WarpModel(selectedBackend.loadWarpModelBytes(bytes), selectedBackend);
+}
+
+async function fetchModel(url: URL): Promise<Uint8Array> {
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(
+      `loadWarpModel: the model download failed with HTTP ${response.status} for ${url}`,
+    );
+  }
+  return new Uint8Array(await response.arrayBuffer());
+}
+
+/**
+ * Predict each target's RT in a file with a warp model.
+ *
+ * @param warp - A model from {@link loadWarpModel}.
+ * @param file - The sample file.
+ * @param targets - Targets, each with `mz` and `rt`.
+ * @returns One `{ rt, uncertainty }` per target, in the same order.
+ */
+export async function predictRts(
+  warp: WarpModel,
+  file: SampleFile,
+  targets: { id?: string; mz: number; rt: number }[],
+): Promise<PredictedRt[]> {
+  assertFile(file, "predictRts");
+  if (!(warp instanceof WarpModel) || !warp._handle) {
+    throw new Error("predictRts: expects a valid WarpModel object");
+  }
+  if (targets.length === 0) return [];
+
+  const mzs = Float64Array.from(targets, (target) => target.mz);
+  const rts = Float64Array.from(targets, (target) => target.rt);
+  const values = await file._backend.predictRts(warp._handle, file._handle!, mzs, rts);
+  return targets.map((_, index) => ({
+    rt: values[index * 2],
+    uncertainty: values[index * 2 + 1],
+  }));
 }
 
 function parseIonSource(

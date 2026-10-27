@@ -20,7 +20,46 @@
 
 dispose <- function(bin) {
   if (typeof(bin) != "externalptr") stop("quantion: expected an external pointer")
+  if (inherits(bin, "quantion_warp_model"))
+    return(invisible(.Call("C_dispose_warp_model", bin, PACKAGE = "quantion")))
   .Call("C_dispose_mzml", bin, PACKAGE = "quantion")
+}
+
+load_warp_model <- function(source) {
+  if (is.character(source) && length(source) == 1 && !is.na(source) &&
+      (startsWith(tolower(source), "http://") || startsWith(tolower(source), "https://"))) {
+    destination <- tempfile()
+    on.exit(unlink(destination), add = TRUE)
+    status <- utils::download.file(source, destination, method = "libcurl", quiet = TRUE, mode = "wb")
+    if (!identical(status, 0L)) stop("quantion: the model download failed for ", source)
+    source <- readBin(destination, "raw", file.info(destination)$size)
+  }
+  warp <- if (is.raw(source)) {
+    .Call("C_warp_model_load_bytes", source, PACKAGE = "quantion")
+  } else if (is.character(source) && length(source) == 1 && !is.na(source) && nchar(source) > 0) {
+    .Call("C_warp_model_load_path", path.expand(source), PACKAGE = "quantion")
+  } else {
+    stop("`source` must be a path, a URL, or raw bytes")
+  }
+  class(warp) <- "quantion_warp_model"
+  warp
+}
+
+predict_rts <- function(warp, bin, targets) {
+  if (!inherits(warp, "quantion_warp_model")) stop("quantion: expected a warp model from load_warp_model")
+  if (typeof(bin) != "externalptr") stop("quantion: expected an external pointer (MzML sample)")
+  if (!is.data.frame(targets) || !all(c("mz", "rt") %in% names(targets)))
+    stop("`targets` must be a data.frame with columns mz and rt")
+  mzs <- as.numeric(targets$mz)
+  rts <- as.numeric(targets$rt)
+  if (length(mzs) == 0) return(data.frame(rt = numeric(0), uncertainty = numeric(0)))
+  source <- attr(bin, "quantion_source")
+  if (!is.null(source)) {
+    wanted <- .Call("C_plan_predict_rts", warp, bin, mzs, rts, PACKAGE = "quantion")
+    .prefetch(source, wanted)
+  }
+  values <- .Call("C_predict_rts", warp, bin, mzs, rts, PACKAGE = "quantion")
+  data.frame(rt = values[c(TRUE, FALSE)], uncertainty = values[c(FALSE, TRUE)])
 }
 
 parse_mzml <- function(data) {

@@ -162,6 +162,28 @@ Find one peak near a target retention time in XY data.
 const peak = quantion.getPeak(x, y, 5.3, 0.6, { autoNoise: true });
 ```
 
+## Predict retention times
+
+Predict each target's retention time in a sample with an ONNX warp model. The
+model can be a path (Node only), a URL, or bytes. You get one
+`{ rt, uncertainty }` per target, in the same order, and choose where to use
+the predicted RT.
+
+```js
+const warp = await quantion.loadWarpModel("paper_model.onnx");
+
+const targets = [
+  { mz: 174.112, rt: 5.3 },
+  { mz: 203.156, rt: 7.1 },
+];
+const rts = await quantion.predictRts(warp, sample, targets);
+
+const eic = await quantion.calculateEic(sample, 174.112, { from: 1, to: 15 });
+const peak = quantion.getPeak(eic.x, eic.y, rts[0].rt, 0.6);
+
+warp.dispose();
+```
+
 ## Find peaks from samples
 
 ### From EICs

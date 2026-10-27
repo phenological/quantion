@@ -104,6 +104,25 @@ Find one peak near a target retention time in XY data.
 peak <- quantion::get_peak(eic_df$x, eic_df$y, rt = 3.4, range = 0.6, min_intensity = 1000, min_peak_width_points = 10L, auto_noise = TRUE, auto_baseline = TRUE)
 ```
 
+## Predict retention times
+
+Predict each target's retention time in a sample with an ONNX warp model. The
+model can be a path, a URL, or raw bytes. You get a data frame with `rt` and
+`uncertainty`, one row per target, in the same order, and choose where to use
+the predicted RT.
+
+```r
+warp <- quantion::load_warp_model("paper_model.onnx")
+
+targets <- data.frame(mz = c(174.112, 203.156), rt = c(5.3, 7.1))
+rts <- quantion::predict_rts(warp, sample, targets)
+
+eic <- quantion::calculate_eic(sample, targets = 174.112, from = 1, to = 15)
+peak <- quantion::get_peak(eic$x, eic$y, rt = rts$rt[1], range = 0.6)
+
+quantion::dispose(warp)
+```
+
 ## Find peaks from samples
 
 ### From chromatograms

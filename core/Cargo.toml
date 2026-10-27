@@ -8,7 +8,7 @@ name = "quantion"
 crate-type = ["cdylib", "rlib"]
 
 [profile.release]
-opt-level = "s"
+opt-level = 3
 lto = "fat"
 codegen-units = 1
 panic = "unwind"
@@ -20,6 +20,7 @@ bytes = "1.12.1"
 ionic-rs = "0.2.0"
 memmap2 = "0.9.11"
 serde = { version = "1.0.229", features = ["derive", "rc"] }
+runnet = "0.1.0"
 
 [target.'cfg(not(all(target_arch = "wasm32", not(target_os = "wasi"))))'.dependencies]
 rayon = "1.12.0"

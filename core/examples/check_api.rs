@@ -12,6 +12,7 @@ use quantion::utilities::{
     get_peaks_from_eic::get_peaks_from_eic,
     structs::{DataXY, FromTo, Peak, Roi},
 };
+use quantion::warp::{Target, load_warp_model, predict_rts};
 
 const FROM_RT: f64 = 0.0;
 const TO_RT: f64 = 5.0;
@@ -305,6 +306,40 @@ fn report_channel(fixture: &Path, channel: &Channel, out: &mut Vec<String>) {
     );
 }
 
+fn predicted_rts(fixture: &Path, directory: &str, out: &mut Vec<String>) {
+    let model = Path::new(directory).join("..").join("shift_model.onnx");
+    let warp = load_warp_model(model.as_path()).expect("warp model");
+    let mut ion = IonReader::open(fixture, &ReadOptions::default()).expect("open fixture");
+    let names: Vec<String> = CHANNELS
+        .iter()
+        .flat_map(|channel| {
+            channel
+                .targets
+                .iter()
+                .map(move |(id, _)| format!("{}.{id}", channel.name))
+        })
+        .collect();
+    let targets: Vec<Target> = CHANNELS
+        .iter()
+        .flat_map(|channel| {
+            channel.targets.iter().map(move |(_, rt)| Target {
+                mz: channel.mass,
+                rt: *rt,
+            })
+        })
+        .collect();
+    let predicted =
+        predict_rts(&warp, &mut EicReader::Ion(&mut ion), &targets).expect("predict_rts");
+    out.push(format!("predict_rts.count = {}", predicted.len()));
+    for (name, prediction) in names.iter().zip(&predicted) {
+        out.push(format!("predict_rts.{name}.rt = {}", number(prediction.rt)));
+        out.push(format!(
+            "predict_rts.{name}.uncertainty = {}",
+            number(prediction.uncertainty)
+        ));
+    }
+}
+
 fn main() {
     let directory = std::env::args()
         .nth(1)
@@ -319,6 +354,7 @@ fn main() {
     }
     features(&fixture, &mut out);
     consensus_features(&directory, &mut out);
+    predicted_rts(&fixture, &directory, &mut out);
 
     println!("{}", out.join("\n"));
 }

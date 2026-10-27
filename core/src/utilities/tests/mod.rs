@@ -14,3 +14,6 @@ pub(crate) mod get_scans;
 
 #[cfg(test)]
 pub(crate) mod bridge;
+
+#[cfg(test)]
+pub(crate) mod warp_model;

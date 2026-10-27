@@ -55,6 +55,11 @@ typedef int32_t (*fn_get_features)(const char *, double, double, double, double,
 typedef int32_t (*fn_get_scans)(const MzML *, uint8_t, double, double, uint8_t, Buf *);
 typedef void (*fn_free_)(unsigned char *, size_t);
 typedef void (*fn_free_mzml)(MzML *);
+typedef struct WarpModel WarpModel;
+typedef int32_t (*fn_warp_model_load)(const uint8_t *, size_t, WarpModel **, Buf *);
+typedef void (*fn_warp_model_free)(WarpModel *);
+typedef int32_t (*fn_predict_rts_from_file)(const WarpModel *, const MzML *, const double *, const double *, size_t, Buf *);
+typedef int32_t (*fn_plan_predict_rts)(const WarpModel *, MzML *, const double *, const double *, size_t, Buf *);
 
 typedef struct
 {
@@ -85,6 +90,11 @@ typedef struct
   fn_free_mzml free_mzml;
   fn_get_features get_features;
   fn_get_scans get_scans;
+  fn_warp_model_load warp_model_load_path;
+  fn_warp_model_load warp_model_load_bytes;
+  fn_warp_model_free warp_model_free;
+  fn_predict_rts_from_file predict_rts_from_file;
+  fn_plan_predict_rts plan_predict_rts;
 } abi_type;
 
 static DLIB abi_handle = NULL;
@@ -182,6 +192,16 @@ int abi_load(const char *path, const char **err)
   if (resolve_required((void **)&ABI.get_features, "get_features"))
     goto fail;
   if (resolve_required((void **)&ABI.get_scans, "get_scans"))
+    goto fail;
+  if (resolve_required((void **)&ABI.warp_model_load_path, "warp_model_load_path"))
+    goto fail;
+  if (resolve_required((void **)&ABI.warp_model_load_bytes, "warp_model_load_bytes"))
+    goto fail;
+  if (resolve_required((void **)&ABI.warp_model_free, "warp_model_free"))
+    goto fail;
+  if (resolve_required((void **)&ABI.predict_rts_from_file, "predict_rts_from_file"))
+    goto fail;
+  if (resolve_required((void **)&ABI.plan_predict_rts, "plan_predict_rts"))
     goto fail;
   ABI.free_ = (fn_free_)DLSYM(abi_handle, "free_");
   if (!ABI.free_)
@@ -1017,8 +1037,15 @@ static void finalize_mzml(SEXP ptr)
   }
 }
 
+static SEXP warp_model_tag(void)
+{
+  return Rf_install("quantion_warp_model");
+}
+
 SEXP C_dispose_mzml(SEXP ptr)
 {
+  if (R_ExternalPtrTag(ptr) == warp_model_tag())
+    error("quantion: this is a warp model, not a sample file");
   finalize_mzml(ptr);
   return R_NilValue;
 }
@@ -1721,4 +1748,120 @@ SEXP C_get_features(SEXP dir_path, SEXP from_time, SEXP to_time,
   SEXP res = take_records_bridge("get_features", &out, cont);
   UNPROTECT(1);
   return res;
+}
+
+static void finalize_warp_model(SEXP ptr)
+{
+  if (R_ExternalPtrAddr(ptr))
+  {
+    if (ABI.warp_model_free)
+      ABI.warp_model_free((WarpModel *)R_ExternalPtrAddr(ptr));
+    R_ClearExternalPtr(ptr);
+  }
+}
+
+static SEXP wrap_warp_model(WarpModel *warp)
+{
+  SEXP ptr = PROTECT(R_MakeExternalPtr(warp, warp_model_tag(), R_NilValue));
+  R_RegisterCFinalizerEx(ptr, finalize_warp_model, TRUE);
+  UNPROTECT(1);
+  return ptr;
+}
+
+static WarpModel *get_warp_model(SEXP ptr)
+{
+  if (TYPEOF(ptr) != EXTPTRSXP || R_ExternalPtrTag(ptr) != warp_model_tag())
+    error("quantion: expected a warp model from load_warp_model");
+  WarpModel *warp = (WarpModel *)R_ExternalPtrAddr(ptr);
+  if (!warp)
+    error("quantion: use of a disposed warp model");
+  return warp;
+}
+
+static void die_warp_error(const char *fname, int code, Buf *message)
+{
+  if (code == 0)
+    return;
+  if (message->len == 0 || !ABI.free_)
+    die_code(fname, code);
+  char text[1024];
+  size_t len = message->len < sizeof(text) - 1 ? message->len : sizeof(text) - 1;
+  memcpy(text, message->ptr, len);
+  text[len] = '\0';
+  ABI.free_((unsigned char *)message->ptr, message->len);
+  error("quantion/%s failed: %s (code=%d)", fname, text, code);
+}
+
+SEXP C_warp_model_load_path(SEXP path)
+{
+  if (TYPEOF(path) != STRSXP || LENGTH(path) != 1)
+    error("quantion: path must be a single string");
+  REQUIRE_BOUND(ABI.warp_model_load_path, "warp_model_load_path");
+  const char *value = CHAR(STRING_ELT(path, 0));
+  WarpModel *warp = NULL;
+  Buf message = (Buf){0};
+  int code = ABI.warp_model_load_path((const uint8_t *)value, strlen(value), &warp, &message);
+  die_warp_error("load_warp_model", code, &message);
+  return wrap_warp_model(warp);
+}
+
+SEXP C_warp_model_load_bytes(SEXP bytes)
+{
+  if (TYPEOF(bytes) != RAWSXP || XLENGTH(bytes) == 0)
+    error("quantion: the model bytes must be a non-empty raw vector");
+  REQUIRE_BOUND(ABI.warp_model_load_bytes, "warp_model_load_bytes");
+  WarpModel *warp = NULL;
+  Buf message = (Buf){0};
+  int code = ABI.warp_model_load_bytes((const uint8_t *)RAW(bytes), (size_t)XLENGTH(bytes), &warp, &message);
+  die_warp_error("load_warp_model", code, &message);
+  return wrap_warp_model(warp);
+}
+
+SEXP C_dispose_warp_model(SEXP ptr)
+{
+  get_warp_model(ptr);
+  finalize_warp_model(ptr);
+  return R_NilValue;
+}
+
+static void check_targets(SEXP mzs, SEXP rts)
+{
+  if (TYPEOF(mzs) != REALSXP || TYPEOF(rts) != REALSXP || XLENGTH(mzs) != XLENGTH(rts))
+    error("quantion: mz and rt must be numeric vectors of the same length");
+}
+
+SEXP C_predict_rts(SEXP warp, SEXP bin, SEXP mzs, SEXP rts)
+{
+  WarpModel *model = get_warp_model(warp);
+  MzML *handle = GetHandle(bin);
+  check_targets(mzs, rts);
+  REQUIRE_BOUND(ABI.predict_rts_from_file, "predict_rts_from_file");
+  REQUIRE_BOUND(ABI.free_, "free_");
+
+  SEXP cont = PROTECT(R_MakeUnwindCont());
+  Buf out = (Buf){0};
+  int code = ABI.predict_rts_from_file(model, handle, REAL(mzs), REAL(rts), (size_t)XLENGTH(mzs), &out);
+  if (code != 0)
+  {
+    UNPROTECT(1);
+    die_warp_error("predict_rts", code, &out);
+  }
+  struct buf_copy_data held = {out.ptr, out.len, NULL, 0, 0};
+  SEXP values = R_UnwindProtect(buf_copy_build, &held, buf_copy_free, &held, cont);
+  UNPROTECT(1);
+  return values;
+}
+
+SEXP C_plan_predict_rts(SEXP warp, SEXP bin, SEXP mzs, SEXP rts)
+{
+  WarpModel *model = get_warp_model(warp);
+  MzML *handle = GetHandle(bin);
+  check_targets(mzs, rts);
+  REQUIRE_BOUND(ABI.plan_predict_rts, "plan_predict_rts");
+
+  Buf out;
+  memset(&out, 0, sizeof(out));
+  int code = ABI.plan_predict_rts(model, handle, REAL(mzs), REAL(rts), (size_t)XLENGTH(mzs), &out);
+  die_warp_error("plan_predict_rts", code, &out);
+  return ranges_to_matrix(&out);
 }

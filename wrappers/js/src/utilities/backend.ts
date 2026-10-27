@@ -6,6 +6,7 @@ import type {
 } from "../types/types";
 
 export type FileHandle = unknown;
+export type WarpModelHandle = unknown;
 export type MaybePromise<T> = T | Promise<T>;
 
 export interface ByteRangeResult {
@@ -32,6 +33,16 @@ export interface Backend {
     cacheSize: number,
   ): FileHandle | Promise<FileHandle>;
   freeFile(handle: FileHandle): void;
+
+  loadWarpModelPath(path: string): WarpModelHandle;
+  loadWarpModelBytes(bytes: Uint8Array): WarpModelHandle;
+  freeWarpModel(warp: WarpModelHandle): void;
+  predictRts(
+    warp: WarpModelHandle,
+    handle: FileHandle,
+    mzs: Float64Array,
+    rts: Float64Array,
+  ): MaybePromise<Float64Array>;
   fileToMzml(handle: FileHandle): string;
   fileToBin(
     handle: FileHandle,

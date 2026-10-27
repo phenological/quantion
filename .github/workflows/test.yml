@@ -68,6 +68,16 @@ jobs:
       - name: Build the native library
         run: make native
 
+      - name: The Python tests pass, none skipped
+        env:
+          QUANTION_ARTIFACTS_ROOT: ${{ github.workspace }}/artifacts
+        run: |
+          python3 -m unittest discover -s wrappers/python/tests -t wrappers/python 2>&1 | tee python-tests.log
+          if grep -q "skipped=" python-tests.log; then
+            echo "Python tests were skipped: the library or a fixture was not found"
+            exit 1
+          fi
+
       - name: Rust, R, Python and JS return the same numbers
         run: make check-api
 

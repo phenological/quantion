@@ -65,6 +65,12 @@ def _check(name: str, code: int) -> None:
         raise RuntimeError(f"quantion/{name}: {msg} (code={code})")
 
 
+def _check_with_message(name: str, code: int, abi: "_ABI", message: "_Buf") -> None:
+    if code != 0:
+        text = buf_to_str(abi, message) if message.len else _CODE_MSG.get(code, f"unknown error code {code}")
+        raise RuntimeError(f"quantion/{name}: {text} (code={code})")
+
+
 READ_RANGE = ctypes.CFUNCTYPE(
     c_int32, c_void_p, ctypes.c_uint64, ctypes.c_uint64, POINTER(c_uint8)
 )
@@ -128,6 +134,15 @@ class _ABI:
             c_int32, POINTER(PeakOptions), c_int32, POINTER(_Buf)], c_int32),
         "find_noise_level": ([POINTER(c_float), c_size_t,
              POINTER(c_size_t), POINTER(c_double)], c_int32),
+        "warp_model_load_path": ([POINTER(c_uint8), c_size_t, POINTER(c_void_p),
+             POINTER(_Buf)], c_int32),
+        "warp_model_load_bytes": ([POINTER(c_uint8), c_size_t, POINTER(c_void_p),
+             POINTER(_Buf)], c_int32),
+        "warp_model_free": ([c_void_p], None),
+        "predict_rts_from_file": ([c_void_p, c_void_p, POINTER(c_double), POINTER(c_double),
+             c_size_t, POINTER(_Buf)], c_int32),
+        "plan_predict_rts": ([c_void_p, c_void_p, POINTER(c_double), POINTER(c_double),
+             c_size_t, POINTER(_Buf)], c_int32),
     }
 
     _OPTIONAL: dict[str, tuple[list, object]] = {

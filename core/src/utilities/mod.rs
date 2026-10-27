@@ -41,6 +41,8 @@ pub mod get_peaks_from_chrom;
 
 pub mod get_peaks_from_eic;
 
+pub mod warp_model;
+
 pub mod scan_for_peaks;
 
 pub mod structs;

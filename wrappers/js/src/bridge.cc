@@ -32,6 +32,7 @@ static const char *last_err = NULL;
 #endif
 
 typedef struct MzML MzML;
+typedef struct WarpModel WarpModel;
 
 struct RangeStore
 {
@@ -108,6 +109,10 @@ typedef int32_t (*fn_get_features)(const char *, double, double, double, double,
 typedef int32_t (*fn_get_scans)(const MzML *, uint8_t, double, double, uint8_t, Buf *);
 typedef int32_t (*fn_get_ion_image)(const MzML *, double, double, uint8_t, Buf *);
 typedef void (*fn_free_)(unsigned char *, size_t);
+typedef int32_t (*fn_warp_model_load)(const uint8_t *, size_t, WarpModel **, Buf *);
+typedef void (*fn_warp_model_free)(WarpModel *);
+typedef int32_t (*fn_predict_rts_from_file)(const WarpModel *, const MzML *, const double *, const double *, size_t, Buf *);
+typedef int32_t (*fn_plan_predict_rts)(const WarpModel *, MzML *, const double *, const double *, size_t, Buf *);
 
 typedef struct
 {
@@ -137,6 +142,11 @@ typedef struct
   fn_get_features get_features;
   fn_get_scans get_scans;
   fn_get_ion_image get_ion_image;
+  fn_warp_model_load warp_model_load_path;
+  fn_warp_model_load warp_model_load_bytes;
+  fn_warp_model_free warp_model_free;
+  fn_predict_rts_from_file predict_rts_from_file;
+  fn_plan_predict_rts plan_predict_rts;
 } msabi_t;
 
 static msabi_t ABI{};
@@ -341,6 +351,17 @@ static int abi_load(const char *path, const char **err)
     goto fail;
 
   ABI.get_ion_image = (fn_get_ion_image)DLSYM(LIB_HANDLE, "get_ion_image");
+
+  if (resolve_required((void **)&ABI.warp_model_load_path, "warp_model_load_path"))
+    goto fail;
+  if (resolve_required((void **)&ABI.warp_model_load_bytes, "warp_model_load_bytes"))
+    goto fail;
+  if (resolve_required((void **)&ABI.warp_model_free, "warp_model_free"))
+    goto fail;
+  if (resolve_required((void **)&ABI.predict_rts_from_file, "predict_rts_from_file"))
+    goto fail;
+  if (resolve_required((void **)&ABI.plan_predict_rts, "plan_predict_rts"))
+    goto fail;
 
   ABI.find_noise_level = (fn_find_noise_level)DLSYM(LIB_HANDLE, "find_noise_level");
   ABI.free_ = (fn_free_)DLSYM(LIB_HANDLE, "free_");
@@ -1296,6 +1317,145 @@ static Napi::Value GetIonImage(const Napi::CallbackInfo &info)
   return TakeArrayBuffer(env, out.Out());
 }
 
+struct WarpModelWrapper
+{
+  WarpModel *ptr;
+};
+
+static void FinalizeWarpModel(Napi::Env, WarpModelWrapper *wrapper)
+{
+  if (wrapper)
+  {
+    if (wrapper->ptr)
+      ABI.warp_model_free(wrapper->ptr);
+    delete wrapper;
+  }
+}
+
+static WarpModel *GetWarpModel(Napi::Value value)
+{
+  if (!value.IsExternal())
+    return nullptr;
+  WarpModelWrapper *wrapper = value.As<Napi::External<WarpModelWrapper>>().Data();
+  return wrapper ? wrapper->ptr : nullptr;
+}
+
+static Napi::Value ThrowWarpError(Napi::Env env, const char *api, int32_t rc, const Buf &message)
+{
+  if (message.len == 0)
+    return ThrowRc(env, api, rc);
+  std::string msg = api;
+  msg += ": ";
+  msg.append((const char *)message.ptr, message.len);
+  Napi::Error::New(env, msg).ThrowAsJavaScriptException();
+  return env.Undefined();
+}
+
+static Napi::Value WrapWarpModel(Napi::Env env, const char *api, int32_t rc, WarpModel *warp, const Buf &message)
+{
+  if (rc != 0)
+    return ThrowWarpError(env, api, rc, message);
+  return Napi::External<WarpModelWrapper>::New(env, new WarpModelWrapper{warp}, FinalizeWarpModel);
+}
+
+static Napi::Value LoadWarpModelPath(const Napi::CallbackInfo &info)
+{
+  Napi::Env env = info.Env();
+  if (info.Length() < 1 || !info[0].IsString())
+  {
+    Napi::TypeError::New(env, "expected: (string path)").ThrowAsJavaScriptException();
+    return env.Undefined();
+  }
+  std::string path = info[0].As<Napi::String>().Utf8Value();
+  WarpModel *warp = nullptr;
+  OwnedBuf message;
+  int32_t rc = ABI.warp_model_load_path((const uint8_t *)path.data(), path.size(), &warp, message.Out());
+  return WrapWarpModel(env, "load_warp_model", rc, warp, message.buf);
+}
+
+static Napi::Value LoadWarpModelBytes(const Napi::CallbackInfo &info)
+{
+  Napi::Env env = info.Env();
+  if (info.Length() < 1 || !info[0].IsBuffer())
+  {
+    Napi::TypeError::New(env, "expected: (Buffer bytes)").ThrowAsJavaScriptException();
+    return env.Undefined();
+  }
+  Napi::Buffer<uint8_t> bytes = info[0].As<Napi::Buffer<uint8_t>>();
+  WarpModel *warp = nullptr;
+  OwnedBuf message;
+  int32_t rc = ABI.warp_model_load_bytes(bytes.Data(), bytes.Length(), &warp, message.Out());
+  return WrapWarpModel(env, "load_warp_model", rc, warp, message.buf);
+}
+
+static Napi::Value DisposeWarpModel(const Napi::CallbackInfo &info)
+{
+  if (info.Length() < 1 || !info[0].IsExternal())
+    return info.Env().Undefined();
+  WarpModelWrapper *wrapper = info[0].As<Napi::External<WarpModelWrapper>>().Data();
+  if (wrapper && wrapper->ptr)
+  {
+    ABI.warp_model_free(wrapper->ptr);
+    wrapper->ptr = nullptr;
+  }
+  return info.Env().Undefined();
+}
+
+static bool ReadPredictArguments(const Napi::CallbackInfo &info, WarpModel **warp, MzML **file,
+                                 Napi::Float64Array *mzs, Napi::Float64Array *rts)
+{
+  Napi::Env env = info.Env();
+  *warp = info.Length() > 0 ? GetWarpModel(info[0]) : nullptr;
+  *file = info.Length() > 1 ? GetHandle(info[1]) : nullptr;
+  if (!*warp || !*file || info.Length() < 4 || !info[2].IsTypedArray() || !info[3].IsTypedArray())
+  {
+    Napi::TypeError::New(env, "expected: (External warp, External file, Float64Array mzs, Float64Array rts)")
+        .ThrowAsJavaScriptException();
+    return false;
+  }
+  *mzs = info[2].As<Napi::Float64Array>();
+  *rts = info[3].As<Napi::Float64Array>();
+  if (mzs->ElementLength() != rts->ElementLength())
+  {
+    Napi::TypeError::New(env, "mzs and rts must have the same length").ThrowAsJavaScriptException();
+    return false;
+  }
+  return true;
+}
+
+static Napi::Value PredictRts(const Napi::CallbackInfo &info)
+{
+  Napi::Env env = info.Env();
+  WarpModel *warp = nullptr;
+  MzML *file = nullptr;
+  Napi::Float64Array mzs, rts;
+  if (!ReadPredictArguments(info, &warp, &file, &mzs, &rts))
+    return env.Undefined();
+
+  OwnedBuf out;
+  int32_t rc = ABI.predict_rts_from_file(warp, file, Float64Ptr(mzs), Float64Ptr(rts), mzs.ElementLength(), out.Out());
+  if (rc != 0)
+    return ThrowWarpError(env, "predict_rts", rc, out.buf);
+  size_t count = out.buf.len / 8;
+  return Napi::Float64Array::New(env, count, TakeArrayBuffer(env, out.Out()), 0);
+}
+
+static Napi::Value PlanPredictRts(const Napi::CallbackInfo &info)
+{
+  Napi::Env env = info.Env();
+  WarpModel *warp = nullptr;
+  MzML *file = nullptr;
+  Napi::Float64Array mzs, rts;
+  if (!ReadPredictArguments(info, &warp, &file, &mzs, &rts))
+    return env.Undefined();
+
+  OwnedBuf out;
+  int32_t rc = ABI.plan_predict_rts(warp, file, Float64Ptr(mzs), Float64Ptr(rts), mzs.ElementLength(), out.Out());
+  if (rc != 0)
+    return ThrowWarpError(env, "plan_predict_rts", rc, out.buf);
+  return RangesToArray(env, out.buf);
+}
+
 static Napi::Object Init(Napi::Env env, Napi::Object exports)
 {
   exports.Set("bind", Napi::Function::New(env, Bind));
@@ -1322,6 +1482,11 @@ static Napi::Object Init(Napi::Env env, Napi::Object exports)
   exports.Set("getFeatures", Napi::Function::New(env, GetFeatures));
   exports.Set("getScans", Napi::Function::New(env, GetScans));
   exports.Set("getIonImage", Napi::Function::New(env, GetIonImage));
+  exports.Set("loadWarpModelPath", Napi::Function::New(env, LoadWarpModelPath));
+  exports.Set("loadWarpModelBytes", Napi::Function::New(env, LoadWarpModelBytes));
+  exports.Set("disposeWarpModel", Napi::Function::New(env, DisposeWarpModel));
+  exports.Set("predictRts", Napi::Function::New(env, PredictRts));
+  exports.Set("planPredictRts", Napi::Function::New(env, PlanPredictRts));
   return exports;
 }
 

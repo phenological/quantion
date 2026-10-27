@@ -37,6 +37,11 @@ export type Peak = {
   noise: number;
 };
 
+export type PredictedRt = {
+  rt: number;
+  uncertainty: number;
+};
+
 export type Target = {
   id?: string;
   rt: number;
