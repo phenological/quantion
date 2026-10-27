@@ -19,13 +19,24 @@ const targets = [
   { id: "second", mz: 310.2, rt: 3.1 },
 ];
 
-describe("warp model", () => {
+function getNodeBackend(): NodeBackend | null {
+  try {
+    return new NodeBackend(process);
+  } catch {
+    return null;
+  }
+}
+
+const nodeBackend = getNodeBackend();
+const describeWithNode = nodeBackend ? describe : describe.skip;
+
+describeWithNode("warp model", () => {
   let server: http.Server;
   let modelUrl: string;
   let fileUrl: string;
 
   beforeAll((done) => {
-    setBackend(new NodeBackend(process));
+    setBackend(nodeBackend!);
     const modelBytes = fs.readFileSync(modelPath);
     const fileBytes = fs.readFileSync(coveringFile);
     server = http.createServer((request, response) => {
