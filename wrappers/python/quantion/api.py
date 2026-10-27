@@ -28,6 +28,7 @@ from quantion._pack import (
 )
 from quantion._shared import to_cores
 from quantion.file import SampleFile
+from quantion.model import Model
 from quantion.warp_model import WarpModel
 
 _abi: Optional[_ABI] = None
@@ -157,8 +158,8 @@ def parse_mzml(data: bytes) -> SampleFile:
 
 
 
-def load_warp_model(source) -> WarpModel:
-    """Load a warp model from a path, a URL, or bytes."""
+def load_model(source) -> Model:
+    """Load an ONNX model from a path, a URL, or bytes."""
     abi = _get_abi()
     if isinstance(source, (str, os.PathLike)):
         text = os.fspath(source)
@@ -166,21 +167,44 @@ def load_warp_model(source) -> WarpModel:
             path = os.fsencode(text)
             path_ptr, _ = _as_u8_ptr(path)
             handle, message = ctypes.c_void_p(), _Buf()
-            _check_with_message("load_warp_model", abi.warp_model_load_path(
+            _check_with_message("load_model", abi.model_load_path(
                 path_ptr, len(path), ctypes.byref(handle), ctypes.byref(message)), abi, message)
-            return WarpModel(handle, abi)
+            return Model(handle, abi)
         from urllib.request import urlopen
 
-        with urlopen(text) as response:
-            source = response.read()
+        try:
+            with urlopen(text) as response:
+                source = response.read()
+        except OSError as error:
+            raise RuntimeError(
+                f"quantion/load_model: the model was not read: GET {text} failed: {error}"
+            ) from error
     data = bytes(source)
     if not data:
-        raise ValueError("load_warp_model: the model bytes are empty")
+        raise ValueError("load_model: the model bytes are empty")
     data_ptr, _ = _as_u8_ptr(data)
     handle, message = ctypes.c_void_p(), _Buf()
-    _check_with_message("load_warp_model", abi.warp_model_load_bytes(
+    _check_with_message("load_model", abi.model_load_bytes(
         data_ptr, len(data), ctypes.byref(handle), ctypes.byref(message)), abi, message)
-    return WarpModel(handle, abi)
+    return Model(handle, abi)
+
+
+def load_warp(model: Model) -> WarpModel:
+    """Make a warp model from a loaded model. The model stays usable."""
+    if not isinstance(model, Model):
+        raise TypeError("load_warp: expects a Model from load_model")
+    abi = _get_abi()
+    handle, message = ctypes.c_void_p(), _Buf()
+    _check_with_message("load_warp", abi.warp_model_load(
+        model.handle, ctypes.byref(handle), ctypes.byref(message)), abi, message)
+    return WarpModel(handle, abi, model._get_metadata())
+
+
+def _get_model_metadata(model: Model) -> List[Dict[str, str]]:
+    abi = _get_abi()
+    buf = _Buf()
+    _check("model_metadata", abi.model_metadata(model.handle, ctypes.byref(buf)))
+    return buf_to_records(abi, buf)
 
 
 def _is_url(text: str) -> bool:
@@ -192,35 +216,62 @@ def _get_target_value(target: Dict[str, Any], key: str) -> float:
     return math.nan if value is None else float(value)
 
 
-def predict_rts(warp: WarpModel, file: SampleFile, targets: Sequence[Dict[str, Any]]) -> List[Dict[str, float]]:
-    """Predict each target's RT in this file with the warp model.
+def _calibrate_rts(
+    warp: WarpModel,
+    anchor_samples: Sequence[SampleFile],
+    target_lists: Sequence[Sequence[Dict[str, Any]]],
+) -> List[Dict[str, Any]]:
+    if len(anchor_samples) != len(target_lists):
+        raise ValueError(
+            "calibrate needs one target list per sample, "
+            f"got {len(anchor_samples)} samples and {len(target_lists)} target lists"
+        )
+    abi = _get_abi()
+    for sample, targets in zip(anchor_samples, target_lists):
+        _prefetch_targets(abi, warp, sample, targets)
+    targets = [target for targets in target_lists for target in targets]
+    mz_values = _to_f64_array([_get_target_value(target, "mz") for target in targets])
+    rt_values = _to_f64_array([_get_target_value(target, "rt") for target in targets])
+    offsets, lengths, id_bytes = encode_target_ids([str(target.get("id") or "") for target in targets])
+    id_ptr, _ = _as_u8_ptr(id_bytes) if id_bytes else (None, None)
+    files = (ctypes.c_void_p * len(anchor_samples))(*[sample.handle for sample in anchor_samples])
+    list_lengths = (c_size_t * len(target_lists))(*[len(targets) for targets in target_lists])
+    buf = _Buf()
+    _check_with_message("calibrate", abi.calibrate_rts(
+        warp.handle, files, len(anchor_samples), list_lengths,
+        _as_u32_ptr(offsets), _as_u32_ptr(lengths), id_ptr, len(id_bytes),
+        _as_f64_ptr(mz_values), _as_f64_ptr(rt_values), len(targets),
+        ctypes.byref(buf)), abi, buf)
+    return buf_to_records(abi, buf)
 
-    Args:
-        warp: A model from load_warp_model.
-        file: The sample file.
-        targets: A list of dicts, each with "mz" and "rt".
 
-    Returns:
-        One dict per target, in the same order: {"rt": predicted RT, "uncertainty": ...}.
-    """
+def _prefetch_targets(abi, warp: WarpModel, file: SampleFile, targets: Sequence[Dict[str, Any]]) -> None:
+    source = getattr(file, "_remote_source", None)
+    if source is None or not targets:
+        return
+    mz_values = _to_f64_array([_get_target_value(target, "mz") for target in targets])
+    rt_values = _to_f64_array([_get_target_value(target, "rt") for target in targets])
+    plan = _Buf()
+    _check_with_message("plan_predict_rts", abi.plan_predict_rts(
+        warp.handle, file.handle, _as_f64_ptr(mz_values), _as_f64_ptr(rt_values),
+        len(targets), ctypes.byref(plan)), abi, plan)
+    source.prefetch(_unpack_ranges(buf_to_bytes(abi, plan)))
+
+
+def _predict_rts(warp: WarpModel, file: SampleFile, targets: Sequence[Dict[str, Any]]) -> List[Dict[str, float]]:
     if not targets:
         return []
     abi = _get_abi()
+    _prefetch_targets(abi, warp, file, targets)
     mz_values = _to_f64_array([_get_target_value(target, "mz") for target in targets])
     rt_values = _to_f64_array([_get_target_value(target, "rt") for target in targets])
-    arguments = (warp.handle, file.handle, _as_f64_ptr(mz_values), _as_f64_ptr(rt_values),
-                 len(targets))
-    source = getattr(file, "_remote_source", None)
-    if source is not None:
-        plan = _Buf()
-        _check_with_message("plan_predict_rts", abi.plan_predict_rts(
-            *arguments, ctypes.byref(plan)), abi, plan)
-        source.prefetch(_unpack_ranges(buf_to_bytes(abi, plan)))
     buf = _Buf()
     _check_with_message("predict_rts", abi.predict_rts_from_file(
-        *arguments, ctypes.byref(buf)), abi, buf)
+        warp.handle, file.handle, _as_f64_ptr(mz_values), _as_f64_ptr(rt_values),
+        len(targets), ctypes.byref(buf)), abi, buf)
     values = buf_to_f64(abi, buf).reshape(-1, 2)
     return [{"rt": float(rt), "uncertainty": float(uncertainty)} for rt, uncertainty in values]
+
 
 def parse_ion(source, max_cache_size: int = 0) -> SampleFile:
     """Load an ion file from raw bytes, a path, or a URL.
@@ -591,7 +642,7 @@ def get_peak(
     x: Sequence,
     y: Sequence,
     rt: float,
-    range_: float,
+    range: float,
     options: Optional[Dict[str, Any]] = None,
 ) -> Dict:
     """Find one peak near a target RT.
@@ -603,7 +654,7 @@ def get_peak(
         x: Retention-time sequence. Minimum 3 points.
         y: Intensity sequence, same length as x.
         rt: Target retention time.
-        range_: Half-width of the search window around rt.
+        range: Half-width of the search window around rt.
         options: Optional dict of peak filter settings (same keys as find_peaks).
 
     Returns:
@@ -621,7 +672,7 @@ def get_peak(
         _as_f64_ptr(y_array),
         c_size_t(len(x_array)),
         c_double(rt),
-        c_double(range_),
+        c_double(range),
         _as_opts_ptr(peak_options),
         ctypes.byref(buf),
     ))

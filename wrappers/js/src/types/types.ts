@@ -37,6 +37,17 @@ export type Peak = {
   noise: number;
 };
 
+export type WarpTarget = {
+  id?: string;
+  mz: number;
+  rt: number;
+};
+
+export type ModelEntry = {
+  key: string;
+  value: string;
+};
+
 export type PredictedRt = {
   rt: number;
   uncertainty: number;

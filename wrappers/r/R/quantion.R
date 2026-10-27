@@ -22,42 +22,104 @@ dispose <- function(bin) {
   if (typeof(bin) != "externalptr") stop("quantion: expected an external pointer")
   if (inherits(bin, "quantion_warp_model"))
     return(invisible(.Call("C_dispose_warp_model", bin, PACKAGE = "quantion")))
+  if (inherits(bin, "quantion_model"))
+    return(invisible(.Call("C_dispose_model", bin, PACKAGE = "quantion")))
   .Call("C_dispose_mzml", bin, PACKAGE = "quantion")
 }
 
-load_warp_model <- function(source) {
+load_model <- function(source) {
   if (is.character(source) && length(source) == 1 && !is.na(source) &&
       (startsWith(tolower(source), "http://") || startsWith(tolower(source), "https://"))) {
     destination <- tempfile()
     on.exit(unlink(destination), add = TRUE)
-    status <- utils::download.file(source, destination, method = "libcurl", quiet = TRUE, mode = "wb")
-    if (!identical(status, 0L)) stop("quantion: the model download failed for ", source)
+    status <- tryCatch(
+      utils::download.file(source, destination, method = "libcurl", quiet = TRUE, mode = "wb"),
+      error = function(error) conditionMessage(error)
+    )
+    if (!identical(status, 0L))
+      stop("quantion/load_model failed: the model was not read: GET ", source, " failed: ", status)
     source <- readBin(destination, "raw", file.info(destination)$size)
   }
-  warp <- if (is.raw(source)) {
-    .Call("C_warp_model_load_bytes", source, PACKAGE = "quantion")
+  model <- if (is.raw(source)) {
+    .Call("C_model_load_bytes", source, PACKAGE = "quantion")
   } else if (is.character(source) && length(source) == 1 && !is.na(source) && nchar(source) > 0) {
-    .Call("C_warp_model_load_path", path.expand(source), PACKAGE = "quantion")
+    .Call("C_model_load_path", path.expand(source), PACKAGE = "quantion")
   } else {
     stop("`source` must be a path, a URL, or raw bytes")
   }
+  class(model) <- "quantion_model"
+  attr(model, "metadata") <- .Call("C_model_metadata", model, PACKAGE = "quantion")
+  model
+}
+
+load_warp <- function(model) {
+  if (!inherits(model, "quantion_model")) stop("quantion: expected a model from load_model")
+  warp <- .Call("C_warp_model_load", model, PACKAGE = "quantion")
   class(warp) <- "quantion_warp_model"
+  attr(warp, "metadata") <- attr(model, "metadata")
   warp
 }
 
+get_metadata <- function(model) {
+  if (!inherits(model, c("quantion_model", "quantion_warp_model")))
+    stop("quantion: expected a model from load_model or a warp model from load_warp")
+  attr(model, "metadata")
+}
+
+get_keys <- function(model) {
+  get_metadata(model)$key
+}
+
+get_values <- function(model) {
+  get_metadata(model)$value
+}
+
+get_value <- function(model, key) {
+  metadata <- get_metadata(model)
+  value <- metadata$value[metadata$key == key]
+  if (length(value) == 0) NULL else value[[1]]
+}
+
+calibrate <- function(warp, anchor_samples, target_lists) {
+  if (!inherits(warp, "quantion_warp_model")) stop("quantion: expected a warp model from load_warp")
+  if (!is.list(anchor_samples) || !is.list(target_lists) || is.data.frame(target_lists))
+    stop("`anchor_samples` and `target_lists` must be lists")
+  if (length(anchor_samples) != length(target_lists))
+    stop("calibrate needs one target list per sample, got ", length(anchor_samples),
+         " samples and ", length(target_lists), " target lists")
+  for (index in seq_along(target_lists)) {
+    targets <- target_lists[[index]]
+    if (!is.data.frame(targets) || !all(c("mz", "rt") %in% names(targets)))
+      stop("each target list must be a data.frame with columns id, mz and rt")
+    prefetch_targets(warp, anchor_samples[[index]], targets)
+  }
+  get_column <- function(name, empty) {
+    unlist(lapply(target_lists, function(targets)
+      if (name %in% names(targets)) targets[[name]] else rep(empty, nrow(targets))), use.names = FALSE)
+  }
+  .Call("C_calibrate_rts", warp, anchor_samples,
+        as.numeric(vapply(target_lists, nrow, integer(1))),
+        as.character(get_column("id", "")), as.numeric(get_column("mz", NA)),
+        as.numeric(get_column("rt", NA)), PACKAGE = "quantion")
+}
+
+prefetch_targets <- function(warp, bin, targets) {
+  source <- attr(bin, "quantion_source")
+  if (is.null(source) || nrow(targets) == 0) return(invisible(NULL))
+  wanted <- .Call("C_plan_predict_rts", warp, bin, as.numeric(targets$mz), as.numeric(targets$rt),
+                  PACKAGE = "quantion")
+  .prefetch(source, wanted)
+}
+
 predict_rts <- function(warp, bin, targets) {
-  if (!inherits(warp, "quantion_warp_model")) stop("quantion: expected a warp model from load_warp_model")
+  if (!inherits(warp, "quantion_warp_model")) stop("quantion: expected a warp model from load_warp")
   if (typeof(bin) != "externalptr") stop("quantion: expected an external pointer (MzML sample)")
   if (!is.data.frame(targets) || !all(c("mz", "rt") %in% names(targets)))
     stop("`targets` must be a data.frame with columns mz and rt")
   mzs <- as.numeric(targets$mz)
   rts <- as.numeric(targets$rt)
   if (length(mzs) == 0) return(data.frame(rt = numeric(0), uncertainty = numeric(0)))
-  source <- attr(bin, "quantion_source")
-  if (!is.null(source)) {
-    wanted <- .Call("C_plan_predict_rts", warp, bin, mzs, rts, PACKAGE = "quantion")
-    .prefetch(source, wanted)
-  }
+  prefetch_targets(warp, bin, targets)
   values <- .Call("C_predict_rts", warp, bin, mzs, rts, PACKAGE = "quantion")
   data.frame(rt = values[c(TRUE, FALSE)], uncertainty = values[c(FALSE, TRUE)])
 }

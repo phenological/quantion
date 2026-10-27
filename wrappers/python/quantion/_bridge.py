@@ -134,11 +134,17 @@ class _ABI:
             c_int32, POINTER(PeakOptions), c_int32, POINTER(_Buf)], c_int32),
         "find_noise_level": ([POINTER(c_float), c_size_t,
              POINTER(c_size_t), POINTER(c_double)], c_int32),
-        "warp_model_load_path": ([POINTER(c_uint8), c_size_t, POINTER(c_void_p),
+        "model_load_path": ([POINTER(c_uint8), c_size_t, POINTER(c_void_p),
              POINTER(_Buf)], c_int32),
-        "warp_model_load_bytes": ([POINTER(c_uint8), c_size_t, POINTER(c_void_p),
+        "model_load_bytes": ([POINTER(c_uint8), c_size_t, POINTER(c_void_p),
              POINTER(_Buf)], c_int32),
+        "model_free": ([c_void_p], None),
+        "model_metadata": ([c_void_p, POINTER(_Buf)], c_int32),
+        "warp_model_load": ([c_void_p, POINTER(c_void_p), POINTER(_Buf)], c_int32),
         "warp_model_free": ([c_void_p], None),
+        "calibrate_rts": ([c_void_p, POINTER(c_void_p), c_size_t, POINTER(c_size_t),
+             POINTER(c_uint32), POINTER(c_uint32), POINTER(c_uint8), c_size_t,
+             POINTER(c_double), POINTER(c_double), c_size_t, POINTER(_Buf)], c_int32),
         "predict_rts_from_file": ([c_void_p, c_void_p, POINTER(c_double), POINTER(c_double),
              c_size_t, POINTER(_Buf)], c_int32),
         "plan_predict_rts": ([c_void_p, c_void_p, POINTER(c_double), POINTER(c_double),
@@ -383,6 +389,8 @@ PAYLOAD_FIT_RESULT = 6
 PAYLOAD_EIC_PEAKS = 7
 PAYLOAD_CONSENSUS_FEATURES = 8
 PAYLOAD_FOUND_FEATURES = 9
+PAYLOAD_WARP_TARGETS = 10
+PAYLOAD_MODEL_METADATA = 11
 
 _NUMBER, _COUNT, _TEXT = "number", "count", "text"
 
@@ -421,6 +429,12 @@ _RECORD_COLUMNS = {
         ("id", (69, 70), _TEXT), ("mz", 71, _NUMBER), ("rt", 72, _NUMBER),
         ("from", 73, _NUMBER), ("to", 74, _NUMBER), ("intensity", 75, _NUMBER),
         ("integral", 76, _NUMBER), ("n_points", 77, _COUNT), ("noise", 78, _NUMBER),
+    ],
+    PAYLOAD_WARP_TARGETS: [
+        ("id", (79, 80), _TEXT), ("mz", 81, _NUMBER), ("rt", 82, _NUMBER),
+    ],
+    PAYLOAD_MODEL_METADATA: [
+        ("key", (83, 84), _TEXT), ("value", (85, 86), _TEXT),
     ],
 }
 

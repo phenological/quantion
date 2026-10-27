@@ -1,5 +1,6 @@
 import type { Backend, FileHandle } from "./backend";
 import { SampleFile } from "./sampleFile";
+import { Model } from "./model";
 import { WarpModel } from "./warpModel";
 import { toCores, toUint8 } from "./shared";
 import { encodeTargetIds, unpackTargets } from "./pack";
@@ -13,6 +14,8 @@ import type {
   Peak,
   Target,
   PredictedRt,
+  WarpTarget,
+  ModelEntry,
   ChromItem,
   ChromPeak,
   Feature,
@@ -37,6 +40,8 @@ export type {
   Peak,
   Target,
   PredictedRt,
+  WarpTarget,
+  ModelEntry,
   ChromItem,
   ChromPeak,
   Feature,
@@ -145,17 +150,17 @@ export async function parseIon(
 }
 
 /**
- * Load a warp model from a path (Node only), a URL, or bytes.
+ * Load an ONNX model from a path (Node only), a URL, or bytes.
  *
  * @param source - Path, URL, or model bytes.
- * @returns The loaded warp model.
+ * @returns The loaded model.
  */
-export async function loadWarpModel(source: IonInput): Promise<WarpModel> {
-  const modelSource = getIonSource(source, "loadWarpModel");
+export async function loadModel(source: IonInput): Promise<Model> {
+  const modelSource = getIonSource(source, "loadModel");
   const selectedBackend = await backendAsync();
   if (modelSource.kind === "path") {
-    return new WarpModel(
-      selectedBackend.loadWarpModelPath(modelSource.path),
+    return new Model(
+      selectedBackend.loadModelPath(modelSource.path),
       selectedBackend,
     );
   }
@@ -163,45 +168,38 @@ export async function loadWarpModel(source: IonInput): Promise<WarpModel> {
     modelSource.kind === "url"
       ? await fetchModel(modelSource.url)
       : modelSource.bytes;
-  return new WarpModel(selectedBackend.loadWarpModelBytes(bytes), selectedBackend);
-}
-
-async function fetchModel(url: URL): Promise<Uint8Array> {
-  const response = await fetch(url);
-  if (!response.ok) {
-    throw new Error(
-      `loadWarpModel: the model download failed with HTTP ${response.status} for ${url}`,
-    );
-  }
-  return new Uint8Array(await response.arrayBuffer());
+  return new Model(selectedBackend.loadModelBytes(bytes), selectedBackend);
 }
 
 /**
- * Predict each target's RT in a file with a warp model.
+ * Make a warp model from a loaded model. The model stays usable.
  *
- * @param warp - A model from {@link loadWarpModel}.
- * @param file - The sample file.
- * @param targets - Targets, each with `mz` and `rt`.
- * @returns One `{ rt, uncertainty }` per target, in the same order.
+ * @param model - A model from {@link loadModel}.
+ * @returns The warp model.
  */
-export async function predictRts(
-  warp: WarpModel,
-  file: SampleFile,
-  targets: { id?: string; mz: number; rt: number }[],
-): Promise<PredictedRt[]> {
-  assertFile(file, "predictRts");
-  if (!(warp instanceof WarpModel) || !warp._handle) {
-    throw new Error("predictRts: expects a valid WarpModel object");
+export function loadWarp(model: Model): WarpModel {
+  if (!(model instanceof Model) || !model._handle) {
+    throw new Error("loadWarp: expects a valid Model from loadModel");
   }
-  if (targets.length === 0) return [];
+  return new WarpModel(
+    model._backend.loadWarp(model._handle),
+    model._backend,
+    model.getMetadata("loadWarp"),
+  );
+}
 
-  const mzs = Float64Array.from(targets, (target) => target.mz);
-  const rts = Float64Array.from(targets, (target) => target.rt);
-  const values = await file._backend.predictRts(warp._handle, file._handle!, mzs, rts);
-  return targets.map((_, index) => ({
-    rt: values[index * 2],
-    uncertainty: values[index * 2 + 1],
-  }));
+async function fetchModel(url: URL): Promise<Uint8Array> {
+  const response = await fetch(url).catch((error: Error) => {
+    throw new Error(
+      `load_model: the model was not read: GET ${url} failed: ${error.message}`,
+    );
+  });
+  if (!response.ok) {
+    throw new Error(
+      `load_model: the model was not read: GET ${url} failed: HTTP ${response.status}`,
+    );
+  }
+  return new Uint8Array(await response.arrayBuffer());
 }
 
 function parseIonSource(

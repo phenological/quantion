@@ -1,10 +1,7 @@
-use std::{
-    fmt,
-    path::{Path, PathBuf},
-};
+use std::{collections::HashMap, fmt};
 
 use ionic::{IonReader, source::ByteRange};
-use runnet::{Model, Tensor};
+use runnet::Tensor;
 
 use crate::utilities::{
     calculate_eic::{
@@ -12,56 +9,16 @@ use crate::utilities::{
         plan_window_ranges,
     },
     get_peaks_from_eic::{MzWindow, read_eics_one_pass},
-    parse_ion::is_url,
+    load_model::Model,
     structs::FromTo,
 };
 
 const INPUT_NAMES: [&str; 2] = ["eics", "targets"];
 const ALLOWED_EDGE_GAP: f64 = 0.05;
 
-#[derive(Debug, Clone)]
-pub enum ModelInput {
-    Path(PathBuf),
-    Url(String),
-    Bytes(Vec<u8>),
-}
-
-impl From<&str> for ModelInput {
-    fn from(text: &str) -> Self {
-        if is_url(text) {
-            ModelInput::Url(text.to_string())
-        } else {
-            ModelInput::Path(PathBuf::from(text))
-        }
-    }
-}
-
-impl From<&Path> for ModelInput {
-    fn from(path: &Path) -> Self {
-        ModelInput::Path(path.to_path_buf())
-    }
-}
-
-impl From<PathBuf> for ModelInput {
-    fn from(path: PathBuf) -> Self {
-        ModelInput::Path(path)
-    }
-}
-
-impl From<Vec<u8>> for ModelInput {
-    fn from(bytes: Vec<u8>) -> Self {
-        ModelInput::Bytes(bytes)
-    }
-}
-
-impl From<&[u8]> for ModelInput {
-    fn from(bytes: &[u8]) -> Self {
-        ModelInput::Bytes(bytes.to_vec())
-    }
-}
-
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq)]
 pub struct Target {
+    pub id: String,
     pub mz: f64,
     pub rt: f64,
 }
@@ -74,9 +31,17 @@ pub struct PredictedRt {
 
 #[derive(Clone, Debug)]
 pub enum WarpError {
-    ModelNotRead(String),
-    SettingMissing(String),
+    WrongInputs,
+    ValueMissing(String),
     TargetMissing(usize),
+    ListsDiffer {
+        samples: usize,
+        lists: usize,
+    },
+    IdMissing {
+        list: usize,
+        target: usize,
+    },
     ScansNotCovered {
         needed: FromTo,
         found: Option<FromTo>,
@@ -89,12 +54,20 @@ pub enum WarpError {
 impl fmt::Display for WarpError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            WarpError::ModelNotRead(reason) => write!(f, "the warp model was not read: {}", reason),
-            WarpError::SettingMissing(name) => {
-                write!(f, "the warp model has no valid setting {}", name)
+            WarpError::WrongInputs => write!(f, "the model needs the inputs eics and targets"),
+            WarpError::ValueMissing(name) => {
+                write!(f, "the warp model has no valid value for {}", name)
             }
             WarpError::TargetMissing(index) => {
                 write!(f, "target {} has no valid m/z or rt", index + 1)
+            }
+            WarpError::ListsDiffer { samples, lists } => write!(
+                f,
+                "calibrate needs one target list per sample, got {} samples and {} target lists",
+                samples, lists
+            ),
+            WarpError::IdMissing { list, target } => {
+                write!(f, "target {} in list {} has no id", target + 1, list + 1)
             }
             WarpError::ScansNotCovered {
                 needed,
@@ -131,37 +104,8 @@ pub struct WarpModel {
     eic_options: EicOptions,
 }
 
-pub fn load_warp_model(input: impl Into<ModelInput>) -> Result<WarpModel, WarpError> {
-    let model = match input.into() {
-        ModelInput::Path(path) => Model::load(path),
-        ModelInput::Url(url) => Model::from_bytes(&fetch_model(&url)?),
-        ModelInput::Bytes(bytes) => Model::from_bytes(&bytes),
-    }
-    .map_err(|error| WarpError::ModelNotRead(error.to_string()))?;
-    WarpModel::from_model(model)
-}
-
-pub fn predict_rts(
-    warp: &WarpModel,
-    reader: &mut EicReader,
-    targets: &[Target],
-) -> Result<Vec<PredictedRt>, WarpError> {
-    check_targets(targets)?;
-    if targets.is_empty() {
-        return Ok(Vec::new());
-    }
-    let scans = get_scan_times(
-        reader,
-        warp.time_range.from - ALLOWED_EDGE_GAP,
-        warp.time_range.to + ALLOWED_EDGE_GAP,
-        MS1_LEVEL,
-    );
-    warp.check_scans(&scans)?;
-
-    let windows = warp.get_windows(targets);
-    let values = read_eics_one_pass(reader, &scans, &windows).map_err(WarpError::FileNotRead)?;
-    let scan_rts: Vec<f64> = scans.iter().map(|scan| scan.rt).collect();
-    warp.predict_from_traces(targets, &scan_rts, &values)
+pub fn load_warp(model: &Model) -> Result<WarpModel, WarpError> {
+    WarpModel::from_model(model.clone())
 }
 
 pub fn plan_predict_rts_ranges(
@@ -192,9 +136,7 @@ pub fn plan_predict_rts_ranges(
 impl WarpModel {
     fn from_model(model: Model) -> Result<Self, WarpError> {
         if model.input_names() != INPUT_NAMES {
-            return Err(WarpError::ModelNotRead(
-                "the model must have the inputs eics and targets".to_string(),
-            ));
+            return Err(WarpError::WrongInputs);
         }
         let warp = Self {
             points: get_number(&model, "points")? as usize,
@@ -211,9 +153,7 @@ impl WarpModel {
             model,
         };
         if warp.points < 2 || warp.time_range.to <= warp.time_range.from {
-            return Err(WarpError::SettingMissing(
-                "points or time range".to_string(),
-            ));
+            return Err(WarpError::ValueMissing("points or time range".to_string()));
         }
         Ok(warp)
     }
@@ -228,6 +168,73 @@ impl WarpModel {
 
     pub fn context_mz(&self) -> &[f64] {
         &self.context_mz
+    }
+
+    pub fn get_keys(&self) -> &[String] {
+        self.model.get_keys()
+    }
+
+    pub fn get_values(&self) -> &[String] {
+        self.model.get_values()
+    }
+
+    pub fn get_value(&self, key: &str) -> Option<&str> {
+        self.model.get_value(key)
+    }
+
+    pub fn predict_rts(
+        &self,
+        reader: &mut EicReader,
+        targets: &[Target],
+    ) -> Result<Vec<PredictedRt>, WarpError> {
+        check_targets(targets)?;
+        if targets.is_empty() {
+            return Ok(Vec::new());
+        }
+        let scans = get_scan_times(
+            reader,
+            self.time_range.from - ALLOWED_EDGE_GAP,
+            self.time_range.to + ALLOWED_EDGE_GAP,
+            MS1_LEVEL,
+        );
+        self.check_scans(&scans)?;
+
+        let windows = self.get_windows(targets);
+        let values =
+            read_eics_one_pass(reader, &scans, &windows).map_err(WarpError::FileNotRead)?;
+        let scan_rts: Vec<f64> = scans.iter().map(|scan| scan.rt).collect();
+        self.predict_from_traces(targets, &scan_rts, &values)
+    }
+
+    pub fn calibrate(
+        &self,
+        samples: &mut [EicReader],
+        target_lists: &[Vec<Target>],
+    ) -> Result<Vec<Target>, WarpError> {
+        check_target_lists(samples.len(), target_lists)?;
+        let calibrated_lists = samples
+            .iter_mut()
+            .zip(target_lists)
+            .map(|(sample, targets)| self.calibrate_sample(sample, targets))
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(get_median_targets(&calibrated_lists))
+    }
+
+    pub(crate) fn calibrate_sample(
+        &self,
+        sample: &mut EicReader,
+        targets: &[Target],
+    ) -> Result<Vec<Target>, WarpError> {
+        let predicted = self.predict_rts(sample, targets)?;
+        Ok(targets
+            .iter()
+            .zip(predicted)
+            .map(|(target, prediction)| Target {
+                id: target.id.clone(),
+                mz: target.mz,
+                rt: get_calibrated_rt(target.rt, prediction.rt),
+            })
+            .collect())
     }
 
     pub(crate) fn check_scans(&self, scans: &[ScanTime]) -> Result<(), WarpError> {
@@ -301,7 +308,7 @@ impl WarpModel {
 
         let outputs = self
             .model
-            .run([
+            .run(vec![
                 Tensor::from_floats([row_count, self.points + 1], eics),
                 Tensor::from_floats([targets.len(), 2], target_values),
             ])
@@ -385,17 +392,69 @@ fn get_value_at(scan_rts: &[f64], input: &[f64], next_scan: usize, time: f64) ->
     input[before] + fraction * (input[next_scan] - input[before])
 }
 
+fn get_calibrated_rt(rt: f64, predicted_rt: f64) -> f64 {
+    2.0 * rt - predicted_rt
+}
+
+pub(crate) fn check_target_lists(
+    sample_count: usize,
+    target_lists: &[Vec<Target>],
+) -> Result<(), WarpError> {
+    if sample_count != target_lists.len() {
+        return Err(WarpError::ListsDiffer {
+            samples: sample_count,
+            lists: target_lists.len(),
+        });
+    }
+    for (list, targets) in target_lists.iter().enumerate() {
+        if let Some(target) = targets.iter().position(|target| target.id.is_empty()) {
+            return Err(WarpError::IdMissing { list, target });
+        }
+    }
+    Ok(())
+}
+
+pub(crate) fn get_median_targets(target_lists: &[Vec<Target>]) -> Vec<Target> {
+    let mut order: Vec<&Target> = Vec::new();
+    let mut rts: HashMap<&str, Vec<f64>> = HashMap::new();
+    for target in target_lists.iter().flatten() {
+        let found = rts.entry(target.id.as_str()).or_default();
+        if found.is_empty() {
+            order.push(target);
+        }
+        found.push(target.rt);
+    }
+    order
+        .into_iter()
+        .map(|target| Target {
+            id: target.id.clone(),
+            mz: target.mz,
+            rt: get_median(&mut rts[target.id.as_str()].clone()),
+        })
+        .collect()
+}
+
+fn get_median(values: &mut [f64]) -> f64 {
+    values.sort_by(f64::total_cmp);
+    let middle = values.len() / 2;
+    if values.len().is_multiple_of(2) {
+        (values[middle - 1] + values[middle]) / 2.0
+    } else {
+        values[middle]
+    }
+}
+
 fn get_number(model: &Model, name: &str) -> Result<f64, WarpError> {
     model
-        .setting(name)
+        .get_value(name)
         .and_then(|text| text.trim().parse().ok())
-        .ok_or_else(|| WarpError::SettingMissing(name.to_string()))
+        .ok_or_else(|| WarpError::ValueMissing(name.to_string()))
 }
 
 fn get_numbers(model: &Model, name: &str) -> Result<Vec<f64>, WarpError> {
     model
-        .setting(name)
-        .ok_or_else(|| WarpError::SettingMissing(name.to_string()))?
+        .get_value(name)
+        .ok_or_else(|| WarpError::ValueMissing(name.to_string()))?
         .trim()
         .trim_start_matches('[')
         .trim_end_matches(']')
@@ -405,30 +464,7 @@ fn get_numbers(model: &Model, name: &str) -> Result<Vec<f64>, WarpError> {
         .map(|number| {
             number
                 .parse()
-                .map_err(|_| WarpError::SettingMissing(name.to_string()))
+                .map_err(|_| WarpError::ValueMissing(name.to_string()))
         })
         .collect()
-}
-
-#[cfg(all(
-    feature = "http",
-    not(all(target_arch = "wasm32", not(target_os = "wasi")))
-))]
-fn fetch_model(url: &str) -> Result<Vec<u8>, WarpError> {
-    ureq::get(url)
-        .call()
-        .map_err(|error| WarpError::ModelNotRead(format!("GET {url} failed: {error}")))?
-        .body_mut()
-        .read_to_vec()
-        .map_err(|error| WarpError::ModelNotRead(format!("reading {url} failed: {error}")))
-}
-
-#[cfg(not(all(
-    feature = "http",
-    not(all(target_arch = "wasm32", not(target_os = "wasi")))
-)))]
-fn fetch_model(url: &str) -> Result<Vec<u8>, WarpError> {
-    Err(WarpError::ModelNotRead(format!(
-        "{url} is a URL; enable the http feature of quantion to load URLs"
-    )))
 }

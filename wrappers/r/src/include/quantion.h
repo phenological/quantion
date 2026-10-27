@@ -35,6 +35,10 @@
 
 #define QUANTION_PAYLOAD_FOUND_FEATURES 9
 
+#define QUANTION_PAYLOAD_WARP_TARGETS 10
+
+#define QUANTION_PAYLOAD_MODEL_METADATA 11
+
 #define QUANTION_ELEMENT_F64 1
 
 #define QUANTION_ELEMENT_U32 2
@@ -199,7 +203,25 @@
 
 #define QUANTION_SECTION_FOUND_NOISE 78
 
+#define QUANTION_SECTION_WARP_TARGET_ID_STARTS 79
+
+#define QUANTION_SECTION_WARP_TARGET_ID_BYTES 80
+
+#define QUANTION_SECTION_WARP_TARGET_MZ 81
+
+#define QUANTION_SECTION_WARP_TARGET_RT 82
+
+#define QUANTION_SECTION_MODEL_METADATA_KEY_STARTS 83
+
+#define QUANTION_SECTION_MODEL_METADATA_KEY_BYTES 84
+
+#define QUANTION_SECTION_MODEL_METADATA_VALUE_STARTS 85
+
+#define QUANTION_SECTION_MODEL_METADATA_VALUE_BYTES 86
+
 typedef struct ImageSession ImageSession;
+
+typedef struct ModelHandle ModelHandle;
 
 typedef struct ParsedFile ParsedFile;
 
@@ -644,15 +666,23 @@ int find_feature(const struct ParsedFile *h,
                  const struct CPeakOptions *peak_opts,
                  struct Buf *out);
 
-int warp_model_load_path(const uint8_t *path_ptr,
-                         uintptr_t path_len,
-                         struct WarpModelHandle **out,
-                         struct Buf *message);
+int model_load_path(const uint8_t *path_ptr,
+                    uintptr_t path_len,
+                    struct ModelHandle **out,
+                    struct Buf *message);
 
-int warp_model_load_bytes(const uint8_t *model_ptr,
-                          uintptr_t model_len,
-                          struct WarpModelHandle **out,
-                          struct Buf *message);
+int model_load_bytes(const uint8_t *model_ptr,
+                     uintptr_t model_len,
+                     struct ModelHandle **out,
+                     struct Buf *message);
+
+void model_free(struct ModelHandle *model);
+
+int model_metadata(const struct ModelHandle *model, struct Buf *out);
+
+int warp_model_load(const struct ModelHandle *model,
+                    struct WarpModelHandle **out,
+                    struct Buf *message);
 
 void warp_model_free(struct WarpModelHandle *warp);
 
@@ -669,3 +699,16 @@ int plan_predict_rts(const struct WarpModelHandle *warp,
                      const double *rts_ptr,
                      uintptr_t n,
                      struct Buf *out);
+
+int calibrate_rts(const struct WarpModelHandle *warp,
+                  const struct ParsedFile *const *files,
+                  uintptr_t file_count,
+                  const uintptr_t *list_lengths,
+                  const uint32_t *ids_off,
+                  const uint32_t *ids_len,
+                  const uint8_t *ids_buf,
+                  uintptr_t ids_buf_len,
+                  const double *mzs_ptr,
+                  const double *rts_ptr,
+                  uintptr_t target_count,
+                  struct Buf *out);

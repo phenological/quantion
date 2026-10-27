@@ -22,9 +22,9 @@ describeWithBundle("warp model on wasm", () => {
   it("predicts from model bytes and a file in memory", async () => {
     const quantion = getQuantion();
     await quantion.init();
-    const warp = await quantion.loadWarpModel(readFixture("shift_model.onnx"));
+    const warp = quantion.loadWarp(await quantion.loadModel(readFixture("shift_model.onnx")));
     const file = await quantion.parseIon(readFixture("api/api.ion"));
-    const predicted = await quantion.predictRts(warp, file, targets);
+    const predicted = await warp.predictRts(file, targets);
     expect(predicted).toHaveLength(targets.length);
     predicted.forEach((prediction: { rt: number; uncertainty: number }) => {
       expect(Number.isFinite(prediction.rt)).toBe(true);
@@ -37,10 +37,10 @@ describeWithBundle("warp model on wasm", () => {
   it("names a target without mz by its number", async () => {
     const quantion = getQuantion();
     await quantion.init();
-    const warp = await quantion.loadWarpModel(readFixture("shift_model.onnx"));
+    const warp = quantion.loadWarp(await quantion.loadModel(readFixture("shift_model.onnx")));
     const file = await quantion.parseIon(readFixture("api/api.ion"));
     await expect(
-      quantion.predictRts(warp, file, [targets[0], { mz: NaN, rt: 2 }]),
+      warp.predictRts(file, [targets[0], { mz: NaN, rt: 2 }]),
     ).rejects.toThrow("predict_rts: target 2 has no valid m/z or rt");
     file.dispose();
     warp.dispose();
@@ -50,7 +50,7 @@ describeWithBundle("warp model on wasm", () => {
     const quantion = getQuantion();
     await quantion.init();
     await expect(
-      quantion.loadWarpModel(path.join(fixtures, "shift_model.onnx")),
+      quantion.loadModel(path.join(fixtures, "shift_model.onnx")),
     ).rejects.toThrow("file paths need the Node backend");
   });
 });

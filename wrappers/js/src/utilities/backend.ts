@@ -3,9 +3,12 @@ import type {
   IonImage,
   NoiseLevel,
   PeakOptions,
+  WarpTarget,
+  ModelEntry,
 } from "../types/types";
 
 export type FileHandle = unknown;
+export type ModelHandle = unknown;
 export type WarpModelHandle = unknown;
 export type MaybePromise<T> = T | Promise<T>;
 
@@ -34,15 +37,32 @@ export interface Backend {
   ): FileHandle | Promise<FileHandle>;
   freeFile(handle: FileHandle): void;
 
-  loadWarpModelPath(path: string): WarpModelHandle;
-  loadWarpModelBytes(bytes: Uint8Array): WarpModelHandle;
+  loadModelPath(path: string): ModelHandle;
+  loadModelBytes(bytes: Uint8Array): ModelHandle;
+  freeModel(model: ModelHandle): void;
+  modelMetadata(model: ModelHandle): ModelEntry[];
+  loadWarp(model: ModelHandle): WarpModelHandle;
   freeWarpModel(warp: WarpModelHandle): void;
+  prefetchRts(
+    warp: WarpModelHandle,
+    handle: FileHandle,
+    mzs: Float64Array,
+    rts: Float64Array,
+  ): Promise<void>;
   predictRts(
     warp: WarpModelHandle,
     handle: FileHandle,
     mzs: Float64Array,
     rts: Float64Array,
-  ): MaybePromise<Float64Array>;
+  ): Float64Array;
+  calibrateRts(
+    warp: WarpModelHandle,
+    handles: FileHandle[],
+    listLengths: number[],
+    ids: string[],
+    mzs: Float64Array,
+    rts: Float64Array,
+  ): WarpTarget[];
   fileToMzml(handle: FileHandle): string;
   fileToBin(
     handle: FileHandle,

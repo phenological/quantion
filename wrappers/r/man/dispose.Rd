@@ -11,11 +11,11 @@ dispose(
 )
 }
 \arguments{
-  \item{bin}{Sample file from \code{\link{parse_mzml}()} or \code{\link{parse_ion}()}, or a warp model from \code{\link{load_warp_model}()}.}
+  \item{bin}{Sample file from \code{\link{parse_mzml}()} or \code{\link{parse_ion}()}, a model from \code{\link{load_model}()}, or a warp model from \code{\link{load_warp}()}.}
 }
 \value{
 \code{NULL}, called for its side effect.
 }
 \seealso{
-\code{\link{parse_mzml}()}, \code{\link{parse_ion}()}, \code{\link{load_warp_model}()}
+\code{\link{parse_mzml}()}, \code{\link{parse_ion}()}, \code{\link{load_model}()}, \code{\link{load_warp}()}
 }

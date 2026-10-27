@@ -55,9 +55,16 @@ typedef int32_t (*fn_get_features)(const char *, double, double, double, double,
 typedef int32_t (*fn_get_scans)(const MzML *, uint8_t, double, double, uint8_t, Buf *);
 typedef void (*fn_free_)(unsigned char *, size_t);
 typedef void (*fn_free_mzml)(MzML *);
+typedef struct Model Model;
 typedef struct WarpModel WarpModel;
-typedef int32_t (*fn_warp_model_load)(const uint8_t *, size_t, WarpModel **, Buf *);
+typedef int32_t (*fn_model_load)(const uint8_t *, size_t, Model **, Buf *);
+typedef void (*fn_model_free)(Model *);
+typedef int32_t (*fn_model_metadata)(const Model *, Buf *);
+typedef int32_t (*fn_warp_model_load)(const Model *, WarpModel **, Buf *);
 typedef void (*fn_warp_model_free)(WarpModel *);
+typedef int32_t (*fn_calibrate_rts)(const WarpModel *, const MzML *const *, size_t, const size_t *,
+                                    const uint32_t *, const uint32_t *, const unsigned char *, size_t,
+                                    const double *, const double *, size_t, Buf *);
 typedef int32_t (*fn_predict_rts_from_file)(const WarpModel *, const MzML *, const double *, const double *, size_t, Buf *);
 typedef int32_t (*fn_plan_predict_rts)(const WarpModel *, MzML *, const double *, const double *, size_t, Buf *);
 
@@ -90,9 +97,13 @@ typedef struct
   fn_free_mzml free_mzml;
   fn_get_features get_features;
   fn_get_scans get_scans;
-  fn_warp_model_load warp_model_load_path;
-  fn_warp_model_load warp_model_load_bytes;
+  fn_model_load model_load_path;
+  fn_model_load model_load_bytes;
+  fn_model_free model_free;
+  fn_model_metadata model_metadata;
+  fn_warp_model_load warp_model_load;
   fn_warp_model_free warp_model_free;
+  fn_calibrate_rts calibrate_rts;
   fn_predict_rts_from_file predict_rts_from_file;
   fn_plan_predict_rts plan_predict_rts;
 } abi_type;
@@ -193,11 +204,19 @@ int abi_load(const char *path, const char **err)
     goto fail;
   if (resolve_required((void **)&ABI.get_scans, "get_scans"))
     goto fail;
-  if (resolve_required((void **)&ABI.warp_model_load_path, "warp_model_load_path"))
+  if (resolve_required((void **)&ABI.model_load_path, "model_load_path"))
     goto fail;
-  if (resolve_required((void **)&ABI.warp_model_load_bytes, "warp_model_load_bytes"))
+  if (resolve_required((void **)&ABI.model_load_bytes, "model_load_bytes"))
+    goto fail;
+  if (resolve_required((void **)&ABI.model_free, "model_free"))
+    goto fail;
+  if (resolve_required((void **)&ABI.model_metadata, "model_metadata"))
+    goto fail;
+  if (resolve_required((void **)&ABI.warp_model_load, "warp_model_load"))
     goto fail;
   if (resolve_required((void **)&ABI.warp_model_free, "warp_model_free"))
+    goto fail;
+  if (resolve_required((void **)&ABI.calibrate_rts, "calibrate_rts"))
     goto fail;
   if (resolve_required((void **)&ABI.predict_rts_from_file, "predict_rts_from_file"))
     goto fail;
@@ -698,6 +717,13 @@ static const record_column FOUND_COLUMNS[] = {
     {"integral", 76, 0, COLUMN_NUMBER}, {"n_points", 77, 0, COLUMN_COUNT},
     {"noise", 78, 0, COLUMN_NUMBER}};
 
+static const record_column WARP_TARGET_COLUMNS[] = {
+    {"id", 79, 80, COLUMN_TEXT}, {"mz", 81, 0, COLUMN_NUMBER},
+    {"rt", 82, 0, COLUMN_NUMBER}};
+
+static const record_column MODEL_METADATA_COLUMNS[] = {
+    {"key", 83, 84, COLUMN_TEXT}, {"value", 85, 86, COLUMN_TEXT}};
+
 static const record_column *columns_for_kind(uint16_t kind, int *count)
 {
   switch (kind)
@@ -723,6 +749,12 @@ static const record_column *columns_for_kind(uint16_t kind, int *count)
   case QUANTION_PAYLOAD_FOUND_FEATURES:
     *count = 9;
     return FOUND_COLUMNS;
+  case QUANTION_PAYLOAD_WARP_TARGETS:
+    *count = 3;
+    return WARP_TARGET_COLUMNS;
+  case QUANTION_PAYLOAD_MODEL_METADATA:
+    *count = 2;
+    return MODEL_METADATA_COLUMNS;
   default:
     *count = 0;
     return NULL;
@@ -1037,6 +1069,11 @@ static void finalize_mzml(SEXP ptr)
   }
 }
 
+static SEXP model_tag(void)
+{
+  return Rf_install("quantion_model");
+}
+
 static SEXP warp_model_tag(void)
 {
   return Rf_install("quantion_warp_model");
@@ -1044,8 +1081,8 @@ static SEXP warp_model_tag(void)
 
 SEXP C_dispose_mzml(SEXP ptr)
 {
-  if (R_ExternalPtrTag(ptr) == warp_model_tag())
-    error("quantion: this is a warp model, not a sample file");
+  if (R_ExternalPtrTag(ptr) == warp_model_tag() || R_ExternalPtrTag(ptr) == model_tag())
+    error("quantion: this is a model, not a sample file");
   finalize_mzml(ptr);
   return R_NilValue;
 }
@@ -1771,7 +1808,7 @@ static SEXP wrap_warp_model(WarpModel *warp)
 static WarpModel *get_warp_model(SEXP ptr)
 {
   if (TYPEOF(ptr) != EXTPTRSXP || R_ExternalPtrTag(ptr) != warp_model_tag())
-    error("quantion: expected a warp model from load_warp_model");
+    error("quantion: expected a warp model from load_warp");
   WarpModel *warp = (WarpModel *)R_ExternalPtrAddr(ptr);
   if (!warp)
     error("quantion: use of a disposed warp model");
@@ -1792,34 +1829,154 @@ static void die_warp_error(const char *fname, int code, Buf *message)
   error("quantion/%s failed: %s (code=%d)", fname, text, code);
 }
 
-SEXP C_warp_model_load_path(SEXP path)
+static void finalize_model(SEXP ptr)
+{
+  if (R_ExternalPtrAddr(ptr))
+  {
+    if (ABI.model_free)
+      ABI.model_free((Model *)R_ExternalPtrAddr(ptr));
+    R_ClearExternalPtr(ptr);
+  }
+}
+
+static SEXP wrap_model(Model *model)
+{
+  SEXP ptr = PROTECT(R_MakeExternalPtr(model, model_tag(), R_NilValue));
+  R_RegisterCFinalizerEx(ptr, finalize_model, TRUE);
+  UNPROTECT(1);
+  return ptr;
+}
+
+static Model *get_model(SEXP ptr)
+{
+  if (TYPEOF(ptr) != EXTPTRSXP || R_ExternalPtrTag(ptr) != model_tag())
+    error("quantion: expected a model from load_model");
+  Model *model = (Model *)R_ExternalPtrAddr(ptr);
+  if (!model)
+    error("quantion: use of a disposed model");
+  return model;
+}
+
+SEXP C_model_load_path(SEXP path)
 {
   if (TYPEOF(path) != STRSXP || LENGTH(path) != 1)
     error("quantion: path must be a single string");
-  REQUIRE_BOUND(ABI.warp_model_load_path, "warp_model_load_path");
+  REQUIRE_BOUND(ABI.model_load_path, "model_load_path");
   const char *value = CHAR(STRING_ELT(path, 0));
-  WarpModel *warp = NULL;
+  Model *model = NULL;
   Buf message = (Buf){0};
-  int code = ABI.warp_model_load_path((const uint8_t *)value, strlen(value), &warp, &message);
-  die_warp_error("load_warp_model", code, &message);
-  return wrap_warp_model(warp);
+  int code = ABI.model_load_path((const uint8_t *)value, strlen(value), &model, &message);
+  die_warp_error("load_model", code, &message);
+  return wrap_model(model);
 }
 
-SEXP C_warp_model_load_bytes(SEXP bytes)
+SEXP C_model_load_bytes(SEXP bytes)
 {
   if (TYPEOF(bytes) != RAWSXP || XLENGTH(bytes) == 0)
     error("quantion: the model bytes must be a non-empty raw vector");
-  REQUIRE_BOUND(ABI.warp_model_load_bytes, "warp_model_load_bytes");
+  REQUIRE_BOUND(ABI.model_load_bytes, "model_load_bytes");
+  Model *model = NULL;
+  Buf message = (Buf){0};
+  int code = ABI.model_load_bytes((const uint8_t *)RAW(bytes), (size_t)XLENGTH(bytes), &model, &message);
+  die_warp_error("load_model", code, &message);
+  return wrap_model(model);
+}
+
+SEXP C_dispose_model(SEXP ptr)
+{
+  if (TYPEOF(ptr) != EXTPTRSXP || R_ExternalPtrTag(ptr) != model_tag())
+    error("quantion: expected a model from load_model");
+  finalize_model(ptr);
+  return R_NilValue;
+}
+
+SEXP C_model_metadata(SEXP ptr)
+{
+  Model *model = get_model(ptr);
+  REQUIRE_BOUND(ABI.model_metadata, "model_metadata");
+  SEXP cont = PROTECT(R_MakeUnwindCont());
+  Buf out = (Buf){0};
+  int code = ABI.model_metadata(model, &out);
+  if (code != 0)
+  {
+    UNPROTECT(1);
+    die_code("load_model", code);
+  }
+  SEXP metadata = take_records_bridge("load_model", &out, cont);
+  UNPROTECT(1);
+  return metadata;
+}
+
+SEXP C_warp_model_load(SEXP ptr)
+{
+  Model *model = get_model(ptr);
+  REQUIRE_BOUND(ABI.warp_model_load, "warp_model_load");
   WarpModel *warp = NULL;
   Buf message = (Buf){0};
-  int code = ABI.warp_model_load_bytes((const uint8_t *)RAW(bytes), (size_t)XLENGTH(bytes), &warp, &message);
-  die_warp_error("load_warp_model", code, &message);
+  int code = ABI.warp_model_load(model, &warp, &message);
+  die_warp_error("load_warp", code, &message);
   return wrap_warp_model(warp);
+}
+
+SEXP C_calibrate_rts(SEXP warp, SEXP bins, SEXP list_lengths, SEXP ids, SEXP mzs, SEXP rts)
+{
+  WarpModel *model = get_warp_model(warp);
+  REQUIRE_BOUND(ABI.calibrate_rts, "calibrate_rts");
+  if (TYPEOF(bins) != VECSXP || TYPEOF(list_lengths) != REALSXP || TYPEOF(ids) != STRSXP ||
+      TYPEOF(mzs) != REALSXP || TYPEOF(rts) != REALSXP)
+    error("quantion: calibrate needs a list of samples, ids as character, mz and rt as numeric");
+  R_xlen_t file_count = XLENGTH(bins);
+  R_xlen_t n = XLENGTH(mzs);
+  if (XLENGTH(list_lengths) != file_count || XLENGTH(ids) != n || XLENGTH(rts) != n)
+    error("quantion: calibrate inputs have different lengths");
+
+  const MzML **files = (const MzML **)R_alloc((size_t)(file_count > 0 ? file_count : 1), sizeof(MzML *));
+  size_t *lengths = (size_t *)R_alloc((size_t)(file_count > 0 ? file_count : 1), sizeof(size_t));
+  for (R_xlen_t i = 0; i < file_count; i++)
+  {
+    files[i] = GetHandle(VECTOR_ELT(bins, i));
+    lengths[i] = (size_t)REAL(list_lengths)[i];
+  }
+
+  uint32_t *offsets = (uint32_t *)R_alloc((size_t)(n > 0 ? n : 1), sizeof(uint32_t));
+  uint32_t *id_lengths = (uint32_t *)R_alloc((size_t)(n > 0 ? n : 1), sizeof(uint32_t));
+  const char **texts = (const char **)R_alloc((size_t)(n > 0 ? n : 1), sizeof(char *));
+  size_t total = 0;
+  for (R_xlen_t i = 0; i < n; i++)
+  {
+    SEXP id = STRING_ELT(ids, i);
+    texts[i] = id == NA_STRING ? "" : Rf_translateCharUTF8(id);
+    total += strlen(texts[i]);
+  }
+  unsigned char *id_bytes = (unsigned char *)R_alloc(total > 0 ? total : 1, 1);
+  size_t cursor = 0;
+  for (R_xlen_t i = 0; i < n; i++)
+  {
+    size_t length = strlen(texts[i]);
+    offsets[i] = (uint32_t)cursor;
+    id_lengths[i] = (uint32_t)length;
+    memcpy(id_bytes + cursor, texts[i], length);
+    cursor += length;
+  }
+
+  SEXP cont = PROTECT(R_MakeUnwindCont());
+  Buf out = (Buf){0};
+  int code = ABI.calibrate_rts(model, files, (size_t)file_count, lengths, offsets, id_lengths, id_bytes, total,
+                               REAL(mzs), REAL(rts), (size_t)n, &out);
+  if (code != 0)
+  {
+    UNPROTECT(1);
+    die_warp_error("calibrate", code, &out);
+  }
+  SEXP calibrated = take_records_bridge("calibrate", &out, cont);
+  UNPROTECT(1);
+  return calibrated;
 }
 
 SEXP C_dispose_warp_model(SEXP ptr)
 {
-  get_warp_model(ptr);
+  if (TYPEOF(ptr) != EXTPTRSXP || R_ExternalPtrTag(ptr) != warp_model_tag())
+    error("quantion: expected a warp model from load_warp");
   finalize_warp_model(ptr);
   return R_NilValue;
 }

@@ -33,9 +33,13 @@ pub mod peaks {
     };
 }
 
+pub mod model {
+    pub use crate::utilities::load_model::{Model, ModelError, ModelInput, load_model};
+}
+
 pub mod warp {
     pub use crate::utilities::warp_model::{
-        ModelInput, PredictedRt, Target, WarpError, WarpModel, load_warp_model, predict_rts,
+        PredictedRt, Target, WarpError, WarpModel, load_warp,
     };
 }
 

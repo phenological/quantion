@@ -477,7 +477,7 @@ dependencies = [
 
 [[package]]
 name = "quantion"
-version = "0.1.5"
+version = "0.1.6"
 dependencies = [
  "bytes",
  "cbindgen",
@@ -549,9 +549,9 @@ dependencies = [
 
 [[package]]
 name = "runnet"
-version = "0.1.0"
+version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "57e38cd14f99685d0450a906295d50bc31f28437806eb8948602e4b1220828f6"
+checksum = "44e6a3bd16d008c95cb0ed406dc1d63f316d614b9f52319e1e31dc6bc262fff3"
 
 [[package]]
 name = "rustix"

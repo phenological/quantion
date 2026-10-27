@@ -1,0 +1,56 @@
+import ctypes
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
+
+if TYPE_CHECKING:
+    from quantion._bridge import _ABI
+
+
+class Metadata:
+    def _get_metadata(self) -> List[Dict[str, str]]:
+        raise NotImplementedError
+
+    def get_keys(self) -> List[str]:
+        """The keys stored in the model file, in file order."""
+        return [row["key"] for row in self._get_metadata()]
+
+    def get_values(self) -> List[str]:
+        """The values stored in the model file, in the same order as get_keys."""
+        return [row["value"] for row in self._get_metadata()]
+
+    def get_value(self, key: str) -> Optional[str]:
+        """The text stored under key in the model file, or None if it is missing."""
+        return next((row["value"] for row in self._get_metadata() if row["key"] == key), None)
+
+
+class Model(Metadata):
+    def __init__(self, handle: ctypes.c_void_p, abi: "_ABI") -> None:
+        self._handle: ctypes.c_void_p | None = handle
+        self._abi = abi
+        self._metadata: Optional[List[Dict[str, str]]] = None
+
+    @property
+    def handle(self) -> ctypes.c_void_p:
+        if self._handle is None:
+            raise RuntimeError("Model: model has been disposed")
+        return self._handle
+
+    def _get_metadata(self) -> List[Dict[str, str]]:
+        if self._metadata is None:
+            from quantion.api import _get_model_metadata
+
+            self._metadata = _get_model_metadata(self)
+        return self._metadata
+
+    def dispose(self) -> None:
+        if self._handle is not None:
+            self._abi.model_free(self._handle)
+            self._handle = None
+
+    def __del__(self) -> None:
+        self.dispose()
+
+    def __enter__(self) -> "Model":
+        return self
+
+    def __exit__(self, *_: Any) -> None:
+        self.dispose()

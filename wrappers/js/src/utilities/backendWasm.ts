@@ -8,12 +8,19 @@ import type {
   Backend,
   FileHandle,
   ByteRangeResult,
+  ModelHandle,
   WarpModelHandle,
 } from "./backend";
-import type { NoiseLevel, PeakOptions } from "../types/types";
+import type {
+  NoiseLevel,
+  PeakOptions,
+  WarpTarget,
+  ModelEntry,
+} from "../types/types";
 import { toUint8 } from "./shared";
 import { readIonImage } from "./imageBridge";
 import { readRecords } from "./recordBridge";
+import { encodeTargetIds } from "./pack";
 import { readScans } from "./scanBridge";
 import {
   fetchHeader,
@@ -364,13 +371,34 @@ class WasmExports {
     level: number,
     outBuf: number,
   ) => number;
-  readonly warpModelLoadBytes: (
+  readonly modelLoadBytes: (
     dataPtr: number,
     dataLen: number,
     outPtr: number,
     messageBuf: number,
   ) => number;
+  readonly modelFree: (model: number) => void;
+  readonly modelMetadata: (model: number, outBuf: number) => number;
+  readonly warpModelLoad: (
+    model: number,
+    outPtr: number,
+    messageBuf: number,
+  ) => number;
   readonly warpModelFree: (warp: number) => void;
+  readonly calibrateRts: (
+    warp: number,
+    filesPtr: number,
+    fileCount: number,
+    lengthsPtr: number,
+    offsetsPtr: number,
+    idLengthsPtr: number,
+    idPtr: number,
+    idLen: number,
+    mzPtr: number,
+    rtPtr: number,
+    count: number,
+    outBuf: number,
+  ) => number;
   readonly predictRtsFromFile: (
     warp: number,
     handle: number,
@@ -472,8 +500,12 @@ class WasmExports {
     this.findFeature = this.resolve(ex, ["find_feature"]);
     this.getScans = this.resolve(ex, ["get_scans"]);
     this.getIonImage = this.resolve(ex, ["get_ion_image"]);
-    this.warpModelLoadBytes = this.resolve(ex, ["warp_model_load_bytes"]);
+    this.modelLoadBytes = this.resolve(ex, ["model_load_bytes"]);
+    this.modelFree = this.resolve(ex, ["model_free"]);
+    this.modelMetadata = this.resolve(ex, ["model_metadata"]);
+    this.warpModelLoad = this.resolve(ex, ["warp_model_load"]);
     this.warpModelFree = this.resolve(ex, ["warp_model_free"]);
+    this.calibrateRts = this.resolve(ex, ["calibrate_rts"]);
     this.predictRtsFromFile = this.resolve(ex, ["predict_rts_from_file"]);
     this.planPredictRts = this.resolve(ex, ["plan_predict_rts"]);
     this.parseIonUrl =
@@ -914,25 +946,97 @@ class WasmApi {
     }
   }
 
-  loadWarpModelRaw(bytes: Uint8Array): number {
+  loadModelRaw(bytes: Uint8Array): number {
     const [ptr, len] = this.heap.allocAndWrite(bytes);
     try {
-      const rc = this.fn.warpModelLoadBytes(
+      const rc = this.fn.modelLoadBytes(
         ptr,
         len,
         this.handleScratchSlot,
         this.blobScratchSlot,
       );
-      if (rc !== 0) throw this.warpError("load_warp_model", rc);
+      if (rc !== 0) throw this.warpError("load_model", rc);
       return this.heap.readU32(this.handleScratchSlot);
     } finally {
       this.fn.free(ptr, len);
     }
   }
 
+  freeModelRaw(model: number): void {
+    this.fn.modelFree(model);
+  }
+
+  modelMetadataRaw(model: number): ModelEntry[] {
+    const rc = this.fn.modelMetadata(model, this.bridgeOutputSlot);
+    if (rc !== 0) throw rcError("model_metadata", rc);
+    return readRecords(
+      this.heap.readBridgeFromSlot(this.bridgeOutputSlot),
+    ) as ModelEntry[];
+  }
+
+  loadWarpRaw(model: number): number {
+    const rc = this.fn.warpModelLoad(
+      model,
+      this.handleScratchSlot,
+      this.blobScratchSlot,
+    );
+    if (rc !== 0) throw this.warpError("load_warp", rc);
+    return this.heap.readU32(this.handleScratchSlot);
+  }
+
   freeWarpModelRaw(warp: number): void {
     this.fn.warpModelFree(warp);
   }
+
+  calibrateRtsRaw(
+    warp: number,
+    handles: number[],
+    listLengths: number[],
+    ids: string[],
+    mzs: Float64Array,
+    rts: Float64Array,
+  ): WarpTarget[] {
+    const { packedBytes, offsets, lengths } = encodeTargetIds(ids);
+    const allocations = [
+      this.heap.allocAndWrite(toUint8View(Uint32Array.from(handles))),
+      this.heap.allocAndWrite(toUint8View(Uint32Array.from(listLengths))),
+      this.heap.allocAndWrite(toUint8View(offsets)),
+      this.heap.allocAndWrite(toUint8View(lengths)),
+      this.heap.allocAndWrite(packedBytes),
+      this.heap.allocAndWrite(toUint8View(mzs)),
+      this.heap.allocAndWrite(toUint8View(rts)),
+    ];
+    const [filesPtr, lengthsPtr, offsetsPtr, idLengthsPtr, idPtr, mzPtr, rtPtr] =
+      allocations.map(([ptr]) => ptr);
+    try {
+      const rc = this.fn.calibrateRts(
+        warp,
+        filesPtr,
+        handles.length,
+        lengthsPtr,
+        offsetsPtr,
+        idLengthsPtr,
+        idPtr,
+        packedBytes.length,
+        mzPtr,
+        rtPtr,
+        mzs.length,
+        this.bridgeOutputSlot,
+      );
+      if (rc !== 0) {
+        const { ptr, len } = this.heap.readOutputSlot(this.bridgeOutputSlot);
+        if (len === 0) throw rcError("calibrate", rc);
+        const message = this.heap.decoder.decode(this.heap.copyOutAndFree(ptr, len));
+        throw new Error(`calibrate: ${message}`);
+      }
+    } finally {
+      this.heap.freeMany(allocations);
+    }
+    return readRecords(
+      this.heap.readBridgeFromSlot(this.bridgeOutputSlot),
+    ) as WarpTarget[];
+  }
+
 
   private warpError(name: string, rc: number): Error {
     const { ptr, len } = this.heap.readOutputSlot(this.blobScratchSlot);
@@ -957,27 +1061,34 @@ class WasmApi {
     }
   }
 
-  async predictRts(
+  async prefetchRts(
     warp: number,
     handle: number,
     mzs: Float64Array,
     rts: Float64Array,
-  ): Promise<Float64Array> {
+  ): Promise<void> {
     const sourceId = this.source_id_by_handle.get(handle);
-    if (sourceId !== undefined) {
-      const source = range_sources.get(sourceId);
-      if (!source) {
-        throw new Error("predictRts: remote source is missing");
-      }
-      this.callWithTargets(
-        "plan_predict_rts",
-        (mzPtr, rtPtr, count) =>
-          this.fn.planPredictRts(warp, handle, mzPtr, rtPtr, count, this.blobScratchSlot),
-        mzs,
-        rts,
-      );
-      await prefetchRangesForSource(source, this.readRangesFromSlot(this.blobScratchSlot));
+    if (sourceId === undefined) return;
+    const source = range_sources.get(sourceId);
+    if (!source) {
+      throw new Error("predictRts: remote source is missing");
     }
+    this.callWithTargets(
+      "plan_predict_rts",
+      (mzPtr, rtPtr, count) =>
+        this.fn.planPredictRts(warp, handle, mzPtr, rtPtr, count, this.blobScratchSlot),
+      mzs,
+      rts,
+    );
+    await prefetchRangesForSource(source, this.readRangesFromSlot(this.blobScratchSlot));
+  }
+
+  predictRts(
+    warp: number,
+    handle: number,
+    mzs: Float64Array,
+    rts: Float64Array,
+  ): Float64Array {
     this.callWithTargets(
       "predict_rts",
       (mzPtr, rtPtr, count) =>
@@ -988,6 +1099,7 @@ class WasmApi {
     const { ptr, len } = this.heap.readOutputSlot(this.blobScratchSlot);
     return new Float64Array(this.heap.copyOutAndFree(ptr, len).buffer);
   }
+
 
   freeRaw(handle: number): void {
     try {
@@ -1549,28 +1661,68 @@ export class WasmBackend implements Backend {
     this.getApi().freeRaw(handle as number);
   }
 
-  loadWarpModelPath(_path: string): WarpModelHandle {
+  loadModelPath(_path: string): ModelHandle {
     throw new Error(
-      "loadWarpModel: file paths need the Node backend; pass a URL or bytes in the browser",
+      "loadModel: file paths need the Node backend; pass a URL or bytes in the browser",
     );
   }
 
-  loadWarpModelBytes(bytes: Uint8Array): WarpModelHandle {
-    return this.getApi().loadWarpModelRaw(bytes);
+  loadModelBytes(bytes: Uint8Array): ModelHandle {
+    return this.getApi().loadModelRaw(bytes);
+  }
+
+  freeModel(model: ModelHandle): void {
+    this.getApi().freeModelRaw(model as number);
+  }
+
+  modelMetadata(model: ModelHandle): ModelEntry[] {
+    return this.getApi().modelMetadataRaw(model as number);
+  }
+
+  loadWarp(model: ModelHandle): WarpModelHandle {
+    return this.getApi().loadWarpRaw(model as number);
   }
 
   freeWarpModel(warp: WarpModelHandle): void {
     this.getApi().freeWarpModelRaw(warp as number);
   }
 
-  async predictRts(
+  prefetchRts(
     warp: WarpModelHandle,
     handle: FileHandle,
     mzs: Float64Array,
     rts: Float64Array,
-  ): Promise<Float64Array> {
+  ): Promise<void> {
+    return this.getApi().prefetchRts(warp as number, handle as number, mzs, rts);
+  }
+
+  predictRts(
+    warp: WarpModelHandle,
+    handle: FileHandle,
+    mzs: Float64Array,
+    rts: Float64Array,
+  ): Float64Array {
     return this.getApi().predictRts(warp as number, handle as number, mzs, rts);
   }
+
+  calibrateRts(
+    warp: WarpModelHandle,
+    handles: FileHandle[],
+    listLengths: number[],
+    ids: string[],
+    mzs: Float64Array,
+    rts: Float64Array,
+  ): WarpTarget[] {
+    return this.getApi().calibrateRtsRaw(
+      warp as number,
+      handles as number[],
+      listLengths,
+      ids,
+      mzs,
+      rts,
+    );
+  }
+
 
   fileToMzml(handle: FileHandle): string {
     return this.getApi().fileToMzml(handle as number);

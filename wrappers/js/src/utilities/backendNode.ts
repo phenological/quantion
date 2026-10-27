@@ -2,8 +2,18 @@
 
 import * as fs from "fs";
 import * as path from "path";
-import type { Backend, FileHandle, WarpModelHandle } from "./backend";
-import type { NoiseLevel, PeakOptions } from "../types/types";
+import type {
+  Backend,
+  FileHandle,
+  ModelHandle,
+  WarpModelHandle,
+} from "./backend";
+import type {
+  NoiseLevel,
+  PeakOptions,
+  WarpTarget,
+  ModelEntry,
+} from "../types/types";
 import { readRecords } from "./recordBridge";
 import { readIonImage } from "./imageBridge";
 import { readScans } from "./scanBridge";
@@ -177,36 +187,71 @@ export class NodeBackend implements Backend {
     return this.native.parseBin(toNodeBuffer(bytes), cacheSize);
   }
 
-  loadWarpModelPath(path: string): WarpModelHandle {
-    return this.native.loadWarpModelPath(path);
+  loadModelPath(path: string): ModelHandle {
+    return this.native.loadModelPath(path);
   }
 
-  loadWarpModelBytes(bytes: Uint8Array): WarpModelHandle {
-    return this.native.loadWarpModelBytes(toNodeBuffer(bytes));
+  loadModelBytes(bytes: Uint8Array): ModelHandle {
+    return this.native.loadModelBytes(toNodeBuffer(bytes));
+  }
+
+  freeModel(model: ModelHandle): void {
+    this.native.disposeModel(model);
+  }
+
+  modelMetadata(model: ModelHandle): ModelEntry[] {
+    return readRecords(
+      this.native.modelMetadata(model) as ArrayBuffer,
+    ) as ModelEntry[];
+  }
+
+  loadWarp(model: ModelHandle): WarpModelHandle {
+    return this.native.loadWarp(model);
   }
 
   freeWarpModel(warp: WarpModelHandle): void {
     this.native.disposeWarpModel(warp);
   }
 
-  async predictRts(
+  async prefetchRts(
     warp: WarpModelHandle,
     handle: FileHandle,
     mzs: Float64Array,
     rts: Float64Array,
-  ): Promise<Float64Array> {
+  ): Promise<void> {
     const source = this.remote_by_handle.get(handle as object);
-    if (source) {
-      const ranges = this.native.planPredictRts(
-        warp,
-        handle,
-        mzs,
-        rts,
-      ) as ByteRangeResult[];
-      await prefetchRanges(source, ranges);
-    }
+    if (!source) return;
+    const ranges = this.native.planPredictRts(
+      warp,
+      handle,
+      mzs,
+      rts,
+    ) as ByteRangeResult[];
+    await prefetchRanges(source, ranges);
+  }
+
+  predictRts(
+    warp: WarpModelHandle,
+    handle: FileHandle,
+    mzs: Float64Array,
+    rts: Float64Array,
+  ): Float64Array {
     return this.native.predictRts(warp, handle, mzs, rts) as Float64Array;
   }
+
+  calibrateRts(
+    warp: WarpModelHandle,
+    handles: FileHandle[],
+    listLengths: number[],
+    ids: string[],
+    mzs: Float64Array,
+    rts: Float64Array,
+  ): WarpTarget[] {
+    return readRecords(
+      this.native.calibrateRts(warp, handles, listLengths, ids, mzs, rts) as ArrayBuffer,
+    ) as WarpTarget[];
+  }
+
 
   freeFile(handle: FileHandle): void {
     this.remote_by_handle.delete(handle as object);

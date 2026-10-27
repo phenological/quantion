@@ -24,15 +24,16 @@ from quantion.api import (
     find_features,
     find_feature,
     get_features,
-    load_warp_model,
-    predict_rts,
+    load_model,
+    load_warp,
 )
 from quantion.file import SampleFile
+from quantion.model import Model
 from quantion.warp_model import WarpModel
 from quantion._pack import pack_peak_options, encode_target_ids, unpack_targets
 from quantion._shared import to_cores
 
-__version__ = "0.1.5"
+__version__ = "0.1.6"
 
 __all__ = [
     "Quantion",
@@ -58,8 +59,9 @@ __all__ = [
     "find_feature",
     "get_features",
     "SampleFile",
-    "load_warp_model",
-    "predict_rts",
+    "load_model",
+    "load_warp",
+    "Model",
     "WarpModel",
     "pack_peak_options",
     "encode_target_ids",
@@ -107,8 +109,8 @@ class Quantion:
     def find_peaks(self, x, y, options=None):
         return find_peaks(x, y, options)
 
-    def get_peak(self, x, y, rt: float, range_: float, options=None):
-        return get_peak(x, y, rt, range_, options)
+    def get_peak(self, x, y, rt: float, range: float, options=None):
+        return get_peak(x, y, rt, range, options)
 
     def fit_peak(self, x, y, rt: float, intensity: float, shape: str = "emg"):
         return fit_peak(x, y, rt, intensity, shape)
@@ -137,11 +139,11 @@ class Quantion:
     def get_features(self, directory_path: str, from_rt: float, to_rt: float, *, eic=None, grid=None, grouping=None, options=None, cores: int = 1):
         return get_features(directory_path, from_rt, to_rt, eic=eic, grid=grid, grouping=grouping, options=options, cores=cores)
 
-    def load_warp_model(self, source) -> WarpModel:
-        return load_warp_model(source)
+    def load_model(self, source) -> Model:
+        return load_model(source)
 
-    def predict_rts(self, warp: WarpModel, file: SampleFile, targets):
-        return predict_rts(warp, file, targets)
+    def load_warp(self, model: Model) -> WarpModel:
+        return load_warp(model)
 
     def __repr__(self) -> str:
         return "<Quantion ready>"

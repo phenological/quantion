@@ -186,7 +186,7 @@ main <- function() {
                             auto_noise = TRUE, auto_baseline = TRUE)
   out <- feature_lines("get_features", consensus, out, FALSE)
 
-  warp <- load_warp_model(file.path(directory, "..", "shift_model.onnx"))
+  warp <- load_warp(load_model(file.path(directory, "..", "shift_model.onnx")))
   ids <- unlist(lapply(CHANNELS, function(channel)
     vapply(channel$targets, function(target) paste0(channel$name, ".", target[1]), character(1))))
   targets <- data.frame(

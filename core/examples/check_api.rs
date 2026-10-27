@@ -1,6 +1,7 @@
 use std::path::Path;
 
 use ionic::{IonReader, ReadOptions};
+use quantion::model::load_model;
 use quantion::utilities::{
     calculate_eic::{EicOptions, EicReader, calculate_eic, get_scan_times},
     find_features::{FindFeaturesOptions, find_features},
@@ -12,7 +13,7 @@ use quantion::utilities::{
     get_peaks_from_eic::get_peaks_from_eic,
     structs::{DataXY, FromTo, Peak, Roi},
 };
-use quantion::warp::{Target, load_warp_model, predict_rts};
+use quantion::warp::{Target, load_warp};
 
 const FROM_RT: f64 = 0.0;
 const TO_RT: f64 = 5.0;
@@ -308,7 +309,7 @@ fn report_channel(fixture: &Path, channel: &Channel, out: &mut Vec<String>) {
 
 fn predicted_rts(fixture: &Path, directory: &str, out: &mut Vec<String>) {
     let model = Path::new(directory).join("..").join("shift_model.onnx");
-    let warp = load_warp_model(model.as_path()).expect("warp model");
+    let warp = load_warp(&load_model(model.as_path()).expect("model")).expect("warp model");
     let mut ion = IonReader::open(fixture, &ReadOptions::default()).expect("open fixture");
     let names: Vec<String> = CHANNELS
         .iter()
@@ -322,14 +323,16 @@ fn predicted_rts(fixture: &Path, directory: &str, out: &mut Vec<String>) {
     let targets: Vec<Target> = CHANNELS
         .iter()
         .flat_map(|channel| {
-            channel.targets.iter().map(move |(_, rt)| Target {
+            channel.targets.iter().map(move |(id, rt)| Target {
+                id: id.to_string(),
                 mz: channel.mass,
                 rt: *rt,
             })
         })
         .collect();
-    let predicted =
-        predict_rts(&warp, &mut EicReader::Ion(&mut ion), &targets).expect("predict_rts");
+    let predicted = warp
+        .predict_rts(&mut EicReader::Ion(&mut ion), &targets)
+        .expect("predict_rts");
     out.push(format!("predict_rts.count = {}", predicted.len()));
     for (name, prediction) in names.iter().zip(&predicted) {
         out.push(format!("predict_rts.{name}.rt = {}", number(prediction.rt)));

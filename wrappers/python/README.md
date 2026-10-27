@@ -140,25 +140,45 @@ peaks = quantion.find_peaks(x, y, options={"auto_noise": True, "min_snr": 3.0})
 Find one peak near a target retention time in XY data.
 
 ```python
-peak = quantion.get_peak(x, y, rt=5.3, range_=0.6, options={"auto_noise": True})
+peak = quantion.get_peak(x, y, rt=5.3, range=0.6, options={"auto_noise": True})
 ```
 
 ## Predict retention times
 
-Predict each target's retention time in a sample with an ONNX warp model. The
-model can be a path, a URL, or bytes. You get one `{"rt", "uncertainty"}` per
-target, in the same order, and choose where to use the predicted RT.
+Load an ONNX model from a path, a URL, or bytes, read the keys and values stored
+in it, and make a warp model from it. The model stays usable after `load_warp`,
+and the warp keeps working if the model is disposed.
 
 ```python
-warp = quantion.load_warp_model("paper_model.onnx")
+model = quantion.load_model("paper_model.onnx")
+model.get_keys()                  # ["points", "time_from", ..., "targets"]
+model.get_value("points")         # "1024"
 
-targets = [{"mz": 174.112, "rt": 5.3}, {"mz": 203.156, "rt": 7.1}]
-rts = quantion.predict_rts(warp, sample, targets)
+warp = quantion.load_warp(model)
+warp.get_value("targets")         # the warp has the same keys and values
+```
 
-eic = quantion.calculate_eic(sample, target_mz=174.112, from_rt=1, to_rt=15)
-peak = quantion.get_peak(eic["x"], eic["y"], rt=rts[0]["rt"], range_=0.6)
+Predict each target's retention time in a sample. You get one
+`{"rt", "uncertainty"}` per target, in the same order.
+
+```python
+targets = [{"id": "Arginine", "mz": 345.167, "rt": 2.6}]
+rts = warp.predict_rts(sample, targets)
+```
+
+Without reference RTs, calibrate from anchor samples such as LTRs or QCs: give
+the samples and, for each one, the targets seen in it. Each target gets the
+median calibrated RT over the samples where it was seen. One sample works, three
+are better, five or more are best.
+
+```python
+anchor_samples = [ltr_1, ltr_2, ltr_3]
+target_lists = [seen_in_ltr_1, seen_in_ltr_2, seen_in_ltr_3]
+calibrated = warp.calibrate(anchor_samples, target_lists)
+rts = warp.predict_rts(other_sample, calibrated)
 
 warp.dispose()
+model.dispose()
 ```
 
 ## Find peaks from samples

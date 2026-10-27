@@ -106,21 +106,40 @@ peak <- quantion::get_peak(eic_df$x, eic_df$y, rt = 3.4, range = 0.6, min_intens
 
 ## Predict retention times
 
-Predict each target's retention time in a sample with an ONNX warp model. The
-model can be a path, a URL, or raw bytes. You get a data frame with `rt` and
-`uncertainty`, one row per target, in the same order, and choose where to use
-the predicted RT.
+Load an ONNX model from a path, a URL, or raw bytes, read the keys and values
+stored in it, and make a warp model from it. The model stays usable after
+`load_warp`, and the warp keeps working if the model is disposed.
 
 ```r
-warp <- quantion::load_warp_model("paper_model.onnx")
+model <- quantion::load_model("paper_model.onnx")
+quantion::get_keys(model)               # "points" "time_from" ... "targets"
+quantion::get_value(model, "points")    # "1024"
 
-targets <- data.frame(mz = c(174.112, 203.156), rt = c(5.3, 7.1))
+warp <- quantion::load_warp(model)
+quantion::get_value(warp, "targets")    # the warp has the same keys and values
+```
+
+Predict each target's retention time in a sample. You get a data frame with
+`rt` and `uncertainty`, one row per target, in the same order.
+
+```r
+targets <- data.frame(id = "Arginine", mz = 345.167, rt = 2.6)
 rts <- quantion::predict_rts(warp, sample, targets)
+```
 
-eic <- quantion::calculate_eic(sample, targets = 174.112, from = 1, to = 15)
-peak <- quantion::get_peak(eic$x, eic$y, rt = rts$rt[1], range = 0.6)
+Without reference RTs, calibrate from anchor samples such as LTRs or QCs: give
+the samples and, for each one, the targets seen in it. Each target gets the
+median calibrated RT over the samples where it was seen. One sample works, three
+are better, five or more are best.
+
+```r
+anchor_samples <- list(ltr_1, ltr_2, ltr_3)
+target_lists <- list(seen_in_ltr_1, seen_in_ltr_2, seen_in_ltr_3)
+calibrated <- quantion::calibrate(warp, anchor_samples, target_lists)
+rts <- quantion::predict_rts(warp, other_sample, calibrated)
 
 quantion::dispose(warp)
+quantion::dispose(model)
 ```
 
 ## Find peaks from samples

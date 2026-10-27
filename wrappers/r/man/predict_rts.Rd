@@ -14,7 +14,7 @@ predict_rts(
 )
 }
 \arguments{
-  \item{warp}{A warp model from \code{\link{load_warp_model}()}.}
+  \item{warp}{A warp model from \code{\link{load_warp}()}.}
   \item{bin}{Sample file from \code{\link{parse_ion}()}.}
   \item{targets}{A data frame with columns \code{mz} and \code{rt}.}
 }
@@ -24,7 +24,7 @@ A data frame with columns \code{rt} (the predicted retention time) and
 }
 \examples{
 \donttest{
-warp <- load_warp_model("https://example.org/model.onnx")
+warp <- load_warp(load_model("https://example.org/model.onnx"))
 sample <- parse_ion("https://example.org/file.ion")
 targets <- data.frame(mz = c(250.1, 310.2), rt = c(1.2, 3.1))
 rts <- predict_rts(warp, sample, targets)
@@ -32,5 +32,5 @@ targets$rt <- rts$rt
 }
 }
 \seealso{
-\code{\link{load_warp_model}()}, \code{\link{get_peaks_from_eic}()}
+\code{\link{load_warp}()}, \code{\link{calibrate}()}, \code{\link{get_peaks_from_eic}()}
 }

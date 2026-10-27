@@ -13,6 +13,8 @@ export const PAYLOAD_FIT_RESULT = 6;
 export const PAYLOAD_EIC_PEAKS = 7;
 export const PAYLOAD_CONSENSUS_FEATURES = 8;
 export const PAYLOAD_FOUND_FEATURES = 9;
+export const PAYLOAD_WARP_TARGETS = 10;
+export const PAYLOAD_MODEL_METADATA = 11;
 
 export const ELEMENT_F64 = 1;
 export const ELEMENT_U32 = 2;
@@ -104,6 +106,16 @@ export const SECTION_FOUND_INTENSITY = 75;
 export const SECTION_FOUND_INTEGRAL = 76;
 export const SECTION_FOUND_POINT_COUNT = 77;
 export const SECTION_FOUND_NOISE = 78;
+
+export const SECTION_WARP_TARGET_ID_STARTS = 79;
+export const SECTION_WARP_TARGET_ID_BYTES = 80;
+export const SECTION_WARP_TARGET_MZ = 81;
+export const SECTION_WARP_TARGET_RT = 82;
+
+export const SECTION_MODEL_METADATA_KEY_STARTS = 83;
+export const SECTION_MODEL_METADATA_KEY_BYTES = 84;
+export const SECTION_MODEL_METADATA_VALUE_STARTS = 85;
+export const SECTION_MODEL_METADATA_VALUE_BYTES = 86;
 
 const ELEMENT_SIZES: Record<number, number> = {
   [ELEMENT_F64]: 8,
