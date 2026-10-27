@@ -231,6 +231,17 @@ async function main() {
   );
   featureLines("get_features", consensus, out, false);
 
+  const warp = await quantion.loadWarpModel(path.join(directory, "..", "shift_model.onnx"));
+  const targets = CHANNELS.flatMap((channel) =>
+    channel.targets.map(([id, rt]) => ({ id: `${channel.name}.${id}`, mz: channel.mass, rt })),
+  );
+  const predicted = await quantion.predictRts(warp, file, targets);
+  out.push(`predict_rts.count = ${predicted.length}`);
+  targets.forEach((target, index) => {
+    out.push(`predict_rts.${target.id}.rt = ${number(predicted[index].rt)}`);
+    out.push(`predict_rts.${target.id}.uncertainty = ${number(predicted[index].uncertainty)}`);
+  });
+
   process.stdout.write(out.join("\n") + "\n");
 }
 

@@ -186,6 +186,23 @@ main <- function() {
                             auto_noise = TRUE, auto_baseline = TRUE)
   out <- feature_lines("get_features", consensus, out, FALSE)
 
+  warp <- load_warp_model(file.path(directory, "..", "shift_model.onnx"))
+  ids <- unlist(lapply(CHANNELS, function(channel)
+    vapply(channel$targets, function(target) paste0(channel$name, ".", target[1]), character(1))))
+  targets <- data.frame(
+    id = ids,
+    mz = unlist(lapply(CHANNELS, function(channel) rep(channel$mass, length(channel$targets)))),
+    rt = unlist(lapply(CHANNELS, function(channel)
+      vapply(channel$targets, function(target) as.numeric(target[2]), numeric(1))))
+  )
+  predicted <- predict_rts(warp, file, targets)
+  out <- c(out, sprintf("predict_rts.count = %d", nrow(predicted)))
+  for (index in seq_len(nrow(predicted))) {
+    out <- c(out,
+      sprintf("predict_rts.%s.rt = %s", ids[index], number(predicted$rt[index])),
+      sprintf("predict_rts.%s.uncertainty = %s", ids[index], number(predicted$uncertainty[index])))
+  }
+
   cat(paste(out, collapse = "\n"), "\n", sep = "")
 }
 

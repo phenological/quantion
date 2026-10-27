@@ -33,6 +33,12 @@ pub mod peaks {
     };
 }
 
+pub mod warp {
+    pub use crate::utilities::warp_model::{
+        ModelInput, PredictedRt, Target, WarpError, WarpModel, load_warp_model, predict_rts,
+    };
+}
+
 pub mod boundaries {
     pub use crate::utilities::get_boundaries::{
         Boundaries, BoundariesOptions, Boundary, get_boundaries,

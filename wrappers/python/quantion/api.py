@@ -14,6 +14,7 @@ from quantion._bridge import (
     _ABI,
     _Buf,
     _check,
+    _check_with_message,
     buf_to_bytes,
     buf_to_f64,
     buf_to_records,
@@ -27,6 +28,7 @@ from quantion._pack import (
 )
 from quantion._shared import to_cores
 from quantion.file import SampleFile
+from quantion.warp_model import WarpModel
 
 _abi: Optional[_ABI] = None
 
@@ -154,6 +156,72 @@ def parse_mzml(data: bytes) -> SampleFile:
     return SampleFile(ptr, abi)
 
 
+
+def load_warp_model(source) -> WarpModel:
+    """Load a warp model from a path, a URL, or bytes."""
+    abi = _get_abi()
+    if isinstance(source, (str, os.PathLike)):
+        text = os.fspath(source)
+        if not _is_url(text):
+            path = os.fsencode(text)
+            path_ptr, _ = _as_u8_ptr(path)
+            handle, message = ctypes.c_void_p(), _Buf()
+            _check_with_message("load_warp_model", abi.warp_model_load_path(
+                path_ptr, len(path), ctypes.byref(handle), ctypes.byref(message)), abi, message)
+            return WarpModel(handle, abi)
+        from urllib.request import urlopen
+
+        with urlopen(text) as response:
+            source = response.read()
+    data = bytes(source)
+    if not data:
+        raise ValueError("load_warp_model: the model bytes are empty")
+    data_ptr, _ = _as_u8_ptr(data)
+    handle, message = ctypes.c_void_p(), _Buf()
+    _check_with_message("load_warp_model", abi.warp_model_load_bytes(
+        data_ptr, len(data), ctypes.byref(handle), ctypes.byref(message)), abi, message)
+    return WarpModel(handle, abi)
+
+
+def _is_url(text: str) -> bool:
+    return text.lower().startswith(("http://", "https://"))
+
+
+def _get_target_value(target: Dict[str, Any], key: str) -> float:
+    value = target.get(key)
+    return math.nan if value is None else float(value)
+
+
+def predict_rts(warp: WarpModel, file: SampleFile, targets: Sequence[Dict[str, Any]]) -> List[Dict[str, float]]:
+    """Predict each target's RT in this file with the warp model.
+
+    Args:
+        warp: A model from load_warp_model.
+        file: The sample file.
+        targets: A list of dicts, each with "mz" and "rt".
+
+    Returns:
+        One dict per target, in the same order: {"rt": predicted RT, "uncertainty": ...}.
+    """
+    if not targets:
+        return []
+    abi = _get_abi()
+    mz_values = _to_f64_array([_get_target_value(target, "mz") for target in targets])
+    rt_values = _to_f64_array([_get_target_value(target, "rt") for target in targets])
+    arguments = (warp.handle, file.handle, _as_f64_ptr(mz_values), _as_f64_ptr(rt_values),
+                 len(targets))
+    source = getattr(file, "_remote_source", None)
+    if source is not None:
+        plan = _Buf()
+        _check_with_message("plan_predict_rts", abi.plan_predict_rts(
+            *arguments, ctypes.byref(plan)), abi, plan)
+        source.prefetch(_unpack_ranges(buf_to_bytes(abi, plan)))
+    buf = _Buf()
+    _check_with_message("predict_rts", abi.predict_rts_from_file(
+        *arguments, ctypes.byref(buf)), abi, buf)
+    values = buf_to_f64(abi, buf).reshape(-1, 2)
+    return [{"rt": float(rt), "uncertainty": float(uncertainty)} for rt, uncertainty in values]
+
 def parse_ion(source, max_cache_size: int = 0) -> SampleFile:
     """Load an ion file from raw bytes, a path, or a URL.
 
@@ -162,7 +230,7 @@ def parse_ion(source, max_cache_size: int = 0) -> SampleFile:
     """
     if isinstance(source, (str, os.PathLike)):
         text = os.fspath(source)
-        if text.startswith("http://") or text.startswith("https://"):
+        if _is_url(text):
             return parse_ion_remote(text, max_cache_size)
         return parse_ion_path(text, max_cache_size)
     return parse_ion_raw(source, max_cache_size)
@@ -305,12 +373,7 @@ def _plan_eic(file: SampleFile, target_mz: float, from_rt: float, to_rt: float,
         c_double(ppm_tol), c_double(mz_tol),
         ctypes.byref(buffer),
     ))
-    packed = buf_to_bytes(file._abi, buffer)
-    return [
-        (int.from_bytes(packed[i:i + 8], "little"),
-         int.from_bytes(packed[i + 8:i + 16], "little"))
-        for i in range(0, len(packed), 16)
-    ]
+    return _unpack_ranges(buf_to_bytes(file._abi, buffer))
 
 
 def _plan_scans(file: SampleFile, query_type: int, from_value: float,
@@ -322,7 +385,10 @@ def _plan_scans(file: SampleFile, query_type: int, from_value: float,
         c_uint8(level),
         ctypes.byref(buffer),
     ))
-    packed = buf_to_bytes(file._abi, buffer)
+    return _unpack_ranges(buf_to_bytes(file._abi, buffer))
+
+
+def _unpack_ranges(packed: bytes) -> list[tuple[int, int]]:
     return [
         (int.from_bytes(packed[i:i + 8], "little"),
          int.from_bytes(packed[i + 8:i + 16], "little"))
@@ -344,7 +410,7 @@ def parse_ion_remote(url: str, max_cache_size: int = 0) -> SampleFile:
     """
     if not isinstance(url, str) or not url:
         raise ValueError("parse_ion_remote: url must be a non-empty string")
-    if not (url.startswith("http://") or url.startswith("https://")):
+    if not _is_url(url):
         raise ValueError("parse_ion_remote: url must start with http:// or https://")
     if not isinstance(max_cache_size, int) or max_cache_size < 0:
         raise ValueError("parse_ion_remote: max_cache_size must be a non-negative integer")

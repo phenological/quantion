@@ -2,7 +2,7 @@
 
 import * as fs from "fs";
 import * as path from "path";
-import type { Backend, FileHandle } from "./backend";
+import type { Backend, FileHandle, WarpModelHandle } from "./backend";
 import type { NoiseLevel, PeakOptions } from "../types/types";
 import { readRecords } from "./recordBridge";
 import { readIonImage } from "./imageBridge";
@@ -175,6 +175,37 @@ export class NodeBackend implements Backend {
 
   parseIonBuffer(bytes: Uint8Array, cacheSize = 0): FileHandle {
     return this.native.parseBin(toNodeBuffer(bytes), cacheSize);
+  }
+
+  loadWarpModelPath(path: string): WarpModelHandle {
+    return this.native.loadWarpModelPath(path);
+  }
+
+  loadWarpModelBytes(bytes: Uint8Array): WarpModelHandle {
+    return this.native.loadWarpModelBytes(toNodeBuffer(bytes));
+  }
+
+  freeWarpModel(warp: WarpModelHandle): void {
+    this.native.disposeWarpModel(warp);
+  }
+
+  async predictRts(
+    warp: WarpModelHandle,
+    handle: FileHandle,
+    mzs: Float64Array,
+    rts: Float64Array,
+  ): Promise<Float64Array> {
+    const source = this.remote_by_handle.get(handle as object);
+    if (source) {
+      const ranges = this.native.planPredictRts(
+        warp,
+        handle,
+        mzs,
+        rts,
+      ) as ByteRangeResult[];
+      await prefetchRanges(source, ranges);
+    }
+    return this.native.predictRts(warp, handle, mzs, rts) as Float64Array;
   }
 
   freeFile(handle: FileHandle): void {

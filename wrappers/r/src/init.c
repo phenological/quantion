@@ -22,6 +22,11 @@ SEXP C_parse_ion(SEXP bin, SEXP max_cache_size);
 SEXP C_plan_open(SEXP header);
 SEXP C_plan_eic(SEXP ptr, SEXP target, SEXP from, SEXP to, SEXP ppm, SEXP mz_tol);
 SEXP C_plan_scans(SEXP ptr, SEXP query_type, SEXP from_value, SEXP to_value, SEXP level);
+SEXP C_warp_model_load_path(SEXP path);
+SEXP C_warp_model_load_bytes(SEXP bytes);
+SEXP C_dispose_warp_model(SEXP ptr);
+SEXP C_predict_rts(SEXP warp, SEXP bin, SEXP mzs, SEXP rts);
+SEXP C_plan_predict_rts(SEXP warp, SEXP bin, SEXP mzs, SEXP rts);
 SEXP C_store_new(void);
 SEXP C_store_add(SEXP store_ptr, SEXP offset, SEXP bytes);
 SEXP C_parse_ion_source(SEXP store_ptr, SEXP max_cache_size);
@@ -55,6 +60,11 @@ static const R_CallMethodDef CallEntries[] = {
     {"C_plan_open", (DL_FUNC)&C_plan_open, 1},
     {"C_plan_eic", (DL_FUNC)&C_plan_eic, 6},
     {"C_plan_scans", (DL_FUNC)&C_plan_scans, 5},
+    {"C_warp_model_load_path", (DL_FUNC)&C_warp_model_load_path, 1},
+    {"C_warp_model_load_bytes", (DL_FUNC)&C_warp_model_load_bytes, 1},
+    {"C_dispose_warp_model", (DL_FUNC)&C_dispose_warp_model, 1},
+    {"C_predict_rts", (DL_FUNC)&C_predict_rts, 4},
+    {"C_plan_predict_rts", (DL_FUNC)&C_plan_predict_rts, 4},
     {"C_store_new", (DL_FUNC)&C_store_new, 0},
     {"C_store_add", (DL_FUNC)&C_store_add, 3},
     {"C_parse_ion_source", (DL_FUNC)&C_parse_ion_source, 2},

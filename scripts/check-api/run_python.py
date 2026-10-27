@@ -208,6 +208,18 @@ def main():
         out.append(f"{name}.integral = {number(feature['integral'])}")
         out.append(f"{name}.intensity = {number(feature['intensity'])}")
 
+    warp = quantion.load_warp_model(os.path.join(directory, "..", "shift_model.onnx"))
+    targets = [
+        {"id": f"{channel['name']}.{name}", "mz": channel["mass"], "rt": rt}
+        for channel in CHANNELS
+        for name, rt in channel["targets"]
+    ]
+    predicted = quantion.predict_rts(warp, file, targets)
+    out.append(f"predict_rts.count = {len(predicted)}")
+    for target, prediction in zip(targets, predicted):
+        out.append(f"predict_rts.{target['id']}.rt = {number(prediction['rt'])}")
+        out.append(f"predict_rts.{target['id']}.uncertainty = {number(prediction['uncertainty'])}")
+
     print("\n".join(out))
 
 

@@ -41,6 +41,11 @@ use rayon::prelude::*;
 #[cfg(not(all(target_arch = "wasm32", not(target_os = "wasi"))))]
 use crate::utilities::parallel::run_with_cores;
 
+pub(crate) struct MzWindow {
+    pub(crate) from: f64,
+    pub(crate) to: f64,
+}
+
 struct PeakJob {
     roi_idx: usize,
     rt: f64,
@@ -80,7 +85,14 @@ pub fn get_peaks_from_eic<'a>(
             .collect());
     }
 
-    let eic_values = read_eics_one_pass(reader, &scan_times, &jobs)?;
+    let windows: Vec<MzWindow> = jobs
+        .iter()
+        .map(|job| MzWindow {
+            from: job.mz_from,
+            to: job.mz_to,
+        })
+        .collect();
+    let eic_values = read_eics_one_pass(reader, &scan_times, &windows)?;
 
     let peaks = compute_peaks_for_jobs(
         &jobs,
@@ -161,21 +173,21 @@ fn compute_peak_for_job(
     )
 }
 
-fn read_eics_one_pass(
+pub(crate) fn read_eics_one_pass(
     reader: &mut EicReader,
     scan_times: &[crate::utilities::calculate_eic::ScanTime],
-    jobs: &[PeakJob],
+    windows: &[MzWindow],
 ) -> Result<Vec<f64>, FastError> {
     let scan_count = scan_times.len();
-    let mut eic_values = vec![0.0; jobs.len() * scan_count];
+    let mut eic_values = vec![0.0; windows.len() * scan_count];
 
-    let mz_from = jobs
+    let mz_from = windows
         .iter()
-        .map(|job| job.mz_from)
+        .map(|window| window.from)
         .fold(f64::INFINITY, f64::min);
-    let mz_to = jobs
+    let mz_to = windows
         .iter()
-        .map(|job| job.mz_to)
+        .map(|window| window.to)
         .fold(f64::NEG_INFINITY, f64::max);
 
     let mut mz_values = Vec::new();
@@ -191,10 +203,10 @@ fn read_eics_one_pass(
             &mut intensity_values,
         )?;
 
-        for (job_index, job) in jobs.iter().enumerate() {
-            let start = lower_bound(&mz_values, job.mz_from);
-            let end = upper_bound(&mz_values, job.mz_to).min(mz_values.len());
-            eic_values[job_index * scan_count + scan_position] =
+        for (window_index, window) in windows.iter().enumerate() {
+            let start = lower_bound(&mz_values, window.from);
+            let end = upper_bound(&mz_values, window.to).min(mz_values.len());
+            eic_values[window_index * scan_count + scan_position] =
                 intensity_values[start..end].iter().sum();
         }
     }

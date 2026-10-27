@@ -24,8 +24,11 @@ from quantion.api import (
     find_features,
     find_feature,
     get_features,
+    load_warp_model,
+    predict_rts,
 )
 from quantion.file import SampleFile
+from quantion.warp_model import WarpModel
 from quantion._pack import pack_peak_options, encode_target_ids, unpack_targets
 from quantion._shared import to_cores
 
@@ -55,6 +58,9 @@ __all__ = [
     "find_feature",
     "get_features",
     "SampleFile",
+    "load_warp_model",
+    "predict_rts",
+    "WarpModel",
     "pack_peak_options",
     "encode_target_ids",
     "unpack_targets",
@@ -130,6 +136,12 @@ class Quantion:
 
     def get_features(self, directory_path: str, from_rt: float, to_rt: float, *, eic=None, grid=None, grouping=None, options=None, cores: int = 1):
         return get_features(directory_path, from_rt, to_rt, eic=eic, grid=grid, grouping=grouping, options=options, cores=cores)
+
+    def load_warp_model(self, source) -> WarpModel:
+        return load_warp_model(source)
+
+    def predict_rts(self, warp: WarpModel, file: SampleFile, targets):
+        return predict_rts(warp, file, targets)
 
     def __repr__(self) -> str:
         return "<Quantion ready>"

@@ -80,6 +80,8 @@ pub extern "C" fn quantion_sizeof_peak_options() -> usize {
     core::mem::size_of::<CPeakOptions>()
 }
 
+mod warp;
+
 const OK: c_int = 0;
 const ERR_INVALID_ARGS: c_int = 1;
 const ERR_PANIC: c_int = 2;
