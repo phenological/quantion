@@ -69,10 +69,7 @@ class PublicSurface(unittest.TestCase):
         for name in support.quantion.__all__:
             self.assertTrue(hasattr(support.quantion, name), name)
 
-    def test_the_remote_reader_replaces_the_url_reader(self):
-        self.assertTrue(hasattr(support.quantion, "parse_ion_remote"))
-        self.assertFalse(hasattr(support.quantion, "parse_ion_url"))
-
-    def test_the_class_offers_the_remote_reader(self):
-        self.assertTrue(hasattr(support.quantion.Quantion, "parse_ion_remote"))
-        self.assertTrue(hasattr(support.quantion.Quantion, "parse_ion_raw"))
+    def test_parse_ion_is_the_only_ion_reader(self):
+        for name in ("parse_ion_path", "parse_ion_raw", "parse_ion_remote", "parse_ion_url"):
+            self.assertFalse(hasattr(support.quantion, name), name)
+            self.assertFalse(hasattr(support.quantion.Quantion, name), name)

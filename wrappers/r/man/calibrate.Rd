@@ -6,6 +6,10 @@ Turns the retention times seen in anchor samples, such as LTRs or QCs, into
 targets for \code{\link{predict_rts}()} in every other sample. Each target gets
 the median calibrated retention time over the samples where it was seen. One
 sample works, three are better, five or more are best.
+
+Each target list must hold the retention times measured in its own anchor
+sample. Passing the same generic target list for every sample still runs, but
+the calibrated retention times are wrong.
 }
 \usage{
 calibrate(
@@ -17,7 +21,7 @@ calibrate(
 \arguments{
   \item{warp}{A warp model from \code{\link{load_warp}()}.}
   \item{anchor_samples}{A list of sample files from \code{\link{parse_ion}()}.}
-  \item{target_lists}{A list with one data frame per sample, with columns \code{id}, \code{mz} and the \code{rt} seen in that sample.}
+  \item{target_lists}{A list with one data frame per sample, with columns \code{id}, \code{mz} and \code{rt}. Each \code{rt} must be the retention time seen in that anchor sample, not a generic library value: a shared target list gives wrong results with no error.}
 }
 \value{
 A data frame with columns \code{id}, \code{mz} and \code{rt}, one row per id.

@@ -169,7 +169,7 @@ values stored in it, and make a warp model from it. The model stays usable after
 `loadWarp`, and the warp keeps working if the model is disposed.
 
 ```js
-const model = await quantion.loadModel("paper_model.onnx");
+const model = await quantion.loadModel("model.onnx");
 model.getKeys(); // ["points", "time_from", ..., "targets"]
 model.getValue("points"); // "1024"
 
@@ -181,14 +181,15 @@ Predict each target's retention time in a sample. You get one
 `{ rt, uncertainty }` per target, in the same order.
 
 ```js
-const targets = [{ id: "Arginine", mz: 345.167, rt: 2.6 }];
+const targets = [{ id: "feature_1", mz: 300.1, rt: 2.38 }];
 const rts = await warp.predictRts(sample, targets);
 ```
 
 Without reference RTs, calibrate from anchor samples such as LTRs or QCs: give
 the samples and, for each one, the targets seen in it. Each target gets the
 median calibrated RT over the samples where it was seen. One sample works, three
-are better, five or more are best.
+are better, five or more are best. Each RT must be the one measured in
+that anchor sample: a generic target list runs without error but gives wrong RTs.
 
 ```js
 const anchorSamples = [ltr1, ltr2, ltr3];

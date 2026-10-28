@@ -6,6 +6,7 @@ import quantion
 
 FROM_RT = 0.0
 TO_RT = 5.0
+FROM_TO = {"from": FROM_RT, "to": TO_RT}
 EIC_PPM = 20.0
 EIC_MZ = 0.005
 GRID_START = 89.0
@@ -105,7 +106,7 @@ def report_channel(file, channel, out):
     chrom_index = chromatogram_index(channel)
     name = channel["name"]
     eic = quantion.calculate_eic(
-        file, channel["mass"], FROM_RT, TO_RT, EIC_PPM, EIC_MZ
+        file, channel["mass"], FROM_TO, EIC_PPM, EIC_MZ
     )
     x, y = list(eic["x"]), list(eic["y"])
 
@@ -131,7 +132,7 @@ def report_channel(file, channel, out):
         for id_, rt in channel["targets"]
     ]
     rows = quantion.get_peaks_from_eic(
-        file, targets, FROM_RT, TO_RT, peak_options(channel), CORES
+        file, targets, FROM_TO, peak_options(channel), CORES
     )
     for row in rows:
         shared_peak_lines(f"{name}.get_peaks_from_eic.{row['id']}", row, out)
@@ -156,7 +157,7 @@ def main():
     directory = sys.argv[1] if len(sys.argv) > 1 else "core/tests/fixtures/api"
     fixture = os.path.join(directory, "api.ion")
 
-    file = quantion.parse_ion_path(fixture)
+    file = quantion.parse_ion(fixture)
     out = []
     out.append(f"fnv1a.self_check = {digest(SELF_CHECK_VALUES)}")
 
@@ -171,8 +172,7 @@ def main():
 
     found = quantion.find_features(
         file,
-        FROM_RT,
-        TO_RT,
+        FROM_TO,
         eic=eic,
         grid=grid,
         options=feature_peak_options(),
@@ -191,8 +191,7 @@ def main():
 
     consensus = quantion.get_features(
         directory,
-        FROM_RT,
-        TO_RT,
+        FROM_TO,
         eic=eic,
         grid=grid,
         options=feature_peak_options(),

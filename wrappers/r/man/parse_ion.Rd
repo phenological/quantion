@@ -4,8 +4,8 @@
 \description{
 Loads an ion file and returns a sample file. The input can be a file path,
 which is read lazily from disk, or a raw vector already held in memory.
-A string starting with \code{http://} or \code{https://} is read over the network
-with \code{parse_ion_remote()}.
+A string starting with \code{http://} or \code{https://} is read over the network,
+fetching only the bytes it needs.
 }
 \usage{
 parse_ion(
@@ -14,7 +14,7 @@ parse_ion(
 )
 }
 \arguments{
-  \item{input}{A file path to an ion file, or a raw vector of ion bytes.}
+  \item{input}{A file path or an http(s) URL to an ion file, or a raw vector of ion bytes.}
   \item{max_cache_size}{Cache size in bytes. \code{0} sets no limit. Larger values speed up repeated reads at the cost of RAM.}
 }
 \value{
@@ -29,5 +29,5 @@ sample <- parse_ion(buf)
 }
 }
 \seealso{
-\code{\link{parse_mzml}()}, \code{\link{mzml_to_ion}()}, \code{\link{parse_ion_remote}()}, \code{\link{parse_ion_path}()}, \code{\link{dispose}()}
+\code{\link{parse_mzml}()}, \code{\link{mzml_to_ion}()}, \code{\link{dispose}()}
 }

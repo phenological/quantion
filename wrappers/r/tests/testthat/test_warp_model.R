@@ -36,7 +36,7 @@ test_that("a remote file predicts like a local one", {
   warp <- get_warp(model_file)
   local <- predict_rts(warp, parse_ion(sample_file), targets)
   with_served_file(sample_file, TRUE, function(url) {
-    expect_identical(predict_rts(warp, parse_ion_remote(url), targets), local)
+    expect_identical(predict_rts(warp, parse_ion(url), targets), local)
   })
 })
 

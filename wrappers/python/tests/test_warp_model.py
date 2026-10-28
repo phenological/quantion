@@ -15,7 +15,7 @@ TARGETS = [
 @unittest.skipIf(support.fixture_problem, support.fixture_problem)
 class WarpModel(unittest.TestCase):
     def setUp(self):
-        self.file = support.quantion.parse_ion_path(str(support.ION_FIXTURE))
+        self.file = support.quantion.parse_ion(str(support.ION_FIXTURE))
         self.addCleanup(self.file.dispose)
 
     def load(self, source):
@@ -47,7 +47,7 @@ class WarpModel(unittest.TestCase):
     def test_a_remote_file_predicts_like_a_local_one(self):
         server = support.RangeServer(support.ION_FIXTURE)
         self.addCleanup(server.stop)
-        remote = support.quantion.parse_ion_remote(server.url)
+        remote = support.quantion.parse_ion(server.url)
         self.addCleanup(remote.dispose)
         warp = self.load(str(MODEL))
         local = warp.predict_rts(self.file, TARGETS)
@@ -59,7 +59,7 @@ class WarpModel(unittest.TestCase):
             self.load(str(MODEL)).predict_rts(self.file, targets)
 
     def test_a_file_without_scans_in_the_model_range_is_refused(self):
-        empty = support.quantion.parse_ion_path(str(EMPTY_FILE))
+        empty = support.quantion.parse_ion(str(EMPTY_FILE))
         self.addCleanup(empty.dispose)
         with self.assertRaisesRegex(RuntimeError, "predict_rts: the file has no scans, the warp model needs"):
             self.load(str(MODEL)).predict_rts(empty, TARGETS)

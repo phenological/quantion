@@ -5,9 +5,6 @@ from quantion import api as _api
 from quantion.api import (
     parse_mzml,
     parse_ion,
-    parse_ion_path,
-    parse_ion_raw,
-    parse_ion_remote,
     ion_to_mzml,
     mzml_to_ion,
     mzml_to_ion_file,
@@ -32,6 +29,7 @@ from quantion.model import Model
 from quantion.warp_model import WarpModel
 from quantion._pack import pack_peak_options, encode_target_ids, unpack_targets
 from quantion._shared import to_cores
+from quantion._types import FromTo, GroupedFeature, Feature, Peak, Target, TargetPeak
 
 __version__ = "0.1.6"
 
@@ -39,9 +37,6 @@ __all__ = [
     "Quantion",
     "parse_mzml",
     "parse_ion",
-    "parse_ion_path",
-    "parse_ion_raw",
-    "parse_ion_remote",
     "ion_to_mzml",
     "mzml_to_ion",
     "mzml_to_ion_file",
@@ -63,6 +58,12 @@ __all__ = [
     "load_warp",
     "Model",
     "WarpModel",
+    "FromTo",
+    "Target",
+    "Peak",
+    "TargetPeak",
+    "Feature",
+    "GroupedFeature",
     "pack_peak_options",
     "encode_target_ids",
     "unpack_targets",
@@ -81,16 +82,6 @@ class Quantion:
     def parse_ion(self, source, max_cache_size: int = 0) -> SampleFile:
         return parse_ion(source, max_cache_size)
 
-    def parse_ion_path(self, path, max_cache_size: int = 0) -> SampleFile:
-        return parse_ion_path(path, max_cache_size)
-
-    def parse_ion_raw(self, source, max_cache_size: int = 0) -> SampleFile:
-        return parse_ion_raw(source, max_cache_size)
-
-    def parse_ion_remote(self, url: str, max_cache_size: int = 0) -> SampleFile:
-        return parse_ion_remote(url, max_cache_size)
-
-
     def ion_to_mzml(self, file: SampleFile) -> str:
         return ion_to_mzml(file)
 
@@ -100,8 +91,8 @@ class Quantion:
     def mzml_to_ion_file(self, input_path: str, output_path: str, level: int = 12, f32_compress: bool = False) -> None:
         return mzml_to_ion_file(input_path, output_path, level, f32_compress)
 
-    def calculate_eic(self, file: SampleFile, target_mz: float, from_rt: float, to_rt: float, ppm_tol: float = 20.0, mz_tol: float = 0.005):
-        return calculate_eic(file, target_mz, from_rt, to_rt, ppm_tol, mz_tol)
+    def calculate_eic(self, file: SampleFile, target_mz: float, from_to: FromTo, ppm_tol: float = 20.0, mz_tol: float = 0.005):
+        return calculate_eic(file, target_mz, from_to, ppm_tol, mz_tol)
 
     def get_scans(self, file: SampleFile, *, rt_range=None, rt=None, mz_range=None, mz=None, level: int = 1):
         return get_scans(file, rt_range=rt_range, rt=rt, mz_range=mz_range, mz=mz, level=level)
@@ -124,20 +115,20 @@ class Quantion:
     def calculate_baseline(self, y, lambda_: int = 0, max_iterations: int = 0):
         return calculate_baseline(y, lambda_, max_iterations)
 
-    def get_peaks_from_eic(self, file: SampleFile, targets, from_rt: float = 0.5, to_rt: float = 5.0, options=None, cores: int = 1):
-        return get_peaks_from_eic(file, targets, from_rt, to_rt, options, cores)
+    def get_peaks_from_eic(self, file: SampleFile, targets, from_to: FromTo = {"from": 0.5, "to": 5.0}, options=None, cores: int = 1):
+        return get_peaks_from_eic(file, targets, from_to, options, cores)
 
     def get_peaks_from_chrom(self, file: SampleFile, items, options=None, cores: int = 1):
         return get_peaks_from_chrom(file, items, options, cores)
 
-    def find_features(self, file: SampleFile, from_rt: float, to_rt: float, *, eic=None, grid=None, options=None, cores: int = 1):
-        return find_features(file, from_rt, to_rt, eic=eic, grid=grid, options=options, cores=cores)
+    def find_features(self, file: SampleFile, from_to: FromTo, *, eic=None, grid=None, options=None, cores: int = 1):
+        return find_features(file, from_to, eic=eic, grid=grid, options=options, cores=cores)
 
     def find_feature(self, file: SampleFile, targets, *, scan_eic=None, eic=None, options=None, cores: int = 1):
         return find_feature(file, targets, scan_eic=scan_eic, eic=eic, options=options, cores=cores)
 
-    def get_features(self, directory_path: str, from_rt: float, to_rt: float, *, eic=None, grid=None, grouping=None, options=None, cores: int = 1):
-        return get_features(directory_path, from_rt, to_rt, eic=eic, grid=grid, grouping=grouping, options=options, cores=cores)
+    def get_features(self, directory_path: str, from_to: FromTo, *, eic=None, grid=None, grouping=None, options=None, cores: int = 1):
+        return get_features(directory_path, from_to, eic=eic, grid=grid, grouping=grouping, options=options, cores=cores)
 
     def load_model(self, source) -> Model:
         return load_model(source)

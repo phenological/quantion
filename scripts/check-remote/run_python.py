@@ -36,15 +36,15 @@ def main() -> int:
     import quantion
 
     stats(url, "/reset")
-    remote = quantion.parse_ion_remote(url)
+    remote = quantion.parse_ion(url)
     opening = stats(url, "/stats")
 
     stats(url, "/reset")
-    eic_remote = quantion.calculate_eic(remote, MASS, FROM_RT, TO_RT, EIC_PPM, EIC_MZ)
+    eic_remote = quantion.calculate_eic(remote, MASS, {"from": FROM_RT, "to": TO_RT}, EIC_PPM, EIC_MZ)
     one_query = stats(url, "/stats")
 
-    local = quantion.parse_ion_path(str(fixture))
-    eic_local = quantion.calculate_eic(local, MASS, FROM_RT, TO_RT, EIC_PPM, EIC_MZ)
+    local = quantion.parse_ion(str(fixture))
+    eic_local = quantion.calculate_eic(local, MASS, {"from": FROM_RT, "to": TO_RT}, EIC_PPM, EIC_MZ)
 
     same = same_bits(eic_remote["x"], eic_local["x"]) and same_bits(
         eic_remote["y"], eic_local["y"]

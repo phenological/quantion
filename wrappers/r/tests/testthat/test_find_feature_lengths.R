@@ -7,19 +7,19 @@ run_apart <- function(work, ...) {
 
 ask_short_mz <- function(path) {
   library(quantion)
-  sample <- parse_ion_path(path)
+  sample <- parse_ion(path)
   find_feature(sample, rt = c(1, 2), mz = 89.04768, window = c(0.1, 0.1), id = c("a", "b"))
 }
 
 ask_short_window <- function(path) {
   library(quantion)
-  sample <- parse_ion_path(path)
+  sample <- parse_ion(path)
   find_feature(sample, rt = c(1, 2), mz = c(89.04768, 89.04768), window = 0.1, id = c("a", "b"))
 }
 
 ask_long_window <- function(path) {
   library(quantion)
-  sample <- parse_ion_path(path)
+  sample <- parse_ion(path)
   find_feature(sample, rt = 1, mz = 89.04768, window = c(0.1, 0.2), id = "a")
 }
 

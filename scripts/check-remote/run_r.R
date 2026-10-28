@@ -30,11 +30,11 @@ main <- function() {
   fixture <- "core/tests/fixtures/api/api.ion"
 
   invisible(.stats(url, "/reset"))
-  remote <- parse_ion_remote(url)
+  remote <- parse_ion(url)
   opening <- .stats(url, "/stats")
 
   invisible(.stats(url, "/reset"))
-  local <- parse_ion_path(fixture)
+  local <- parse_ion(fixture)
 
   eic_remote <- calculate_eic(remote, MASS, FROM_RT, TO_RT, EIC_PPM, EIC_MZ)
   eic_local <- calculate_eic(local, MASS, FROM_RT, TO_RT, EIC_PPM, EIC_MZ)

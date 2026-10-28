@@ -157,7 +157,7 @@ main <- function() {
   directory <- if (length(args) > 0) args[1] else "core/tests/fixtures/api"
   fixture <- file.path(directory, "api.ion")
 
-  file <- parse_ion_path(fixture)
+  file <- parse_ion(fixture)
   out <- character(0)
   out <- c(out, sprintf("fnv1a.self_check = %s", fnv1a(SELF_CHECK_VALUES)))
 

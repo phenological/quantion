@@ -20,7 +20,7 @@ run_apart <- function(work, ...) {
 
 ask_get_peaks_from_chrom <- function(path, idx) {
   library(quantion)
-  sample <- parse_ion_path(path)
+  sample <- parse_ion(path)
   get_peaks_from_chrom(sample, data.frame(id = "a", idx = idx, rt = 1, range = 0.1))
 }
 

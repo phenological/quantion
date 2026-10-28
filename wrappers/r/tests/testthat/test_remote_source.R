@@ -6,7 +6,7 @@ test_that("a remote sample is read over range requests", {
   skip_if(!nzchar(sample_file), "no api.ion sample next to the package")
 
   with_served_file(sample_file, TRUE, function(url) {
-    handle <- quantion::parse_ion_remote(url)
+    handle <- quantion::parse_ion(url)
     expect_identical(typeof(handle), "externalptr")
 
     source <- attr(handle, "quantion_source")
@@ -21,7 +21,7 @@ test_that("the total size of a remote sample comes from the plan, not from a gue
   skip_if(!nzchar(sample_file), "no api.ion sample next to the package")
 
   with_served_file(sample_file, TRUE, function(url) {
-    handle <- quantion::parse_ion_remote(url)
+    handle <- quantion::parse_ion(url)
     source <- attr(handle, "quantion_source")
 
     expect_equal(source$total, file.info(sample_file)$size)
@@ -35,7 +35,7 @@ test_that("every block a remote sample holds sits inside the file", {
   skip_if(!nzchar(sample_file), "no api.ion sample next to the package")
 
   with_served_file(sample_file, TRUE, function(url) {
-    handle <- quantion::parse_ion_remote(url)
+    handle <- quantion::parse_ion(url)
     source <- attr(handle, "quantion_source")
     blocks <- do.call(rbind, source$held)
 
@@ -51,7 +51,7 @@ test_that("an extracted ion chromatogram needs no bytes the open did not bring i
   skip_if(!nzchar(sample_file), "no api.ion sample next to the package")
 
   with_served_file(sample_file, TRUE, function(url) {
-    handle <- quantion::parse_ion_remote(url)
+    handle <- quantion::parse_ion(url)
     source <- attr(handle, "quantion_source")
     held_before <- length(source$held)
 
@@ -69,13 +69,6 @@ test_that("a server that ignores range requests is reported", {
   skip_if(!nzchar(sample_file), "no api.ion sample next to the package")
 
   with_served_file(sample_file, FALSE, function(url) {
-    expect_error(quantion::parse_ion_remote(url), "does not support range requests")
+    expect_error(quantion::parse_ion(url), "does not support range requests")
   })
-})
-
-test_that("a remote read needs an http address", {
-  skip_if_not_installed("quantion")
-
-  expect_error(quantion::parse_ion_remote("ftp://host/sample.ion"), "http")
-  expect_error(quantion::parse_ion_remote(""), "single non-empty string")
 })

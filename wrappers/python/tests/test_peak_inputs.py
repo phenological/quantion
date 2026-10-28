@@ -10,7 +10,7 @@ RT_WINDOW = 0.2
 @unittest.skipIf(support.fixture_problem, support.fixture_problem)
 class ChromatogramIndex(unittest.TestCase):
     def setUp(self):
-        self.file = support.quantion.parse_ion_path(str(support.ION_FIXTURE))
+        self.file = support.quantion.parse_ion(str(support.ION_FIXTURE))
         self.addCleanup(self.file.dispose)
 
     def peaks_for(self, item):

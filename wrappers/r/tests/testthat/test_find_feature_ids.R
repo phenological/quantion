@@ -20,7 +20,7 @@ run_apart <- function(work, ...) {
 
 ask_find_feature <- function(path, count) {
   library(quantion)
-  sample <- parse_ion_path(path)
+  sample <- parse_ion(path)
   find_feature(
     sample,
     rt = rep(1, count),
@@ -32,7 +32,7 @@ ask_find_feature <- function(path, count) {
 
 ask_bridge_find_feature <- function(path, rt_count, id_count) {
   library(quantion)
-  sample <- parse_ion_path(path)
+  sample <- parse_ion(path)
   .Call("C_find_feature", sample,
         as.numeric(rep(1, rt_count)),
         as.numeric(rep(89.04768, rt_count)),
@@ -44,7 +44,7 @@ ask_bridge_find_feature <- function(path, rt_count, id_count) {
 
 ask_bridge_get_peaks_from_eic <- function(path, rt_count, id_count) {
   library(quantion)
-  sample <- parse_ion_path(path)
+  sample <- parse_ion(path)
   .Call("C_get_peaks_from_eic", sample,
         as.numeric(rep(1, rt_count)),
         as.numeric(rep(89.04768, rt_count)),

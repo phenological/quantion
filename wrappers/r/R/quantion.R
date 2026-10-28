@@ -24,7 +24,7 @@ dispose <- function(bin) {
     return(invisible(.Call("C_dispose_warp_model", bin, PACKAGE = "quantion")))
   if (inherits(bin, "quantion_model"))
     return(invisible(.Call("C_dispose_model", bin, PACKAGE = "quantion")))
-  .Call("C_dispose_mzml", bin, PACKAGE = "quantion")
+  invisible(.Call("C_dispose_mzml", bin, PACKAGE = "quantion"))
 }
 
 load_model <- function(source) {
@@ -89,7 +89,7 @@ calibrate <- function(warp, anchor_samples, target_lists) {
          " samples and ", length(target_lists), " target lists")
   for (index in seq_along(target_lists)) {
     targets <- target_lists[[index]]
-    if (!is.data.frame(targets) || !all(c("mz", "rt") %in% names(targets)))
+    if (!is.data.frame(targets) || !all(c("id", "mz", "rt") %in% names(targets)))
       stop("each target list must be a data.frame with columns id, mz and rt")
     prefetch_targets(warp, anchor_samples[[index]], targets)
   }
@@ -535,21 +535,21 @@ find_features <- function(
 
 parse_ion <- function(input, max_cache_size = 0) {
   if (is.character(input)) {
-    looks_like_url <- length(input) == 1 && !is.na(input) && grepl("^https?://", input)
-    if (looks_like_url) return(parse_ion_remote(input, max_cache_size))
-    return(parse_ion_path(input, max_cache_size))
+    looks_like_url <- length(input) == 1 && !is.na(input) && grepl("^https?://", input, ignore.case = TRUE)
+    if (looks_like_url) return(.parse_ion_remote(input, max_cache_size))
+    return(.parse_ion_path(input, max_cache_size))
   }
-  parse_ion_raw(input, max_cache_size)
+  .parse_ion_raw(input, max_cache_size)
 }
 
-parse_ion_raw <- function(input, max_cache_size = 0) {
+.parse_ion_raw <- function(input, max_cache_size = 0) {
   if (!is.raw(input)) stop("`input` must be a raw vector of ion bytes")
   if (!is.numeric(max_cache_size) || length(max_cache_size) != 1 || is.na(max_cache_size) || max_cache_size < 0)
     stop("`max_cache_size` must be a single non-negative number")
   .Call("C_parse_ion", input, as.numeric(max_cache_size), PACKAGE = "quantion")
 }
 
-parse_ion_path <- function(path, max_cache_size = 0) {
+.parse_ion_path <- function(path, max_cache_size = 0) {
   if (!is.character(path) || length(path) != 1 || is.na(path) || nchar(path) == 0)
     stop("`path` must be a single non-empty string")
   full_path <- path.expand(path)
@@ -622,7 +622,7 @@ parse_ion_path <- function(path, max_cache_size = 0) {
   invisible(NULL)
 }
 
-parse_ion_remote <- function(url, max_cache_size = 0) {
+.parse_ion_remote <- function(url, max_cache_size = 0) {
   if (!is.character(url) || length(url) != 1 || is.na(url) || nchar(url) == 0)
     stop("`url` must be a single non-empty string")
   if (!startsWith(tolower(url), "http://") && !startsWith(tolower(url), "https://"))

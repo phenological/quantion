@@ -27,6 +27,7 @@ from quantion._pack import (
     unpack_targets,
 )
 from quantion._shared import to_cores
+from quantion._types import FromTo, GroupedFeature, Feature, Peak, Target, TargetPeak
 from quantion.file import SampleFile
 from quantion.model import Model
 from quantion.warp_model import WarpModel
@@ -105,6 +106,12 @@ def _get_tolerance(mapping: Optional[Dict], key: str, default: float) -> float:
     if not math.isfinite(parsed) or parsed < 0:
         raise TypeError(f"{key} must be a finite non-negative number")
     return parsed
+
+
+def _get_from_to(from_to: FromTo, caller: str) -> tuple:
+    if not isinstance(from_to, dict) or "from" not in from_to or "to" not in from_to:
+        raise ValueError(f'{caller}: from_to must be a dict like {{"from": 0.5, "to": 5.0}}')
+    return float(from_to["from"]), float(from_to["to"])
 
 
 def _get_numeric(mapping: Optional[Dict], key: str, default: float) -> float:
@@ -274,29 +281,28 @@ def _predict_rts(warp: WarpModel, file: SampleFile, targets: Sequence[Dict[str, 
 
 
 def parse_ion(source, max_cache_size: int = 0) -> SampleFile:
-    """Load an ion file from raw bytes, a path, or a URL.
+    """Load an ion file from raw bytes, a path, or an http(s) URL.
 
-    Picks the right one for you: bytes go to parse_ion_raw, a string that looks
-    like a URL goes to parse_ion_remote, any other string goes to parse_ion_path.
+    A path or a URL is read on demand: only the bytes that are needed.
     """
     if isinstance(source, (str, os.PathLike)):
         text = os.fspath(source)
         if _is_url(text):
-            return parse_ion_remote(text, max_cache_size)
-        return parse_ion_path(text, max_cache_size)
-    return parse_ion_raw(source, max_cache_size)
+            return _parse_ion_remote(text, max_cache_size)
+        return _parse_ion_path(text, max_cache_size)
+    return _parse_ion_raw(source, max_cache_size)
 
 
-def parse_ion_raw(source, max_cache_size: int = 0) -> SampleFile:
+def _parse_ion_raw(source, max_cache_size: int = 0) -> SampleFile:
     """Load an ion file from raw bytes already in memory."""
     if not isinstance(source, (bytes, bytearray, memoryview)):
-        raise TypeError("parse_ion_raw: source must be ion bytes")
+        raise TypeError("parse_ion: source must be ion bytes")
     if not isinstance(max_cache_size, int) or max_cache_size < 0:
-        raise ValueError("parse_ion_raw: max_cache_size must be a non-negative integer")
+        raise ValueError("parse_ion: max_cache_size must be a non-negative integer")
     abi = _get_abi()
     arr = (c_uint8 * len(source)).from_buffer_copy(source)
     ptr = ctypes.c_void_p()
-    _check("parse_bin", abi.parse_bin(
+    _check("parse_ion", abi.parse_bin(
         ctypes.cast(arr, POINTER(c_uint8)),
         c_size_t(len(source)),
         c_size_t(max_cache_size),
@@ -305,18 +311,18 @@ def parse_ion_raw(source, max_cache_size: int = 0) -> SampleFile:
     return SampleFile(ptr, abi)
 
 
-def parse_ion_path(path, max_cache_size: int = 0) -> SampleFile:
+def _parse_ion_path(path, max_cache_size: int = 0) -> SampleFile:
     """Load an ion file from a path, reading only what it needs from disk."""
     if not isinstance(max_cache_size, int) or max_cache_size < 0:
-        raise ValueError("parse_ion_path: max_cache_size must be a non-negative integer")
+        raise ValueError("parse_ion: max_cache_size must be a non-negative integer")
     file_path = os.fspath(path)
     if not file_path:
-        raise ValueError("parse_ion_path: path must be a non-empty string")
+        raise ValueError("parse_ion: path must be a non-empty string")
     if not os.path.isfile(file_path):
-        raise FileNotFoundError(f"parse_ion_path: no file at {file_path}")
+        raise FileNotFoundError(f"parse_ion: no file at {file_path}")
     abi = _get_abi()
     ptr = ctypes.c_void_p()
-    _check("parse_ion_path", abi.parse_ion_path(
+    _check("parse_ion", abi.parse_ion_path(
         os.fsencode(file_path),
         c_size_t(max_cache_size),
         ctypes.byref(ptr),
@@ -447,7 +453,7 @@ def _unpack_ranges(packed: bytes) -> list[tuple[int, int]]:
     ]
 
 
-def parse_ion_remote(url: str, max_cache_size: int = 0) -> SampleFile:
+def _parse_ion_remote(url: str, max_cache_size: int = 0) -> SampleFile:
     """Load an ion file over HTTP, reading only the bytes it needs.
 
     Fetches the header, asks the library for the file's map, prefetches those
@@ -460,11 +466,11 @@ def parse_ion_remote(url: str, max_cache_size: int = 0) -> SampleFile:
     Returns: A SampleFile for use in other quantion functions.
     """
     if not isinstance(url, str) or not url:
-        raise ValueError("parse_ion_remote: url must be a non-empty string")
+        raise ValueError("parse_ion: url must be a non-empty string")
     if not _is_url(url):
-        raise ValueError("parse_ion_remote: url must start with http:// or https://")
+        raise ValueError("parse_ion: url must start with http:// or https://")
     if not isinstance(max_cache_size, int) or max_cache_size < 0:
-        raise ValueError("parse_ion_remote: max_cache_size must be a non-negative integer")
+        raise ValueError("parse_ion: max_cache_size must be a non-negative integer")
 
     source = _RemoteSource(url)
 
@@ -481,7 +487,7 @@ def parse_ion_remote(url: str, max_cache_size: int = 0) -> SampleFile:
     callback = READ_RANGE(serve)
     abi = _get_abi()
     ptr = ctypes.c_void_p()
-    _check("parse_ion_source", abi.parse_ion_source(
+    _check("parse_ion", abi.parse_ion_source(
         callback,
         None,
         c_size_t(max_cache_size),
@@ -565,8 +571,7 @@ def mzml_to_ion_file(
 def calculate_eic(
     file: SampleFile,
     target_mz: float,
-    from_rt: float,
-    to_rt: float,
+    from_to: FromTo,
     ppm_tol: float = 20.0,
     mz_tol: float  = 0.005,
 ) -> Dict[str, np.ndarray]:
@@ -577,13 +582,13 @@ def calculate_eic(
     Args:
         file: SampleFile from parse_mzml() or parse_ion().
         target_mz: Target m/z value (Da).
-        from_rt: Start retention time (minutes).
-        to_rt: End retention time (minutes).
+        from_to: The retention-time range in minutes, {"from": start, "to": end}. Only scans inside it are read, so the EIC covers only that range.
         ppm_tol: Mass tolerance in ppm. Default 20.
         mz_tol: Absolute mass tolerance in Da. Default 0.005.
 
     Returns: Dict with keys 'x' (retention time array) and 'y' (intensity array).
     """
+    from_rt, to_rt = _get_from_to(from_to, "calculate_eic")
     abi = _get_abi()
     source = getattr(file, "_remote_source", None)
     if source is not None:
@@ -644,7 +649,7 @@ def get_peak(
     rt: float,
     range: float,
     options: Optional[Dict[str, Any]] = None,
-) -> Dict:
+) -> Peak:
     """Find one peak near a target RT.
 
     Finds the best peak within a given retention-time window around one
@@ -880,12 +885,11 @@ def get_scans(
 
 def get_peaks_from_eic(
     file: SampleFile,
-    targets: Sequence[Dict[str, Any]],
-    from_rt: float = 0.5,
-    to_rt: float   = 5.0,
+    targets: Sequence[Target],
+    from_to: FromTo = {"from": 0.5, "to": 5.0},
     options: Optional[Dict[str, Any]] = None,
     cores: int = 1,
-) -> List[Dict]:
+) -> List[TargetPeak]:
     """Find peaks for many targets using EICs.
 
     Builds an EIC for each target and finds the best peak near the given RT.
@@ -895,8 +899,9 @@ def get_peaks_from_eic(
         file: SampleFile from parse_mzml() or parse_ion().
         targets: List of dicts, each with keys: id (str), rt (float),
             mz (float), range (float, RT half-window).
-        from_rt: EIC extraction start time (minutes). Default 0.5.
-        to_rt: EIC extraction end time (minutes). Default 5.0.
+        from_to: The retention-time range in minutes, {"from": start, "to": end}.
+            Only scans inside it are read, so each
+            EIC and its peak search stay inside it. Default {"from": 0.5, "to": 5.0}.
         options: Optional dict of peak filter settings (same keys as find_peaks).
         cores: Number of CPU cores to use. Default 1.
 
@@ -904,6 +909,7 @@ def get_peaks_from_eic(
         List of dicts, one per target. Each dict has keys: id, mz, rt,
         from, to, intensity, integral.
     """
+    from_rt, to_rt = _get_from_to(from_to, "get_peaks_from_eic")
     abi = _get_abi()
     rts, mzs, ranges, ids = unpack_targets(targets)
     offsets, lengths, id_buf = encode_target_ids(ids)
@@ -981,14 +987,13 @@ def get_peaks_from_chrom(
 
 def find_features(
     file: SampleFile,
-    from_rt: float,
-    to_rt: float,
+    from_to: FromTo,
     *,
     eic: Optional[Dict[str, float]] = None,
     grid: Optional[Dict[str, float]] = None,
     options: Optional[Dict[str, Any]] = None,
     cores: int = 1,
-) -> List[Dict]:
+) -> List[Feature]:
     """Find all features in one file.
 
     Scans the full m/z grid and finds all chromatographic features.
@@ -996,8 +1001,7 @@ def find_features(
 
     Args:
         file: SampleFile from parse_mzml() or parse_ion().
-        from_rt: Start retention time (minutes).
-        to_rt: End retention time (minutes).
+        from_to: The retention-time range in minutes, {"from": start, "to": end}. Only scans inside it are read.
         eic: Optional dict with EIC extraction settings. Keys:
             ppm_tolerance (float, default 10.0), mz_tolerance (float, default 0.005).
         grid: Optional dict with m/z grid settings. Keys:
@@ -1010,6 +1014,7 @@ def find_features(
         List of dicts, one per detected feature. Each dict has keys: mz, rt,
         from, to, intensity, integral, n_points.
     """
+    from_rt, to_rt = _get_from_to(from_to, "find_features")
     abi = _get_abi()
 
     eic_ppm  = _get_float(eic,  "ppm_tolerance", _EicDefaults.ppm_tolerance)
@@ -1126,15 +1131,14 @@ def find_feature(
 
 def get_features(
     directory_path: str,
-    from_rt: float,
-    to_rt: float,
+    from_to: FromTo,
     *,
     eic: Optional[Dict[str, float]]      = None,
     grid: Optional[Dict[str, float]]     = None,
     grouping: Optional[Dict[str, Any]]   = None,
     options: Optional[Dict[str, Any]]    = None,
     cores: int = 1,
-) -> List[Dict]:
+) -> List[GroupedFeature]:
     """Find and align features across many files.
 
     Detects features in every file in a folder and groups them by m/z and RT.
@@ -1142,8 +1146,8 @@ def get_features(
 
     Args:
         directory_path: Path to a folder with mzML or ion files.
-        from_rt: Start retention time (minutes).
-        to_rt: End retention time (minutes).
+        from_to: The retention-time range in minutes, {"from": start, "to": end}.
+            Only scans inside it are read.
         eic: Optional dict for EIC extraction settings. Keys:
             ppm_tolerance (float, default 10.0), mz_tolerance (float, default 0.005).
         grid: Optional dict for m/z grid settings. Keys:
@@ -1169,6 +1173,7 @@ def get_features(
           feature was detected (``n_samples / total_samples``, in
           ``[0.0, 1.0]``).
     """
+    from_rt, to_rt = _get_from_to(from_to, "get_features")
     abi = _get_abi()
 
     if not directory_path:
