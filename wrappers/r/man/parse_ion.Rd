@@ -22,10 +22,8 @@ A Sample file for use in other \code{quantion} functions.
 }
 \examples{
 \donttest{
-sample <- parse_ion("/path/to/file.ion")
-
-buf <- readBin("/path/to/file.ion", "raw", file.info("/path/to/file.ion")$size)
-sample <- parse_ion(buf)
+url <- "https://raw.githubusercontent.com/phenological/ion-files/main/data/p21_LTR_20_b1_w20.ion"
+sample <- parse_ion(url)
 }
 }
 \seealso{

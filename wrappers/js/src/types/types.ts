@@ -60,17 +60,15 @@ export type Target = {
   range: number;
 };
 
-export type ChromItem = {
+export type ChromTarget = {
   id?: string;
-  idx?: number;
-  index?: number;
+  precursor: number;
+  product: number;
   rt: number;
-  window?: number;
-  range?: number;
+  range: number;
 };
 
 export type ChromPeak = {
-  index?: number;
   id?: string;
   ort: number;
   rt: number;
@@ -108,7 +106,7 @@ export type FindFeaturesOptions = {
   eic?: { ppmTolerance?: number; mzTolerance?: number };
   grid?: { start?: number; end?: number; stepSize?: number };
   findPeak?: PeakOptions;
-  cores?: number;
+  threads?: number;
 };
 
 export type ConsensusFeature = {
@@ -155,11 +153,7 @@ export type CentroidScan = {
   metadata: SpectrumSummary;
 };
 
-export type ScanQuery =
-  | { rt: { from: number; to: number } }
-  | { rt: { closest: number } }
-  | { mz: { from: number; to: number } }
-  | { mz: { closest: number } };
+export type ScanQuery = { rt: number | FromTo } | { mz: number | FromTo };
 
 export type IonImageOptions = {
   tolerance?: number;

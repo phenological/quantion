@@ -20,7 +20,7 @@ mzml_to_ion(
 A raw vector of ion binary bytes. Write to disk with \code{writeBin()}.
 }
 \examples{
-\donttest{
+\dontrun{
 buf <- readBin("/path/to/file.mzML", "raw", file.info("/path/to/file.mzML")$size)
 sample <- parse_mzml(buf)
 out <- mzml_to_ion(sample, level = 12L)

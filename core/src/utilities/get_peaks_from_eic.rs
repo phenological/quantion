@@ -7,29 +7,26 @@ use crate::utilities::{
     },
     find_peaks::FindPeaksOptions,
     get_peak::get_peak,
-    structs::{DataXY, FromTo, Peak, Roi},
+    structs::{DataXY, FromTo, Peak, Roi, Target},
 };
 
 pub fn plan_peaks_ranges(
     ion: &mut IonReader,
-    rois: &[Roi],
+    targets: &[Target],
     from: f64,
     to: f64,
 ) -> Result<Vec<ByteRange>, FastError> {
-    if rois.is_empty() {
+    if targets.is_empty() {
         return Ok(Vec::new());
     }
 
     let options = EicOptions::default();
     let mut mz_from = f64::INFINITY;
     let mut mz_to = f64::NEG_INFINITY;
-    for roi in rois {
-        let Roi::Eic { mz, .. } = roi else {
-            continue;
-        };
-        let tolerance = mz_tolerance_for(*mz, options);
-        mz_from = mz_from.min(mz - tolerance);
-        mz_to = mz_to.max(mz + tolerance);
+    for target in targets {
+        let tolerance = mz_tolerance_for(target.mz, options);
+        mz_from = mz_from.min(target.mz - tolerance);
+        mz_to = mz_to.max(target.mz + tolerance);
     }
 
     plan_window_ranges(ion, from, to, mz_from, mz_to)
@@ -39,7 +36,7 @@ pub fn plan_peaks_ranges(
 use rayon::prelude::*;
 
 #[cfg(not(all(target_arch = "wasm32", not(target_os = "wasi"))))]
-use crate::utilities::parallel::run_with_cores;
+use crate::utilities::parallel::run_with_threads;
 
 pub(crate) struct MzWindow {
     pub(crate) from: f64,
@@ -57,31 +54,30 @@ struct PeakJob {
 pub fn get_peaks_from_eic<'a>(
     reader: &mut EicReader,
     from_to: FromTo,
-    rois: &'a [Roi],
-    options: Option<FindPeaksOptions>,
-    cores: usize,
+    targets: &'a [Target],
+    options: FindPeaksOptions,
 ) -> Result<Vec<(&'a str, f64, f64, Peak)>, FastError> {
-    if rois.is_empty() {
+    if targets.is_empty() {
         return Ok(Vec::new());
     }
 
     let scan_times = get_scan_times(reader, from_to.from, from_to.to, MS1_LEVEL);
 
     if scan_times.len() < 3 {
-        return Ok(rois
+        return Ok(targets
             .iter()
-            .map(|roi| make_row(roi, Peak::default()))
+            .map(|target| make_row(target, Peak::default()))
             .collect());
     }
 
     let rts_full: Vec<f64> = scan_times.iter().map(|s| s.rt).collect();
     let scan_count = scan_times.len();
 
-    let jobs = build_peak_jobs(rois);
+    let jobs = build_peak_jobs(targets);
     if jobs.is_empty() {
-        return Ok(rois
+        return Ok(targets
             .iter()
-            .map(|roi| make_row(roi, Peak::default()))
+            .map(|target| make_row(target, Peak::default()))
             .collect());
     }
 
@@ -101,44 +97,39 @@ pub fn get_peaks_from_eic<'a>(
         &rts_full,
         &options,
         from_to,
-        cores,
+        options.threads,
     );
 
-    let mut results = vec![Peak::default(); rois.len()];
+    let mut results = vec![Peak::default(); targets.len()];
     for (roi_idx, peak) in peaks {
         results[roi_idx] = peak;
     }
 
-    Ok(rois
+    Ok(targets
         .iter()
         .enumerate()
-        .map(|(idx, roi)| make_row(roi, results[idx]))
+        .map(|(idx, target)| make_row(target, results[idx]))
         .collect())
 }
 
-fn make_row(roi: &Roi, peak: Peak) -> (&str, f64, f64, Peak) {
-    match roi {
-        Roi::Eic { id, rt, mz, .. } => (id.as_str(), *rt, *mz, peak),
-        _ => ("", 0.0, 0.0, Peak::default()),
-    }
+fn make_row(target: &Target, peak: Peak) -> (&str, f64, f64, Peak) {
+    (target.id.as_str(), target.rt, target.mz, peak)
 }
 
-fn build_peak_jobs(rois: &[Roi]) -> Vec<PeakJob> {
+fn build_peak_jobs(targets: &[Target]) -> Vec<PeakJob> {
     let eic_opts = EicOptions::default();
-    rois.iter()
+    targets
+        .iter()
         .enumerate()
-        .filter_map(|(idx, roi)| {
-            let Roi::Eic { rt, mz, range, .. } = roi else {
-                return None;
-            };
-            let tolerance = mz_tolerance_for(*mz, eic_opts);
-            Some(PeakJob {
+        .map(|(idx, target)| {
+            let tolerance = mz_tolerance_for(target.mz, eic_opts);
+            PeakJob {
                 roi_idx: idx,
-                rt: *rt,
-                range: *range,
-                mz_from: mz - tolerance,
-                mz_to: mz + tolerance,
-            })
+                rt: target.rt,
+                range: target.range,
+                mz_from: target.mz - tolerance,
+                mz_to: target.mz + tolerance,
+            }
         })
         .collect()
 }
@@ -147,7 +138,7 @@ fn compute_peak_for_job(
     job: &PeakJob,
     y_full: &[f64],
     rts_full: &[f64],
-    options: &Option<FindPeaksOptions>,
+    options: &FindPeaksOptions,
     from_to: FromTo,
 ) -> Peak {
     const HALF_WIDTH: f64 = 0.5;
@@ -168,7 +159,10 @@ fn compute_peak_for_job(
             x: rts_full.to_vec(),
             y: y_full.to_vec(),
         },
-        &Roi::peak(job.rt, job.range),
+        &Roi {
+            rt: job.rt,
+            range: job.range,
+        },
         options.clone(),
     )
 }
@@ -219,13 +213,13 @@ fn compute_peaks_for_jobs(
     eic_values: &[f64],
     scan_count: usize,
     rts_full: &[f64],
-    options: &Option<FindPeaksOptions>,
+    options: &FindPeaksOptions,
     from_to: FromTo,
-    cores: usize,
+    threads: usize,
 ) -> Vec<(usize, Peak)> {
     #[cfg(not(all(target_arch = "wasm32", not(target_os = "wasi"))))]
-    if cores > 1 && jobs.len() > 1 {
-        return run_with_cores(cores, || {
+    if threads > 1 && jobs.len() > 1 {
+        return run_with_threads(threads, || {
             compute_peaks_for_jobs_parallel(
                 jobs, eic_values, scan_count, rts_full, options, from_to,
             )
@@ -233,7 +227,7 @@ fn compute_peaks_for_jobs(
     }
 
     #[cfg(all(target_arch = "wasm32", not(target_os = "wasi")))]
-    let _ = cores;
+    let _ = threads;
 
     compute_peaks_for_jobs_serial(jobs, eic_values, scan_count, rts_full, options, from_to)
 }
@@ -244,7 +238,7 @@ fn compute_peaks_for_jobs_parallel(
     eic_values: &[f64],
     scan_count: usize,
     rts_full: &[f64],
-    options: &Option<FindPeaksOptions>,
+    options: &FindPeaksOptions,
     from_to: FromTo,
 ) -> Vec<(usize, Peak)> {
     (0..jobs.len())
@@ -262,7 +256,7 @@ fn compute_peaks_for_jobs_serial(
     eic_values: &[f64],
     scan_count: usize,
     rts_full: &[f64],
-    options: &Option<FindPeaksOptions>,
+    options: &FindPeaksOptions,
     from_to: FromTo,
 ) -> Vec<(usize, Peak)> {
     (0..jobs.len())
@@ -280,7 +274,7 @@ fn compute_peak_for_job_index(
     eic_values: &[f64],
     scan_count: usize,
     rts_full: &[f64],
-    options: &Option<FindPeaksOptions>,
+    options: &FindPeaksOptions,
     from_to: FromTo,
 ) -> (usize, Peak) {
     let job = &jobs[job_index];

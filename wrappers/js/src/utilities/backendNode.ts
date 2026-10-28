@@ -230,6 +230,54 @@ export class NodeBackend implements Backend {
     await prefetchRanges(source, ranges);
   }
 
+  async prefetchPeaks(
+    handle: FileHandle,
+    mzs: Float64Array,
+    from: number,
+    to: number,
+  ): Promise<void> {
+    const source = this.remote_by_handle.get(handle as object);
+    if (!source) return;
+    const ranges = this.native.planPeaksFromEic(handle, mzs, from, to) as ByteRangeResult[];
+    await prefetchRanges(source, ranges);
+  }
+
+  async prefetchFeature(
+    handle: FileHandle,
+    rts: Float64Array,
+    windows: Float64Array,
+  ): Promise<void> {
+    const source = this.remote_by_handle.get(handle as object);
+    if (!source) return;
+    const ranges = this.native.planFindFeature(handle, rts, windows) as ByteRangeResult[];
+    await prefetchRanges(source, ranges);
+  }
+
+  async prefetchFeatures(
+    handle: FileHandle,
+    from: number,
+    to: number,
+    eicPpm: number,
+    eicMz: number,
+    gridStart: number,
+    gridEnd: number,
+    gridStep: number,
+  ): Promise<void> {
+    const source = this.remote_by_handle.get(handle as object);
+    if (!source) return;
+    const ranges = this.native.planFindFeatures(
+      handle,
+      from,
+      to,
+      eicPpm,
+      eicMz,
+      gridStart,
+      gridEnd,
+      gridStep,
+    ) as ByteRangeResult[];
+    await prefetchRanges(source, ranges);
+  }
+
   predictRts(
     warp: WarpModelHandle,
     handle: FileHandle,
@@ -398,7 +446,7 @@ export class NodeBackend implements Backend {
     from: number,
     to: number,
     opts: PeakOptions | undefined,
-    cores: number,
+    threads: number,
   ): any {
     const ids = unpackIds(count, offsets, lengths, idBytes);
     return readRecords(
@@ -411,28 +459,36 @@ export class NodeBackend implements Backend {
         from,
         to,
         opts ?? null,
-        cores,
+        threads,
       ) as ArrayBuffer,
     );
   }
 
   getPeaksFromChrom(
     handle: FileHandle,
-    indices: Uint32Array,
+    precursors: Float64Array,
+    products: Float64Array,
     rts: Float64Array,
-    windows: Float64Array,
-    _count: number,
+    ranges: Float64Array,
+    offsets: Uint32Array | null,
+    lengths: Uint32Array | null,
+    idBytes: Uint8Array | null,
+    _idBytesLen: number,
+    count: number,
     opts: PeakOptions | undefined,
-    cores: number,
+    threads: number,
   ): any {
+    const ids = unpackIds(count, offsets, lengths, idBytes);
     return readRecords(
       this.native.getPeaksFromChrom(
         handle,
-        indices,
+        precursors,
+        products,
         rts,
-        windows,
+        ranges,
+        ids,
         opts ?? null,
-        cores,
+        threads,
       ) as ArrayBuffer,
     );
   }
@@ -447,7 +503,7 @@ export class NodeBackend implements Backend {
     gridEnd: number,
     gridStep: number,
     opts: PeakOptions | undefined,
-    cores: number,
+    threads: number,
   ): any {
     return readRecords(
       this.native.findFeatures(
@@ -460,7 +516,7 @@ export class NodeBackend implements Backend {
         gridEnd,
         gridStep,
         opts ?? null,
-        cores,
+        threads,
       ) as ArrayBuffer,
     );
   }
@@ -475,7 +531,7 @@ export class NodeBackend implements Backend {
     idBytes: Uint8Array | null,
     _idBytesLen: number,
     count: number,
-    cores: number,
+    threads: number,
     scanPpm: number,
     scanMz: number,
     eicPpm: number,
@@ -490,7 +546,7 @@ export class NodeBackend implements Backend {
         mzs,
         ranges,
         ids,
-        cores,
+        threads,
         scanPpm,
         scanMz,
         eicPpm,
@@ -514,7 +570,7 @@ export class NodeBackend implements Backend {
     groupRt: number,
     prevalence: number,
     opts: PeakOptions | undefined,
-    cores: number,
+    threads: number,
   ): any {
     return readRecords(
       this.native.getFeatures(
@@ -531,7 +587,7 @@ export class NodeBackend implements Backend {
         groupRt,
         prevalence,
         opts ?? null,
-        cores,
+        threads,
       ) as ArrayBuffer,
     );
   }

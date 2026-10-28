@@ -9,22 +9,6 @@
 #include <limits.h>
 #include "include/quantion.h"
 
-#if defined(_WIN32)
-#include <windows.h>
-#define DLIB HMODULE
-#define DLOPEN(p) LoadLibraryA(p)
-#define DLSYM(h, s) GetProcAddress(h, s)
-#define DLCLOSE(h) FreeLibrary(h)
-static const char *last_err = "LoadLibrary/GetProcAddress failed";
-#else
-#include <dlfcn.h>
-#define DLIB void *
-#define DLOPEN(p) dlopen(p, RTLD_NOW | RTLD_GLOBAL)
-#define DLSYM(h, s) dlsym(h, s)
-#define DLCLOSE(h) dlclose(h)
-static const char *last_err = "dlopen or dlsym failed";
-#endif
-
 typedef struct MzML MzML;
 
 typedef uint32_t (*fn_quantion_abi_version)(void);
@@ -37,7 +21,7 @@ typedef int32_t (*fn_draw_peak)(const double *, size_t, int32_t, double, double,
 typedef int32_t (*fn_calculate_eic)(const MzML *, double, double, double, double, double, Buf *, Buf *);
 typedef int32_t (*fn_find_noise_level)(const float *, size_t, size_t *, double *);
 typedef int32_t (*fn_get_peaks_from_eic)(const MzML *, const double *, const double *, const double *, const uint32_t *, const uint32_t *, const unsigned char *, size_t, size_t, double, double, const CPeakOptions *, size_t, Buf *);
-typedef int32_t (*fn_get_peaks_from_chrom)(const MzML *, const uint32_t *, const double *, const double *, size_t, const CPeakOptions *, size_t, Buf *);
+typedef int32_t (*fn_get_peaks_from_chrom)(const MzML *, const double *, const double *, const double *, const double *, const uint32_t *, const uint32_t *, const unsigned char *, size_t, size_t, const CPeakOptions *, size_t, Buf *);
 typedef int32_t (*fn_find_peaks)(const double *, const double *, size_t, const CPeakOptions *, Buf *);
 typedef int32_t (*fn_calculate_baseline)(const double *, size_t, int32_t, int32_t, Buf *);
 typedef int32_t (*fn_find_features)(const MzML *, double, double, double, double, double, double, double, const CPeakOptions *, int32_t, Buf *);
@@ -49,6 +33,9 @@ typedef int32_t (*fn_read_range)(void *, uint64_t, uint64_t, uint8_t *);
 typedef int32_t (*fn_parse_ion_source)(fn_read_range, void *, size_t, MzML **);
 typedef int32_t (*fn_plan_open)(const uint8_t *, size_t, Buf *);
 typedef int32_t (*fn_plan_eic)(MzML *, double, double, double, double, double, Buf *);
+typedef int32_t (*fn_plan_peaks_from_eic)(MzML *, const double *, size_t, double, double, Buf *);
+typedef int32_t (*fn_plan_find_features)(MzML *, double, double, double, double, double, double, double, Buf *);
+typedef int32_t (*fn_plan_find_feature)(MzML *, const double *, const double *, size_t, Buf *);
 typedef int32_t (*fn_plan_scans)(MzML *, uint8_t, double, double, uint8_t, Buf *);
 typedef int32_t (*fn_parse_ion_path)(const char *, size_t, MzML **);
 typedef int32_t (*fn_get_features)(const char *, double, double, double, double, double, double, double, double, double, double, int32_t, const CPeakOptions *, int32_t, Buf *);
@@ -92,6 +79,9 @@ typedef struct
   fn_parse_ion_source parse_ion_source;
   fn_plan_open plan_open;
   fn_plan_eic plan_eic;
+  fn_plan_peaks_from_eic plan_peaks_from_eic;
+  fn_plan_find_features plan_find_features;
+  fn_plan_find_feature plan_find_feature;
   fn_plan_scans plan_scans;
   fn_parse_ion_path parse_ion_path;
   fn_free_mzml free_mzml;
@@ -108,143 +98,68 @@ typedef struct
   fn_plan_predict_rts plan_predict_rts;
 } abi_type;
 
-static DLIB abi_handle = NULL;
 abi_type ABI = (abi_type){0};
 
-static int resolve_required(void **fn, const char *name)
+int abi_load(const char **err)
 {
-#if !defined(_WIN32)
-  dlerror();
-#endif
-  *fn = DLSYM(abi_handle, name);
-  if (!*fn)
-  {
-#if !defined(_WIN32)
-    last_err = dlerror();
-#endif
-    return -1;
-  }
-  return 0;
-}
-
-int abi_load(const char *path, const char **err)
-{
-  if (abi_handle)
-  {
-    DLCLOSE(abi_handle);
-    abi_handle = NULL;
-  }
-  memset(&ABI, 0, sizeof(ABI));
-  abi_handle = DLOPEN(path);
-#if !defined(_WIN32)
-  if (!abi_handle)
-    last_err = dlerror();
-#endif
-  if (!abi_handle)
-  {
-    if (err)
-      *err = last_err;
-    return -1;
-  }
-  if (resolve_required((void **)&ABI.quantion_abi_version, "quantion_abi_version"))
-    goto fail;
+  ABI = (abi_type){
+      .quantion_abi_version = (fn_quantion_abi_version)quantion_abi_version,
+      .quantion_sizeof_peak_options = (fn_quantion_sizeof_peak_options)quantion_sizeof_peak_options,
+      .parse_mzml = (fn_parse_mzml)parse_mzml,
+      .bin_to_mzml = (fn_bin_to_mzml)bin_to_mzml,
+      .get_peak = (fn_get_peak)get_peak,
+      .fit_peak = (fn_fit_peak)fit_peak,
+      .draw_peak = (fn_draw_peak)draw_peak,
+      .calculate_eic = (fn_calculate_eic)calculate_eic,
+      .find_noise_level = (fn_find_noise_level)find_noise_level,
+      .get_peaks_from_eic = (fn_get_peaks_from_eic)get_peaks_from_eic,
+      .get_peaks_from_chrom = (fn_get_peaks_from_chrom)get_peaks_from_chrom,
+      .find_peaks = (fn_find_peaks)find_peaks,
+      .calculate_baseline = (fn_calculate_baseline)calculate_baseline,
+      .find_features = (fn_find_features)find_features,
+      .free_ = (fn_free_)free_,
+      .find_feature = (fn_find_feature)find_feature,
+      .mzml_to_bin = (fn_mzml_to_bin)mzml_to_bin,
+      .convert_mzml_file_to_ion_file = (fn_convert_mzml_file_to_ion_file)convert_mzml_file_to_ion_file,
+      .parse_bin = (fn_parse_bin)parse_bin,
+      .parse_ion_source = (fn_parse_ion_source)parse_ion_source,
+      .plan_open = (fn_plan_open)plan_open,
+      .plan_eic = (fn_plan_eic)plan_eic,
+      .plan_peaks_from_eic = (fn_plan_peaks_from_eic)plan_peaks_from_eic,
+      .plan_find_features = (fn_plan_find_features)plan_find_features,
+      .plan_find_feature = (fn_plan_find_feature)plan_find_feature,
+      .plan_scans = (fn_plan_scans)plan_scans,
+      .parse_ion_path = (fn_parse_ion_path)parse_ion_path,
+      .free_mzml = (fn_free_mzml)free_mzml,
+      .get_features = (fn_get_features)get_features,
+      .get_scans = (fn_get_scans)get_scans,
+      .model_load_path = (fn_model_load)model_load_path,
+      .model_load_bytes = (fn_model_load)model_load_bytes,
+      .model_free = (fn_model_free)model_free,
+      .model_metadata = (fn_model_metadata)model_metadata,
+      .warp_model_load = (fn_warp_model_load)warp_model_load,
+      .warp_model_free = (fn_warp_model_free)warp_model_free,
+      .calibrate_rts = (fn_calibrate_rts)calibrate_rts,
+      .predict_rts_from_file = (fn_predict_rts_from_file)predict_rts_from_file,
+      .plan_predict_rts = (fn_plan_predict_rts)plan_predict_rts,
+  };
   if (ABI.quantion_abi_version() != QUANTION_ABI_VERSION)
   {
-    last_err = "ABI version mismatch: recompile the R wrapper";
-    goto fail;
+    *err = "ABI version mismatch: recompile the R wrapper";
+    memset(&ABI, 0, sizeof(ABI));
+    return -1;
   }
-  if (resolve_required((void **)&ABI.quantion_sizeof_peak_options, "quantion_sizeof_peak_options"))
-    goto fail;
   if (ABI.quantion_sizeof_peak_options() != sizeof(CPeakOptions))
   {
-    last_err = "PeakOptions size mismatch: native binary and R wrapper are out of sync — reinstall quantion";
-    goto fail;
+    *err = "PeakOptions size mismatch: native library and R wrapper are out of sync";
+    memset(&ABI, 0, sizeof(ABI));
+    return -1;
   }
-  if (resolve_required((void **)&ABI.parse_mzml, "parse_mzml"))
-    goto fail;
-  if (resolve_required((void **)&ABI.bin_to_mzml, "bin_to_mzml"))
-    goto fail;
-  if (resolve_required((void **)&ABI.get_peak, "get_peak"))
-    goto fail;
-  if (resolve_required((void **)&ABI.fit_peak, "fit_peak"))
-    goto fail;
-  if (resolve_required((void **)&ABI.draw_peak, "draw_peak"))
-    goto fail;
-  if (resolve_required((void **)&ABI.calculate_eic, "calculate_eic"))
-    goto fail;
-  if (resolve_required((void **)&ABI.find_noise_level, "find_noise_level"))
-    goto fail;
-  if (resolve_required((void **)&ABI.get_peaks_from_eic, "get_peaks_from_eic"))
-    goto fail;
-  if (resolve_required((void **)&ABI.get_peaks_from_chrom, "get_peaks_from_chrom"))
-    goto fail;
-  if (resolve_required((void **)&ABI.find_peaks, "find_peaks"))
-    goto fail;
-  if (resolve_required((void **)&ABI.calculate_baseline, "calculate_baseline"))
-    goto fail;
-  if (resolve_required((void **)&ABI.find_features, "find_features"))
-    goto fail;
-  if (resolve_required((void **)&ABI.find_feature, "find_feature"))
-    goto fail;
-  if (resolve_required((void **)&ABI.mzml_to_bin, "mzml_to_bin"))
-    goto fail;
-  if (resolve_required((void **)&ABI.convert_mzml_file_to_ion_file, "convert_mzml_file_to_ion_file"))
-    goto fail;
-  ABI.parse_ion_source = (fn_parse_ion_source)DLSYM(abi_handle, "parse_ion_source");
-  ABI.plan_open = (fn_plan_open)DLSYM(abi_handle, "plan_open");
-  ABI.plan_eic = (fn_plan_eic)DLSYM(abi_handle, "plan_eic");
-  ABI.plan_scans = (fn_plan_scans)DLSYM(abi_handle, "plan_scans");
-  if (resolve_required((void **)&ABI.parse_bin, "parse_bin"))
-    goto fail;
-  if (resolve_required((void **)&ABI.parse_ion_path, "parse_ion_path"))
-    goto fail;
-  if (resolve_required((void **)&ABI.free_mzml, "free_mzml"))
-    goto fail;
-  if (resolve_required((void **)&ABI.get_features, "get_features"))
-    goto fail;
-  if (resolve_required((void **)&ABI.get_scans, "get_scans"))
-    goto fail;
-  if (resolve_required((void **)&ABI.model_load_path, "model_load_path"))
-    goto fail;
-  if (resolve_required((void **)&ABI.model_load_bytes, "model_load_bytes"))
-    goto fail;
-  if (resolve_required((void **)&ABI.model_free, "model_free"))
-    goto fail;
-  if (resolve_required((void **)&ABI.model_metadata, "model_metadata"))
-    goto fail;
-  if (resolve_required((void **)&ABI.warp_model_load, "warp_model_load"))
-    goto fail;
-  if (resolve_required((void **)&ABI.warp_model_free, "warp_model_free"))
-    goto fail;
-  if (resolve_required((void **)&ABI.calibrate_rts, "calibrate_rts"))
-    goto fail;
-  if (resolve_required((void **)&ABI.predict_rts_from_file, "predict_rts_from_file"))
-    goto fail;
-  if (resolve_required((void **)&ABI.plan_predict_rts, "plan_predict_rts"))
-    goto fail;
-  ABI.free_ = (fn_free_)DLSYM(abi_handle, "free_");
-  if (!ABI.free_)
-    goto fail;
   return 0;
-fail:
-  if (abi_handle)
-  {
-    DLCLOSE(abi_handle);
-    abi_handle = NULL;
-  }
-  memset(&ABI, 0, sizeof(ABI));
-  if (err)
-    *err = last_err;
-  return -1;
 }
 
 void abi_unload(void)
 {
-  if (abi_handle)
-  {
-    DLCLOSE(abi_handle);
-    abi_handle = NULL;
-  }
   memset(&ABI, 0, sizeof(ABI));
 }
 
@@ -263,6 +178,8 @@ static void die_code(const char *fname, int code)
     msg = "encode error";
   else if (code == 6)
     msg = "fast EIC path unavailable: this .ion file has no usable spectrum bounds (A3); re-encode it with the current Ionic to use the fast EIC path";
+  else if (code == 12)
+    msg = "this needs the whole file: open it from a path or raw bytes, not a URL";
   error("quantion/%s failed: %s (code=%d)", fname, msg, code);
 }
 
@@ -686,7 +603,7 @@ static const record_column FEATURE_COLUMNS[] = {
     {"n_points", 32, 0, COLUMN_COUNT}, {"noise", 33, 0, COLUMN_NUMBER}};
 
 static const record_column CHROM_COLUMNS[] = {
-    {"index", 34, 0, COLUMN_COUNT}, {"id", 42, 43, COLUMN_TEXT},
+    {"id", 42, 43, COLUMN_TEXT},
     {"ort", 35, 0, COLUMN_NUMBER}, {"rt", 36, 0, COLUMN_NUMBER},
     {"from", 37, 0, COLUMN_NUMBER}, {"to", 38, 0, COLUMN_NUMBER},
     {"intensity", 39, 0, COLUMN_NUMBER}, {"integral", 40, 0, COLUMN_NUMBER},
@@ -729,31 +646,31 @@ static const record_column *columns_for_kind(uint16_t kind, int *count)
   switch (kind)
   {
   case QUANTION_PAYLOAD_PEAKS:
-    *count = 8;
+    *count = sizeof(PEAK_COLUMNS) / sizeof(PEAK_COLUMNS[0]);
     return PEAK_COLUMNS;
   case QUANTION_PAYLOAD_FEATURES:
-    *count = 8;
+    *count = sizeof(FEATURE_COLUMNS) / sizeof(FEATURE_COLUMNS[0]);
     return FEATURE_COLUMNS;
   case QUANTION_PAYLOAD_CHROM_PEAKS:
-    *count = 10;
+    *count = sizeof(CHROM_COLUMNS) / sizeof(CHROM_COLUMNS[0]);
     return CHROM_COLUMNS;
   case QUANTION_PAYLOAD_FIT_RESULT:
-    *count = 6;
+    *count = sizeof(FIT_COLUMNS) / sizeof(FIT_COLUMNS[0]);
     return FIT_COLUMNS;
   case QUANTION_PAYLOAD_EIC_PEAKS:
-    *count = 9;
+    *count = sizeof(EIC_PEAK_COLUMNS) / sizeof(EIC_PEAK_COLUMNS[0]);
     return EIC_PEAK_COLUMNS;
   case QUANTION_PAYLOAD_CONSENSUS_FEATURES:
-    *count = 7;
+    *count = sizeof(CONSENSUS_COLUMNS) / sizeof(CONSENSUS_COLUMNS[0]);
     return CONSENSUS_COLUMNS;
   case QUANTION_PAYLOAD_FOUND_FEATURES:
-    *count = 9;
+    *count = sizeof(FOUND_COLUMNS) / sizeof(FOUND_COLUMNS[0]);
     return FOUND_COLUMNS;
   case QUANTION_PAYLOAD_WARP_TARGETS:
-    *count = 3;
+    *count = sizeof(WARP_TARGET_COLUMNS) / sizeof(WARP_TARGET_COLUMNS[0]);
     return WARP_TARGET_COLUMNS;
   case QUANTION_PAYLOAD_MODEL_METADATA:
-    *count = 2;
+    *count = sizeof(MODEL_METADATA_COLUMNS) / sizeof(MODEL_METADATA_COLUMNS[0]);
     return MODEL_METADATA_COLUMNS;
   default:
     *count = 0;
@@ -961,14 +878,11 @@ static MzML *GetHandle(SEXP ptr)
   return h;
 }
 
-SEXP C_bind_rust(SEXP path_)
+SEXP C_bind_rust(SEXP unused)
 {
-  if (TYPEOF(path_) != STRSXP || LENGTH(path_) != 1)
-    error("path");
-  const char *path = CHAR(STRING_ELT(path_, 0));
-  const char *err = NULL;
-  if (abi_load(path, &err) != 0)
-    error("dlopen failed: %s", err ? err : "unknown");
+  const char *err = "unknown";
+  if (abi_load(&err) != 0)
+    error("quantion: %s", err);
   return R_NilValue;
 }
 
@@ -1240,7 +1154,41 @@ SEXP C_draw_peak(SEXP x, SEXP shape, SEXP height, SEXP center, SEXP fwhm, SEXP t
   return Ry;
 }
 
-SEXP C_get_peaks_from_eic(SEXP bin, SEXP rts, SEXP mzs, SEXP ranges, SEXP ids, SEXP from_left, SEXP to_right, SEXP options, SEXP cores)
+typedef struct
+{
+  uint32_t *offsets;
+  uint32_t *lengths;
+  unsigned char *bytes;
+  size_t size;
+} packed_ids;
+
+static packed_ids pack_ids(SEXP ids, R_xlen_t n)
+{
+  packed_ids packed = {(uint32_t *)R_alloc((size_t)n, sizeof(uint32_t)),
+                       (uint32_t *)R_alloc((size_t)n, sizeof(uint32_t)), NULL, 0};
+  if (ids == R_NilValue)
+    return packed;
+  if (TYPEOF(ids) != STRSXP)
+    error("quantion: ids must be character");
+  if (XLENGTH(ids) != n)
+    error("quantion: ids must have the same length as rt");
+  for (R_xlen_t i = 0; i < n; i++)
+    packed.size += (size_t)LENGTH(STRING_ELT(ids, i));
+  packed.bytes = (unsigned char *)R_alloc(packed.size, 1);
+  size_t cursor = 0;
+  for (R_xlen_t i = 0; i < n; i++)
+  {
+    SEXP id = STRING_ELT(ids, i);
+    size_t length = (size_t)LENGTH(id);
+    packed.offsets[i] = (uint32_t)cursor;
+    packed.lengths[i] = (uint32_t)length;
+    memcpy(packed.bytes + cursor, CHAR(id), length);
+    cursor += length;
+  }
+  return packed;
+}
+
+SEXP C_get_peaks_from_eic(SEXP bin, SEXP rts, SEXP mzs, SEXP ranges, SEXP ids, SEXP from_left, SEXP to_right, SEXP options, SEXP threads)
 {
   MzML *handle = GetHandle(bin);
   REQUIRE_BOUND(ABI.get_peaks_from_eic, "get_peaks_from_eic");
@@ -1251,48 +1199,11 @@ SEXP C_get_peaks_from_eic(SEXP bin, SEXP rts, SEXP mzs, SEXP ranges, SEXP ids, S
   R_xlen_t n = XLENGTH(rts);
   if (XLENGTH(mzs) != n || XLENGTH(ranges) != n)
     error("quantion: length mismatch");
-  uint32_t *offs = (uint32_t *)R_alloc((size_t)n, sizeof(uint32_t));
-  uint32_t *lens = (uint32_t *)R_alloc((size_t)n, sizeof(uint32_t));
-  unsigned char *ids_buf = NULL;
-  size_t ids_len = 0;
-  if (ids != R_NilValue)
-  {
-    if (TYPEOF(ids) != STRSXP)
-      error("quantion: ids must be character");
-    if (XLENGTH(ids) != n)
-      error("quantion: ids must have the same length as rt");
-    size_t total = 0;
-    for (R_xlen_t i = 0; i < n; i++)
-    {
-      SEXP s = STRING_ELT(ids, i);
-      if (s != R_NilValue)
-        total += (size_t)LENGTH(s);
-    }
-    ids_buf = (unsigned char *)R_alloc(total, 1);
-    ids_len = total;
-    size_t cur = 0;
-    for (R_xlen_t i = 0; i < n; i++)
-    {
-      SEXP s = STRING_ELT(ids, i);
-      if (s == R_NilValue)
-      {
-        offs[i] = 0;
-        lens[i] = 0;
-      }
-      else
-      {
-        size_t L = (size_t)LENGTH(s);
-        offs[i] = (uint32_t)cur;
-        lens[i] = (uint32_t)L;
-        memcpy(ids_buf + cur, CHAR(s), L);
-        cur += L;
-      }
-    }
-  }
+  packed_ids packed = pack_ids(ids, n);
 
-  size_t ncores = (cores == R_NilValue) ? 1 : (size_t)asInteger(cores);
-  if (ncores < 1)
-    ncores = 1;
+  size_t thread_count = (threads == R_NilValue) ? 1 : (size_t)asInteger(threads);
+  if (thread_count < 1)
+    thread_count = 1;
   CPeakOptions opts;
   const CPeakOptions *opt_ptr = NULL;
   as_opts_ptr(options, &opts, &opt_ptr);
@@ -1301,8 +1212,8 @@ SEXP C_get_peaks_from_eic(SEXP bin, SEXP rts, SEXP mzs, SEXP ranges, SEXP ids, S
   Buf out = (Buf){0};
   int code = ABI.get_peaks_from_eic(
       handle, REAL(rts), REAL(mzs), REAL(ranges),
-      offs, lens, ids_buf, ids_len,
-      (size_t)n, asReal(from_left), asReal(to_right), opt_ptr, ncores, &out);
+      packed.offsets, packed.lengths, packed.bytes, packed.size,
+      (size_t)n, asReal(from_left), asReal(to_right), opt_ptr, thread_count, &out);
 
   if (code != 0)
   {
@@ -1314,48 +1225,22 @@ SEXP C_get_peaks_from_eic(SEXP bin, SEXP rts, SEXP mzs, SEXP ranges, SEXP ids, S
   return res;
 }
 
-SEXP C_get_peaks_from_chrom(SEXP bin, SEXP idxs, SEXP rts, SEXP ranges, SEXP options, SEXP cores)
+SEXP C_get_peaks_from_chrom(SEXP bin, SEXP precursors, SEXP products, SEXP rts, SEXP ranges, SEXP ids, SEXP options, SEXP threads)
 {
   MzML *handle = GetHandle(bin);
-
-  if (TYPEOF(rts) != REALSXP || TYPEOF(ranges) != REALSXP)
-    error("quantion: numeric (double) required for rts/ranges");
-
-  R_xlen_t n = XLENGTH(rts);
-  if (XLENGTH(ranges) != n || XLENGTH(idxs) != n)
-    error("quantion: length mismatch for chrom parameters");
-
   REQUIRE_BOUND(ABI.get_peaks_from_chrom, "get_peaks_from_chrom");
   REQUIRE_BOUND(ABI.free_, "free_");
 
-  uint32_t *uidx = (uint32_t *)R_alloc((size_t)n, sizeof(uint32_t));
-  if (TYPEOF(idxs) == INTSXP)
-  {
-    int *ix = INTEGER(idxs);
-    for (R_xlen_t i = 0; i < n; i++)
-    {
-      int v = ix[i];
-      uidx[i] = (v == NA_INTEGER || v < 0) ? UINT32_MAX : (uint32_t)v;
-    }
-  }
-  else if (TYPEOF(idxs) == REALSXP)
-  {
-    double *dx = REAL(idxs);
-    for (R_xlen_t i = 0; i < n; i++)
-    {
-      double v = dx[i];
-      uidx[i] = (!R_finite(v) || v < 0) ? UINT32_MAX : (uint32_t)v;
-    }
-  }
-  else
-  {
-    error("quantion: idx must be integer or numeric");
-  }
+  if (TYPEOF(precursors) != REALSXP || TYPEOF(products) != REALSXP || TYPEOF(rts) != REALSXP || TYPEOF(ranges) != REALSXP)
+    error("quantion: bad numeric arguments");
+  R_xlen_t n = XLENGTH(rts);
+  if (XLENGTH(precursors) != n || XLENGTH(products) != n || XLENGTH(ranges) != n)
+    error("quantion: length mismatch");
+  packed_ids packed = pack_ids(ids, n);
 
-  size_t ncores = (cores == R_NilValue) ? 1 : (size_t)asInteger(cores);
-  if (ncores < 1)
-    ncores = 1;
-
+  size_t thread_count = (threads == R_NilValue) ? 1 : (size_t)asInteger(threads);
+  if (thread_count < 1)
+    thread_count = 1;
   CPeakOptions opts;
   const CPeakOptions *opt_ptr = NULL;
   as_opts_ptr(options, &opts, &opt_ptr);
@@ -1363,8 +1248,9 @@ SEXP C_get_peaks_from_chrom(SEXP bin, SEXP idxs, SEXP rts, SEXP ranges, SEXP opt
   SEXP cont = PROTECT(R_MakeUnwindCont());
   Buf out = (Buf){0};
   int code = ABI.get_peaks_from_chrom(
-      handle,
-      uidx, REAL(rts), REAL(ranges), (size_t)n, opt_ptr, ncores, &out);
+      handle, REAL(precursors), REAL(products), REAL(rts), REAL(ranges),
+      packed.offsets, packed.lengths, packed.bytes, packed.size,
+      (size_t)n, opt_ptr, thread_count, &out);
 
   if (code != 0)
   {
@@ -1472,15 +1358,15 @@ SEXP C_find_noise_level(SEXP y)
   return out;
 }
 
-SEXP C_find_features(SEXP data, SEXP from_time, SEXP to_time, SEXP eic_ppm_tol, SEXP eic_mz_tol, SEXP grid_start, SEXP grid_end, SEXP grid_step_ppm, SEXP options, SEXP cores)
+SEXP C_find_features(SEXP data, SEXP from_time, SEXP to_time, SEXP eic_ppm_tol, SEXP eic_mz_tol, SEXP grid_start, SEXP grid_end, SEXP grid_step_ppm, SEXP options, SEXP threads)
 {
   MzML *handle = GetHandle(data);
   REQUIRE_BOUND(ABI.find_features, "find_features");
   REQUIRE_BOUND(ABI.free_, "free_");
 
-  int ncores = asInteger(cores);
-  if (ncores < 1)
-    ncores = 1;
+  int thread_count = asInteger(threads);
+  if (thread_count < 1)
+    thread_count = 1;
 
   CPeakOptions opts;
   const CPeakOptions *opt_ptr = NULL;
@@ -1494,7 +1380,7 @@ SEXP C_find_features(SEXP data, SEXP from_time, SEXP to_time, SEXP eic_ppm_tol, 
       asReal(eic_ppm_tol), asReal(eic_mz_tol),
       asReal(grid_start), asReal(grid_end),
       asReal(grid_step_ppm),
-      opt_ptr, (int32_t)ncores, &out);
+      opt_ptr, (int32_t)thread_count, &out);
 
   if (code != 0)
   {
@@ -1506,7 +1392,7 @@ SEXP C_find_features(SEXP data, SEXP from_time, SEXP to_time, SEXP eic_ppm_tol, 
   return res;
 }
 
-SEXP C_find_feature(SEXP bin, SEXP rts, SEXP mzs, SEXP wins, SEXP ids, SEXP scan_ppm, SEXP scan_mz, SEXP eic_ppm, SEXP eic_mz, SEXP options, SEXP cores)
+SEXP C_find_feature(SEXP bin, SEXP rts, SEXP mzs, SEXP wins, SEXP ids, SEXP scan_ppm, SEXP scan_mz, SEXP eic_ppm, SEXP eic_mz, SEXP options, SEXP threads)
 {
   MzML *handle = GetHandle(bin);
   REQUIRE_BOUND(ABI.find_feature, "find_feature");
@@ -1559,9 +1445,9 @@ SEXP C_find_feature(SEXP bin, SEXP rts, SEXP mzs, SEXP wins, SEXP ids, SEXP scan
     }
   }
 
-  size_t ncores = (cores == R_NilValue) ? 1 : (size_t)asInteger(cores);
-  if (ncores < 1)
-    ncores = 1;
+  size_t thread_count = (threads == R_NilValue) ? 1 : (size_t)asInteger(threads);
+  if (thread_count < 1)
+    thread_count = 1;
   CPeakOptions opts;
   const CPeakOptions *opt_ptr = NULL;
   as_opts_ptr(options, &opts, &opt_ptr);
@@ -1571,7 +1457,7 @@ SEXP C_find_feature(SEXP bin, SEXP rts, SEXP mzs, SEXP wins, SEXP ids, SEXP scan
   int32_t code = ABI.find_feature(
       handle, REAL(rts), REAL(mzs), REAL(wins),
       offs, lens, ids_buf, ids_len,
-      (size_t)n, ncores,
+      (size_t)n, thread_count,
       asReal(scan_ppm), asReal(scan_mz), asReal(eic_ppm), asReal(eic_mz),
       opt_ptr, &out);
 
@@ -1619,6 +1505,54 @@ SEXP C_plan_eic(SEXP ptr, SEXP target, SEXP from, SEXP to, SEXP ppm, SEXP mz_tol
   int code = ABI.plan_eic(handle, asReal(target), asReal(from), asReal(to),
                           asReal(ppm), asReal(mz_tol), &out);
   die_code("plan_eic", code);
+  return ranges_to_matrix(&out);
+}
+
+SEXP C_plan_peaks_from_eic(SEXP ptr, SEXP mzs, SEXP from, SEXP to)
+{
+  REQUIRE_BOUND(ABI.plan_peaks_from_eic, "plan_peaks_from_eic");
+  MzML *handle = (MzML *)R_ExternalPtrAddr(ptr);
+  if (handle == NULL)
+    error("quantion: the file handle is not valid");
+
+  Buf out;
+  memset(&out, 0, sizeof(out));
+  int code = ABI.plan_peaks_from_eic(handle, REAL(mzs), (size_t)XLENGTH(mzs),
+                                     asReal(from), asReal(to), &out);
+  die_code("plan_peaks_from_eic", code);
+  return ranges_to_matrix(&out);
+}
+
+SEXP C_plan_find_features(SEXP ptr, SEXP from, SEXP to, SEXP eic_ppm, SEXP eic_mz,
+                          SEXP grid_start, SEXP grid_end, SEXP grid_step)
+{
+  REQUIRE_BOUND(ABI.plan_find_features, "plan_find_features");
+  MzML *handle = (MzML *)R_ExternalPtrAddr(ptr);
+  if (handle == NULL)
+    error("quantion: the file handle is not valid");
+
+  Buf out;
+  memset(&out, 0, sizeof(out));
+  int code = ABI.plan_find_features(handle, asReal(from), asReal(to), asReal(eic_ppm),
+                                    asReal(eic_mz), asReal(grid_start), asReal(grid_end),
+                                    asReal(grid_step), &out);
+  die_code("plan_find_features", code);
+  return ranges_to_matrix(&out);
+}
+
+SEXP C_plan_find_feature(SEXP ptr, SEXP rts, SEXP windows)
+{
+  REQUIRE_BOUND(ABI.plan_find_feature, "plan_find_feature");
+  MzML *handle = (MzML *)R_ExternalPtrAddr(ptr);
+  if (handle == NULL)
+    error("quantion: the file handle is not valid");
+  if (XLENGTH(rts) != XLENGTH(windows))
+    error("quantion: rt and window must have the same length");
+
+  Buf out;
+  memset(&out, 0, sizeof(out));
+  int code = ABI.plan_find_feature(handle, REAL(rts), REAL(windows), (size_t)XLENGTH(rts), &out);
+  die_code("plan_find_feature", code);
   return ranges_to_matrix(&out);
 }
 
@@ -1748,7 +1682,7 @@ SEXP C_get_features(SEXP dir_path, SEXP from_time, SEXP to_time,
                     SEXP eic_ppm_tol, SEXP eic_mz_tol,
                     SEXP grid_start, SEXP grid_end, SEXP grid_step,
                     SEXP group_ppm_tol, SEXP group_mz_tol, SEXP group_rt_tol,
-                    SEXP frequency, SEXP options, SEXP cores)
+                    SEXP frequency, SEXP options, SEXP threads)
 {
   if (TYPEOF(dir_path) != STRSXP || LENGTH(dir_path) != 1)
     error("dir_path must be a length-1 character string");
@@ -1757,9 +1691,9 @@ SEXP C_get_features(SEXP dir_path, SEXP from_time, SEXP to_time,
 
   const char *path = CHAR(STRING_ELT(dir_path, 0));
 
-  int ncores = asInteger(cores);
-  if (ncores < 1)
-    ncores = 1;
+  int thread_count = asInteger(threads);
+  if (thread_count < 1)
+    thread_count = 1;
 
   CPeakOptions opts;
   const CPeakOptions *opt_ptr = NULL;
@@ -1774,7 +1708,7 @@ SEXP C_get_features(SEXP dir_path, SEXP from_time, SEXP to_time,
       asReal(grid_start), asReal(grid_end), asReal(grid_step),
       asReal(group_ppm_tol), asReal(group_mz_tol), asReal(group_rt_tol),
       asInteger(frequency),
-      opt_ptr, (int32_t)ncores,
+      opt_ptr, (int32_t)thread_count,
       &out);
 
   if (code != 0)

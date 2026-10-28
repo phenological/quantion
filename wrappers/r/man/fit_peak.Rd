@@ -27,8 +27,10 @@ and \code{r2}. \code{tail} is \code{0} for a Gaussian.
 }
 \examples{
 \donttest{
-eic <- calculate_eic(file, 89.04768, from = 0, to = 5)
-peak <- get_peak(eic$x, eic$y, rt = 2.385, range = 0.1)
+url <- "https://raw.githubusercontent.com/phenological/ion-files/main/data/p21_LTR_20_b1_w20.ion"
+sample <- parse_ion(url)
+eic <- calculate_eic(sample, 260.103, from = 0.5, to = 5)
+peak <- get_peak(eic$x, eic$y, rt = 2.383, range = 0.05)
 params <- fit_peak(eic$x, eic$y, peak$rt, peak$intensity)
 }
 }

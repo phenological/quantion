@@ -55,8 +55,8 @@ fn peak_at(target: f64) -> f64 {
     let data = two_peaks();
     let peak = get_peak(
         &data,
-        &Roi::peak(target, DEFAULT_MAX_DRIFT),
-        Some(options()),
+        &Roi { rt: target, range: DEFAULT_MAX_DRIFT },
+        options(),
     );
     peak.rt
 }

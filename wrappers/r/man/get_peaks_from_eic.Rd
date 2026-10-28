@@ -8,10 +8,10 @@ Use this for batch targeted peak extraction from one file.
 \usage{
 get_peaks_from_eic(
   bin,
-  df,
+  targets,
   from = 0.5,
   to = 5,
-  cores = 1L,
+  threads = 1L,
   min_integral = NaN,
   min_intensity = .DEFAULTS$min_intensity,
   min_peak_width_points = .DEFAULTS$min_peak_width_points,
@@ -29,11 +29,11 @@ get_peaks_from_eic(
 }
 \arguments{
   \item{bin}{Sample file from \code{\link{parse_mzml}()} or \code{\link{parse_ion}()}.}
-  \item{df}{Data frame with columns \code{id} (character), \code{rt} (numeric),
-    \code{mz} (numeric), \code{ranges} (numeric RT half-window).}
+  \item{targets}{Data frame with columns \code{id} (character), \code{rt} (numeric),
+    \code{mz} (numeric), \code{range} (numeric RT half-window).}
   \item{from}{EIC extraction start time (minutes). Default 0.5.}
   \item{to}{EIC extraction end time (minutes). Default 5.}
-  \item{cores}{Number of CPU cores to use. Default 1.}
+  \item{threads}{Number of threads to use. Default 1.}
   \item{min_integral}{Minimum peak area. \code{NaN} disables.}
   \item{min_intensity}{Minimum apex intensity. Default 1000.}
   \item{min_peak_width_points}{Minimum peak width in points. Default 5.}
@@ -57,13 +57,15 @@ A data frame with one row per target. Columns include \code{id}, \code{mz},
 }
 \examples{
 \donttest{
+url <- "https://raw.githubusercontent.com/phenological/ion-files/main/data/p21_LTR_20_b1_w20.ion"
+sample <- parse_ion(url)
 targets <- data.frame(
-  id     = c("Leucine", "Alanine"),
-  rt     = c(4.15, 2.39),
-  mz     = c(302.1499, 260.1030),
-  ranges = c(0.2, 0.2)
+  id     = c("Alanine", "Sarcosine"),
+  rt     = c(2.383, 2.189),
+  mz     = c(260.103, 260.103),
+  range  = c(0.05, 0.05)
 )
-get_peaks_from_eic(sample, targets, cores = 2L)
+get_peaks_from_eic(sample, targets)
 }
 }
 \seealso{

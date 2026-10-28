@@ -7,6 +7,7 @@ mod tests {
     use crate::utilities::{
         calculate_eic::{CentroidScan, EicOptions, SpectrumKind, SpectrumSummary},
         find_features::{Feature, FindFeaturesOptions, MzScanGrid, MzTolerance},
+        find_peaks::FindPeaksOptions,
         get_features::{
             AlignmentOptions, ConsensusFeature, FeatureClusterer, SearchBounds, TaggedFeature,
             aggregate_into_consensus, assign_best_per_sample, collect_filled_slots,
@@ -928,7 +929,7 @@ mod tests {
                 mz_tolerance: 0.005,
                 ..Default::default()
             },
-            peak_options: None,
+            peak_options: FindPeaksOptions::default(),
             mz_estimator: MzEstimatorKind::MedianMzApex,
             ..Default::default()
         }
@@ -972,7 +973,7 @@ mod tests {
             99.99,
             100.01,
             20.0,
-            None,
+            FindPeaksOptions::default(),
             SpectrumKind::Centroid,
         );
         assert!(resolved.feature.is_none());
@@ -997,7 +998,7 @@ mod tests {
             99.0,
             101.0,
             20.0,
-            None,
+            FindPeaksOptions::default(),
             SpectrumKind::Centroid,
         );
         let apex = resolved.apex.expect("apex measured");
@@ -1019,7 +1020,7 @@ mod tests {
             99.99,
             100.01,
             20.0,
-            None,
+            FindPeaksOptions::default(),
             SpectrumKind::Centroid,
         );
         assert!(resolved.feature.is_none());
@@ -1043,7 +1044,7 @@ mod tests {
             299.99,
             300.01,
             20.0,
-            None,
+            FindPeaksOptions::default(),
             SpectrumKind::Centroid,
         );
 
@@ -1105,7 +1106,6 @@ mod tests {
             FromTo { from: 3.0, to: 7.0 },
             feature_cfg_for_mz(peak_mz),
             alignment_cfg(),
-            1,
         )
         .expect("get_features should succeed");
 
@@ -1154,7 +1154,6 @@ mod tests {
             },
             feature_cfg_for_mz(peak_mz),
             alignment_cfg(),
-            1,
         )
         .expect("get_features should succeed");
 
@@ -1188,7 +1187,6 @@ mod tests {
             FromTo { from: 3.5, to: 6.5 },
             feature_cfg_for_mz(peak_mz),
             alignment_cfg(),
-            1,
         )
         .expect("get_features should succeed");
 
@@ -1221,7 +1219,6 @@ mod tests {
             FromTo { from: 6.0, to: 9.0 },
             feature_cfg_for_mz(peak_mz),
             alignment_cfg(),
-            1,
         )
         .expect("get_features should succeed");
 
@@ -1266,7 +1263,6 @@ mod tests {
             FromTo { from: 3.0, to: 7.0 },
             feature_cfg_for_mz_range(common_mz, rare_mz),
             cfg,
-            1,
         )
         .expect("get_features should succeed");
 
@@ -1306,7 +1302,6 @@ mod tests {
             FromTo { from: 2.5, to: 5.5 },
             feature_cfg_for_mz(peak_mz),
             cfg,
-            1,
         )
         .expect("get_features should succeed");
 
@@ -1338,7 +1333,6 @@ mod tests {
             FromTo { from: 3.0, to: 7.0 },
             feature_cfg_for_mz_range(mz_a, mz_b),
             alignment_cfg(),
-            1,
         )
         .expect("get_features should succeed");
 
@@ -1370,7 +1364,6 @@ mod tests {
             FromTo { from: 4.0, to: 8.0 },
             feature_cfg_for_mz_range(mz_a, mz_b),
             alignment_cfg(),
-            1,
         )
         .expect("get_features should succeed");
 
@@ -1490,7 +1483,6 @@ mod tests {
             FromTo { from: 3.0, to: 7.0 },
             feature_cfg_for_mz(peak_mz),
             alignment_cfg(),
-            1,
         )
         .expect("get_features should succeed");
         let _ = fs::remove_dir_all(&dir);
@@ -1505,7 +1497,7 @@ mod tests {
     }
 
     #[test]
-    fn test_consensus_mz_is_deterministic_across_cores() {
+    fn test_consensus_mz_is_deterministic_across_threads() {
         let peak_mz = 350.0;
         let shifts = [6.95, 7.00, 7.05, 6.90];
 
@@ -1518,14 +1510,19 @@ mod tests {
             })
             .collect();
 
-        let run = |cores: usize| {
-            let dir = write_ion_dir(&format!("determinism_{cores}"), &samples);
+        let run = |threads: usize| {
+            let dir = write_ion_dir(&format!("determinism_{threads}"), &samples);
             let mut features = get_features(
                 dir.to_str().unwrap(),
                 FromTo { from: 5.0, to: 9.0 },
-                feature_cfg_for_mz(peak_mz),
-                alignment_cfg(),
-                cores,
+                FindFeaturesOptions {
+                    threads: threads,
+                    ..feature_cfg_for_mz(peak_mz)
+                },
+                AlignmentOptions {
+                    threads: threads,
+                    ..alignment_cfg()
+                },
             )
             .expect("get_features should succeed");
             let _ = fs::remove_dir_all(&dir);
@@ -1539,7 +1536,7 @@ mod tests {
         for (a, b) in one.iter().zip(many.iter()) {
             assert!(
                 (a - b).abs() < 1e-9,
-                "mz must be deterministic across cores: {a} vs {b}"
+                "mz must be deterministic across threads: {a} vs {b}"
             );
         }
     }
@@ -1565,7 +1562,6 @@ mod tests {
             FromTo { from: 3.0, to: 7.0 },
             feature_cfg_for_mz(peak_mz),
             cfg,
-            1,
         )
         .expect("get_features should succeed");
         let _ = fs::remove_dir_all(&dir);
@@ -1599,7 +1595,6 @@ mod tests {
             FromTo { from: 3.0, to: 7.0 },
             feature_cfg_for_mz_range(mz_a, mz_b),
             alignment_cfg(),
-            1,
         )
         .expect("get_features should succeed");
         let _ = fs::remove_dir_all(&dir);
@@ -1645,7 +1640,6 @@ mod tests {
             FromTo { from: 3.0, to: 7.0 },
             feature_cfg_for_mz_range(mz_a, mz_b),
             alignment_cfg(),
-            1,
         )
         .expect("get_features should succeed");
         let _ = fs::remove_dir_all(&dir);
@@ -1695,7 +1689,7 @@ mod tests {
             center - 0.0065,
             center + 0.0065,
             20.0,
-            None,
+            FindPeaksOptions::default(),
             SpectrumKind::Profile,
         );
         let masses = resolved.masses.expect("a real peak should measure a mass");
@@ -1728,7 +1722,6 @@ mod tests {
             FromTo { from: 3.0, to: 7.0 },
             feature_cfg_for_mz(center),
             alignment_cfg(),
-            1,
         )
         .expect("get_features should succeed");
         let _ = fs::remove_dir_all(&dir);
@@ -1760,7 +1753,6 @@ mod tests {
             FromTo { from: 3.0, to: 7.0 },
             feature_cfg_for_mz_range(mzs[0], mzs[2]),
             alignment_cfg(),
-            1,
         )
         .expect("get_features should succeed");
         let _ = fs::remove_dir_all(&dir);
@@ -1800,7 +1792,6 @@ mod tests {
             FromTo { from: 3.0, to: 7.0 },
             feature_cfg_for_mz_range(mz_a, mz_b),
             cfg,
-            1,
         )
         .expect("get_features should succeed");
         let _ = fs::remove_dir_all(&dir);
@@ -1835,7 +1826,6 @@ mod tests {
             FromTo { from: 3.0, to: 7.0 },
             feature_cfg_for_mz_range(peak_mz, flat_mz),
             alignment_cfg(),
-            1,
         )
         .expect("get_features should succeed");
         let _ = fs::remove_dir_all(&dir);

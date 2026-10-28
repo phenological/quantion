@@ -49,6 +49,27 @@ export interface Backend {
     mzs: Float64Array,
     rts: Float64Array,
   ): Promise<void>;
+  prefetchPeaks(
+    handle: FileHandle,
+    mzs: Float64Array,
+    from: number,
+    to: number,
+  ): Promise<void>;
+  prefetchFeature(
+    handle: FileHandle,
+    rts: Float64Array,
+    windows: Float64Array,
+  ): Promise<void>;
+  prefetchFeatures?(
+    handle: FileHandle,
+    from: number,
+    to: number,
+    eicPpm: number,
+    eicMz: number,
+    gridStart: number,
+    gridEnd: number,
+    gridStep: number,
+  ): Promise<void>;
   predictRts(
     warp: WarpModelHandle,
     handle: FileHandle,
@@ -130,17 +151,22 @@ export interface Backend {
     from: number,
     to: number,
     opts: PeakOptions | undefined,
-    cores: number,
+    threads: number,
   ): any;
 
   getPeaksFromChrom(
     handle: FileHandle,
-    indices: Uint32Array,
+    precursors: Float64Array,
+    products: Float64Array,
     rts: Float64Array,
-    windows: Float64Array,
+    ranges: Float64Array,
+    offsets: Uint32Array | null,
+    lengths: Uint32Array | null,
+    idBytes: Uint8Array | null,
+    idBytesLen: number,
     count: number,
     opts: PeakOptions | undefined,
-    cores: number,
+    threads: number,
   ): any;
 
   findFeatures?(
@@ -153,7 +179,7 @@ export interface Backend {
     gridEnd: number,
     gridStep: number,
     opts: PeakOptions | undefined,
-    cores: number,
+    threads: number,
   ): any;
 
   findFeature(
@@ -166,7 +192,7 @@ export interface Backend {
     idBytes: Uint8Array | null,
     idBytesLen: number,
     count: number,
-    cores: number,
+    threads: number,
     scanPpm: number,
     scanMz: number,
     eicPpm: number,
@@ -188,6 +214,6 @@ export interface Backend {
     groupRt: number,
     prevalence: number,
     opts: PeakOptions | undefined,
-    cores: number,
+    threads: number,
   ): any;
 }

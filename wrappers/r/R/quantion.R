@@ -207,7 +207,7 @@ get_peak <- function(
 }
 
 get_peaks_from_eic <- function(
-  bin, df, from=0.5, to=5, cores=1L,
+  bin, targets, from=0.5, to=5, threads=1L,
   min_integral          = NaN,
   min_intensity         = .DEFAULTS$min_intensity,
   min_peak_width_points = .DEFAULTS$min_peak_width_points,
@@ -223,15 +223,15 @@ get_peaks_from_eic <- function(
   kernel_size           = .DEFAULTS$kernel_size
 ) {
   stopifnot(typeof(bin) == "externalptr")
-  if (!is.data.frame(df)) stop("`df` must be a data.frame")
-  req <- c("id","rt","mz","ranges"); miss <- setdiff(req, names(df))
+  if (!is.data.frame(targets)) stop("`targets` must be a data.frame")
+  req <- c("id","rt","mz","range"); miss <- setdiff(req, names(targets))
   if (length(miss)) stop(paste0("missing columns: ", paste(miss, collapse=", ")))
-  id <- as.character(df$id)
-  rts <- suppressWarnings(as.numeric(df$rt))
-  mzs <- suppressWarnings(as.numeric(df$mz))
-  ranges <- suppressWarnings(as.numeric(df$ranges))
+  id <- as.character(targets$id)
+  rts <- suppressWarnings(as.numeric(targets$rt))
+  mzs <- suppressWarnings(as.numeric(targets$mz))
+  ranges <- suppressWarnings(as.numeric(targets$range))
   n <- length(id)
-  if (!(length(rts)==n && length(mzs)==n && length(ranges)==n)) stop("id, rt, mz, ranges must have the same length")
+  if (!(length(rts)==n && length(mzs)==n && length(ranges)==n)) stop("id, rt, mz, range must have the same length")
   id[is.na(id)] <- ""
   if (!is.logical(auto_noise) || length(auto_noise) != 1 || is.na(auto_noise)) stop("auto_noise must be logical TRUE/FALSE")
   if (!is.logical(allow_overlap) || length(allow_overlap) != 1 || is.na(allow_overlap)) stop("allow_overlap must be logical TRUE/FALSE")
@@ -249,10 +249,15 @@ get_peaks_from_eic <- function(
     allow_overlap=allow_overlap, min_snr=min_snr, min_r2=min_r2, shape=shape,
     kernel_size=kernel_size
   ) else NULL
-  cores <- .validate_cores(cores)
+  threads <- .validate_threads(threads)
+  source <- attr(bin, "quantion_source")
+  if (!is.null(source)) {
+    .prefetch(source, .Call("C_plan_peaks_from_eic", bin, as.numeric(mzs),
+                            as.numeric(from), as.numeric(to), PACKAGE = "quantion"))
+  }
   out_json <- .Call("C_get_peaks_from_eic",
     bin, as.numeric(rts), as.numeric(mzs), as.numeric(ranges), as.character(id),
-    as.numeric(from), as.numeric(to), opt, as.integer(cores),
+    as.numeric(from), as.numeric(to), opt, as.integer(threads),
     PACKAGE="quantion"
   )
   res <- out_json
@@ -265,7 +270,7 @@ get_peaks_from_eic <- function(
 }
 
 get_peaks_from_chrom <- function(
-  bin, items, cores=1L,
+  bin, targets, threads=1L,
   min_integral          = NaN,
   min_intensity         = .DEFAULTS$min_intensity,
   min_peak_width_points = .DEFAULTS$min_peak_width_points,
@@ -280,12 +285,11 @@ get_peaks_from_chrom <- function(
   shape                 = .DEFAULTS$shape
 ) {
   stopifnot(typeof(bin) == "externalptr")
-  if (is.null(items) || !(is.list(items) || is.data.frame(items))) stop("items must be a list/data.frame")
-  idxs <- suppressWarnings(as.integer(if (!is.null(items$idx)) items$idx else items$index))
-  rts  <- suppressWarnings(as.numeric(items$rt))
-  wins <- suppressWarnings(as.numeric(if (!is.null(items$window)) items$window else items$range))
-  if (length(idxs) != length(rts) || length(wins) != length(rts)) stop("idx, rt, range length mismatch")
-  if (any(is.na(idxs)) || any(idxs < 0)) stop("idx must be a non-negative integer for every item")
+  if (!is.data.frame(targets)) stop("`targets` must be a data.frame")
+  missing_columns <- setdiff(c("id", "precursor", "product", "rt", "range"), names(targets))
+  if (length(missing_columns)) stop(paste0("missing columns: ", paste(missing_columns, collapse = ", ")))
+  ids <- as.character(targets$id)
+  ids[is.na(ids)] <- ""
   if (!is.logical(auto_noise) || length(auto_noise) != 1 || is.na(auto_noise)) stop("auto_noise must be logical TRUE/FALSE")
   if (!is.logical(allow_overlap) || length(allow_overlap) != 1 || is.na(allow_overlap)) stop("allow_overlap must be logical TRUE/FALSE")
   if (!is.logical(auto_baseline) || length(auto_baseline) != 1 || is.na(auto_baseline)) stop("auto_baseline must be logical TRUE/FALSE")
@@ -300,17 +304,18 @@ get_peaks_from_chrom <- function(
     lambda=lambda, max_iterations=max_iterations,
     allow_overlap=allow_overlap, min_snr=min_snr, min_r2=min_r2, shape=shape
   ) else NULL
-  cores <- .validate_cores(cores)
+  threads <- .validate_threads(threads)
   out_json <- .Call("C_get_peaks_from_chrom",
-    bin, idxs, rts, wins, opt, as.integer(cores), PACKAGE="quantion"
+    bin, as.numeric(targets$precursor), as.numeric(targets$product),
+    as.numeric(targets$rt), as.numeric(targets$range), ids, opt, as.integer(threads),
+    PACKAGE = "quantion"
   )
   df <- out_json
   if (!is.data.frame(df)) df <- as.data.frame(df)
   if (!"ort" %in% names(df)) stop("internal error: 'ort' missing from result")
-  want <- c("index","id","ort","rt","from","to","intensity","integral","total_area")
+  want <- c("id","ort","rt","from","to","intensity","integral","total_area")
   present <- want[want %in% names(df)]; extras <- setdiff(names(df), present)
   df <- df[, c(present, extras), drop=FALSE]
-  if ("index" %in% names(df)) df <- df[order(df$index), , drop=FALSE]
   rownames(df) <- NULL
   df
 }
@@ -394,7 +399,10 @@ fit_peak <- function(x, y, rt, intensity, shape = "emg") {
         as.numeric(x), as.numeric(y),
         as.numeric(rt), as.numeric(intensity), .shape_code(shape),
         PACKAGE="quantion")
-  if (nrow(rows) == 0) NULL else as.list(rows[1, ])
+  if (nrow(rows) == 0) return(NULL)
+  fit <- as.list(rows[1, ])
+  fit$shape <- c("gaussian", "emg")[fit$shape + 1]
+  fit
 }
 
 draw_peak <- function(x, params) {
@@ -411,7 +419,7 @@ find_feature <- function(
   bin,
   rt, mz, window, id = NULL,
   scan_ppm = 10, scan_mz = 0.003, eic_ppm = 20, eic_mz = 0.005,
-  cores                 = 1L,
+  threads                 = 1L,
   min_integral          = NaN,
   min_intensity         = .DEFAULTS$min_intensity,
   min_peak_width_points = .DEFAULTS$min_peak_width_points,
@@ -461,7 +469,12 @@ find_feature <- function(
     min_snr=min_snr, min_r2=min_r2, shape=shape
   )
 
-  cores <- .validate_cores(cores)
+  threads <- .validate_threads(threads)
+  source <- attr(bin, "quantion_source")
+  if (!is.null(source)) {
+    .prefetch(source, .Call("C_plan_find_feature", bin, as.numeric(rt), as.numeric(window),
+                            PACKAGE = "quantion"))
+  }
 
   out_json <- .Call(
     "C_find_feature",
@@ -470,7 +483,7 @@ find_feature <- function(
     id,
     as.numeric(scan_ppm), as.numeric(scan_mz),
     as.numeric(eic_ppm), as.numeric(eic_mz),
-    opt, as.integer(cores),
+    opt, as.integer(threads),
     PACKAGE = "quantion"
   )
 
@@ -490,7 +503,7 @@ find_features <- function(
   grid_start            = .DEFAULTS$grid_start,
   grid_end              = .DEFAULTS$grid_end,
   grid_step_ppm         = .DEFAULTS$grid_step,
-  cores                 = 1L,
+  threads                 = 1L,
   min_integral          = NaN,
   min_intensity         = .DEFAULTS$min_intensity,
   min_peak_width_points = .DEFAULTS$min_peak_width_points,
@@ -505,7 +518,7 @@ find_features <- function(
   shape                 = .DEFAULTS$shape
 ) {
   stopifnot(typeof(data) == "externalptr")
-  cores <- .validate_cores(cores)
+  threads <- .validate_threads(threads)
 
   opt <- list(
     min_integral=min_integral, min_intensity=min_intensity,
@@ -515,12 +528,20 @@ find_features <- function(
     allow_overlap=allow_overlap, min_snr=min_snr, min_r2=min_r2, shape=shape
   )
 
+  source <- attr(data, "quantion_source")
+  if (!is.null(source)) {
+    .prefetch(source, .Call("C_plan_find_features", data,
+                            as.numeric(from), as.numeric(to),
+                            as.numeric(ppm_tolerance), as.numeric(mz_tolerance),
+                            as.numeric(grid_start), as.numeric(grid_end), as.numeric(grid_step_ppm),
+                            PACKAGE = "quantion"))
+  }
   out_json <- .Call(
     "C_find_features", data,
     as.numeric(from), as.numeric(to),
     as.numeric(ppm_tolerance), as.numeric(mz_tolerance),
     as.numeric(grid_start), as.numeric(grid_end), as.numeric(grid_step_ppm),
-    opt, as.integer(cores),
+    opt, as.integer(threads),
     PACKAGE = "quantion"
   )
 
@@ -653,35 +674,28 @@ parse_ion <- function(input, max_cache_size = 0) {
 .QUERY_MZ_RANGE   <- 2L
 .QUERY_CLOSEST_MZ <- 3L
 
-get_scans <- function(bin, rt_from = NULL, rt_to = NULL, rt = NULL,
-                      mz_from = NULL, mz_to = NULL, mz = NULL,
-                      level = 1L) {
+.get_scan_query <- function(value, name, range_query, closest_query) {
+  value <- as.numeric(value)
+  if (length(value) == 2) {
+    if (!all(is.finite(value))) stop("get_scans: ", name, " must be c(from, to) with finite numbers")
+    return(list(type = range_query, from = value[1], to = value[2]))
+  }
+  if (length(value) != 1 || !is.finite(value) || (name == "mz" && value <= 0))
+    stop("get_scans: ", name, " must be one number or c(from, to)")
+  list(type = closest_query, from = value, to = NaN)
+}
+
+get_scans <- function(bin, rt = NULL, mz = NULL, level = 1L) {
   if (typeof(bin) != "externalptr") stop("quantion: expected an external pointer (MzML sample)")
   if (!is.numeric(level) || length(level) != 1) stop("level must be a single numeric")
+  if (is.null(rt) == is.null(mz)) stop("get_scans: give exactly one of rt or mz")
 
-  provided <- c(!is.null(rt_from) && !is.null(rt_to),
-                !is.null(rt),
-                !is.null(mz_from) && !is.null(mz_to),
-                !is.null(mz))
-  if (sum(provided) != 1) stop("get_scans: exactly one of {rt_from+rt_to, rt, mz_from+mz_to, mz} must be provided")
-
-  if (provided[1]) {
-    a <- as.numeric(rt_from); b <- as.numeric(rt_to)
-    if (!is.finite(a) || !is.finite(b)) stop("rt_from and rt_to must be finite numerics")
-    query_type <- .QUERY_RT_RANGE
-  } else if (provided[2]) {
-    a <- as.numeric(rt)
-    if (!is.finite(a)) stop("rt must be a single finite numeric")
-    query_type <- .QUERY_CLOSEST_RT; b <- NaN
-  } else if (provided[3]) {
-    a <- as.numeric(mz_from); b <- as.numeric(mz_to)
-    if (!is.finite(a) || !is.finite(b)) stop("mz_from and mz_to must be finite numerics")
-    query_type <- .QUERY_MZ_RANGE
+  query <- if (!is.null(rt)) {
+    .get_scan_query(rt, "rt", .QUERY_RT_RANGE, .QUERY_CLOSEST_RT)
   } else {
-    a <- as.numeric(mz)
-    if (!is.finite(a) || a <= 0) stop("mz must be a single positive finite numeric")
-    query_type <- .QUERY_CLOSEST_MZ; b <- NaN
+    .get_scan_query(mz, "mz", .QUERY_MZ_RANGE, .QUERY_CLOSEST_MZ)
   }
+  query_type <- query$type; a <- query$from; b <- query$to
 
   source <- attr(bin, "quantion_source")
   if (!is.null(source)) {
@@ -721,7 +735,7 @@ get_features <- function(
   group_mz_tol          = .DEFAULTS$group_mz_tol,
   group_rt_tol          = .DEFAULTS$group_rt_tol,
   frequency             = .DEFAULTS$frequency,
-  cores                 = 1L,
+  threads                 = 1L,
   min_integral          = NaN,
   min_intensity         = .DEFAULTS$min_intensity,
   min_peak_width_points = .DEFAULTS$min_peak_width_points,
@@ -736,7 +750,7 @@ get_features <- function(
   shape                 = .DEFAULTS$shape
 ) {
   if (!is.character(dir_path) || length(dir_path) != 1) stop("dir_path must be a single string")
-  cores <- .validate_cores(cores)
+  threads <- .validate_threads(threads)
 
   opt <- list(
     min_integral=min_integral, min_intensity=min_intensity,
@@ -753,7 +767,7 @@ get_features <- function(
     as.numeric(grid_start), as.numeric(grid_end), as.numeric(grid_step),
     as.numeric(group_ppm_tol), as.numeric(group_mz_tol), as.numeric(group_rt_tol),
     as.integer(frequency),
-    opt, as.integer(cores),
+    opt, as.integer(threads),
     PACKAGE = "quantion"
   )
 
@@ -763,13 +777,13 @@ get_features <- function(
   df
 }
 
-.validate_cores <- function(cores) {
-  if (!is.numeric(cores) || length(cores) != 1L || is.na(cores)) stop("cores must be a single number")
+.validate_threads <- function(threads) {
+  if (!is.numeric(threads) || length(threads) != 1L || is.na(threads)) stop("threads must be a single number")
 
-  if (cores != floor(cores)) stop("cores must be a single number")
+  if (threads != floor(threads)) stop("threads must be a single number")
 
-  cores <- as.integer(cores)
-  if (is.na(cores) || cores < 1L) stop("cores must be a single number")
+  threads <- as.integer(threads)
+  if (is.na(threads) || threads < 1L) stop("threads must be a single number")
 
   maxc <- NA_integer_
   if (requireNamespace("parallel", quietly = TRUE)) {
@@ -778,10 +792,10 @@ get_features <- function(
       maxc <- suppressWarnings(tryCatch(parallel::detectCores(logical = TRUE), error = function(e) NA_integer_))
     }
   }
-  if (!is.na(maxc) && cores > maxc) {
-    warning(sprintf("cores (%d) exceeds detected cores (%d)", cores, maxc))
+  if (!is.na(maxc) && threads > maxc) {
+    warning(sprintf("threads (%d) exceeds detected threads (%d)", threads, maxc))
   }
 
-  cores
+  threads
 }
 

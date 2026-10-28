@@ -17,8 +17,9 @@ use crate::utilities::{
         QUANTION_SECTION_WARP_TARGET_RT, build_record_bridge,
     },
     calculate_eic::{EicReader, FastError},
+    structs::Target,
     warp_model::{
-        Target, WarpError, WarpModel, check_target_lists, get_median_targets, load_warp,
+        WarpError, WarpModel, check_target_lists, get_median_targets, load_warp,
         plan_predict_rts_ranges,
     },
 };
@@ -281,6 +282,7 @@ fn get_targets(mzs_ptr: *const f64, rts_ptr: *const f64, n: usize) -> Vec<Target
             id: String::new(),
             mz: *mz,
             rt: *rt,
+            range: 0.0,
         })
         .collect()
 }

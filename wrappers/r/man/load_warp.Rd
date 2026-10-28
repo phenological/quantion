@@ -17,9 +17,8 @@ load_warp(
 A warp model for use in \code{\link{predict_rts}()} and \code{\link{calibrate}()}.
 }
 \examples{
-\donttest{
-warp <- load_warp(load_model("https://example.org/model.onnx"))
-}
+model <- load_model(system.file("extdata", "model.onnx", package = "quantion"))
+warp <- load_warp(model)
 }
 \seealso{
 \code{\link{load_model}()}, \code{\link{predict_rts}()}, \code{\link{calibrate}()}

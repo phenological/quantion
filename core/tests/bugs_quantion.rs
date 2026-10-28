@@ -53,8 +53,8 @@ fn assert_get_peak(id: &str, eic: &Eic) {
         y: eic.intensity.clone(),
     };
     let target = param_f64(eic, "opt.target");
-    let roi = Roi::peak(target, param_f64(eic, "opt.roi_half_width"));
-    let peak = get_peak(&data, &roi, Some(options_from(eic)));
+    let roi = Roi { rt: target, range: param_f64(eic, "opt.roi_half_width") };
+    let peak = get_peak(&data, &roi, options_from(eic));
     let found = peak.intensity > 0.0;
 
     if param_bool(eic, "exp.must_find") {

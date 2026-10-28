@@ -16,7 +16,7 @@ find_feature(
   scan_mz = 0.003,
   eic_ppm = 20,
   eic_mz = 0.005,
-  cores = 1L,
+  threads = 1L,
   min_integral = NaN,
   min_intensity = .DEFAULTS$min_intensity,
   min_peak_width_points = .DEFAULTS$min_peak_width_points,
@@ -41,7 +41,7 @@ find_feature(
   \item{scan_mz}{Absolute m/z tolerance (Da) for spectrum scan extraction.}
   \item{eic_ppm}{PPM tolerance for EIC extraction.}
   \item{eic_mz}{Absolute m/z tolerance (Da) for EIC extraction.}
-  \item{cores}{Number of CPU cores to use. Default 1.}
+  \item{threads}{Number of threads to use. Default 1.}
   \item{min_integral}{Minimum peak area. \code{NaN} disables.}
   \item{min_intensity}{Minimum apex intensity. Default 1000.}
   \item{min_peak_width_points}{Minimum peak width in points. Default 5.}

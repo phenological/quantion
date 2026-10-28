@@ -6,11 +6,8 @@ use crate::utilities::{
 const LOCAL_WINDOW_MINUTES: f64 = 2.0;
 const DEFAULT_MAX_DRIFT: f64 = 0.5;
 
-pub fn get_peak(data: &DataXY, roi: &Roi, options: Option<FindPeaksOptions>) -> Peak {
-    let Roi::Peak { rt, range } = roi else {
-        return Peak::default();
-    };
-    let (rt, range) = (*rt, *range);
+pub fn get_peak(data: &DataXY, roi: &Roi, options: FindPeaksOptions) -> Peak {
+    let Roi { rt, range } = *roi;
 
     let local;
     let section: &DataXY = if rt.is_finite() {
@@ -114,6 +111,7 @@ mod tests {
                 edge_slope_level: Some(1),
             }),
             artifact_filter: Some(Default::default()),
+            threads: 1,
         }
     }
 
@@ -144,8 +142,11 @@ mod tests {
             }
             height
         });
-        let roi = Roi::peak(center, 1.0);
-        let peak = get_peak(&eic, &roi, Some(default_options()));
+        let roi = Roi {
+            rt: center,
+            range: 1.0,
+        };
+        let peak = get_peak(&eic, &roi, default_options());
         assert!(peak.intensity > 0.0, "strong peak should be found");
         assert!((peak.rt - center).abs() < 0.05);
         assert!(peak.intensity > 100_000.0);
@@ -155,8 +156,11 @@ mod tests {
     fn finds_isolated_peak_without_local_baseline_1() {
         let center = 28.6;
         let eic = build_eic(28.1, 29.1, 120, |rt| bell(rt, center, 0.05, 350_000.0));
-        let roi = Roi::peak(center, 1.0);
-        let peak = get_peak(&eic, &roi, Some(default_options()));
+        let roi = Roi {
+            rt: center,
+            range: 1.0,
+        };
+        let peak = get_peak(&eic, &roi, default_options());
         assert!(
             peak.intensity > 0.0,
             "isolated peak on a flat baseline should be found"

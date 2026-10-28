@@ -14,8 +14,7 @@ sample_file <- if (nzchar(repo_root))
   file.path(repo_root, "core", "tests", "fixtures", "api", "api.ion") else ""
 
 run_apart <- function(work, ...) {
-  callr::r(work, args = list(...),
-           env = c(QUANTION_ARTIFACTS_ROOT = file.path(repo_root, "artifacts")))
+  callr::r(work, args = list(...))
 }
 
 ask_find_feature <- function(path, count) {

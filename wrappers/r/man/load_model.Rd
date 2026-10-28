@@ -17,10 +17,8 @@ load_model(
 A model for use in \code{\link{load_warp}()} and \code{\link{get_keys}()}.
 }
 \examples{
-\donttest{
-model <- load_model("https://example.org/model.onnx")
+model <- load_model(system.file("extdata", "model.onnx", package = "quantion"))
 get_value(model, "points")
-}
 }
 \seealso{
 \code{\link{load_warp}()}, \code{\link{get_keys}()}, \code{\link{dispose}()}

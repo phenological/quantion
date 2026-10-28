@@ -1,8 +1,7 @@
 sample_file <- sample_ion_path()
 
 run_apart <- function(work, ...) {
-  callr::r(work, args = list(...),
-           env = c(QUANTION_ARTIFACTS_ROOT = file.path(find_sample_root(), "artifacts")))
+  callr::r(work, args = list(...))
 }
 
 ask_short_mz <- function(path) {

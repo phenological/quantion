@@ -64,7 +64,9 @@ if command -v Rscript >/dev/null 2>&1 && [ -f "$here/run_r.R" ]; then
   if command -v cygpath >/dev/null 2>&1; then
     r_lib="$(cygpath -m "$r_lib")"
   fi
-  cp -R "$root/wrappers/r" "$work/rpkg"
+  (cd "$root/wrappers" && tar -cf - --exclude=r/src/rust r) | tar -xf - -C "$work"
+  mv "$work/r" "$work/rpkg"
+  sh "$root/scripts/stage-r-rust.sh" "$work/rpkg" > /dev/null
   if R CMD INSTALL --no-docs --no-byte-compile -l "$r_lib" "$work/rpkg" > "$work/r_install.log" 2>&1; then
     export R_LIBS="$r_lib"
     run_language r run_r.R Rscript

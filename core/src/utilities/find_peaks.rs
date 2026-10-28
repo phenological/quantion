@@ -112,6 +112,7 @@ pub struct FindPeaksOptions {
     pub filter: Option<PeakFilter>,
     pub baseline: Option<BaselineOptions>,
     pub artifact_filter: Option<ArtifactFilter>,
+    pub threads: usize,
 }
 
 impl Default for FindPeaksOptions {
@@ -121,6 +122,7 @@ impl Default for FindPeaksOptions {
             filter: Some(PeakFilter::default()),
             baseline: Some(BaselineOptions::default()),
             artifact_filter: Some(ArtifactFilter::default()),
+            threads: 1,
         }
     }
 }
@@ -142,16 +144,16 @@ impl Separation {
     };
 }
 
-pub fn find_peaks(data: &DataXY, options: Option<FindPeaksOptions>) -> Vec<Peak> {
+pub fn find_peaks(data: &DataXY, options: FindPeaksOptions) -> Vec<Peak> {
     find_separated_peaks(data, options, Separation::ANY_PEAK)
 }
 
 pub(crate) fn find_separated_peaks(
     data: &DataXY,
-    options: Option<FindPeaksOptions>,
+    options: FindPeaksOptions,
     separation: Separation,
 ) -> Vec<Peak> {
-    let o = options.unwrap_or_default();
+    let o = options;
     let filter = o.filter.unwrap_or_default();
     let base_opts = o.baseline.unwrap_or_default();
 
@@ -273,7 +275,10 @@ pub(crate) fn find_separated_peaks(
     if !peaks.is_empty() {
         let mut cutoff = 0.0_f64;
         if noise > 0.0 {
-            let sn_mult = filter.min_snr.or(PeakFilter::default().min_snr).unwrap_or_default();
+            let sn_mult = filter
+                .min_snr
+                .or(PeakFilter::default().min_snr)
+                .unwrap_or_default();
             cutoff = sn_mult * noise;
         }
         if let Some(user_int) = filter.min_intensity

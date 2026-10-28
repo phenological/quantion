@@ -3,6 +3,14 @@ from typing import TypedDict
 FromTo = TypedDict("FromTo", {"from": float, "to": float})
 
 
+class ChromTarget(TypedDict):
+    id: str
+    precursor: float
+    product: float
+    rt: float
+    range: float
+
+
 class Target(TypedDict):
     id: str
     mz: float

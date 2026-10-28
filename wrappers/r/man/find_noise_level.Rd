@@ -20,7 +20,9 @@ from, and \code{intensity}, the estimated noise level.
 }
 \examples{
 \donttest{
-eic <- calculate_eic(file, 89.04768, from = 0, to = 5)
+url <- "https://raw.githubusercontent.com/phenological/ion-files/main/data/p21_LTR_20_b1_w20.ion"
+sample <- parse_ion(url)
+eic <- calculate_eic(sample, 260.103, from = 0.5, to = 5)
 noise <- find_noise_level(eic$y)$intensity
 }
 }

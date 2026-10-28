@@ -48,53 +48,25 @@ impl Default for Peak {
     }
 }
 
-#[derive(Clone, Debug)]
-pub enum Roi {
-    Peak {
-        rt: f64,
-        range: f64,
-    },
-    Eic {
-        id: String,
-        rt: f64,
-        mz: f64,
-        range: f64,
-    },
-    Chrom {
-        id: String,
-        sample_index: usize,
-        rt: f64,
-        range: f64,
-    },
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct Roi {
+    pub rt: f64,
+    pub range: f64,
 }
 
-impl Roi {
-    pub fn peak(rt: f64, range: f64) -> Self {
-        Self::Peak { rt, range }
-    }
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct Target {
+    pub id: String,
+    pub mz: f64,
+    pub rt: f64,
+    pub range: f64,
+}
 
-    pub fn eic(id: impl Into<String>, rt: f64, mz: f64, range: f64) -> Self {
-        Self::Eic {
-            id: id.into(),
-            rt,
-            mz,
-            range,
-        }
-    }
-
-    pub fn chrom(id: impl Into<String>, sample_index: usize, rt: f64, range: f64) -> Self {
-        Self::Chrom {
-            id: id.into(),
-            sample_index,
-            rt,
-            range,
-        }
-    }
-
-    pub fn id(&self) -> &str {
-        match self {
-            Self::Peak { .. } => "",
-            Self::Eic { id, .. } | Self::Chrom { id, .. } => id,
-        }
-    }
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct ChromTarget {
+    pub id: String,
+    pub precursor: f64,
+    pub product: f64,
+    pub rt: f64,
+    pub range: f64,
 }

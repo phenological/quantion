@@ -1,13 +1,18 @@
 #[cfg(not(all(target_arch = "wasm32", not(target_os = "wasi"))))]
 use rayon::{ThreadPoolBuilder, prelude::*};
 
+use ionic::{IonReader, source::ByteRange};
+
 use crate::utilities::{
-    calculate_eic::{EicOptions, ScanQuery, get_eic_for_mz, get_scans, lower_bound, upper_bound},
+    calculate_eic::{
+        EicOptions, FastError, ScanQuery, get_eic_for_mz, get_scans, lower_bound, plan_scan_ranges,
+        upper_bound,
+    },
     find_features::max_intensity_centroid,
     find_peaks::FindPeaksOptions,
     get_peak::get_peak,
     ion::ScanSource,
-    structs::{DataXY, FromTo, Peak, Roi},
+    structs::{DataXY, FromTo, Peak, Roi, Target},
 };
 
 #[derive(Clone, Debug, Default)]
@@ -23,6 +28,7 @@ pub struct FindFeatureOptions {
     pub seed_eic_options: Option<EicOptions>,
     pub final_eic_options: Option<EicOptions>,
     pub peak_options: Option<FindPeaksOptions>,
+    pub threads: usize,
 }
 
 impl Default for FindFeatureOptions {
@@ -39,21 +45,56 @@ impl Default for FindFeatureOptions {
                 ..Default::default()
             }),
             peak_options: Some(FindPeaksOptions::default()),
+            threads: 1,
         }
     }
 }
 
+fn feature_time_window(targets: &[Target]) -> Option<FromTo> {
+    let mut rt_min = f64::MAX;
+    let mut rt_max = f64::MIN;
+    for target in targets {
+        let (rt, range) = (target.rt, target.range);
+        if rt.is_finite() && range.is_finite() && range > 0.0 {
+            rt_min = rt_min.min(rt - range);
+            rt_max = rt_max.max(rt + range);
+        }
+    }
+
+    if !rt_min.is_finite() || !rt_max.is_finite() || rt_max <= rt_min {
+        return None;
+    }
+    Some(FromTo {
+        from: rt_min,
+        to: rt_max,
+    })
+}
+
+pub fn plan_feature_ranges(
+    ion: &mut IonReader,
+    targets: &[Target],
+) -> Result<Vec<ByteRange>, FastError> {
+    let Some(time_window) = feature_time_window(targets) else {
+        return Ok(Vec::new());
+    };
+    plan_scan_ranges(
+        ion,
+        ScanQuery::RtRange(time_window),
+        EicOptions::default().time_unit,
+        1,
+    )
+}
+
 pub fn find_feature(
     source: &mut impl ScanSource,
-    rois: &[&Roi],
-    cores: usize,
-    options: Option<FindFeatureOptions>,
+    targets: &[Target],
+    opts: FindFeatureOptions,
 ) -> Vec<Option<TargetedFeature>> {
-    if rois.is_empty() {
+    if targets.is_empty() {
         return Vec::new();
     }
 
-    let opts = options.unwrap_or_default();
+    let threads = opts.threads;
     let scan_opts = opts.seed_eic_options.unwrap_or(EicOptions {
         ppm_tolerance: 10.0,
         mz_tolerance: 0.003,
@@ -66,42 +107,23 @@ pub fn find_feature(
     });
     let fp_opts = opts.peak_options.unwrap_or_default();
 
-    let mut rt_min = f64::MAX;
-    let mut rt_max = f64::MIN;
-    for roi in rois {
-        let Roi::Eic { rt, range, .. } = *roi else {
-            continue;
-        };
-        let (rt, range) = (*rt, *range);
-        if rt.is_finite() && range.is_finite() && range > 0.0 {
-            rt_min = rt_min.min(rt - range);
-            rt_max = rt_max.max(rt + range);
-        }
-    }
-
-    if !rt_min.is_finite() || !rt_max.is_finite() || rt_max <= rt_min {
-        return vec![None; rois.len()];
-    }
+    let Some(time_window) = feature_time_window(targets) else {
+        return vec![None; targets.len()];
+    };
 
     let (rts, scans) = get_scans(
         source,
-        ScanQuery::RtRange(FromTo {
-            from: rt_min,
-            to: rt_max,
-        }),
+        ScanQuery::RtRange(time_window),
         eic_opts.time_unit,
         1,
     );
 
     if scans.is_empty() || rts.is_empty() {
-        return vec![None; rois.len()];
+        return vec![None; targets.len()];
     }
 
-    let process = |roi: &&Roi| -> Option<TargetedFeature> {
-        let Roi::Eic { id, rt, mz, range } = *roi else {
-            return None;
-        };
-        let (rt, mz, range) = (*rt, *mz, *range);
+    let process = |target: &Target| -> Option<TargetedFeature> {
+        let (rt, mz, range) = (target.rt, target.mz, target.range);
         if !rt.is_finite() || !mz.is_finite() || range <= 0.0 {
             return None;
         }
@@ -124,13 +146,20 @@ pub fn find_feature(
             y,
         };
 
-        let picked = get_peak(&data, &Roi::peak(rt, range), Some(fp_opts.clone()));
+        let picked = get_peak(
+            &data,
+            &Roi {
+                rt: rt,
+                range: range,
+            },
+            fp_opts.clone(),
+        );
         if picked.intensity <= 0.0 {
             return None;
         }
 
         Some(TargetedFeature {
-            id: id.clone(),
+            id: target.id.clone(),
             mz: refined_mz,
             rt: picked.rt,
             peak: picked,
@@ -139,18 +168,18 @@ pub fn find_feature(
 
     #[cfg(all(target_arch = "wasm32", not(target_os = "wasi")))]
     {
-        return rois.iter().map(process).collect();
+        return targets.iter().map(process).collect();
     }
 
     #[cfg(not(all(target_arch = "wasm32", not(target_os = "wasi"))))]
     {
-        if cores <= 1 {
-            return rois.iter().map(process).collect();
+        if threads <= 1 {
+            return targets.iter().map(process).collect();
         }
         let pool = ThreadPoolBuilder::new()
-            .num_threads(cores)
+            .num_threads(threads)
             .build()
             .expect("thread pool");
-        pool.install(|| rois.par_iter().map(process).collect::<Vec<_>>())
+        pool.install(|| targets.par_iter().map(process).collect::<Vec<_>>())
     }
 }

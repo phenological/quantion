@@ -1,7 +1,7 @@
 import type { BinaryInput } from "../types/types";
 
-export function toCores(cores: unknown): number {
-  const v = typeof cores === "number" && Number.isFinite(cores) ? cores | 0 : 1;
+export function toThreads(threads: unknown): number {
+  const v = typeof threads === "number" && Number.isFinite(threads) ? threads | 0 : 1;
   return v > 0 ? v : 1;
 }
 

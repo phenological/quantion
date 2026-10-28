@@ -201,6 +201,7 @@ fn find_peaks_options(min_r2: f64) -> FindPeaksOptions {
             min_r2,
             shape: PeakShape::EMG,
         }),
+        threads: 1,
     }
 }
 
@@ -209,7 +210,7 @@ fn has_peak_near(eic: &Eic, rt: f64, min_r2: f64) -> bool {
         x: eic.time.clone(),
         y: eic.intensity.clone(),
     };
-    find_peaks(&data, Some(find_peaks_options(min_r2)))
+    find_peaks(&data, find_peaks_options(min_r2))
         .iter()
         .any(|peak| (peak.rt - rt).abs() <= RT_TOLERANCE)
 }

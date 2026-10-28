@@ -11,7 +11,7 @@ use ionic::{IonReader, ReadOptions};
 use rayon::prelude::*;
 
 #[cfg(not(all(target_arch = "wasm32", not(target_os = "wasi"))))]
-use crate::utilities::parallel::run_with_cores;
+use crate::utilities::parallel::run_with_threads;
 use crate::utilities::{
     calculate_eic::{
         CentroidScan, EicOptions, EicReader, MS1_LEVEL, SpectrumKind, get_scan_times,
@@ -106,9 +106,10 @@ pub struct AlignmentOptions {
     pub min_samples: usize,
     pub min_real_support: usize,
     pub eic_options: EicOptions,
-    pub peak_options: Option<FindPeaksOptions>,
+    pub peak_options: FindPeaksOptions,
     pub mz_estimator: MzEstimatorKind,
     pub fill_window_minutes: f64,
+    pub threads: usize,
 }
 
 impl Default for AlignmentOptions {
@@ -126,9 +127,10 @@ impl Default for AlignmentOptions {
                 mz_tolerance: 0.005,
                 ..Default::default()
             },
-            peak_options: None,
+            peak_options: FindPeaksOptions::default(),
             mz_estimator: MzEstimatorKind::default(),
             fill_window_minutes: 2.0,
+            threads: 1,
         }
     }
 }
@@ -434,11 +436,10 @@ pub fn get_features(
     time_window: FromTo,
     feature_config: FindFeaturesOptions,
     alignment_config: AlignmentOptions,
-    cores: usize,
 ) -> Result<Vec<ConsensusFeature>, AlignmentError> {
     let datasets = load_sample_files(directory_path)?;
-    let datasets = detect_features_per_sample(datasets, time_window, &feature_config, cores)?;
-    align_samples(datasets, alignment_config, cores)
+    let datasets = detect_features_per_sample(datasets, time_window, &feature_config)?;
+    align_samples(datasets, alignment_config)
 }
 
 #[cfg(not(all(target_arch = "wasm32", not(target_os = "wasi"))))]
@@ -446,7 +447,6 @@ pub fn get_features_from_detected(
     directory_path: &str,
     mut detected: Vec<(String, Vec<Feature>)>,
     alignment_config: AlignmentOptions,
-    cores: usize,
 ) -> Result<Vec<ConsensusFeature>, AlignmentError> {
     let sources = load_sample_files(directory_path)?;
     let mut datasets = Vec::with_capacity(sources.len());
@@ -463,22 +463,22 @@ pub fn get_features_from_detected(
         let (_, features) = detected.swap_remove(position);
         datasets.push((name, source, features));
     }
-    align_samples(datasets, alignment_config, cores)
+    align_samples(datasets, alignment_config)
 }
 
 #[cfg(not(all(target_arch = "wasm32", not(target_os = "wasi"))))]
 fn align_samples(
     mut datasets: Vec<SampleDataset>,
     alignment_config: AlignmentOptions,
-    cores: usize,
 ) -> Result<Vec<ConsensusFeature>, AlignmentError> {
+    let threads = alignment_config.threads;
     let clusterer = FeatureClusterer {
         tolerance: alignment_config.mz_tolerance.clone(),
         rt_tolerance: alignment_config.rt_tolerance,
     };
 
     let tagged = collect_tagged(&mut datasets);
-    let clusters = run_with_cores(cores, || clusterer.cluster(tagged));
+    let clusters = run_with_threads(threads, || clusterer.cluster(tagged));
     let mut slots = prepare_slots(
         clusters,
         datasets.len(),
@@ -494,7 +494,7 @@ fn align_samples(
         alignment_config.eic_options,
         alignment_config.peak_options,
         alignment_config.fill_window_minutes,
-        cores,
+        threads,
     )?;
 
     let (single, split) = build_results(
@@ -512,7 +512,7 @@ fn align_samples(
     };
     let mut features = single;
     features.extend(split);
-    let results = run_with_cores(cores, || {
+    let results = run_with_threads(threads, || {
         dedup(features, &same_mass, alignment_config.rt_tolerance)
     });
     Ok(results)
@@ -563,9 +563,9 @@ fn resolve_samples(
     slots: &mut [ClusterSlot],
     datasets: &[SampleDataset],
     eic_options: EicOptions,
-    peak_options: Option<FindPeaksOptions>,
+    peak_options: FindPeaksOptions,
     fill_window: f64,
-    cores: usize,
+    threads: usize,
 ) -> Result<(), AlignmentError> {
     if slots.is_empty() {
         return Ok(());
@@ -598,7 +598,7 @@ fn resolve_samples(
         };
 
         let shared_slots: &[ClusterSlot] = slots;
-        let items: Vec<(usize, Resolved)> = run_with_cores(cores, || {
+        let items: Vec<(usize, Resolved)> = run_with_threads(threads, || {
             #[cfg(not(all(target_arch = "wasm32", not(target_os = "wasi"))))]
             {
                 tiles
@@ -754,7 +754,7 @@ fn resolve_tile(
     all_times: &[f64],
     scans: &[(f64, Vec<f64>, Vec<f64>)],
     eic_options: EicOptions,
-    peak_options: &Option<FindPeaksOptions>,
+    peak_options: &FindPeaksOptions,
     fill_window: f64,
     kind: SpectrumKind,
 ) -> Vec<(usize, Resolved)> {
@@ -836,7 +836,7 @@ pub(crate) fn resolve_cluster(
     mz_lo: f64,
     mz_hi: f64,
     ppm: f64,
-    peak_options: Option<FindPeaksOptions>,
+    peak_options: FindPeaksOptions,
     kind: SpectrumKind,
 ) -> Resolved {
     let (from, to, filled) = match existing {
@@ -901,7 +901,7 @@ fn measure_mass(
     center_mz: f64,
     gap: f64,
     bounds: &SearchBounds,
-    peak_options: Option<FindPeaksOptions>,
+    peak_options: FindPeaksOptions,
 ) -> Option<Peak> {
     let mz_lo = center_mz - gap;
     let mz_hi = center_mz + gap;
@@ -917,7 +917,10 @@ fn measure_mass(
             x: times,
             y: intensities,
         },
-        &Roi::peak(bounds.center_rt, bounds.rt_to - bounds.rt_from),
+        &Roi {
+            rt: bounds.center_rt,
+            range: bounds.rt_to - bounds.rt_from,
+        },
         peak_options,
     );
     (peak.intensity > 0.0).then_some(peak)
@@ -946,7 +949,7 @@ fn detect_peak(
     bounds: &SearchBounds,
     mz_lo: f64,
     mz_hi: f64,
-    peak_options: Option<FindPeaksOptions>,
+    peak_options: FindPeaksOptions,
 ) -> Option<Feature> {
     let mut times = Vec::with_capacity(tile_scans.len());
     let mut intensities = Vec::with_capacity(tile_scans.len());
@@ -962,7 +965,10 @@ fn detect_peak(
             x: times,
             y: intensities,
         },
-        &Roi::peak(bounds.center_rt, bounds.rt_to - bounds.rt_from),
+        &Roi {
+            rt: bounds.center_rt,
+            range: bounds.rt_to - bounds.rt_from,
+        },
         peak_options,
     );
     (p.intensity > 0.0).then_some(Feature {
@@ -1370,7 +1376,6 @@ fn detect_features_per_sample(
     samples: Vec<(String, SampleSourceKind)>,
     time_window: FromTo,
     config: &FindFeaturesOptions,
-    cores: usize,
 ) -> Result<Vec<SampleDataset>, AlignmentError> {
     let mut results = Vec::new();
 
@@ -1383,12 +1388,12 @@ fn detect_features_per_sample(
                     source: e.to_string(),
                 })?;
                 let mut reader = EicReader::Mzml(&mut mzml);
-                find_features(&mut reader, time_window, Some(config.clone()), cores).map_err(
-                    |e| AlignmentError::FeatureDetection {
+                find_features(&mut reader, time_window, config.clone()).map_err(|e| {
+                    AlignmentError::FeatureDetection {
                         path: path.to_string_lossy().to_string(),
                         source: e,
-                    },
-                )?
+                    }
+                })?
             }
             SampleSourceKind::Ion(path) => {
                 let mut owned = open_ion(path).map_err(|e| AlignmentError::Parse {
@@ -1396,12 +1401,12 @@ fn detect_features_per_sample(
                     source: e.to_string(),
                 })?;
                 let mut reader = EicReader::Ion(&mut owned);
-                find_features(&mut reader, time_window, Some(config.clone()), cores).map_err(
-                    |e| AlignmentError::FeatureDetection {
+                find_features(&mut reader, time_window, config.clone()).map_err(|e| {
+                    AlignmentError::FeatureDetection {
                         path: path.to_string_lossy().to_string(),
                         source: e,
-                    },
-                )?
+                    }
+                })?
             }
         };
         eprintln!(

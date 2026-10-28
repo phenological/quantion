@@ -3,8 +3,8 @@ use ionic::{IonReader, ReadOptions};
 use crate::utilities::{
     calculate_eic::{EicReader, ScanTime},
     load_model::{ModelError, load_model},
-    structs::FromTo,
-    warp_model::{Target, WarpError, WarpModel, load_warp, resample_eic},
+    structs::{FromTo, Target},
+    warp_model::{WarpError, WarpModel, load_warp, resample_eic},
 };
 
 const MODEL_PATH: &str = "tests/fixtures/shift_model.onnx";
@@ -25,6 +25,7 @@ fn get_target(id: &str, mz: f64, rt: f64) -> Target {
         id: id.to_string(),
         mz,
         rt,
+        range: 0.0,
     }
 }
 

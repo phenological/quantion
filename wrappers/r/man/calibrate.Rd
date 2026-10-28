@@ -28,10 +28,12 @@ A data frame with columns \code{id}, \code{mz} and \code{rt}, one row per id.
 }
 \examples{
 \donttest{
-warp <- load_warp(load_model("https://example.org/model.onnx"))
-ltr <- parse_ion("https://example.org/ltr.ion")
-seen <- data.frame(id = "feature_1", mz = 300.1, rt = 2.38)
-calibrated <- calibrate(warp, list(ltr), list(seen))
+model <- load_model(system.file("extdata", "model.onnx", package = "quantion"))
+warp <- load_warp(model)
+url <- "https://raw.githubusercontent.com/phenological/ion-files/main/data/p21_LTR_20_b1_w20.ion"
+sample <- parse_ion(url)
+seen <- data.frame(id = "Alanine", mz = 260.103, rt = 2.383)
+calibrated <- calibrate(warp, list(sample), list(seen))
 }
 }
 \seealso{

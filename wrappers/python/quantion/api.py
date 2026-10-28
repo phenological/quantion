@@ -26,8 +26,8 @@ from quantion._pack import (
     pack_peak_options,
     unpack_targets,
 )
-from quantion._shared import to_cores
-from quantion._types import FromTo, GroupedFeature, Feature, Peak, Target, TargetPeak
+from quantion._shared import to_threads
+from quantion._types import ChromTarget, FromTo, GroupedFeature, Feature, Peak, Target, TargetPeak
 from quantion.file import SampleFile
 from quantion.model import Model
 from quantion.warp_model import WarpModel
@@ -108,10 +108,22 @@ def _get_tolerance(mapping: Optional[Dict], key: str, default: float) -> float:
     return parsed
 
 
-def _get_from_to(from_to: FromTo, caller: str) -> tuple:
+def _get_from_to(from_to: FromTo, caller: str, name: str = "from_to") -> tuple:
     if not isinstance(from_to, dict) or "from" not in from_to or "to" not in from_to:
-        raise ValueError(f'{caller}: from_to must be a dict like {{"from": 0.5, "to": 5.0}}')
+        raise ValueError(f'{caller}: {name} must be a dict like {{"from": 0.5, "to": 5.0}}')
     return float(from_to["from"]), float(from_to["to"])
+
+
+def _get_scan_query(value, name: str, range_query: int, closest_query: int) -> tuple:
+    if isinstance(value, dict):
+        start, end = _get_from_to(value, "get_scans", name)
+        if not math.isfinite(start) or not math.isfinite(end):
+            raise ValueError(f"get_scans: {name} from and to must be finite")
+        return range_query, start, end
+    target = float(value)
+    if not math.isfinite(target) or (name == "mz" and target <= 0):
+        raise ValueError(f"get_scans: {name} must be a finite number")
+    return closest_query, target, math.nan
 
 
 def _get_numeric(mapping: Optional[Dict], key: str, default: float) -> float:
@@ -445,6 +457,15 @@ def _plan_scans(file: SampleFile, query_type: int, from_value: float,
     return _unpack_ranges(buf_to_bytes(file._abi, buffer))
 
 
+def _prefetch(file: SampleFile, name: str, plan) -> None:
+    source = getattr(file, "_remote_source", None)
+    if source is None:
+        return
+    buffer = _Buf()
+    _check(name, plan(ctypes.byref(buffer)))
+    source.prefetch(_unpack_ranges(buf_to_bytes(file._abi, buffer)))
+
+
 def _unpack_ranges(packed: bytes) -> list[tuple[int, int]]:
     return [
         (int.from_bytes(packed[i:i + 8], "little"),
@@ -732,7 +753,11 @@ def fit_peak(
         ctypes.byref(buf),
     ))
     rows = buf_to_records(abi, buf)
-    return rows[0] if rows else None
+    if not rows:
+        return None
+    fit = rows[0]
+    fit["shape"] = ("gaussian", "emg")[int(fit["shape"])]
+    return fit
 
 
 def draw_peak(x: Sequence, params: Dict) -> np.ndarray:
@@ -816,22 +841,20 @@ _QUERY_CLOSEST_MZ = 3
 def get_scans(
     file: SampleFile,
     *,
-    rt_range: Optional[tuple] = None,
-    rt: Optional[float] = None,
-    mz_range: Optional[tuple] = None,
-    mz: Optional[float] = None,
+    rt: "float | FromTo | None" = None,
+    mz: "float | FromTo | None" = None,
     level: int = 1,
 ) -> "List[Dict] | Optional[Dict]":
     """Get scans by RT or m/z query.
 
-    Fetches scans from a loaded file. Exactly one query mode must be provided.
+    Fetches scans from a loaded file. Give exactly one of rt or mz.
 
     Args:
         file: SampleFile from parse_mzml() or parse_ion().
-        rt_range: Tuple (from, to) in minutes — all scans in RT window.
-        rt: Target RT in minutes — returns the single closest scan.
-        mz_range: Tuple (from, to) in Da — all scans with precursor m/z in window.
-        mz: Target precursor m/z in Da — returns the single closest scan.
+        rt: {"from": start, "to": end} in minutes for every scan in that range,
+            or one RT in minutes for the single closest scan.
+        mz: {"from": start, "to": end} in Da for every scan whose precursor m/z is in
+            that range, or one precursor m/z in Da for the single closest scan.
         level: MS level to query (0–255). Default 1.
 
     Returns:
@@ -842,30 +865,12 @@ def get_scans(
     if not (0 <= level <= 255):
         raise ValueError("get_scans: level must be in [0, 255]")
 
-    provided = sum(x is not None for x in (rt_range, rt, mz_range, mz))
-    if provided != 1:
-        raise ValueError("get_scans: exactly one of rt_range, rt, mz_range, mz must be provided")
-
-    if rt_range is not None:
-        a, b = float(rt_range[0]), float(rt_range[1])
-        if not math.isfinite(a) or not math.isfinite(b):
-            raise ValueError("get_scans: rt_range values must be finite")
-        query_type = _QUERY_RT_RANGE
-    elif rt is not None:
-        a = float(rt)
-        if not math.isfinite(a):
-            raise ValueError("get_scans: rt must be finite")
-        query_type, b = _QUERY_CLOSEST_RT, math.nan
-    elif mz_range is not None:
-        a, b = float(mz_range[0]), float(mz_range[1])
-        if not math.isfinite(a) or not math.isfinite(b):
-            raise ValueError("get_scans: mz_range values must be finite")
-        query_type = _QUERY_MZ_RANGE
+    if (rt is None) == (mz is None):
+        raise ValueError("get_scans: give exactly one of rt or mz")
+    if rt is not None:
+        query_type, a, b = _get_scan_query(rt, "rt", _QUERY_RT_RANGE, _QUERY_CLOSEST_RT)
     else:
-        a = float(mz)  # type: ignore[arg-type]
-        if not math.isfinite(a) or a <= 0:
-            raise ValueError("get_scans: mz must be a positive finite number")
-        query_type, b = _QUERY_CLOSEST_MZ, math.nan
+        query_type, a, b = _get_scan_query(mz, "mz", _QUERY_MZ_RANGE, _QUERY_CLOSEST_MZ)
 
     source = getattr(file, "_remote_source", None)
     if source is not None and abi.plan_scans is not None:
@@ -888,7 +893,7 @@ def get_peaks_from_eic(
     targets: Sequence[Target],
     from_to: FromTo = {"from": 0.5, "to": 5.0},
     options: Optional[Dict[str, Any]] = None,
-    cores: int = 1,
+    threads: int = 1,
 ) -> List[TargetPeak]:
     """Find peaks for many targets using EICs.
 
@@ -903,7 +908,7 @@ def get_peaks_from_eic(
             Only scans inside it are read, so each
             EIC and its peak search stay inside it. Default {"from": 0.5, "to": 5.0}.
         options: Optional dict of peak filter settings (same keys as find_peaks).
-        cores: Number of CPU cores to use. Default 1.
+        threads: Number of threads to use. Default 1.
 
     Returns:
         List of dicts, one per target. Each dict has keys: id, mz, rt,
@@ -912,6 +917,8 @@ def get_peaks_from_eic(
     from_rt, to_rt = _get_from_to(from_to, "get_peaks_from_eic")
     abi = _get_abi()
     rts, mzs, ranges, ids = unpack_targets(targets)
+    _prefetch(file, "plan_peaks_from_eic", lambda out: abi.plan_peaks_from_eic(
+        file.handle, _as_f64_ptr(mzs), c_size_t(len(mzs)), c_double(from_rt), c_double(to_rt), out))
     offsets, lengths, id_buf = encode_target_ids(ids)
     peak_options = pack_peak_options(options)
     buf = _Buf()
@@ -924,7 +931,7 @@ def get_peaks_from_eic(
             _as_u32_ptr(offsets), _as_u32_ptr(lengths),
             id_ptr, c_size_t(len(id_buf)),
             c_size_t(len(targets)), c_double(from_rt), c_double(to_rt),
-            _as_opts_ptr(peak_options), c_size_t(to_cores(cores)),
+            _as_opts_ptr(peak_options), c_size_t(to_threads(threads)),
             ctypes.byref(buf),
         )
     else:
@@ -933,7 +940,7 @@ def get_peaks_from_eic(
             _as_f64_ptr(rts), _as_f64_ptr(mzs), _as_f64_ptr(ranges),
             None, None, None, c_size_t(0),
             c_size_t(len(targets)), c_double(from_rt), c_double(to_rt),
-            _as_opts_ptr(peak_options), c_size_t(to_cores(cores)),
+            _as_opts_ptr(peak_options), c_size_t(to_threads(threads)),
             ctypes.byref(buf),
         )
     _check("get_peaks_from_eic", rc)
@@ -942,44 +949,43 @@ def get_peaks_from_eic(
 
 def get_peaks_from_chrom(
     file: SampleFile,
-    items: Sequence[Dict[str, Any]],
+    targets: Sequence[ChromTarget],
     options: Optional[Dict[str, Any]] = None,
-    cores: int = 1,
+    threads: int = 1,
 ) -> List[Dict]:
-    """Find peaks from stored chromatograms.
+    """Find peaks in the chromatograms stored in a file.
 
-    Finds peaks from file-stored chromatograms using index, RT, and RT window.
-    Use this when you already know which chromatogram index to read.
+    Each target picks the chromatogram whose precursor and product m/z are both
+    within 0.005 of its own, then the best peak near its rt.
 
     Args:
         file: SampleFile from parse_mzml() or parse_ion().
-        items: List of dicts with keys: idx (int, chromatogram index),
-            rt (float, target retention time), window or range (float, RT half-window).
+        targets: Dicts with keys: id (str), precursor (float, Q1 m/z),
+            product (float, Q3 m/z), rt (float), range (float, RT half-window).
         options: Optional dict of peak filter settings (same keys as find_peaks).
-        cores: Number of CPU cores to use. Default 1.
+        threads: Number of threads to use. Default 1.
 
     Returns:
-        List of dicts, one per input item. Each dict has keys: index, rt,
-        from, to, intensity, integral.
+        List of dicts, one per target, with keys: id, ort, rt, from, to,
+        intensity, integral, total_area, timestamp. A target with no matching
+        chromatogram gets zeros.
     """
     abi = _get_abi()
-    n = len(items)
-    indices = np.empty(n, dtype=np.uint32)
-    rts     = np.empty(n, dtype=np.float64)
-    windows = np.empty(n, dtype=np.float64)
-    for i, item in enumerate(items):
-        raw_idx = item.get("idx", item.get("index"))
-        if raw_idx is None or int(raw_idx) < 0:
-            raise ValueError(f"get_peaks_from_chrom: item {i} needs a non-negative integer idx")
-        indices[i] = int(raw_idx)
-        rts[i]     = float(item.get("rt", 0.0))
-        windows[i] = float(item.get("window", item.get("range", 0.0)))
+    n = len(targets)
+    precursors = np.array([float(target["precursor"]) for target in targets], dtype=np.float64)
+    products = np.array([float(target["product"]) for target in targets], dtype=np.float64)
+    rts = np.array([float(target["rt"]) for target in targets], dtype=np.float64)
+    ranges = np.array([float(target["range"]) for target in targets], dtype=np.float64)
+    offsets, lengths, id_buf = encode_target_ids([str(target.get("id", "")) for target in targets])
+    id_ptr, id_arr = _as_u8_ptr(id_buf) if id_buf else (None, None)
     peak_options = pack_peak_options(options)
     buf = _Buf()
     _check("get_peaks_from_chrom", abi.get_peaks_from_chrom(
         file.handle,
-        _as_u32_ptr(indices), _as_f64_ptr(rts), _as_f64_ptr(windows),
-        c_size_t(n), _as_opts_ptr(peak_options), c_size_t(to_cores(cores)),
+        _as_f64_ptr(precursors), _as_f64_ptr(products), _as_f64_ptr(rts), _as_f64_ptr(ranges),
+        _as_u32_ptr(offsets) if id_buf else None, _as_u32_ptr(lengths) if id_buf else None,
+        id_ptr, c_size_t(len(id_buf)),
+        c_size_t(n), _as_opts_ptr(peak_options), c_size_t(to_threads(threads)),
         ctypes.byref(buf),
     ))
     return buf_to_records(abi, buf)
@@ -992,7 +998,7 @@ def find_features(
     eic: Optional[Dict[str, float]] = None,
     grid: Optional[Dict[str, float]] = None,
     options: Optional[Dict[str, Any]] = None,
-    cores: int = 1,
+    threads: int = 1,
 ) -> List[Feature]:
     """Find all features in one file.
 
@@ -1008,7 +1014,7 @@ def find_features(
             start (float, default 40.0), end (float, default 1000.0),
             step_size (float, default 0.005).
         options: Optional dict of peak filter settings (same keys as find_peaks).
-        cores: Number of CPU cores to use. Default 1.
+        threads: Number of threads to use. Default 1.
 
     Returns:
         List of dicts, one per detected feature. Each dict has keys: mz, rt,
@@ -1038,13 +1044,16 @@ def find_features(
         peak_defaults.update(options)
     peak_options = pack_peak_options(peak_defaults)
 
+    _prefetch(file, "plan_find_features", lambda out: abi.plan_find_features(
+        file.handle, c_double(from_rt), c_double(to_rt), c_double(eic_ppm), c_double(eic_mz),
+        c_double(g_start), c_double(g_end), c_double(g_step), out))
     buf = _Buf()
     _check("find_features", abi.find_features(
         file.handle,
         c_double(from_rt), c_double(to_rt),
         c_double(eic_ppm), c_double(eic_mz),
         c_double(g_start), c_double(g_end), c_double(g_step),
-        _as_opts_ptr(peak_options), c_int32(to_cores(cores)),
+        _as_opts_ptr(peak_options), c_int32(to_threads(threads)),
         ctypes.byref(buf),
     ))
     return buf_to_records(abi, buf)
@@ -1057,7 +1066,7 @@ def find_feature(
     scan_eic: Optional[Dict[str, float]] = None,
     eic: Optional[Dict[str, float]]      = None,
     options: Optional[Dict[str, Any]]    = None,
-    cores: int = 1,
+    threads: int = 1,
 ) -> List[Dict]:
     """Find targeted features by m/z and RT.
 
@@ -1073,7 +1082,7 @@ def find_feature(
         eic: Optional dict for EIC extraction tolerance. Keys:
             ppm_tolerance (float), mz_tolerance (float).
         options: Optional dict of peak filter settings (same keys as find_peaks).
-        cores: Number of CPU cores to use. Default 1.
+        threads: Number of threads to use. Default 1.
 
     Returns:
         List of dicts, one per target. Each dict has keys: id, mz, rt,
@@ -1100,6 +1109,8 @@ def find_feature(
     peak_options = pack_peak_options(peak_defaults)
 
     rts, mzs, ranges, ids = unpack_targets(targets, default_range=0.5)
+    _prefetch(file, "plan_find_feature", lambda out: abi.plan_find_feature(
+        file.handle, _as_f64_ptr(rts), _as_f64_ptr(ranges), c_size_t(len(rts)), out))
     offsets, lengths, id_buf = encode_target_ids(ids)
     buf = _Buf()
 
@@ -1110,7 +1121,7 @@ def find_feature(
             _as_f64_ptr(rts), _as_f64_ptr(mzs), _as_f64_ptr(ranges),
             _as_u32_ptr(offsets), _as_u32_ptr(lengths),
             id_ptr, c_size_t(len(id_buf)),
-            c_size_t(len(targets)), c_size_t(to_cores(cores)),
+            c_size_t(len(targets)), c_size_t(to_threads(threads)),
             c_double(scan_ppm), c_double(scan_mz),
             c_double(eic_ppm),  c_double(eic_mz),
             _as_opts_ptr(peak_options), ctypes.byref(buf),
@@ -1120,7 +1131,7 @@ def find_feature(
             file.handle,
             _as_f64_ptr(rts), _as_f64_ptr(mzs), _as_f64_ptr(ranges),
             None, None, None, c_size_t(0),
-            c_size_t(len(targets)), c_size_t(to_cores(cores)),
+            c_size_t(len(targets)), c_size_t(to_threads(threads)),
             c_double(scan_ppm), c_double(scan_mz),
             c_double(eic_ppm),  c_double(eic_mz),
             _as_opts_ptr(peak_options), ctypes.byref(buf),
@@ -1137,7 +1148,7 @@ def get_features(
     grid: Optional[Dict[str, float]]     = None,
     grouping: Optional[Dict[str, Any]]   = None,
     options: Optional[Dict[str, Any]]    = None,
-    cores: int = 1,
+    threads: int = 1,
 ) -> List[GroupedFeature]:
     """Find and align features across many files.
 
@@ -1157,7 +1168,7 @@ def get_features(
             ppm_tolerance (float), mz_tolerance (float), rt_tolerance (float),
             frequency (int, min samples a feature must appear in).
         options: Optional dict of peak filter settings (same keys as find_peaks).
-        cores: Number of CPU cores to use. Default 1.
+        threads: Number of threads to use. Default 1.
 
     Returns:
         List of dicts, one per consensus feature. Each dict has the
@@ -1212,7 +1223,7 @@ def get_features(
         c_double(grid_start), c_double(grid_end), c_double(grid_step),
         c_double(group_ppm), c_double(group_mz), c_double(group_rt),
         c_int32(prevalence),
-        _as_opts_ptr(peak_options), c_int32(to_cores(cores)),
+        _as_opts_ptr(peak_options), c_int32(to_threads(threads)),
         ctypes.byref(buf),
     ))
     return buf_to_records(abi, buf)

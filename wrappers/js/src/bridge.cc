@@ -91,6 +91,9 @@ typedef int32_t (*fn_read_range)(void *, uint64_t, uint64_t, uint8_t *);
 typedef int32_t (*fn_parse_ion_source)(fn_read_range, void *, size_t, MzML **);
 typedef int32_t (*fn_plan_open)(const uint8_t *, size_t, Buf *);
 typedef int32_t (*fn_plan_eic)(MzML *, double, double, double, double, double, Buf *);
+typedef int32_t (*fn_plan_peaks_from_eic)(MzML *, const double *, size_t, double, double, Buf *);
+typedef int32_t (*fn_plan_find_features)(MzML *, double, double, double, double, double, double, double, Buf *);
+typedef int32_t (*fn_plan_find_feature)(MzML *, const double *, const double *, size_t, Buf *);
 typedef int32_t (*fn_plan_scans)(MzML *, uint8_t, double, double, uint8_t, Buf *);
 typedef int32_t (*fn_plan_image)(MzML *, double, double, uint8_t, Buf *);
 typedef int32_t (*fn_parse_ion_path)(const char *, size_t, MzML **);
@@ -100,7 +103,7 @@ typedef int32_t (*fn_get_peak)(const double *, const double *, size_t, double, d
 typedef int32_t (*fn_calculate_eic)(const MzML *, double, double, double, double, double, Buf *, Buf *);
 typedef int32_t (*fn_find_noise_level)(const float *, size_t, size_t *, double *);
 typedef int32_t (*fn_get_peaks_from_eic)(const MzML *, const double *, const double *, const double *, const uint32_t *, const uint32_t *, const unsigned char *, size_t, size_t, double, double, const CPeakOptions *, size_t, Buf *);
-typedef int32_t (*fn_get_peaks_from_chrom)(const MzML *, const uint32_t *, const double *, const double *, size_t, const CPeakOptions *, size_t, Buf *);
+typedef int32_t (*fn_get_peaks_from_chrom)(const MzML *, const double *, const double *, const double *, const double *, const uint32_t *, const uint32_t *, const uint8_t *, size_t, size_t, const CPeakOptions *, size_t, Buf *);
 typedef int32_t (*fn_find_peaks)(const double *, const double *, size_t, const CPeakOptions *, Buf *);
 typedef int32_t (*fn_calculate_baseline)(const double *, size_t, int32_t, int32_t, Buf *);
 typedef int32_t (*fn_find_features)(const MzML *, double, double, double, double, double, double, double, const CPeakOptions *, int32_t, Buf *);
@@ -141,6 +144,9 @@ typedef struct
   fn_parse_ion_source parse_ion_source;
   fn_plan_open plan_open;
   fn_plan_eic plan_eic;
+  fn_plan_peaks_from_eic plan_peaks_from_eic;
+  fn_plan_find_features plan_find_features;
+  fn_plan_find_feature plan_find_feature;
   fn_plan_scans plan_scans;
   fn_plan_image plan_image;
   fn_parse_ion_path parse_ion_path;
@@ -351,6 +357,9 @@ static int abi_load(const char *path, const char **err)
   ABI.parse_ion_source = (fn_parse_ion_source)DLSYM(LIB_HANDLE, "parse_ion_source");
   ABI.plan_open = (fn_plan_open)DLSYM(LIB_HANDLE, "plan_open");
   ABI.plan_eic = (fn_plan_eic)DLSYM(LIB_HANDLE, "plan_eic");
+  ABI.plan_peaks_from_eic = (fn_plan_peaks_from_eic)DLSYM(LIB_HANDLE, "plan_peaks_from_eic");
+  ABI.plan_find_features = (fn_plan_find_features)DLSYM(LIB_HANDLE, "plan_find_features");
+  ABI.plan_find_feature = (fn_plan_find_feature)DLSYM(LIB_HANDLE, "plan_find_feature");
   ABI.plan_scans = (fn_plan_scans)DLSYM(LIB_HANDLE, "plan_scans");
   ABI.plan_image = (fn_plan_image)DLSYM(LIB_HANDLE, "plan_image");
   if (resolve_required((void **)&ABI.parse_bin, "parse_bin"))
@@ -417,6 +426,8 @@ static const char *CodeMessage(int32_t code)
     return "encode error";
   if (code == 6)
     return "fast EIC path unavailable: this .ion file has no usable spectrum bounds (A3); re-encode it with the current Ionic to use the fast EIC path";
+  if (code == 12)
+    return "this needs the whole file: open it from a path or raw bytes, not a URL";
   return "unknown";
 }
 
@@ -833,11 +844,11 @@ static Napi::Value GetPeaksFromEic(const Napi::CallbackInfo &info)
   double t_r = info[6].As<Napi::Number>().DoubleValue();
   CPeakOptions opts;
   const CPeakOptions *p_opts = ReadPeakOptionsObject(info[7], &opts);
-  size_t cores = info.Length() > 8 ? info[8].As<Napi::Number>().Uint32Value() : 1;
+  size_t threads = info.Length() > 8 ? info[8].As<Napi::Number>().Uint32Value() : 1;
   OwnedBuf out;
   int32_t rc = ABI.get_peaks_from_eic(handle, Float64Ptr(rts), Float64Ptr(mzs), Float64Ptr(rng),
                                       packed.offs_ptr, packed.lens_ptr, packed.ids_buf_ptr, packed.ids_buf_len,
-                                      count, f_l, t_r, p_opts, cores, out.Out());
+                                      count, f_l, t_r, p_opts, threads, out.Out());
   if (rc != 0)
     return ThrowRc(env, "get_peaks_from_eic", rc);
   return TakeArrayBuffer(env, out.Out());
@@ -848,28 +859,37 @@ static Napi::Value GetPeaksFromChrom(const Napi::CallbackInfo &info)
   Napi::Env env = info.Env();
   if (!ThrowIfMissing(env, (void *)ABI.get_peaks_from_chrom, "get_peaks_from_chrom"))
     return env.Undefined();
-  if (info.Length() < 5)
+  if (info.Length() < 7)
     return env.Undefined();
 
   MzML *handle = GetHandle(info[0]);
   if (!handle)
     return ThrowRc(env, "UseAfterFree", 0);
 
-  if (!info[1].IsTypedArray() || !info[2].IsTypedArray() || !info[3].IsTypedArray())
+  if (!info[1].IsTypedArray() || !info[2].IsTypedArray() || !info[3].IsTypedArray() || !info[4].IsTypedArray())
   {
-    Napi::TypeError::New(env, "expected: (External, Uint32Array indices, Float64Array rts, Float64Array windows, ...)").ThrowAsJavaScriptException();
+    Napi::TypeError::New(env, "expected: (External, Float64Array precursors, Float64Array products, Float64Array rts, Float64Array ranges, ...)").ThrowAsJavaScriptException();
     return env.Undefined();
   }
 
-  Napi::Uint32Array idx = info[1].As<Napi::Uint32Array>();
-  Napi::Float64Array rts = info[2].As<Napi::Float64Array>();
-  Napi::Float64Array rng = info[3].As<Napi::Float64Array>();
+  Napi::Float64Array precursors = info[1].As<Napi::Float64Array>();
+  Napi::Float64Array products = info[2].As<Napi::Float64Array>();
+  Napi::Float64Array rts = info[3].As<Napi::Float64Array>();
+  Napi::Float64Array rng = info[4].As<Napi::Float64Array>();
   size_t count = rts.ElementLength();
+  PackedIds packed;
+  if (!BuildPackedIds(env, info[5], count, &packed))
+  {
+    Napi::TypeError::New(env, "ids length must equal target count").ThrowAsJavaScriptException();
+    return env.Undefined();
+  }
   CPeakOptions opts;
-  const CPeakOptions *p_opts = ReadPeakOptionsObject(info[4], &opts);
-  size_t cores = info.Length() > 5 ? info[5].As<Napi::Number>().Uint32Value() : 1;
+  const CPeakOptions *p_opts = ReadPeakOptionsObject(info[6], &opts);
+  size_t threads = info.Length() > 7 ? info[7].As<Napi::Number>().Uint32Value() : 1;
   OwnedBuf out;
-  int32_t rc = ABI.get_peaks_from_chrom(handle, Uint32Ptr(idx), Float64Ptr(rts), Float64Ptr(rng), count, p_opts, cores, out.Out());
+  int32_t rc = ABI.get_peaks_from_chrom(handle, Float64Ptr(precursors), Float64Ptr(products), Float64Ptr(rts), Float64Ptr(rng),
+                                        packed.offs_ptr, packed.lens_ptr, packed.ids_buf_ptr, packed.ids_buf_len,
+                                        count, p_opts, threads, out.Out());
   if (rc != 0)
     return ThrowRc(env, "get_peaks_from_chrom", rc);
   return TakeArrayBuffer(env, out.Out());
@@ -979,9 +999,9 @@ static Napi::Value FindFeatures(const Napi::CallbackInfo &info)
   double gst = info[7].As<Napi::Number>().DoubleValue();
   CPeakOptions opts;
   const CPeakOptions *p_opts = ReadPeakOptionsObject(info[8], &opts);
-  int32_t cores = info[9].As<Napi::Number>().Int32Value();
+  int32_t threads = info[9].As<Napi::Number>().Int32Value();
   OwnedBuf out;
-  int32_t rc = ABI.find_features(handle, from, to, ppm, mz, gs, ge, gst, p_opts, cores, out.Out());
+  int32_t rc = ABI.find_features(handle, from, to, ppm, mz, gs, ge, gst, p_opts, threads, out.Out());
   if (rc != 0)
     return ThrowRc(env, "find_features", rc);
   return TakeArrayBuffer(env, out.Out());
@@ -1015,7 +1035,7 @@ static Napi::Value FindFeature(const Napi::CallbackInfo &info)
     Napi::TypeError::New(env, "ids length must equal target count").ThrowAsJavaScriptException();
     return env.Undefined();
   }
-  size_t cores = info[5].As<Napi::Number>().Uint32Value();
+  size_t threads = info[5].As<Napi::Number>().Uint32Value();
   double s_ppm = info[6].As<Napi::Number>().DoubleValue();
   double s_mz = info[7].As<Napi::Number>().DoubleValue();
   double e_ppm = info[8].As<Napi::Number>().DoubleValue();
@@ -1023,7 +1043,7 @@ static Napi::Value FindFeature(const Napi::CallbackInfo &info)
   CPeakOptions opts;
   const CPeakOptions *p_opts = ReadPeakOptionsObject(info[10], &opts);
   OwnedBuf out;
-  int32_t rc = ABI.find_feature(handle, Float64Ptr(rts), Float64Ptr(mzs), Float64Ptr(wins), packed.offs_ptr, packed.lens_ptr, packed.ids_buf_ptr, packed.ids_buf_len, count, cores, s_ppm, s_mz, e_ppm, e_mz, p_opts, out.Out());
+  int32_t rc = ABI.find_feature(handle, Float64Ptr(rts), Float64Ptr(mzs), Float64Ptr(wins), packed.offs_ptr, packed.lens_ptr, packed.ids_buf_ptr, packed.ids_buf_len, count, threads, s_ppm, s_mz, e_ppm, e_mz, p_opts, out.Out());
   if (rc != 0)
     return ThrowRc(env, "find_feature", rc);
   return TakeArrayBuffer(env, out.Out());
@@ -1131,6 +1151,80 @@ static Napi::Value PlanEic(const Napi::CallbackInfo &info)
       out.Out());
   if (rc != 0)
     return ThrowRc(env, "plan_eic", rc);
+
+  return RangesToArray(env, out.buf);
+}
+
+static Napi::Value PlanPeaksFromEic(const Napi::CallbackInfo &info)
+{
+  Napi::Env env = info.Env();
+  if (!ThrowIfMissing(env, (void *)ABI.plan_peaks_from_eic, "plan_peaks_from_eic"))
+    return env.Undefined();
+  if (info.Length() < 4 || !info[0].IsExternal() || !info[1].IsTypedArray())
+    return env.Undefined();
+
+  MzMLWrapper *wrapper = info[0].As<Napi::External<MzMLWrapper>>().Data();
+  Napi::Float64Array mzs = info[1].As<Napi::Float64Array>();
+  OwnedBuf out;
+  int32_t rc = ABI.plan_peaks_from_eic(
+      wrapper->ptr,
+      Float64Ptr(mzs),
+      mzs.ElementLength(),
+      info[2].As<Napi::Number>().DoubleValue(),
+      info[3].As<Napi::Number>().DoubleValue(),
+      out.Out());
+  if (rc != 0)
+    return ThrowRc(env, "plan_peaks_from_eic", rc);
+
+  return RangesToArray(env, out.buf);
+}
+
+static Napi::Value PlanFindFeatures(const Napi::CallbackInfo &info)
+{
+  Napi::Env env = info.Env();
+  if (!ThrowIfMissing(env, (void *)ABI.plan_find_features, "plan_find_features"))
+    return env.Undefined();
+  if (info.Length() < 8 || !info[0].IsExternal())
+    return env.Undefined();
+
+  MzMLWrapper *wrapper = info[0].As<Napi::External<MzMLWrapper>>().Data();
+  OwnedBuf out;
+  int32_t rc = ABI.plan_find_features(
+      wrapper->ptr,
+      info[1].As<Napi::Number>().DoubleValue(),
+      info[2].As<Napi::Number>().DoubleValue(),
+      info[3].As<Napi::Number>().DoubleValue(),
+      info[4].As<Napi::Number>().DoubleValue(),
+      info[5].As<Napi::Number>().DoubleValue(),
+      info[6].As<Napi::Number>().DoubleValue(),
+      info[7].As<Napi::Number>().DoubleValue(),
+      out.Out());
+  if (rc != 0)
+    return ThrowRc(env, "plan_find_features", rc);
+
+  return RangesToArray(env, out.buf);
+}
+
+static Napi::Value PlanFindFeature(const Napi::CallbackInfo &info)
+{
+  Napi::Env env = info.Env();
+  if (!ThrowIfMissing(env, (void *)ABI.plan_find_feature, "plan_find_feature"))
+    return env.Undefined();
+  if (info.Length() < 3 || !info[0].IsExternal() || !info[1].IsTypedArray() || !info[2].IsTypedArray())
+    return env.Undefined();
+
+  MzMLWrapper *wrapper = info[0].As<Napi::External<MzMLWrapper>>().Data();
+  Napi::Float64Array rts = info[1].As<Napi::Float64Array>();
+  Napi::Float64Array windows = info[2].As<Napi::Float64Array>();
+  if (rts.ElementLength() != windows.ElementLength())
+  {
+    Napi::RangeError::New(env, "plan_find_feature: rt and window must have the same length").ThrowAsJavaScriptException();
+    return env.Undefined();
+  }
+  OwnedBuf out;
+  int32_t rc = ABI.plan_find_feature(wrapper->ptr, Float64Ptr(rts), Float64Ptr(windows), rts.ElementLength(), out.Out());
+  if (rc != 0)
+    return ThrowRc(env, "plan_find_feature", rc);
 
   return RangesToArray(env, out.buf);
 }
@@ -1261,7 +1355,7 @@ static Napi::Value GetFeatures(const Napi::CallbackInfo &info)
   int32_t frequency = info[11].As<Napi::Number>().Int32Value();
   CPeakOptions opts;
   const CPeakOptions *p_opts = ReadPeakOptionsObject(info[12], &opts);
-  int32_t cores = info[13].As<Napi::Number>().Int32Value();
+  int32_t threads = info[13].As<Napi::Number>().Int32Value();
 
   OwnedBuf out;
   int32_t rc = ABI.get_features(
@@ -1269,7 +1363,7 @@ static Napi::Value GetFeatures(const Napi::CallbackInfo &info)
       from, to, eic_ppm, eic_mz,
       g_start, g_end, g_step,
       group_ppm, group_da, group_rt,
-      frequency, p_opts, cores,
+      frequency, p_opts, threads,
       out.Out());
 
   if (rc != 0)
@@ -1600,6 +1694,9 @@ static Napi::Object Init(Napi::Env env, Napi::Object exports)
   exports.Set("planOpen", Napi::Function::New(env, PlanOpen));
   exports.Set("planEic", Napi::Function::New(env, PlanEic));
   exports.Set("planScans", Napi::Function::New(env, PlanScans));
+  exports.Set("planPeaksFromEic", Napi::Function::New(env, PlanPeaksFromEic));
+  exports.Set("planFindFeatures", Napi::Function::New(env, PlanFindFeatures));
+  exports.Set("planFindFeature", Napi::Function::New(env, PlanFindFeature));
   exports.Set("planImage", Napi::Function::New(env, PlanImage));
   exports.Set("parseIonSource", Napi::Function::New(env, ParseIonSource));
   exports.Set("binToMzML", Napi::Function::New(env, BinToMzML));

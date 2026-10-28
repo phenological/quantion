@@ -105,7 +105,7 @@ eic = quantion.calculate_eic(sample, target_mz=174.112, from_to={"from": 1, "to"
 Get scans from a sample by retention time range and MS level.
 
 ```python
-scans = quantion.get_scans(sample, rt_range=(1, 15), level=1)
+scans = quantion.get_scans(sample, rt={"from": 1, "to": 15}, level=1)
 ```
 
 ## Process XY data
@@ -198,21 +198,22 @@ peaks = quantion.get_peaks_from_eic(
     sample, targets,
     from_to={"from": 0.5, "to": 10.0},
     options={"auto_noise": True},
-    cores=2
+    threads=2
 )
 ```
 
 ### From chromatograms
 
-Find peaks from stored chromatograms in a sample.
+Find peaks in the SRM chromatograms stored in a sample. Each target picks the
+chromatogram whose precursor (Q1) and product (Q3) m/z are both within 0.005.
 
 ```python
-items = [
-    {"idx": 0, "rt": 5.3, "window": 0.5},
-    {"idx": 5, "rt": 7.1, "window": 0.5},
+targets = [
+    {"id": "compound_1", "precursor": 500.3, "product": 184.1, "rt": 3.20, "range": 0.4},
+    {"id": "compound_2", "precursor": 520.4, "product": 184.1, "rt": 3.65, "range": 0.4},
 ]
 
-peaks = quantion.get_peaks_from_chrom(sample, items, options=None, cores=2)
+peaks = quantion.get_peaks_from_chrom(sample, targets, options=None, threads=2)
 ```
 
 ## Untargeted
@@ -232,7 +233,7 @@ features = quantion.find_feature(
     scan_eic={"ppm_tolerance": 10, "mz_tolerance": 0.003},
     eic={"ppm_tolerance": 20, "mz_tolerance": 0.005},
     options={"auto_noise": True},
-    cores=2,
+    threads=2,
 )
 ```
 
@@ -247,7 +248,7 @@ features = quantion.find_features(
     eic={"ppm_tolerance": 10, "mz_tolerance": 0.005},
     grid={"start": 40, "end": 1000, "step_size": 0.005},
     options={"auto_noise": True, "min_snr": 3},
-    cores=4,
+    threads=4,
 )
 ```
 
@@ -262,7 +263,7 @@ features = quantion.get_features(
     eic={"ppm_tolerance": 5},
     grid={"start": 50, "end": 1000, "step_size": 0.01},
     grouping={"ppm_tolerance": 5, "rt_tolerance": 0.05, "frequency": 2},
-    cores=8,
+    threads=8,
 )
 ```
 

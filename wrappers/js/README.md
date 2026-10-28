@@ -27,7 +27,7 @@ const sample = await quantion.parseMzML(raw);
 const eic = await quantion.calculateEic(sample, 174.112, { from: 1, to: 15 });
 const peaks = quantion.findPeaks(eic.x, eic.y, {
   autoNoise: true,
-  snRatio: 3.0,
+  minSnr: 3.0,
 });
 
 peaks.forEach((p) => {
@@ -104,21 +104,13 @@ Get scans from a sample by retention time range, m/z range, or closest value.
 const scans = await quantion.getScans(sample, { rt: { from: 1, to: 15 } }, 1);
 
 // Get scan closest to RT
-const scan = await quantion.getScans(sample, { rt: { closest: 5.3 } }, 1);
+const scan = await quantion.getScans(sample, { rt: 5.3 }, 1);
 
 // Get scans in m/z range
-const scans = await quantion.getScans(
-  sample,
-  { selectedMz: { from: 100, to: 500 } },
-  1,
-);
+const scans = await quantion.getScans(sample, { mz: { from: 100, to: 500 } }, 2);
 
 // Get scan closest to m/z
-const scan = await quantion.getScans(
-  sample,
-  { selectedMz: { closest: 174.112 } },
-  1,
-);
+const scan = await quantion.getScans(sample, { mz: 174.112 }, 2);
 ```
 
 ## Process XY data
@@ -150,7 +142,7 @@ Find all peaks in XY data.
 ```js
 const peaks = quantion.findPeaks(x, y, {
   autoNoise: true,
-  snRatio: 3.0,
+  minSnr: 3.0,
 });
 ```
 
@@ -213,26 +205,26 @@ const targets = [
   { rt: 7.1, mz: 203.156, range: 0.5, id: "compound_B" },
 ];
 
-const peaks = quantion.getPeaksFromEic(
+const peaks = await quantion.getPeaksFromEic(
   sample,
   targets,
   { from: 0.5, to: 10.0 },
-  { autoNoise: true },
-  2, // cores
+  { autoNoise: true, threads: 2 },
 );
 ```
 
 ### From chromatograms
 
-Find peaks from stored chromatograms in a sample.
+Find peaks in the SRM chromatograms stored in a sample. Each target picks the
+chromatogram whose precursor (Q1) and product (Q3) m/z are both within 0.005.
 
 ```js
-const items = [
-  { idx: 0, rt: 5.3, window: 0.5 },
-  { idx: 5, rt: 7.1, window: 0.5 },
+const targets = [
+  { id: "compound_1", precursor: 500.3, product: 184.1, rt: 3.20, range: 0.4 },
+  { id: "compound_2", precursor: 520.4, product: 184.1, rt: 3.65, range: 0.4 },
 ];
 
-const peaks = quantion.getPeaksFromChrom(sample, items, { autoNoise: true }, 2);
+const peaks = quantion.getPeaksFromChrom(sample, targets, { autoNoise: true, threads: 2 });
 ```
 
 ## Untargeted
@@ -247,11 +239,11 @@ const targets = [
   { rt: 7.1, mz: 203.156, range: 0.5, id: "B" },
 ];
 
-const features = quantion.findFeature(sample, targets, {
+const features = await quantion.findFeature(sample, targets, {
   scanEic: { ppmTolerance: 10, mzTolerance: 0.003 },
   eic: { ppmTolerance: 20, mzTolerance: 0.005 },
   findPeak: { autoNoise: true },
-  cores: 2,
+  threads: 2,
 });
 ```
 
@@ -260,14 +252,14 @@ const features = quantion.findFeature(sample, targets, {
 Find all features in a sample (Node.js only).
 
 ```js
-const features = quantion.findFeatures(
+const features = await quantion.findFeatures(
   sample,
   { from: 1, to: 15 },
   {
     eic: { ppmTolerance: 10, mzTolerance: 0.005 },
     grid: { start: 40, end: 1000, stepSize: 0.005 },
-    findPeak: { autoNoise: true, snRatio: 3 },
-    cores: 4,
+    findPeak: { autoNoise: true, minSnr: 3 },
+    threads: 4,
   },
 );
 ```
@@ -289,7 +281,7 @@ const features = quantion.getFeatures(
       rtTolerance: 0.05,
       frequency: 2,
     },
-    cores: 8,
+    threads: 8,
   },
 );
 ```
@@ -310,6 +302,6 @@ const options = {
   baselineWindowFactor: 0,
   allowOverlap: false,
   windowSize: 0,
-  snRatio: 3.0,
+  minSnr: 3.0,
 };
 ```

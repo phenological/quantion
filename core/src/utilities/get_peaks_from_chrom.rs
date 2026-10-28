@@ -1,5 +1,5 @@
 use ionic::mzml::structs::{
-    BinaryDataArray, BinaryDataArrayList, Chromatogram, MzML, NumericArray,
+    BinaryDataArray, BinaryDataArrayList, Chromatogram, IsolationWindow, MzML, NumericArray,
 };
 #[cfg(not(all(target_arch = "wasm32", not(target_os = "wasi"))))]
 use rayon::{ThreadPoolBuilder, prelude::*};
@@ -8,15 +8,16 @@ use crate::utilities::{
     calculate_baseline::BaselineOptions,
     find_peaks::{FindPeaksOptions, find_peaks},
     get_peak::get_peak,
-    structs::{DataXY, Roi},
+    structs::{ChromTarget, DataXY, Roi},
 };
 
 const ACC_TIME_ARRAY: &str = "MS:1000595";
 const ACC_INTENSITY_ARRAY: &str = "MS:1000515";
+const ACC_ISOLATION_TARGET: &str = "MS:1000827";
+const TRANSITION_TOLERANCE: f64 = 0.005;
 
 #[derive(Clone, Debug)]
 pub struct ChromPeakRow {
-    pub index: usize,
     pub id: String,
     pub target_rt: f64,
     pub peak_rt: f64,
@@ -29,9 +30,8 @@ pub struct ChromPeakRow {
 }
 
 impl ChromPeakRow {
-    fn empty(index: usize, id: String, target_rt: f64, timestamp: String) -> Self {
+    fn empty(id: String, target_rt: f64, timestamp: String) -> Self {
         Self {
-            index,
             id,
             target_rt,
             peak_rt: 0.0,
@@ -47,74 +47,83 @@ impl ChromPeakRow {
 
 pub fn get_peaks_from_chrom(
     mzml: &MzML,
-    items: &[Roi],
-    options: Option<FindPeaksOptions>,
-    cores: usize,
+    targets: &[ChromTarget],
+    options: FindPeaksOptions,
 ) -> Option<Vec<ChromPeakRow>> {
     let run = &mzml.run;
     let chroms = run.chromatogram_list.as_ref()?.chromatograms.as_slice();
     let timestamp = run.start_time_stamp.clone().unwrap_or_default();
 
-    let mut opts = options.unwrap_or_default();
-    opts.baseline = Some(BaselineOptions {
-        lambda: Some(50.0),
-        ..Default::default()
-    });
-    let opts = Some(opts);
+    let threads = options.threads;
+    let opts = FindPeaksOptions {
+        baseline: Some(BaselineOptions {
+            lambda: Some(50.0),
+            ..Default::default()
+        }),
+        ..options
+    };
 
-    let make_row = |roi: &Roi| {
+    let make_row = |target: &ChromTarget| {
         let timestamp = timestamp.clone();
-        let Roi::Chrom {
-            id,
-            sample_index,
-            rt,
-            range,
-        } = roi
-        else {
-            return ChromPeakRow::empty(0, "invalid".to_string(), 0.0, timestamp);
+        if target.range <= 0.0 || !target.rt.is_finite() {
+            return ChromPeakRow::empty(target.id.clone(), target.rt, timestamp);
+        }
+        let Some(chrom) = find_chromatogram(chroms, target) else {
+            return ChromPeakRow::empty(target.id.clone(), target.rt, timestamp);
         };
-        let (item_index, rt, range) = (*sample_index, *rt, *range);
-
-        if range <= 0.0 || !rt.is_finite() {
-            return ChromPeakRow::empty(item_index, id.clone(), rt, timestamp);
-        }
-
-        if item_index >= chroms.len() {
-            return ChromPeakRow::empty(item_index, id.clone(), rt, timestamp);
-        }
-
-        let chrom = &chroms[item_index];
-
         let Some((time_values, intensity_values)) = chromatogram_xy(chrom) else {
-            let chrom_index = chrom.index.unwrap_or(item_index as u32) as usize;
-            return ChromPeakRow::empty(chrom_index, chrom.id.clone(), rt, timestamp);
+            return ChromPeakRow::empty(target.id.clone(), target.rt, timestamp);
         };
-
-        let chrom_index = chrom.index.unwrap_or(item_index as u32) as usize;
-        compute_one(
-            chrom_index,
-            chrom.id.as_str(),
-            time_values,
-            intensity_values,
-            roi,
-            timestamp,
-            &opts,
-        )
+        compute_one(target, time_values, intensity_values, timestamp, &opts)
     };
 
     #[cfg(all(target_arch = "wasm32", not(target_os = "wasi")))]
     {
-        return Some(items.iter().map(make_row).collect());
+        let _ = threads;
+        return Some(targets.iter().map(make_row).collect());
     }
 
     #[cfg(not(all(target_arch = "wasm32", not(target_os = "wasi"))))]
     {
-        if cores <= 1 || items.len() < 2 {
-            return Some(items.iter().map(make_row).collect());
+        if threads <= 1 || targets.len() < 2 {
+            return Some(targets.iter().map(make_row).collect());
         }
-        let pool = ThreadPoolBuilder::new().num_threads(cores).build().ok()?;
-        Some(pool.install(|| items.par_iter().map(make_row).collect()))
+        let pool = ThreadPoolBuilder::new().num_threads(threads).build().ok()?;
+        Some(pool.install(|| targets.par_iter().map(make_row).collect()))
     }
+}
+
+fn find_chromatogram<'a>(
+    chroms: &'a [Chromatogram],
+    target: &ChromTarget,
+) -> Option<&'a Chromatogram> {
+    chroms.iter().find(|chrom| {
+        let precursor = chrom
+            .precursor
+            .as_ref()
+            .and_then(|precursor| precursor.isolation_window.as_ref());
+        let product = chrom
+            .product
+            .as_ref()
+            .and_then(|product| product.isolation_window.as_ref());
+        is_near(get_isolation_target(precursor), target.precursor)
+            && is_near(get_isolation_target(product), target.product)
+    })
+}
+
+fn get_isolation_target(window: Option<&IsolationWindow>) -> Option<f64> {
+    window?
+        .cv_params
+        .iter()
+        .find(|param| param.accession.as_deref() == Some(ACC_ISOLATION_TARGET))?
+        .value
+        .as_deref()?
+        .parse()
+        .ok()
+}
+
+fn is_near(value: Option<f64>, wanted: f64) -> bool {
+    value.is_some_and(|value| (value - wanted).abs() <= TRANSITION_TOLERANCE)
 }
 
 fn chromatogram_xy(ch: &Chromatogram) -> Option<(Vec<f64>, Vec<f32>)> {
@@ -181,13 +190,11 @@ fn bda_to_f32(bda: &BinaryDataArray) -> Vec<f32> {
 
 #[inline]
 fn compute_one(
-    chrom_index: usize,
-    chrom_id: &str,
+    target: &ChromTarget,
     time_values: Vec<f64>,
     intensity_values: Vec<f32>,
-    roi: &Roi,
     timestamp: String,
-    options: &Option<FindPeaksOptions>,
+    options: &FindPeaksOptions,
 ) -> ChromPeakRow {
     let mut peak_rt = 0.0_f64;
     let mut from_rt = 0.0_f64;
@@ -195,22 +202,18 @@ fn compute_one(
     let mut intensity = 0.0_f64;
     let mut area = 0.0_f64;
     let mut total_area = 0.0_f64;
-    let Roi::Chrom { rt, range, .. } = roi else {
-        return ChromPeakRow::empty(0, "invalid".to_string(), 0.0, timestamp);
-    };
 
     if time_values.len() >= 3 && time_values.len() == intensity_values.len() {
-        let mut signal_values: Vec<f64> = Vec::with_capacity(intensity_values.len());
-        for &value in &intensity_values {
-            signal_values.push(value as f64);
-        }
-
         let data = DataXY {
             x: time_values,
-            y: signal_values,
+            y: intensity_values.iter().map(|&value| value as f64).collect(),
         };
 
-        let picked = get_peak(&data, &Roi::peak(*rt, *range), options.clone());
+        let roi = Roi {
+            rt: target.rt,
+            range: target.range,
+        };
+        let picked = get_peak(&data, &roi, options.clone());
         if picked.intensity > 0.0 {
             peak_rt = picked.rt;
             from_rt = picked.from;
@@ -219,16 +222,14 @@ fn compute_one(
             area = picked.integral;
         }
 
-        let peaks = find_peaks(&data, options.clone());
-        for peak in peaks {
+        for peak in find_peaks(&data, options.clone()) {
             total_area += peak.integral;
         }
     }
 
     ChromPeakRow {
-        index: chrom_index,
-        id: chrom_id.trim_end().to_string(),
-        target_rt: *rt,
+        id: target.id.clone(),
+        target_rt: target.rt,
         peak_rt,
         from_rt,
         to_rt,

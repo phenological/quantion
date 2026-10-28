@@ -46,7 +46,7 @@ fn profile_masses(mz: &[f64], intensity: &[f64]) -> Vec<SampleMz> {
         x: mz.to_vec(),
         y: intensity.to_vec(),
     };
-    let peaks = find_peaks(&profile, Some(mz_peak_options()));
+    let peaks = find_peaks(&profile, mz_peak_options());
 
     let mut masses = Vec::with_capacity(peaks.len());
     for peak in &peaks {
@@ -90,5 +90,6 @@ fn mz_peak_options() -> FindPeaksOptions {
         }),
         baseline: None,
         artifact_filter: None,
+        threads: 1,
     }
 }

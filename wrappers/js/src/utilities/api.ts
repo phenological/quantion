@@ -2,7 +2,7 @@ import type { Backend, FileHandle } from "./backend";
 import { SampleFile } from "./sampleFile";
 import { Model } from "./model";
 import { WarpModel } from "./warpModel";
-import { toCores, toUint8 } from "./shared";
+import { toThreads, toUint8 } from "./shared";
 import { encodeTargetIds, unpackTargets } from "./pack";
 import { getIonSource, type IonSource } from "./ionSource";
 import type {
@@ -16,7 +16,7 @@ import type {
   PredictedRt,
   WarpTarget,
   ModelEntry,
-  ChromItem,
+  ChromTarget,
   ChromPeak,
   Feature,
   FoundFeature,
@@ -42,7 +42,7 @@ export type {
   PredictedRt,
   WarpTarget,
   ModelEntry,
-  ChromItem,
+  ChromTarget,
   ChromPeak,
   Feature,
   FoundFeature,
@@ -403,7 +403,8 @@ function assertLevel(level: number, caller: string): void {
  * Retrieve centroid scans from a sample by retention time or precursor m/z.
  *
  * @param file - Loaded sample file.
- * @param query - Query by RT range, closest RT, m/z range, or closest m/z.
+ * @param query - `{ rt: { from, to } }` or `{ mz: { from, to } }` for every scan in the range,
+ *   or `{ rt: 1.8 }` or `{ mz: 445.12 }` for the single closest scan.
  * @param level - MS level (1 = MS1, 2 = MS2, etc.). Default 1.
  * @returns Array of scans for range queries, single scan (or null) for closest queries.
  */
@@ -425,32 +426,31 @@ export async function getScans(
   };
 
   if ("rt" in query) {
-    if ("from" in query.rt) {
+    if (typeof query.rt === "number") {
+      assertFinite(query.rt, "rt");
+      queryType = QUERY_CLOSEST_RT;
+      a = query.rt;
+      b = NaN;
+    } else {
       assertFinite(query.rt.from, "rt.from");
       assertFinite(query.rt.to, "rt.to");
       queryType = QUERY_RT_RANGE;
       a = query.rt.from;
       b = query.rt.to;
-    } else {
-      assertFinite(query.rt.closest, "rt.closest");
-      queryType = QUERY_CLOSEST_RT;
-      a = query.rt.closest;
-      b = NaN;
     }
   } else {
-    if ("from" in query.mz) {
+    if (typeof query.mz === "number") {
+      assertFinite(query.mz, "mz");
+      if (query.mz <= 0) throw new RangeError("getScans: mz must be positive");
+      queryType = QUERY_CLOSEST_MZ;
+      a = query.mz;
+      b = NaN;
+    } else {
       assertFinite(query.mz.from, "mz.from");
       assertFinite(query.mz.to, "mz.to");
       queryType = QUERY_MZ_RANGE;
       a = query.mz.from;
       b = query.mz.to;
-    } else {
-      assertFinite(query.mz.closest, "mz.closest");
-      if (query.mz.closest <= 0)
-        throw new RangeError("getScans: mz.closest must be positive");
-      queryType = QUERY_CLOSEST_MZ;
-      a = query.mz.closest;
-      b = NaN;
     }
   }
 
@@ -532,21 +532,20 @@ export async function getIonImage(
  * @param file - Loaded sample file.
  * @param targets - List of targets with `id`, `rt`, `mz`, and `range`.
  * @param fromTo - Retention time range `{ from, to }` in minutes.
- * @param options - Peak detection options.
- * @param cores - Number of CPU cores to use. Default 1.
+ * @param options - Peak detection options, plus `threads`: the number of threads to use, default 1.
  * @returns Array of found features, one per target.
  */
-export function getPeaksFromEic(
+export async function getPeaksFromEic(
   file: SampleFile,
   targets: Target[],
   fromTo: FromTo,
-  options?: PeakOptions,
-  cores = 1,
-): FoundFeature[] {
+  options: PeakOptions & { threads?: number } = {},
+): Promise<FoundFeature[]> {
   assertFile(file, "getPeaksFromEic");
   const { from = 0.5, to = 5 } = fromTo;
   const { rts, mzs, ranges, ids } = unpackTargets(targets);
   const { packedBytes, offsets, lengths } = encodeTargetIds(ids);
+  await backend().prefetchPeaks(file._handle!, mzs, from, to);
   return backend().getPeaksFromEic(
     file._handle!,
     rts,
@@ -560,54 +559,45 @@ export function getPeaksFromEic(
     from,
     to,
     options,
-    toCores(cores),
+    toThreads(options.threads),
   );
 }
 
 /**
- * Pick peaks from pre-computed chromatogram traces.
+ * Find a peak in the stored chromatogram of each target.
+ * A target picks the chromatogram whose precursor and product m/z are both within 0.005.
  *
  * @param file - Loaded sample file.
- * @param items - List of chromatogram items with `idx`, `rt`, and `window`.
- * @param options - Peak detection options.
- * @param cores - Number of CPU cores to use. Default 1.
+ * @param targets - Targets with `id`, `precursor`, `product`, `rt` and `range`.
+ * @param options - Peak detection options, plus `threads`: the number of threads to use, default 1.
  * @returns Array of chromatogram peaks.
  */
 export function getPeaksFromChrom(
   file: SampleFile,
-  items: ChromItem[],
-  options?: PeakOptions,
-  cores = 1,
+  targets: ChromTarget[],
+  options: PeakOptions & { threads?: number } = {},
 ): ChromPeak[] {
   assertFile(file, "getPeaksFromChrom");
-  const n = items.length;
-  const indices = new Uint32Array(n);
-  const rts = new Float64Array(n);
-  const windows = new Float64Array(n);
-  for (let i = 0; i < n; i++) {
-    const item = items[i];
-    const idx = Number.isFinite(item.idx)
-      ? (item.idx as number)
-      : Number.isFinite(item.index)
-        ? (item.index as number)
-        : -1;
-    if (idx < 0 || !Number.isInteger(idx)) {
-      throw new RangeError(
-        `getPeaksFromChrom: item ${i} needs a non-negative integer idx`,
-      );
-    }
-    indices[i] = idx >>> 0;
-    rts[i] = +item.rt;
-    windows[i] = +(item.window ?? item.range ?? 0);
-  }
+  const precursors = Float64Array.from(targets, (target) => target.precursor);
+  const products = Float64Array.from(targets, (target) => target.product);
+  const rts = Float64Array.from(targets, (target) => target.rt);
+  const ranges = Float64Array.from(targets, (target) => target.range);
+  const { packedBytes, offsets, lengths } = encodeTargetIds(
+    targets.map((target) => target.id ?? ""),
+  );
   return backend().getPeaksFromChrom(
     file._handle!,
-    indices,
+    precursors,
+    products,
     rts,
-    windows,
-    n,
+    ranges,
+    offsets,
+    lengths,
+    packedBytes,
+    packedBytes.length,
+    targets.length,
     options,
-    toCores(cores),
+    toThreads(options.threads),
   );
 }
 
@@ -617,14 +607,14 @@ export function getPeaksFromChrom(
  *
  * @param file - Loaded sample file.
  * @param fromTo - Retention time range `{ from, to }` in minutes.
- * @param options - Feature detection options (eic, grid, findPeak, cores).
+ * @param options - Feature detection options (eic, grid, findPeak, threads).
  * @returns Array of detected features.
  */
-export function findFeatures(
+export async function findFeatures(
   file: SampleFile,
   fromTo: FromTo,
   options: FindFeaturesOptions = {},
-): Feature[] {
+): Promise<Feature[]> {
   const back = backend();
   if (!back.findFeatures) {
     throw new Error("findFeatures is not supported in the WASM build");
@@ -634,7 +624,7 @@ export function findFeatures(
     eic = DEFAULTS.eic,
     grid = DEFAULTS.grid,
     findPeak = DEFAULTS.findPeak,
-    cores = 1,
+    threads = 1,
   } = options;
   const { from, to } = fromTo;
   const eicPpm =
@@ -661,6 +651,16 @@ export function findFeatures(
     grid.stepSize > 0
       ? grid.stepSize
       : NaN;
+  await back.prefetchFeatures?.(
+    file._handle!,
+    from,
+    to,
+    eicPpm,
+    eicMz,
+    gridStart,
+    gridEnd,
+    gridStep,
+  );
   return back.findFeatures!(
     file._handle!,
     from,
@@ -671,7 +671,7 @@ export function findFeatures(
     gridEnd,
     gridStep,
     findPeak,
-    toCores(cores),
+    toThreads(threads),
   );
 }
 
@@ -680,17 +680,17 @@ export function findFeatures(
  *
  * @param file - Loaded sample file.
  * @param targets - List of targets with `id`, `rt`, `mz`, and `ranges`.
- * @param options - Detection options including `scanEic`, `eic`, `findPeak`, and `cores`.
+ * @param options - Detection options including `scanEic`, `eic`, `findPeak`, and `threads`.
  * @returns Array of found features, one per target.
  */
-export function findFeature(
+export async function findFeature(
   file: SampleFile,
   targets: Target[],
   options: FindFeaturesOptions & {
     scanEic?: { ppmTolerance?: number; mzTolerance?: number };
-    cores?: number;
+    threads?: number;
   } = {},
-): FoundFeature[] {
+): Promise<FoundFeature[]> {
   assertFile(file, "findFeature");
 
   const {
@@ -714,6 +714,7 @@ export function findFeature(
   const { rts, mzs, ranges, ids } = unpackTargets(targets, 0.5);
   const { packedBytes, offsets, lengths } = encodeTargetIds(ids);
 
+  await backend().prefetchFeature(file._handle!, rts, ranges);
   return backend().findFeature(
     file._handle!,
     rts,
@@ -724,7 +725,7 @@ export function findFeature(
     packedBytes,
     packedBytes.length,
     targets.length,
-    toCores(options.cores),
+    toThreads(options.threads),
     +scanPpm,
     +scanMz,
     +eicPpm,
@@ -759,7 +760,7 @@ export function getFeatures(
     grid = DEFAULTS.grid,
     grouping = DEFAULTS.grouping,
     findPeak = DEFAULTS.findPeak,
-    cores = 1,
+    threads = 1,
   } = options;
   const { from, to } = fromTo;
   const eicPpm = Number.isFinite(eic.ppmTolerance)
@@ -791,6 +792,6 @@ export function getFeatures(
     +groupRt,
     +prevalence,
     findPeak,
-    toCores(cores),
+    toThreads(threads),
   );
 }

@@ -3,6 +3,7 @@ import sys
 MOST_REQUESTS_TO_OPEN = 12
 MOST_REQUESTS_FOR_ONE_QUERY = 4
 MOST_OF_THE_FILE_ONE_QUERY_MAY_TAKE = 0.1
+WHOLE_FILE = {"get_peaks_from_chrom", "ion_to_mzml", "mzml_to_ion"}
 
 
 def read(path):
@@ -60,6 +61,14 @@ def main():
         failures.append(
             f"opening took {requests} requests: the ranges are not being merged"
         )
+
+    for key, value in sorted(measured.items()):
+        if not key.startswith("fresh_"):
+            continue
+        function = key[len("fresh_"):]
+        wanted = "refused" if function in WHOLE_FILE else "same"
+        if value != wanted:
+            failures.append(f"{function} on a fresh remote file: {value}, expected {wanted}")
 
     if failures:
         for line in failures:

@@ -8,7 +8,7 @@ GRID_START <- 89.0
 GRID_END <- 91.0
 GRID_STEP <- 0.005
 ROI_RANGE <- 0.05
-CORES <- 1L
+THREADS <- 1L
 
 FEATURE_MIN_INTENSITY <- 500.0
 FEATURE_MIN_PEAK_WIDTH_POINTS <- 5L
@@ -65,11 +65,7 @@ shared_peak_lines <- function(prefix, peak, out) {
     sprintf("%s.intensity = %s", prefix, number(peak$intensity)))
 }
 
-chromatogram_index <- function(channel) {
-  sum(vapply(CHANNELS, function(other) other$mass < channel$mass, logical(1)))
-}
-
-report_channel <- function(file, channel, out) {
+report_channel <- function(file, transitions, channel, out) {
   name <- channel$name
   eic <- calculate_eic(file, channel$mass, FROM_RT, TO_RT,
                        ppm_tolerance = EIC_PPM, mz_tolerance = EIC_MZ)
@@ -103,9 +99,9 @@ report_channel <- function(file, channel, out) {
 
   ids <- vapply(channel$targets, function(t) t[1], character(1))
   rts <- vapply(channel$targets, function(t) as.numeric(t[2]), numeric(1))
-  df <- data.frame(id = ids, rt = rts, mz = channel$mass, ranges = ROI_RANGE,
-                   stringsAsFactors = FALSE)
-  rows <- get_peaks_from_eic(file, df, from = FROM_RT, to = TO_RT, cores = CORES,
+  targets <- data.frame(id = ids, rt = rts, mz = channel$mass, range = ROI_RANGE,
+                        stringsAsFactors = FALSE)
+  rows <- get_peaks_from_eic(file, targets, from = FROM_RT, to = TO_RT, threads = THREADS,
                              min_intensity = channel$min_intensity,
                              min_peak_width_points = channel$min_peak_width_points,
                              auto_noise = TRUE, auto_baseline = TRUE)
@@ -114,9 +110,9 @@ report_channel <- function(file, channel, out) {
       sprintf("%s.get_peaks_from_eic.%s", name, rows$id[index]), rows[index, ], out)
   }
 
-  items <- data.frame(id = ids, index = chromatogram_index(channel), rt = rts,
-                      range = ROI_RANGE, stringsAsFactors = FALSE)
-  chrom_rows <- get_peaks_from_chrom(file, items, cores = CORES,
+  chrom_targets <- data.frame(id = ids, precursor = channel$mass, product = channel$mass,
+                              rt = rts, range = ROI_RANGE, stringsAsFactors = FALSE)
+  chrom_rows <- get_peaks_from_chrom(transitions, chrom_targets, threads = THREADS,
                                      min_intensity = channel$min_intensity,
                                      min_peak_width_points = channel$min_peak_width_points,
                                      auto_noise = FALSE, auto_baseline = FALSE)
@@ -158,20 +154,21 @@ main <- function() {
   fixture <- file.path(directory, "api.ion")
 
   file <- parse_ion(fixture)
+  transitions <- parse_ion(file.path(dirname(directory), "srm.ion"))
   out <- character(0)
   out <- c(out, sprintf("fnv1a.self_check = %s", fnv1a(SELF_CHECK_VALUES)))
 
-  scans <- get_scans(file, rt_from = FROM_RT, rt_to = TO_RT)
+  scans <- get_scans(file, rt = c(FROM_RT, TO_RT))
   out <- c(out, sprintf("parse_ion.scans = %d", nrow(scans)))
 
   for (channel in CHANNELS) {
-    out <- report_channel(file, channel, out)
+    out <- report_channel(file, transitions, channel, out)
   }
 
   found <- find_features(file, from = FROM_RT, to = TO_RT,
                          ppm_tolerance = EIC_PPM, mz_tolerance = EIC_MZ,
                          grid_start = GRID_START, grid_end = GRID_END,
-                         grid_step_ppm = GRID_STEP, cores = CORES,
+                         grid_step_ppm = GRID_STEP, threads = THREADS,
                          min_intensity = FEATURE_MIN_INTENSITY,
                          min_peak_width_points = FEATURE_MIN_PEAK_WIDTH_POINTS,
                          auto_noise = TRUE, auto_baseline = TRUE)
@@ -180,7 +177,7 @@ main <- function() {
   consensus <- get_features(directory, from = FROM_RT, to = TO_RT,
                             eic_ppm_tol = EIC_PPM, eic_mz_tol = EIC_MZ,
                             grid_start = GRID_START, grid_end = GRID_END,
-                            grid_step = GRID_STEP, cores = CORES,
+                            grid_step = GRID_STEP, threads = THREADS,
                             min_intensity = FEATURE_MIN_INTENSITY,
                             min_peak_width_points = FEATURE_MIN_PEAK_WIDTH_POINTS,
                             auto_noise = TRUE, auto_baseline = TRUE)

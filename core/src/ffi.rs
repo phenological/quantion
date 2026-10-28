@@ -28,8 +28,8 @@ use crate::utilities::{
         calculate_eic as calculate_eic_dispatcher, get_scans as get_scans_rs, plan_eic_ranges,
         plan_scan_ranges,
     },
-    find_feature::{FindFeatureOptions, find_feature as find_feature_rs},
-    find_features::{FindFeaturesOptions, find_features as find_features_rs},
+    find_feature::{FindFeatureOptions, find_feature as find_feature_rs, plan_feature_ranges},
+    find_features::{FindFeaturesOptions, find_features as find_features_rs, plan_features_ranges},
     find_noise_level::find_noise_level as find_noise_level_rs,
     find_peaks::{ArtifactFilter, FindPeaksOptions, PeakFilter, find_peaks as find_peaks_rs},
     fit_peak::{
@@ -37,14 +37,13 @@ use crate::utilities::{
     },
     get_peak::get_peak as get_peak_rs,
     get_peaks_from_chrom::get_peaks_from_chrom as get_peaks_from_chrom_rs,
-    get_peaks_from_eic::get_peaks_from_eic as get_peaks_from_eic_rs,
+    get_peaks_from_eic::{get_peaks_from_eic as get_peaks_from_eic_rs, plan_peaks_ranges},
     ion::{ScanSource, ScanSummary, write_mzml_to_ion},
     mz_estimator::MzEstimatorKind,
-    structs::{DataXY, FromTo, Roi},
+    structs::{ChromTarget, DataXY, FromTo, Roi, Target},
 };
 
 struct ChromPeakRowOut<'a> {
-    index: usize,
     id: &'a str,
     ort: f64,
     rt: f64,
@@ -89,6 +88,7 @@ const ERR_PANIC: c_int = 2;
 const ERR_PARSE: c_int = 4;
 const ERR_ENCODE: c_int = 5;
 const ERR_FAST_PATH: c_int = 6;
+const ERR_REMOTE_FILE: c_int = 12;
 
 fn fast_error_to_code(error: FastError) -> c_int {
     match error {
@@ -321,10 +321,7 @@ impl ParsedFile {
                 let mzml = file.to_mzml().map_err(|_| ERR_PARSE)?;
                 f(&mzml)
             }
-            FileSource::Remote(ion) => {
-                let mzml = ion.to_mzml().map_err(|_| ERR_PARSE)?;
-                f(&mzml)
-            }
+            FileSource::Remote(_) => Err(ERR_REMOTE_FILE),
         }
     }
 }
@@ -708,8 +705,11 @@ pub unsafe extern "C" fn get_peak(
         };
         let peak = get_peak_rs(
             &data,
-            &Roi::peak(rt, range),
-            Some(build_peak_options(options)),
+            &Roi {
+                rt: rt,
+                range: range,
+            },
+            build_peak_options(options),
         );
         let bytes = build_peaks_bridge(&[peak]).ok_or(ERR_ENCODE)?;
         write_buf(out, bytes);
@@ -839,7 +839,7 @@ pub unsafe extern "C" fn get_peaks_from_eic(
     from: f64,
     to: f64,
     opts: *const CPeakOptions,
-    cores: usize,
+    threads: usize,
     out: *mut Buf,
 ) -> i32 {
     if h.is_null()
@@ -857,14 +857,11 @@ pub unsafe extern "C" fn get_peaks_from_eic(
     clear_buf(out);
     match catch_unwind(AssertUnwindSafe(|| -> Result<(), i32> {
         let file = unsafe { &mut *(h as *mut ParsedFile) };
-        let items = build_eic_rois(
+        let items = build_targets(
             unsafe { slice::from_raw_parts(rts_ptr, n) },
             unsafe { slice::from_raw_parts(mzs_ptr, n) },
             unsafe { slice::from_raw_parts(ranges_ptr, n) },
-            ids_off,
-            ids_len,
-            ids_buf,
-            ids_buf_len,
+            read_ids(n, ids_off, ids_len, ids_buf, ids_buf_len),
         );
         let mut reader = match file.source_mut() {
             FileSource::Full(mzml) => EicReader::Mzml(mzml.as_mut()),
@@ -876,8 +873,10 @@ pub unsafe extern "C" fn get_peaks_from_eic(
             &mut reader,
             FromTo { from, to },
             &items,
-            Some(build_peak_options(opts)),
-            cores,
+            FindPeaksOptions {
+                threads,
+                ..build_peak_options(opts)
+            },
         )
         .map_err(fast_error_to_code)?;
         let bytes = build_eic_peaks_bridge(&peaks).ok_or(ERR_ENCODE)?;
@@ -893,27 +892,36 @@ pub unsafe extern "C" fn get_peaks_from_eic(
     }
 }
 
-/// Find peaks from chromatogram data and write the result to `out`.
+/// Find a peak in the chromatogram of each target and write the result to `out`.
+///
+/// A target picks the chromatogram whose precursor and product m/z are both within 0.005.
 ///
 /// # Safety
 /// `h` must be a valid `ParsedFile` pointer from this library.
-/// `sample_indices` must point to `n` readable `u32` values.
-/// `target_rts` and `half_widths` must point to `n` readable `f64` values.
+/// `precursors`, `products`, `target_rts` and `ranges` must point to `n` readable `f64` values.
+/// If IDs are provided, `ids_off` and `ids_len` must point to `n` readable `u32` values,
+/// and `ids_buf` must point to `ids_buf_len` readable bytes.
 /// `opts` must be null or point to a valid `CPeakOptions`.
 /// `out` must be a valid writable `Buf` pointer.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn get_peaks_from_chrom(
     h: *mut ParsedFile,
-    sample_indices: *const u32,
+    precursors: *const f64,
+    products: *const f64,
     target_rts: *const f64,
     ranges: *const f64,
+    ids_off: *const u32,
+    ids_len: *const u32,
+    ids_buf: *const u8,
+    ids_buf_len: usize,
     n: usize,
     opts: *const CPeakOptions,
-    cores: usize,
+    threads: usize,
     out: *mut Buf,
 ) -> i32 {
     if h.is_null()
-        || sample_indices.is_null()
+        || precursors.is_null()
+        || products.is_null()
         || target_rts.is_null()
         || ranges.is_null()
         || out.is_null()
@@ -927,40 +935,34 @@ pub unsafe extern "C" fn get_peaks_from_chrom(
     clear_buf(out);
     match catch_unwind(AssertUnwindSafe(|| -> Result<(), i32> {
         let file = unsafe { &mut *h };
+        let precursors = unsafe { slice::from_raw_parts(precursors, n) };
+        let products = unsafe { slice::from_raw_parts(products, n) };
+        let target_rts = unsafe { slice::from_raw_parts(target_rts, n) };
+        let ranges = unsafe { slice::from_raw_parts(ranges, n) };
+        let targets: Vec<ChromTarget> = read_ids(n, ids_off, ids_len, ids_buf, ids_buf_len)
+            .into_iter()
+            .enumerate()
+            .map(|(index, id)| ChromTarget {
+                id,
+                precursor: precursors[index],
+                product: products[index],
+                rt: target_rts[index],
+                range: ranges[index],
+            })
+            .collect();
         file.with_mzml(|mzml| {
-            let sample_indices = unsafe { slice::from_raw_parts(sample_indices, n) };
-            let target_rts = unsafe { slice::from_raw_parts(target_rts, n) };
-            let ranges = unsafe { slice::from_raw_parts(ranges, n) };
-            let chroms = &mzml
-                .run
-                .chromatogram_list
-                .as_ref()
-                .ok_or(ERR_PARSE)?
-                .chromatograms;
-            let items: Vec<_> = (0..n)
-                .map(|i| {
-                    let raw_index = sample_indices[i];
-                    if raw_index == u32::MAX {
-                        return Roi::chrom("", usize::MAX, 0.0, 0.0);
-                    }
-                    let sample_index = raw_index as usize;
-                    if sample_index >= chroms.len() {
-                        return Roi::chrom("", sample_index, 0.0, 0.0);
-                    }
-                    Roi::chrom(
-                        chroms[sample_index].id.clone(),
-                        sample_index,
-                        target_rts[i],
-                        ranges[i],
-                    )
-                })
-                .collect();
-            let list = get_peaks_from_chrom_rs(mzml, &items, Some(build_peak_options(opts)), cores)
-                .ok_or(ERR_PARSE)?;
-            let out_arr: Vec<_> = list
+            let rows = get_peaks_from_chrom_rs(
+                mzml,
+                &targets,
+                FindPeaksOptions {
+                    threads,
+                    ..build_peak_options(opts)
+                },
+            )
+            .ok_or(ERR_PARSE)?;
+            let out_rows: Vec<_> = rows
                 .iter()
                 .map(|row| ChromPeakRowOut {
-                    index: row.index,
                     id: &row.id,
                     ort: row.target_rt,
                     rt: row.peak_rt,
@@ -972,11 +974,10 @@ pub unsafe extern "C" fn get_peaks_from_chrom(
                     timestamp: &row.timestamp,
                 })
                 .collect();
-            let bytes = build_chrom_peaks_bridge(&out_arr).ok_or(ERR_ENCODE)?;
+            let bytes = build_chrom_peaks_bridge(&out_rows).ok_or(ERR_ENCODE)?;
             write_buf(out, bytes);
             Ok(())
-        })?;
-        Ok(())
+        })
     })) {
         Ok(Ok(())) => OK,
         Ok(Err(c)) => c,
@@ -1016,7 +1017,7 @@ pub unsafe extern "C" fn find_peaks(
                 x: xs.to_vec(),
                 y: ys.to_vec(),
             },
-            Some(build_peak_options(opts)),
+            build_peak_options(opts),
         );
         let bytes = build_peaks_bridge(&peaks).ok_or(ERR_ENCODE)?;
         write_buf(out, bytes);
@@ -1173,7 +1174,7 @@ fn scan_query_from_parts(query_type: u8, from_value: f64, to_value: f64) -> Opti
             if !from_value.is_finite() {
                 return None;
             }
-            Some(ScanQuery::ClosestRt(from_value))
+            Some(ScanQuery::Rt(from_value))
         }
         2 => {
             if !from_value.is_finite() || !to_value.is_finite() {
@@ -1188,7 +1189,7 @@ fn scan_query_from_parts(query_type: u8, from_value: f64, to_value: f64) -> Opti
             if !from_value.is_finite() || from_value <= 0.0 {
                 return None;
             }
-            Some(ScanQuery::ClosestMz(from_value))
+            Some(ScanQuery::Mz(from_value))
         }
         _ => None,
     }
@@ -1291,7 +1292,7 @@ pub unsafe extern "C" fn plan_image(
 
 /// Get scans by query and write the result to `out`.
 ///
-/// `query_type`: 0=RtRange, 1=ClosestRt, 2=MzRange, 3=ClosestMz.
+/// `query_type`: 0=RtRange, 1=Rt, 2=MzRange, 3=Mz.
 /// `from_value` and `to_value` are the range bounds for range queries (types 0 and 2).
 /// For point queries (types 1 and 3), only `from_value` is used; `to_value` is ignored.
 ///
@@ -1577,7 +1578,7 @@ pub unsafe extern "C" fn get_features(
     align_rt_tolerance: f64,
     min_samples: c_int,
     peak_opts: *const CPeakOptions,
-    cores: c_int,
+    threads: c_int,
     out: *mut Buf,
 ) -> c_int {
     if dir.is_null() || out.is_null() {
@@ -1628,19 +1629,15 @@ pub unsafe extern "C" fn get_features(
                 1
             },
             eic_options: feature_opts.final_eic_options,
-            peak_options: Some(peak_options),
+            peak_options,
             mz_estimator: MzEstimatorKind::MedianMzApex,
+            threads: thread_count(threads),
             ..AlignmentOptions::default()
         };
+        feature_opts.threads = thread_count(threads);
 
-        let feats = get_features_rs(
-            path,
-            FromTo { from, to },
-            feature_opts,
-            alignment_opts,
-            if cores > 0 { cores as usize } else { 1 },
-        )
-        .map_err(|_| ERR_FAST_PATH)?;
+        let feats = get_features_rs(path, FromTo { from, to }, feature_opts, alignment_opts)
+            .map_err(|_| ERR_FAST_PATH)?;
 
         let bytes = build_consensus_bridge(&feats).ok_or(ERR_ENCODE)?;
         write_buf(out, bytes);
@@ -1649,6 +1646,138 @@ pub unsafe extern "C" fn get_features(
         Ok(Ok(())) => OK,
         Ok(Err(c)) => c,
         Err(_) => ERR_PANIC,
+    }
+}
+
+fn build_features_options(
+    eic_ppm: f64,
+    eic_mz: f64,
+    grid_min_mz: f64,
+    grid_max_mz: f64,
+    grid_step: f64,
+) -> FindFeaturesOptions {
+    let mut opts = FindFeaturesOptions::default();
+    if eic_ppm.is_finite() && eic_ppm >= 0.0 {
+        opts.final_eic_options.ppm_tolerance = eic_ppm;
+    }
+    if eic_mz.is_finite() && eic_mz >= 0.0 {
+        opts.final_eic_options.mz_tolerance = eic_mz;
+    }
+    if grid_min_mz.is_finite() {
+        opts.mz_scan_grid.min_mz = grid_min_mz;
+    }
+    if grid_max_mz.is_finite() {
+        opts.mz_scan_grid.max_mz = grid_max_mz;
+    }
+    if grid_step > 0.0 {
+        opts.mz_scan_grid.step = grid_step;
+    }
+    opts
+}
+
+/// Write the byte ranges `find_features` reads from a lazy or remote file to `out`.
+///
+/// # Safety
+/// `h` must be a valid `ParsedFile` pointer from this library.
+/// `out` must be a valid writable `Buf` pointer.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn plan_find_features(
+    h: *mut ParsedFile,
+    from: f64,
+    to: f64,
+    eic_ppm: f64,
+    eic_mz: f64,
+    grid_min_mz: f64,
+    grid_max_mz: f64,
+    grid_step: f64,
+    out: *mut Buf,
+) -> c_int {
+    if h.is_null() || out.is_null() || !from.is_finite() || !to.is_finite() || to <= from {
+        return ERR_INVALID_ARGS;
+    }
+    if file_is_broken(h) {
+        return ERR_PANIC;
+    }
+    clear_buf(out);
+
+    match catch_unwind(AssertUnwindSafe(|| -> Result<(), c_int> {
+        let file = unsafe { &mut *h };
+        let opts = build_features_options(eic_ppm, eic_mz, grid_min_mz, grid_max_mz, grid_step);
+        let time_window = FromTo { from, to };
+        let ranges = match file.source_mut() {
+            FileSource::Lazy(ion) => plan_features_ranges(ion.as_mut(), time_window, &opts),
+            FileSource::Remote(ion) => plan_features_ranges(ion.as_mut(), time_window, &opts),
+            FileSource::Full(_) => Err(FastError::UnsupportedBackend),
+        }
+        .map_err(fast_error_to_code)?;
+
+        let bytes = pack_byte_ranges(ranges.iter().map(|range| (range.offset, range.length)));
+        write_buf(out, bytes);
+        Ok(())
+    })) {
+        Ok(Ok(())) => OK,
+        Ok(Err(code)) => code,
+        Err(_) => {
+            mark_file_broken(h);
+            ERR_PANIC
+        }
+    }
+}
+
+/// Write the byte ranges `get_peaks_from_eic` reads for these m/z values to `out`.
+///
+/// # Safety
+/// `h` must be a valid `ParsedFile` pointer from this library.
+/// `mzs` must point to `count` readable `f64` values.
+/// `out` must be a valid writable `Buf` pointer.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn plan_peaks_from_eic(
+    h: *mut ParsedFile,
+    mzs: *const f64,
+    count: usize,
+    from: f64,
+    to: f64,
+    out: *mut Buf,
+) -> c_int {
+    if h.is_null() || out.is_null() || (mzs.is_null() && count > 0) {
+        return ERR_INVALID_ARGS;
+    }
+    if file_is_broken(h) {
+        return ERR_PANIC;
+    }
+    clear_buf(out);
+
+    match catch_unwind(AssertUnwindSafe(|| -> Result<(), c_int> {
+        let file = unsafe { &mut *h };
+        let mz_values = if count == 0 {
+            &[][..]
+        } else {
+            unsafe { std::slice::from_raw_parts(mzs, count) }
+        };
+        let targets: Vec<Target> = mz_values
+            .iter()
+            .map(|mz| Target {
+                mz: *mz,
+                ..Default::default()
+            })
+            .collect();
+        let ranges = match file.source_mut() {
+            FileSource::Lazy(ion) => plan_peaks_ranges(ion.as_mut(), &targets, from, to),
+            FileSource::Remote(ion) => plan_peaks_ranges(ion.as_mut(), &targets, from, to),
+            FileSource::Full(_) => Err(FastError::UnsupportedBackend),
+        }
+        .map_err(fast_error_to_code)?;
+
+        let bytes = pack_byte_ranges(ranges.iter().map(|range| (range.offset, range.length)));
+        write_buf(out, bytes);
+        Ok(())
+    })) {
+        Ok(Ok(())) => OK,
+        Ok(Err(code)) => code,
+        Err(_) => {
+            mark_file_broken(h);
+            ERR_PANIC
+        }
     }
 }
 
@@ -1669,7 +1798,7 @@ pub unsafe extern "C" fn find_features(
     grid_max_mz: f64,
     grid_step: f64,
     peak_opts: *const CPeakOptions,
-    cores: c_int,
+    threads: c_int,
     out: *mut Buf,
 ) -> c_int {
     if h.is_null() || out.is_null() || !from.is_finite() || !to.is_finite() || to <= from {
@@ -1682,23 +1811,9 @@ pub unsafe extern "C" fn find_features(
     match catch_unwind(AssertUnwindSafe(|| -> Result<(), c_int> {
         let file = unsafe { &mut *h };
 
-        let mut opts = FindFeaturesOptions::default();
-        if eic_ppm.is_finite() && eic_ppm >= 0.0 {
-            opts.final_eic_options.ppm_tolerance = eic_ppm;
-        }
-        if eic_mz.is_finite() && eic_mz >= 0.0 {
-            opts.final_eic_options.mz_tolerance = eic_mz;
-        }
-        if grid_min_mz.is_finite() {
-            opts.mz_scan_grid.min_mz = grid_min_mz;
-        }
-        if grid_max_mz.is_finite() {
-            opts.mz_scan_grid.max_mz = grid_max_mz;
-        }
-        if grid_step > 0.0 {
-            opts.mz_scan_grid.step = grid_step;
-        }
+        let mut opts = build_features_options(eic_ppm, eic_mz, grid_min_mz, grid_max_mz, grid_step);
         opts.peak_options = build_peak_options(peak_opts);
+        opts.threads = thread_count(threads);
 
         let mut reader = match file.source_mut() {
             FileSource::Full(mzml) => EicReader::Mzml(mzml.as_mut()),
@@ -1706,13 +1821,8 @@ pub unsafe extern "C" fn find_features(
             FileSource::Remote(ion) => EicReader::Ion(ion.as_mut()),
         };
 
-        let feats = find_features_rs(
-            &mut reader,
-            FromTo { from, to },
-            Some(opts),
-            if cores > 0 { cores as usize } else { 1 },
-        )
-        .map_err(|_| ERR_FAST_PATH)?;
+        let feats =
+            find_features_rs(&mut reader, FromTo { from, to }, opts).map_err(|_| ERR_FAST_PATH)?;
 
         let bytes = build_features_bridge(&feats).ok_or(ERR_ENCODE)?;
         write_buf(out, bytes);
@@ -1771,6 +1881,69 @@ pub unsafe extern "C" fn calculate_baseline(
     }
 }
 
+/// Write the byte ranges `find_feature` reads for these targets to `out`.
+///
+/// # Safety
+/// `h` must be a valid `ParsedFile` pointer from this library.
+/// `target_rts` and `half_widths` must point to `n` readable `f64` values.
+/// `out` must be a valid writable `Buf` pointer.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn plan_find_feature(
+    h: *mut ParsedFile,
+    target_rts: *const f64,
+    half_widths: *const f64,
+    n: usize,
+    out: *mut Buf,
+) -> c_int {
+    if h.is_null() || out.is_null() || (n > 0 && (target_rts.is_null() || half_widths.is_null())) {
+        return ERR_INVALID_ARGS;
+    }
+    if file_is_broken(h) {
+        return ERR_PANIC;
+    }
+    clear_buf(out);
+
+    match catch_unwind(AssertUnwindSafe(|| -> Result<(), c_int> {
+        let file = unsafe { &mut *h };
+        let (rts, widths) = if n == 0 {
+            (&[][..], &[][..])
+        } else {
+            unsafe {
+                (
+                    std::slice::from_raw_parts(target_rts, n),
+                    std::slice::from_raw_parts(half_widths, n),
+                )
+            }
+        };
+        let targets: Vec<Target> = rts
+            .iter()
+            .zip(widths)
+            .map(|(rt, width)| Target {
+                rt: *rt,
+                range: *width,
+                ..Default::default()
+            })
+            .collect();
+        let ranges = match file.source_mut() {
+            FileSource::Lazy(ion) => plan_feature_ranges(ion.as_mut(), &targets),
+            FileSource::Remote(ion) => plan_feature_ranges(ion.as_mut(), &targets),
+            FileSource::Full(_) => Err(FastError::UnsupportedBackend),
+        }
+        .map_err(fast_error_to_code)?;
+
+        let bytes = pack_byte_ranges(ranges.iter().map(|range| (range.offset, range.length)));
+        write_buf(out, bytes);
+        Ok(())
+    })) {
+        Ok(Ok(())) => OK,
+        Ok(Err(code)) => code,
+        Err(_) => {
+            mark_file_broken(h);
+            ERR_PANIC
+        }
+    }
+}
+
 /// Find a targeted feature for each ROI and write the result to `out`.
 ///
 /// # Safety
@@ -1791,7 +1964,7 @@ pub unsafe extern "C" fn find_feature(
     ids_buf: *const u8,
     ids_buf_len: usize,
     n: usize,
-    cores: usize,
+    threads: usize,
     seed_ppm: f64,
     seed_mz: f64,
     final_ppm: f64,
@@ -1839,25 +2012,21 @@ pub unsafe extern "C" fn find_feature(
         if final_mz.is_finite() && final_mz >= 0.0 {
             final_eic.mz_tolerance = final_mz;
         }
-        let rois = build_eic_rois(
+        let targets = build_targets(
             target_rts,
             target_mzs,
             half_widths,
-            ids_off,
-            ids_len,
-            ids_buf,
-            ids_buf_len,
+            read_ids(n, ids_off, ids_len, ids_buf, ids_buf_len),
         );
-        let refs: Vec<&Roi> = rois.iter().collect();
         let results = find_feature_rs(
             file,
-            &refs,
-            cores,
-            Some(FindFeatureOptions {
+            &targets,
+            FindFeatureOptions {
                 seed_eic_options: Some(seed_eic),
                 final_eic_options: Some(final_eic),
                 peak_options: Some(build_peak_options(peak_opts)),
-            }),
+                threads,
+            },
         );
         let arr: Vec<FoundFeatureOut> = results
             .iter()
@@ -1875,7 +2044,7 @@ pub unsafe extern "C" fn find_feature(
                     noise: f.peak.noise,
                 },
                 None => FoundFeatureOut {
-                    id: rois[i].id(),
+                    id: &targets[i].id,
                     mz: 0.0,
                     rt: 0.0,
                     from: 0.0,
@@ -2024,53 +2193,49 @@ fn build_image_bridge(image: &crate::utilities::ion_image::IonImage) -> Option<B
 
 const DEFAULT_EIC_HALF_WIDTH: f64 = 0.5;
 
-fn build_eic_rois(
-    rts: &[f64],
-    mzs: &[f64],
-    wins: &[f64],
+fn read_ids(
+    count: usize,
     ids_off: *const u32,
     ids_len: *const u32,
     ids_buf: *const u8,
     ids_buf_len: usize,
-) -> Vec<Roi> {
-    let n = rts.len();
+) -> Vec<String> {
+    if ids_off.is_null() || ids_len.is_null() || ids_buf.is_null() || ids_buf_len == 0 {
+        return vec![String::new(); count];
+    }
+    let offsets = unsafe { slice::from_raw_parts(ids_off, count) };
+    let lengths = unsafe { slice::from_raw_parts(ids_len, count) };
+    let bytes = unsafe { slice::from_raw_parts(ids_buf, ids_buf_len) };
+    (0..count)
+        .map(|index| {
+            let (start, length) = (offsets[index] as usize, lengths[index] as usize);
+            start
+                .checked_add(length)
+                .filter(|&end| end <= bytes.len())
+                .and_then(|end| std::str::from_utf8(&bytes[start..end]).ok())
+                .unwrap_or("")
+                .to_string()
+        })
+        .collect()
+}
 
-    let has = !(ids_off.is_null() || ids_len.is_null() || ids_buf.is_null() || ids_buf_len == 0);
-    let (offs, lens, ibuf) = if has {
-        (
-            unsafe { slice::from_raw_parts(ids_off, n) },
-            unsafe { slice::from_raw_parts(ids_len, n) },
-            Some(unsafe { slice::from_raw_parts(ids_buf, ids_buf_len) }),
-        )
-    } else {
-        (&[][..], &[][..], None)
-    };
-
-    (0..n)
-        .map(|i| {
-            let (rt, mz, window) = (rts[i], mzs[i], wins[i]);
-            let has_target = rt.is_finite() && mz.is_finite();
-            let range = if window.is_finite() && window > 0.0 {
-                window
+fn build_targets(rts: &[f64], mzs: &[f64], ranges: &[f64], ids: Vec<String>) -> Vec<Target> {
+    ids.into_iter()
+        .enumerate()
+        .map(|(index, id)| {
+            let (rt, mz, range) = (rts[index], mzs[index], ranges[index]);
+            if !rt.is_finite() || !mz.is_finite() {
+                return Target {
+                    id,
+                    ..Default::default()
+                };
+            }
+            let range = if range.is_finite() && range > 0.0 {
+                range
             } else {
                 DEFAULT_EIC_HALF_WIDTH
             };
-            let id = ibuf
-                .and_then(|buf| {
-                    let (o, l) = (offs[i] as usize, lens[i] as usize);
-                    o.checked_add(l).filter(|&e| e <= buf.len()).map(|_| {
-                        std::str::from_utf8(&buf[o..o + l])
-                            .unwrap_or("")
-                            .to_string()
-                    })
-                })
-                .unwrap_or_default();
-
-            if has_target {
-                Roi::eic(id, rt, mz, range)
-            } else {
-                Roi::eic(id, 0.0, 0.0, 0.0)
-            }
+            Target { id, mz, rt, range }
         })
         .collect()
 }
@@ -2411,7 +2576,6 @@ fn build_found_features_bridge(rows: &[FoundFeatureOut]) -> Option<Box<[u8]>> {
 }
 
 fn build_chrom_peaks_bridge(rows: &[ChromPeakRowOut]) -> Option<Box<[u8]>> {
-    let index: Vec<u32> = rows.iter().map(|row| count_as_u32(row.index)).collect();
     let ids: Vec<&str> = rows.iter().map(|row| row.id).collect();
     let timestamps: Vec<&str> = rows.iter().map(|row| row.timestamp).collect();
     let target_rt: Vec<f64> = rows.iter().map(|row| row.ort).collect();
@@ -2426,10 +2590,6 @@ fn build_chrom_peaks_bridge(rows: &[ChromPeakRowOut]) -> Option<Box<[u8]>> {
         QUANTION_PAYLOAD_CHROM_PEAKS,
         rows.len() as u64,
         &[
-            Column::Counts {
-                id: QUANTION_SECTION_CHROM_INDEX,
-                values: &index,
-            },
             Column::Numbers {
                 id: QUANTION_SECTION_CHROM_TARGET_RT,
                 values: &target_rt,
@@ -2534,6 +2694,10 @@ fn pack_byte_ranges(ranges: impl IntoIterator<Item = (u64, u64)>) -> Box<[u8]> {
     bytes.into_boxed_slice()
 }
 
+fn thread_count(threads: c_int) -> usize {
+    if threads > 0 { threads as usize } else { 1 }
+}
+
 fn build_peak_options(opts: *const CPeakOptions) -> FindPeaksOptions {
     if opts.is_null() {
         return FindPeaksOptions {
@@ -2541,6 +2705,7 @@ fn build_peak_options(opts: *const CPeakOptions) -> FindPeaksOptions {
             filter: Some(Default::default()),
             baseline: Some(Default::default()),
             artifact_filter: Some(Default::default()),
+            threads: 1,
         };
     }
     let o = unsafe { *opts };
@@ -2577,6 +2742,7 @@ fn build_peak_options(opts: *const CPeakOptions) -> FindPeaksOptions {
             },
             shape: peak_shape_from_code(o.shape),
         }),
+        threads: 1,
     }
 }
 
@@ -3319,7 +3485,7 @@ mod tests {
                     to: 10.0,
                 }),
             ),
-            ("closest_rt", ScanQuery::ClosestRt(5.0)),
+            ("closest_rt", ScanQuery::Rt(5.0)),
             (
                 "mz_range",
                 ScanQuery::MzRange(FromTo {
@@ -3327,7 +3493,7 @@ mod tests {
                     to: 1000.0,
                 }),
             ),
-            ("closest_mz", ScanQuery::ClosestMz(500.0)),
+            ("closest_mz", ScanQuery::Mz(500.0)),
         ]
     }
 
@@ -3535,5 +3701,315 @@ mod tests {
             unsafe { find_noise_level(signal.as_ptr(), 0, &mut width, &mut intensity) },
             ERR_INVALID_ARGS
         );
+    }
+
+    struct PlannedBytes {
+        bytes: Vec<u8>,
+        held: std::cell::RefCell<Vec<(u64, u64)>>,
+    }
+
+    impl PlannedBytes {
+        fn hold(&self, ranges: &[(u64, u64)]) {
+            let mut held = self.held.borrow_mut();
+            held.extend_from_slice(ranges);
+            held.sort();
+            let mut merged: Vec<(u64, u64)> = Vec::new();
+            for &(offset, length) in held.iter() {
+                match merged.last_mut() {
+                    Some(last) if offset <= last.0 + last.1 => {
+                        last.1 = last.1.max(offset + length - last.0);
+                    }
+                    _ => merged.push((offset, length)),
+                }
+            }
+            *held = merged;
+        }
+
+        fn holds(&self, offset: u64, length: u64) -> bool {
+            self.held
+                .borrow()
+                .iter()
+                .any(|&(start, size)| start <= offset && offset + length <= start + size)
+        }
+    }
+
+    unsafe extern "C" fn read_planned(
+        context: *mut c_void,
+        offset: u64,
+        length: u64,
+        dest: *mut u8,
+    ) -> i32 {
+        let planned = unsafe { &*(context as *const PlannedBytes) };
+        if !planned.holds(offset, length) {
+            return -1;
+        }
+        let start = offset as usize;
+        unsafe {
+            std::ptr::copy_nonoverlapping(planned.bytes.as_ptr().add(start), dest, length as usize)
+        };
+        0
+    }
+
+    fn take_ranges(out: *mut Buf) -> Vec<(u64, u64)> {
+        let packed = unsafe { std::slice::from_raw_parts((*out).ptr, (*out).len) }.to_vec();
+        drop_buf_out(out);
+        packed
+            .chunks_exact(16)
+            .map(|chunk| {
+                (
+                    u64::from_le_bytes(chunk[..8].try_into().unwrap()),
+                    u64::from_le_bytes(chunk[8..].try_into().unwrap()),
+                )
+            })
+            .collect()
+    }
+
+    fn take_bytes(out: *mut Buf) -> Vec<u8> {
+        let bytes = if unsafe { (*out).ptr.is_null() } {
+            Vec::new()
+        } else {
+            unsafe { std::slice::from_raw_parts((*out).ptr, (*out).len) }.to_vec()
+        };
+        drop_buf_out(out);
+        bytes
+    }
+
+    const PEAK_MZ: f64 = 500.0;
+    const PEAK_RT: f64 = 1.0;
+
+    fn peak_spectrum(index: usize) -> Spectrum {
+        let rt = index as f64 * 0.01;
+        let mz: Vec<f64> = (0..1800).map(|step| 100.0 + step as f64 * 0.5).collect();
+        let height = 100_000.0 * (-((rt - PEAK_RT) / 0.05).powi(2)).exp();
+        let intensity: Vec<f64> = mz
+            .iter()
+            .map(|value| {
+                if (value - PEAK_MZ).abs() < 1e-9 {
+                    10.0 + height
+                } else {
+                    10.0
+                }
+            })
+            .collect();
+        let mut spectrum = spectrum(index, rt);
+        spectrum.default_array_length = Some(mz.len());
+        spectrum.binary_data_array_list = Some(BinaryDataArrayList {
+            count: Some(2),
+            binary_data_arrays: vec![
+                binary_array("MS:1000514", mz),
+                binary_array("MS:1000515", intensity),
+            ],
+        });
+        spectrum
+    }
+
+    fn peak_ion() -> Vec<u8> {
+        let spectra: Vec<Spectrum> = (0..200).map(peak_spectrum).collect();
+        let mzml = MzML {
+            run: Run {
+                id: "peak".to_string(),
+                spectrum_list: Some(SpectrumList {
+                    count: Some(spectra.len()),
+                    spectra,
+                    ..Default::default()
+                }),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        let options = WriteOptions {
+            compression_level: 0,
+            force_f32: false,
+            block_size: 64 * 1024,
+            parallel: true,
+            section_storage: SectionStorage::Memory,
+            mz_window: DEFAULT_MZ_WINDOW,
+        };
+        let mut bytes = Vec::new();
+        write_mzml_to_ion(&mzml, options, &mut bytes).expect("encode the peak sample");
+        bytes
+    }
+
+    fn open_planned(planned: &PlannedBytes) -> *mut ParsedFile {
+        let header_length = planned.bytes.len().min(1024);
+        planned.hold(&[(0, header_length as u64)]);
+        let out = new_buf_out();
+        let code = unsafe { plan_open(planned.bytes.as_ptr(), header_length, out) };
+        assert_eq!(code, OK, "plan_open failed");
+        planned.hold(&take_ranges(out));
+
+        let mut handle: *mut ParsedFile = std::ptr::null_mut();
+        let code = unsafe {
+            parse_ion_source(
+                Some(read_planned),
+                planned as *const PlannedBytes as *mut c_void,
+                0,
+                &mut handle,
+            )
+        };
+        assert_eq!(code, OK, "parse_ion_source failed");
+        handle
+    }
+
+    fn planned_peak_ion() -> PlannedBytes {
+        PlannedBytes {
+            bytes: peak_ion(),
+            held: std::cell::RefCell::new(Vec::new()),
+        }
+    }
+
+    fn assert_same_as_local(
+        plan: impl Fn(*mut ParsedFile, *mut Buf) -> c_int,
+        call: impl Fn(*mut ParsedFile) -> (c_int, Vec<u8>),
+    ) {
+        let planned = planned_peak_ion();
+        let remote = open_planned(&planned);
+        let out = new_buf_out();
+        assert_eq!(plan(remote, out), OK);
+        planned.hold(&take_ranges(out));
+
+        let local = open_ion(peak_ion());
+        let (remote_code, remote_rows) = call(remote);
+        let (local_code, local_rows) = call(local);
+        assert_eq!((remote_code, local_code), (OK, OK));
+        assert_eq!(remote_rows, local_rows);
+        unsafe {
+            free_mzml(remote);
+            free_mzml(local);
+        }
+    }
+
+    fn assert_fails_without_plan(call: impl Fn(*mut ParsedFile) -> (c_int, Vec<u8>)) {
+        let planned = planned_peak_ion();
+        let remote = open_planned(&planned);
+        let local = open_ion(peak_ion());
+        assert_ne!(call(remote), call(local));
+        unsafe {
+            free_mzml(remote);
+            free_mzml(local);
+        }
+    }
+
+    fn peaks_from_eic(handle: *mut ParsedFile) -> (c_int, Vec<u8>) {
+        let (rts, mzs, ranges) = ([PEAK_RT], [PEAK_MZ], [0.2]);
+        let out = new_buf_out();
+        let code = unsafe {
+            get_peaks_from_eic(
+                handle,
+                rts.as_ptr(),
+                mzs.as_ptr(),
+                ranges.as_ptr(),
+                std::ptr::null(),
+                std::ptr::null(),
+                std::ptr::null(),
+                0,
+                1,
+                0.0,
+                2.0,
+                std::ptr::null(),
+                1,
+                out,
+            )
+        };
+        (code, take_bytes(out))
+    }
+
+    fn features(handle: *mut ParsedFile) -> (c_int, Vec<u8>) {
+        let out = new_buf_out();
+        let code = unsafe {
+            find_features(
+                handle,
+                0.0,
+                2.0,
+                f64::NAN,
+                f64::NAN,
+                495.0,
+                505.0,
+                f64::NAN,
+                std::ptr::null(),
+                1,
+                out,
+            )
+        };
+        (code, take_bytes(out))
+    }
+
+    fn feature(handle: *mut ParsedFile) -> (c_int, Vec<u8>) {
+        let (rts, mzs, windows) = ([PEAK_RT], [PEAK_MZ], [0.2]);
+        let out = new_buf_out();
+        let code = unsafe {
+            find_feature(
+                handle,
+                rts.as_ptr(),
+                mzs.as_ptr(),
+                windows.as_ptr(),
+                std::ptr::null(),
+                std::ptr::null(),
+                std::ptr::null(),
+                0,
+                1,
+                1,
+                10.0,
+                0.003,
+                20.0,
+                0.005,
+                std::ptr::null(),
+                out,
+            )
+        };
+        (code, take_bytes(out))
+    }
+
+    #[test]
+    fn get_peaks_from_eic_reads_only_planned_bytes() {
+        assert_fails_without_plan(peaks_from_eic);
+        assert_same_as_local(
+            |handle, out| unsafe {
+                plan_peaks_from_eic(handle, [PEAK_MZ].as_ptr(), 1, 0.0, 2.0, out)
+            },
+            peaks_from_eic,
+        );
+    }
+
+    #[test]
+    fn find_features_reads_only_planned_bytes() {
+        assert_fails_without_plan(features);
+        assert_same_as_local(
+            |handle, out| unsafe {
+                plan_find_features(
+                    handle,
+                    0.0,
+                    2.0,
+                    f64::NAN,
+                    f64::NAN,
+                    495.0,
+                    505.0,
+                    f64::NAN,
+                    out,
+                )
+            },
+            features,
+        );
+    }
+
+    #[test]
+    fn find_feature_reads_only_planned_bytes() {
+        assert_fails_without_plan(feature);
+        assert_same_as_local(
+            |handle, out| unsafe {
+                plan_find_feature(handle, [PEAK_RT].as_ptr(), [0.2].as_ptr(), 1, out)
+            },
+            feature,
+        );
+    }
+
+    #[test]
+    fn whole_file_calls_refuse_a_remote_file() {
+        let planned = planned_peak_ion();
+        let remote = open_planned(&planned);
+        let out = new_buf_out();
+        assert_eq!(unsafe { bin_to_mzml(remote, out) }, ERR_REMOTE_FILE);
+        drop_buf_out(out);
+        unsafe { free_mzml(remote) };
     }
 }

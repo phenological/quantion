@@ -1,7 +1,7 @@
 mod ffi;
 pub mod utilities;
 
-pub use utilities::structs::{DataXY, FromTo, Peak, Roi};
+pub use utilities::structs::{ChromTarget, DataXY, FromTo, Peak, Roi, Target};
 
 pub use ionic;
 
@@ -39,7 +39,7 @@ pub mod model {
 
 pub mod warp {
     pub use crate::utilities::warp_model::{
-        PredictedRt, Target, WarpError, WarpModel, load_warp,
+        PredictedRt, WarpError, WarpModel, load_warp,
     };
 }
 

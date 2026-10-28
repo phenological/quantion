@@ -96,11 +96,7 @@ fn get_point_weight(smoothing: SggOptions) -> f64 {
     sgg(&single_point, &equal_step, smoothing)[window]
 }
 
-pub fn get_boundaries(
-    data: &DataXY,
-    peak_x: f64,
-    options: Option<BoundariesOptions>,
-) -> Boundaries {
+pub fn get_boundaries(data: &DataXY, peak_x: f64, options: BoundariesOptions) -> Boundaries {
     let n = data.x.len();
     if n < 2 || n != data.y.len() {
         return Boundaries {
@@ -115,7 +111,6 @@ pub fn get_boundaries(
         };
     }
 
-    let options = options.unwrap_or_default();
     let smoothed = SmoothedSignal::new(data, &options);
     let apex_index = smoothed.find_top(closest_index(&data.x, peak_x));
 
@@ -220,7 +215,7 @@ mod tests {
         let y: Vec<f64> = x.iter().map(|&v| 0.05 + bell(v, 5.0, 1.0, 0.2)).collect();
         let data = DataXY { x, y };
 
-        let edges = get_boundaries(&data, 5.0, Some(BoundariesOptions::default()));
+        let edges = get_boundaries(&data, 5.0, BoundariesOptions::default());
         let from = edges.from.value.unwrap();
         let to = edges.to.value.unwrap();
 
@@ -247,7 +242,7 @@ mod tests {
             y: y[..cut].to_vec(),
         };
 
-        let to = get_boundaries(&data, 5.0, Some(BoundariesOptions::default()))
+        let to = get_boundaries(&data, 5.0, BoundariesOptions::default())
             .to
             .value
             .unwrap();
@@ -279,7 +274,7 @@ mod tests {
                 y: clean[..cut].to_vec(),
             },
             5.0,
-            Some(BoundariesOptions::default()),
+            BoundariesOptions::default(),
         )
         .to
         .value
@@ -290,7 +285,7 @@ mod tests {
                 y: noisy[..cut].to_vec(),
             },
             5.0,
-            Some(BoundariesOptions::default()),
+            BoundariesOptions::default(),
         )
         .to
         .value
@@ -315,7 +310,7 @@ mod tests {
                 y: full_y.clone(),
             },
             5.0,
-            Some(BoundariesOptions::default()),
+            BoundariesOptions::default(),
         )
         .from
         .value
@@ -327,7 +322,7 @@ mod tests {
         let cut_edges = get_boundaries(
             &DataXY { x: cut_x, y: cut_y },
             5.0,
-            Some(BoundariesOptions::default()),
+            BoundariesOptions::default(),
         );
         let cut_from = cut_edges.from.value.unwrap();
         let cut_to = cut_edges.to.value.unwrap();
@@ -349,7 +344,7 @@ mod tests {
         let data = DataXY { x, y };
         let apex = closest_index(&data.x, 0.5);
 
-        let edges = get_boundaries(&data, 0.5, Some(BoundariesOptions::default()));
+        let edges = get_boundaries(&data, 0.5, BoundariesOptions::default());
         let from = edges.from.index.unwrap();
         let to = edges.to.index.unwrap();
 
@@ -368,7 +363,7 @@ mod tests {
         let seed = x[apex - 2];
         let data = DataXY { x, y };
 
-        let edges = get_boundaries(&data, seed, Some(BoundariesOptions::default()));
+        let edges = get_boundaries(&data, seed, BoundariesOptions::default());
         let from = edges.from.value.unwrap();
         let to = edges.to.value.unwrap();
 
@@ -382,7 +377,7 @@ mod tests {
     fn short_input_does_not_panic() {
         let x = grid(0.0, 1.0, 4);
         let y = vec![0.0, 1.0, 0.5, 0.2];
-        let edges = get_boundaries(&DataXY { x, y }, 0.3, Some(BoundariesOptions::default()));
+        let edges = get_boundaries(&DataXY { x, y }, 0.3, BoundariesOptions::default());
         assert!(edges.from.index.is_some() && edges.to.index.is_some());
     }
 }

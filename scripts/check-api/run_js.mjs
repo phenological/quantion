@@ -15,7 +15,7 @@ const GRID_START = 89.0;
 const GRID_END = 91.0;
 const GRID_STEP = 0.005;
 const ROI_RANGE = 0.05;
-const CORES = 1;
+const THREADS = 1;
 
 const FEATURE_MIN_INTENSITY = 500.0;
 const FEATURE_MIN_PEAK_WIDTH_POINTS = 5;
@@ -108,11 +108,7 @@ function peakLines(prefix, peak, out) {
   out.push(`${prefix}.n_points = ${Number(peak.nPoints ?? peak.n_points)}`);
 }
 
-function chromatogramIndex(channel) {
-  return CHANNELS.filter((other) => other.mass < channel.mass).length;
-}
-
-async function reportChannel(file, channel, out) {
+async function reportChannel(file, transitions, channel, out) {
   const name = channel.name;
   const eic = await quantion.calculateEic(
     file,
@@ -147,29 +143,27 @@ async function reportChannel(file, channel, out) {
     mz: channel.mass,
     range: ROI_RANGE,
   }));
-  const rows = quantion.getPeaksFromEic(
+  const rows = await quantion.getPeaksFromEic(
     file,
     targets,
     { from: FROM_RT, to: TO_RT },
-    peakOptions(channel),
-    CORES,
+    { ...peakOptions(channel), threads: THREADS },
   );
   rows.forEach((row) =>
     sharedPeakLines(`${name}.get_peaks_from_eic.${row.id}`, row, out),
   );
 
-  const index = chromatogramIndex(channel);
-  const items = channel.targets.map(([id, rt]) => ({
+  const chromTargets = channel.targets.map(([id, rt]) => ({
     id,
-    index,
+    precursor: channel.mass,
+    product: channel.mass,
     rt,
     range: ROI_RANGE,
   }));
   const chromRows = quantion.getPeaksFromChrom(
-    file,
-    items,
-    chromPeakOptions(channel),
-    CORES,
+    transitions,
+    chromTargets,
+    { ...chromPeakOptions(channel), threads: THREADS },
   );
   chromRows.forEach((row, position) => {
     const prefix = `${name}.get_peaks_from_chrom.${channel.targets[position][0]}`;
@@ -202,6 +196,9 @@ async function main() {
   const fixture = path.join(directory, "api.ion");
 
   const file = await quantion.parseIon(readFileSync(fixture));
+  const transitions = await quantion.parseIon(
+    readFileSync(path.join(path.dirname(directory), "srm.ion")),
+  );
   const out = [];
   out.push(`fnv1a.self_check = ${digest(SELF_CHECK_VALUES)}`);
 
@@ -211,23 +208,23 @@ async function main() {
   out.push(`parse_ion.scans = ${scans.length}`);
 
   for (const channel of CHANNELS) {
-    await reportChannel(file, channel, out);
+    await reportChannel(file, transitions, channel, out);
   }
 
   const grid = { start: GRID_START, end: GRID_END, stepSize: GRID_STEP };
   const eic = { ppmTolerance: EIC_PPM, mzTolerance: EIC_MZ };
 
-  const found = quantion.findFeatures(
+  const found = await quantion.findFeatures(
     file,
     { from: FROM_RT, to: TO_RT },
-    { eic, grid, findPeak: featurePeakOptions(), cores: CORES },
+    { eic, grid, findPeak: featurePeakOptions(), threads: THREADS },
   );
   featureLines("find_features", found, out, true);
 
   const consensus = quantion.getFeatures(
     directory,
     { from: FROM_RT, to: TO_RT },
-    { eic, grid, findPeak: featurePeakOptions(), cores: CORES },
+    { eic, grid, findPeak: featurePeakOptions(), threads: THREADS },
   );
   featureLines("get_features", consensus, out, false);
 

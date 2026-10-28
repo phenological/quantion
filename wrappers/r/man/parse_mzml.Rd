@@ -16,7 +16,7 @@ parse_mzml(
 A file handle for use in other \code{quantion} functions.
 }
 \examples{
-\donttest{
+\dontrun{
 buf <- readBin("/path/to/file.mzML", "raw", file.info("/path/to/file.mzML")$size)
 handle <- parse_mzml(buf)
 }

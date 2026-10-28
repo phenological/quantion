@@ -73,7 +73,7 @@ eic_df <- data.frame(x = eic$x, y = eic$y)
 Get scans from a sample by retention time or m/z query.
 
 ```r
-scans <- quantion::get_scans(sample, rt_from = 2.5, rt_to = 4.0, level = 1L)
+scans <- quantion::get_scans(sample, rt = c(2.5, 4.0), level = 1L)
 ```
 
 ## Process XY data
@@ -147,15 +147,18 @@ quantion::dispose(model)
 
 ### From chromatograms
 
-Find peaks from stored chromatograms in a sample.
+Find peaks in the SRM chromatograms stored in a sample. Each target picks the
+chromatogram whose precursor (Q1) and product (Q3) m/z are both within 0.005.
 
 ```r
-transitions <- data.frame(
-  idx    = c(0L, 5L, 18L),
-  rt     = c(1.20, 2.85, 3.50),
-  window = c(0.40, 0.50, 0.60)
+targets <- data.frame(
+  id        = c("compound_1", "compound_2"),
+  precursor = c(500.3, 520.4),
+  product   = c(184.1, 184.1),
+  rt        = c(3.20, 3.65),
+  range     = c(0.4, 0.4)
 )
-peaks <- quantion::get_peaks_from_chrom(sample, transitions, cores = 2L)
+peaks <- quantion::get_peaks_from_chrom(sample, targets, threads = 2L)
 ```
 
 ### From EICs
@@ -167,9 +170,9 @@ targets <- data.frame(
   id     = c("1-methylhistidine", "Leucine", "Glutamine", "Alanine", "Arginine", "Asparagine"),
   rt     = c(2.61, 4.15, 1.91, 2.39, 2.59, 1.75),
   mz     = c(340.1404, 302.1499, 317.1244, 260.1030, 345.1670, 303.1088),
-  ranges = c(0.2, 0.2, 0.2, 0.2, 0.2, 0.2)
+  range  = c(0.2, 0.2, 0.2, 0.2, 0.2, 0.2)
 )
-peaks <- quantion::get_peaks_from_eic(sample, targets, auto_noise = TRUE, auto_baseline = TRUE, cores = 2L)
+peaks <- quantion::get_peaks_from_eic(sample, targets, auto_noise = TRUE, auto_baseline = TRUE, threads = 2L)
 ```
 
 ## Untargeted
@@ -179,13 +182,15 @@ peaks <- quantion::get_peaks_from_eic(sample, targets, auto_noise = TRUE, auto_b
 Find features by m/z and retention time from a sample.
 
 ```r
-targets <- data.frame(
-  id     = c("compound1", "compound2"),
+features <- quantion::find_feature(
+  sample,
   rt     = c(2.61, 4.15),
   mz     = c(340.1404, 302.1499),
-  ranges = c(0.2, 0.2)
+  window = c(0.2, 0.2),
+  id     = c("compound1", "compound2"),
+  auto_noise = TRUE,
+  auto_baseline = TRUE
 )
-features <- quantion::find_feature(sample, targets, auto_noise = TRUE, auto_baseline = TRUE)
 ```
 
 ### From single sample
@@ -196,7 +201,7 @@ Find all features in a sample.
 features <- quantion::find_features(
   sample,
   from = 0, to = 10,
-  cores = 5L,
+  threads = 5L,
   auto_noise = TRUE,
   auto_baseline = TRUE,
   min_peak_width_points = 10L,
@@ -213,7 +218,7 @@ features <- quantion::get_features(
   "/path/to/sample/directory",
   from = 0,
   to = 10,
-  cores = 5L,
+  threads = 5L,
   auto_noise = TRUE,
   auto_baseline = TRUE
 )

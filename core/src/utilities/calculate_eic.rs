@@ -498,9 +498,9 @@ pub fn get_eic_for_mz(
 #[derive(Debug, Clone, Copy)]
 pub enum ScanQuery {
     RtRange(FromTo),
-    ClosestRt(f64),
+    Rt(f64),
     MzRange(FromTo),
-    ClosestMz(f64),
+    Mz(f64),
 }
 
 pub struct WantedScans {
@@ -529,9 +529,9 @@ pub fn find_wanted_scans(
 ) -> WantedScans {
     match query {
         ScanQuery::RtRange(range) => find_by_rt_range(source, range, time_unit, ms_level),
-        ScanQuery::ClosestRt(rt) => find_closest_by_rt(source, time_unit.to_minutes(rt), ms_level),
+        ScanQuery::Rt(rt) => find_closest_by_rt(source, time_unit.to_minutes(rt), ms_level),
         ScanQuery::MzRange(range) => find_by_mz_range(source, range, ms_level),
-        ScanQuery::ClosestMz(mz) => find_closest_by_mz(source, mz, ms_level),
+        ScanQuery::Mz(mz) => find_closest_by_mz(source, mz, ms_level),
     }
 }
 
@@ -963,7 +963,7 @@ mod tests {
             make_scan(3.0, 1, f64::NAN, vec![300.0], vec![30.0]),
             make_scan(5.0, 1, f64::NAN, vec![500.0], vec![50.0]),
         ]);
-        let (rts, scans) = get_scans(&mut source, ScanQuery::ClosestRt(2.8), TimeUnit::Minutes, 1);
+        let (rts, scans) = get_scans(&mut source, ScanQuery::Rt(2.8), TimeUnit::Minutes, 1);
         assert_eq!(rts, vec![3.0]);
         assert_eq!(scans.len(), 1);
     }
@@ -974,7 +974,7 @@ mod tests {
             make_scan(1.0, 1, f64::NAN, vec![], vec![]),
             make_scan(2.0, 1, f64::NAN, vec![200.0], vec![20.0]),
         ]);
-        let (rts, scans) = get_scans(&mut source, ScanQuery::ClosestRt(1.0), TimeUnit::Minutes, 1);
+        let (rts, scans) = get_scans(&mut source, ScanQuery::Rt(1.0), TimeUnit::Minutes, 1);
         assert_eq!(rts, vec![2.0]);
         assert_eq!(scans.len(), 1);
     }
@@ -982,7 +982,7 @@ mod tests {
     #[test]
     fn get_closest_rt_empty_when_source_empty() {
         let mut source = MockSource::new(vec![]);
-        let (rts, scans) = get_scans(&mut source, ScanQuery::ClosestRt(1.0), TimeUnit::Minutes, 1);
+        let (rts, scans) = get_scans(&mut source, ScanQuery::Rt(1.0), TimeUnit::Minutes, 1);
         assert!(rts.is_empty());
         assert!(scans.is_empty());
     }
@@ -1034,12 +1034,7 @@ mod tests {
             make_scan(2.0, 2, 600.0, vec![600.0], vec![200.0]),
             make_scan(3.0, 2, 700.0, vec![700.0], vec![300.0]),
         ]);
-        let (rts, scans) = get_scans(
-            &mut source,
-            ScanQuery::ClosestMz(610.0),
-            TimeUnit::Minutes,
-            2,
-        );
+        let (rts, scans) = get_scans(&mut source, ScanQuery::Mz(610.0), TimeUnit::Minutes, 2);
         assert_eq!(rts, vec![2.0]);
         assert_eq!(scans[0].metadata.selected_ion_mz, 600.0);
     }
@@ -1050,12 +1045,7 @@ mod tests {
             make_scan(1.0, 2, 500.0, vec![], vec![]),
             make_scan(2.0, 2, 510.0, vec![510.0], vec![200.0]),
         ]);
-        let (rts, scans) = get_scans(
-            &mut source,
-            ScanQuery::ClosestMz(500.0),
-            TimeUnit::Minutes,
-            2,
-        );
+        let (rts, scans) = get_scans(&mut source, ScanQuery::Mz(500.0), TimeUnit::Minutes, 2);
         assert_eq!(rts, vec![2.0]);
         assert_eq!(scans.len(), 1);
     }
@@ -1064,12 +1054,7 @@ mod tests {
     fn get_closest_mz_empty_when_no_finite_selected_ion_mz() {
         let mut source =
             MockSource::new(vec![make_scan(1.0, 2, f64::NAN, vec![100.0], vec![10.0])]);
-        let (rts, scans) = get_scans(
-            &mut source,
-            ScanQuery::ClosestMz(500.0),
-            TimeUnit::Minutes,
-            2,
-        );
+        let (rts, scans) = get_scans(&mut source, ScanQuery::Mz(500.0), TimeUnit::Minutes, 2);
         assert!(rts.is_empty());
         assert!(scans.is_empty());
     }

@@ -58,7 +58,7 @@ fn find_3_peaks_aminobutyric_acid_1_6() {
 
     let peaks = find_peaks(
         &test.data,
-        Some(FindPeaksOptions {
+        FindPeaksOptions {
             filter: Some(PeakFilter {
                 auto_noise: Some(true),
                 auto_baseline: Some(true),
@@ -69,7 +69,7 @@ fn find_3_peaks_aminobutyric_acid_1_6() {
             }),
             artifact_filter: get_artifact_options(),
             ..Default::default()
-        }),
+        },
     );
 
     dump_peaks(&peaks);
@@ -87,7 +87,7 @@ fn find_3_peaks_alanine_acid_1_6() {
     let test = find_test("Alanine");
     let peaks = find_peaks(
         &test.data,
-        Some(FindPeaksOptions {
+        FindPeaksOptions {
             filter: Some(PeakFilter {
                 auto_noise: Some(true),
                 auto_baseline: Some(true),
@@ -98,7 +98,7 @@ fn find_3_peaks_alanine_acid_1_6() {
             }),
             artifact_filter: get_artifact_options(),
             ..Default::default()
-        }),
+        },
     );
 
     dump_peaks(&peaks);
@@ -118,7 +118,7 @@ fn find_1_peak_glutaime_with_tail_6() {
     let test = find_test("Glutamine");
     let peaks = find_peaks(
         &test.data,
-        Some(FindPeaksOptions {
+        FindPeaksOptions {
             filter: Some(PeakFilter {
                 auto_baseline: Some(true),
                 auto_noise: Some(true),
@@ -129,7 +129,7 @@ fn find_1_peak_glutaime_with_tail_6() {
             }),
             artifact_filter: get_artifact_options(),
             ..Default::default()
-        }),
+        },
     );
 
     dump_peaks(&peaks);
@@ -145,7 +145,7 @@ fn find_2_peaks_leucine_6() {
     let test = find_test("Leucine");
     let peaks = find_peaks(
         &test.data,
-        Some(FindPeaksOptions {
+        FindPeaksOptions {
             filter: Some(PeakFilter {
                 auto_noise: Some(true),
                 auto_baseline: Some(true),
@@ -156,7 +156,7 @@ fn find_2_peaks_leucine_6() {
             }),
             artifact_filter: get_artifact_options(),
             ..Default::default()
-        }),
+        },
     );
 
     dump_peaks(&peaks);
@@ -174,7 +174,7 @@ fn find_2_peaks_aspartic_acid_6() {
     let test = find_test("Aspartic acid");
     let peaks = find_peaks(
         &test.data,
-        Some(FindPeaksOptions {
+        FindPeaksOptions {
             filter: Some(PeakFilter {
                 auto_noise: Some(true),
                 auto_baseline: Some(true),
@@ -185,7 +185,7 @@ fn find_2_peaks_aspartic_acid_6() {
             }),
             artifact_filter: get_artifact_options(),
             ..Default::default()
-        }),
+        },
     );
 
     dump_peaks(&peaks);
@@ -203,7 +203,7 @@ fn find_1_peak_proline_is_6() {
     let test = find_test("Proline IS");
     let peaks = find_peaks(
         &test.data,
-        Some(FindPeaksOptions {
+        FindPeaksOptions {
             filter: Some(PeakFilter {
                 auto_noise: Some(true),
                 auto_baseline: Some(true),
@@ -214,7 +214,7 @@ fn find_1_peak_proline_is_6() {
             }),
             artifact_filter: get_artifact_options(),
             ..Default::default()
-        }),
+        },
     );
 
     dump_peaks(&peaks);
@@ -228,7 +228,7 @@ fn find_1_peak_glutamic_acid_6() {
     let test = find_test("Glutamic acid");
     let peaks = find_peaks(
         &test.data,
-        Some(FindPeaksOptions {
+        FindPeaksOptions {
             filter: Some(PeakFilter {
                 auto_noise: Some(true),
                 auto_baseline: Some(true),
@@ -239,7 +239,7 @@ fn find_1_peak_glutamic_acid_6() {
             }),
             artifact_filter: get_artifact_options(),
             ..Default::default()
-        }),
+        },
     );
 
     dump_peaks(&peaks);
@@ -253,7 +253,7 @@ fn find_1_peak_valine_is_6() {
     let test = find_test("Valine IS");
     let peaks = find_peaks(
         &test.data,
-        Some(FindPeaksOptions {
+        FindPeaksOptions {
             filter: Some(PeakFilter {
                 auto_noise: Some(true),
                 auto_baseline: Some(true),
@@ -264,7 +264,7 @@ fn find_1_peak_valine_is_6() {
             }),
             artifact_filter: get_artifact_options(),
             ..Default::default()
-        }),
+        },
     );
 
     dump_peaks(&peaks);
@@ -278,7 +278,7 @@ fn find_4_peaks_sarcosine_6() {
     let test = find_test("Sarcosine");
     let peaks = find_peaks(
         &test.data,
-        Some(FindPeaksOptions {
+        FindPeaksOptions {
             filter: Some(PeakFilter {
                 auto_noise: Some(true),
                 auto_baseline: Some(true),
@@ -289,7 +289,7 @@ fn find_4_peaks_sarcosine_6() {
             }),
             artifact_filter: get_artifact_options(),
             ..Default::default()
-        }),
+        },
     );
 
     dump_peaks(&peaks);
@@ -308,7 +308,7 @@ fn find_4_peaks_ce_18_1_6() {
     let test = find_test("CE(18:1)");
     let peaks = find_peaks(
         &test.data,
-        Some(FindPeaksOptions {
+        FindPeaksOptions {
             filter: Some(PeakFilter {
                 auto_noise: Some(true),
                 auto_baseline: Some(true),
@@ -319,7 +319,7 @@ fn find_4_peaks_ce_18_1_6() {
             }),
             artifact_filter: get_artifact_options(),
             ..Default::default()
-        }),
+        },
     );
 
     dump_peaks(&peaks);
@@ -336,7 +336,7 @@ fn find_4_peaks_ce_18_11_6() {
     let test = find_test("CE(18:11)");
     let peaks = find_peaks(
         &test.data,
-        Some(FindPeaksOptions {
+        FindPeaksOptions {
             filter: Some(PeakFilter {
                 auto_noise: Some(false),
                 auto_baseline: Some(true),
@@ -347,7 +347,7 @@ fn find_4_peaks_ce_18_11_6() {
             }),
             artifact_filter: get_artifact_options(),
             ..Default::default()
-        }),
+        },
     );
 
     dump_peaks(&peaks);
@@ -362,7 +362,7 @@ fn find_4_peaks_ce_18_12_6() {
     let test = find_test("CE(18:12)");
     let peaks = find_peaks(
         &test.data,
-        Some(FindPeaksOptions {
+        FindPeaksOptions {
             filter: Some(PeakFilter {
                 auto_noise: Some(true),
                 auto_baseline: Some(true),
@@ -373,7 +373,7 @@ fn find_4_peaks_ce_18_12_6() {
             }),
             artifact_filter: get_artifact_options(),
             ..Default::default()
-        }),
+        },
     );
 
     dump_peaks(&peaks);
@@ -389,7 +389,7 @@ fn find_6_peaks_285_114_6() {
     let test = find_test("COVp23_COV02260_285.114");
     let peaks = find_peaks(
         &test.data,
-        Some(FindPeaksOptions {
+        FindPeaksOptions {
             filter: Some(PeakFilter {
                 auto_noise: Some(true),
                 auto_baseline: Some(true),
@@ -400,7 +400,7 @@ fn find_6_peaks_285_114_6() {
             }),
             artifact_filter: get_artifact_options(),
             ..Default::default()
-        }),
+        },
     );
 
     dump_peaks(&peaks);
@@ -433,7 +433,7 @@ fn find_6_peaks_287_130_6() {
     let test = find_test("COVp23_COV02260_287.130");
     let peaks = find_peaks(
         &test.data,
-        Some(FindPeaksOptions {
+        FindPeaksOptions {
             filter: Some(PeakFilter {
                 auto_noise: Some(true),
                 auto_baseline: Some(true),
@@ -444,7 +444,7 @@ fn find_6_peaks_287_130_6() {
             }),
             artifact_filter: get_artifact_options(),
             ..Default::default()
-        }),
+        },
     );
 
     dump_peaks(&peaks);
@@ -468,7 +468,7 @@ fn find_6_peaks_345_167_6() {
     let test = find_test("COVp23_COV02260_345.167");
     let peaks = find_peaks(
         &test.data,
-        Some(FindPeaksOptions {
+        FindPeaksOptions {
             filter: Some(PeakFilter {
                 auto_noise: Some(true),
                 auto_baseline: Some(true),
@@ -479,7 +479,7 @@ fn find_6_peaks_345_167_6() {
             }),
             artifact_filter: get_artifact_options(),
             ..Default::default()
-        }),
+        },
     );
 
     dump_peaks(&peaks);
@@ -497,7 +497,7 @@ fn find_6_peaks_344_226_6() {
     let test = find_test("COVp23_COV02260_344.226");
     let peaks = find_peaks(
         &test.data,
-        Some(FindPeaksOptions {
+        FindPeaksOptions {
             filter: Some(PeakFilter {
                 auto_noise: Some(true),
                 auto_baseline: Some(true),
@@ -508,7 +508,7 @@ fn find_6_peaks_344_226_6() {
             }),
             artifact_filter: get_artifact_options(),
             ..Default::default()
-        }),
+        },
     );
 
     dump_peaks(&peaks);
@@ -525,7 +525,7 @@ fn find_6_peaks_303_110_6() {
     let test = find_test("COVp23_COV02260_303.110");
     let peaks = find_peaks(
         &test.data,
-        Some(FindPeaksOptions {
+        FindPeaksOptions {
             filter: Some(PeakFilter {
                 auto_noise: Some(true),
                 auto_baseline: Some(true),
@@ -536,7 +536,7 @@ fn find_6_peaks_303_110_6() {
             }),
             artifact_filter: get_artifact_options(),
             ..Default::default()
-        }),
+        },
     );
 
     dump_peaks(&peaks);
@@ -554,7 +554,7 @@ fn find_6_peaks_188_082_6() {
     let test = find_test("COVp23_COV02260_188.082");
     let peaks = find_peaks(
         &test.data,
-        Some(FindPeaksOptions {
+        FindPeaksOptions {
             filter: Some(PeakFilter {
                 auto_noise: Some(true),
                 auto_baseline: Some(true),
@@ -565,7 +565,7 @@ fn find_6_peaks_188_082_6() {
             }),
             artifact_filter: get_artifact_options(),
             ..Default::default()
-        }),
+        },
     );
 
     dump_peaks(&peaks);
@@ -580,7 +580,7 @@ fn find_6_peaks_379_239_6() {
     let test = find_test("COVp23_COV02260_379.239");
     let peaks = find_peaks(
         &test.data,
-        Some(FindPeaksOptions {
+        FindPeaksOptions {
             filter: Some(PeakFilter {
                 auto_noise: Some(true),
                 auto_baseline: Some(true),
@@ -591,7 +591,7 @@ fn find_6_peaks_379_239_6() {
             }),
             artifact_filter: get_artifact_options(),
             ..Default::default()
-        }),
+        },
     );
 
     dump_peaks(&peaks);
@@ -606,7 +606,7 @@ fn find_3_peaks_260_103_6() {
     let test = find_test("COVp23_COV02260_260.103");
     let peaks = find_peaks(
         &test.data,
-        Some(FindPeaksOptions {
+        FindPeaksOptions {
             filter: Some(PeakFilter {
                 auto_noise: Some(true),
                 auto_baseline: Some(true),
@@ -617,7 +617,7 @@ fn find_3_peaks_260_103_6() {
             }),
             artifact_filter: get_artifact_options(),
             ..Default::default()
-        }),
+        },
     );
 
     dump_peaks(&peaks);
@@ -636,7 +636,7 @@ fn find_1_peak_324_135_6() {
     let test = find_test("COVp26_COV02458_324.135");
     let peaks = find_peaks(
         &test.data,
-        Some(FindPeaksOptions {
+        FindPeaksOptions {
             filter: Some(PeakFilter {
                 auto_baseline: Some(false),
                 auto_noise: Some(true),
@@ -647,7 +647,7 @@ fn find_1_peak_324_135_6() {
             }),
             artifact_filter: get_artifact_options(),
             ..Default::default()
-        }),
+        },
     );
 
     dump_peaks(&peaks);
@@ -667,7 +667,7 @@ fn find_covp23_cov02260_peaks_6() {
     let test = find_test("COVp23_COV02260_peaks");
     let peaks = find_peaks(
         &test.data,
-        Some(FindPeaksOptions {
+        FindPeaksOptions {
             filter: Some(PeakFilter {
                 auto_baseline: Some(true),
                 auto_noise: Some(true),
@@ -679,7 +679,7 @@ fn find_covp23_cov02260_peaks_6() {
             }),
             artifact_filter: get_artifact_options(),
             ..Default::default()
-        }),
+        },
     );
 
     dump_peaks(&peaks);
@@ -756,7 +756,7 @@ fn find_rocit20_plate_3_ltr_19_6() {
     let test = find_test("ROCIT20-PLATE_3-LTR_19");
     let peaks = find_peaks(
         &test.data,
-        Some(FindPeaksOptions {
+        FindPeaksOptions {
             filter: Some(PeakFilter {
                 auto_baseline: Some(true),
                 auto_noise: Some(false),
@@ -771,7 +771,7 @@ fn find_rocit20_plate_3_ltr_19_6() {
             }),
             artifact_filter: get_artifact_options(),
             ..Default::default()
-        }),
+        },
     );
 
     dump_peaks(&peaks);
@@ -787,7 +787,7 @@ fn find_rocit20_plate_3_ltr_19_898_8_577_5_6() {
     let test = find_test("ROCIT20-PLATE_3-LTR_19_Q1=898.8 Q3=577.5");
     let peaks = find_peaks(
         &test.data,
-        Some(FindPeaksOptions {
+        FindPeaksOptions {
             filter: Some(PeakFilter {
                 auto_baseline: Some(true),
                 auto_noise: Some(false),
@@ -802,7 +802,7 @@ fn find_rocit20_plate_3_ltr_19_898_8_577_5_6() {
             }),
             artifact_filter: get_artifact_options(),
             ..Default::default()
-        }),
+        },
     );
 
     dump_peaks(&peaks);
@@ -818,7 +818,7 @@ fn find_rocit20_plate_3_rocit10263_692_6_369_4_6() {
     let test = find_test("PLATE_3-ROCIT10263_Q1=692.6 Q3=369.4");
     let peaks = find_peaks(
         &test.data,
-        Some(FindPeaksOptions {
+        FindPeaksOptions {
             filter: Some(PeakFilter {
                 auto_baseline: Some(true),
                 auto_noise: Some(false),
@@ -833,7 +833,7 @@ fn find_rocit20_plate_3_rocit10263_692_6_369_4_6() {
             }),
             artifact_filter: get_artifact_options(),
             ..Default::default()
-        }),
+        },
     );
 
     dump_peaks(&peaks);
@@ -850,7 +850,7 @@ fn find_rocit20_plate_3_rocit10059_952_8_679_5_6() {
     let test = find_test("PLATE_3-ROCIT10059_Q1=952.8 Q3=679.5");
     let peaks = find_peaks(
         &test.data,
-        Some(FindPeaksOptions {
+        FindPeaksOptions {
             filter: Some(PeakFilter {
                 auto_baseline: Some(true),
                 auto_noise: Some(false),
@@ -865,7 +865,7 @@ fn find_rocit20_plate_3_rocit10059_952_8_679_5_6() {
             }),
             artifact_filter: get_artifact_options(),
             ..Default::default()
-        }),
+        },
     );
 
     dump_peaks(&peaks);
@@ -881,7 +881,7 @@ fn find_rocit20_plate_3_rocit10192_886_8_565_5_6() {
     let test = find_test("PLATE_3-ROCIT10192_Q1=886.8 Q3=565.5");
     let peaks = find_peaks(
         &test.data,
-        Some(FindPeaksOptions {
+        FindPeaksOptions {
             filter: Some(PeakFilter {
                 auto_baseline: Some(true),
                 auto_noise: Some(false),
@@ -896,7 +896,7 @@ fn find_rocit20_plate_3_rocit10192_886_8_565_5_6() {
             }),
             artifact_filter: get_artifact_options(),
             ..Default::default()
-        }),
+        },
     );
 
     dump_peaks(&peaks);
@@ -912,7 +912,7 @@ fn find_rocit20_plate_3_ltr_19_902_8_565_5_6() {
     let test = find_test("PLATE_3-ROCIT10192_Q1=886.8 Q3=565.5");
     let peaks = find_peaks(
         &test.data,
-        Some(FindPeaksOptions {
+        FindPeaksOptions {
             filter: Some(PeakFilter {
                 auto_baseline: Some(true),
                 auto_noise: Some(false),
@@ -927,7 +927,7 @@ fn find_rocit20_plate_3_ltr_19_902_8_565_5_6() {
             }),
             artifact_filter: get_artifact_options(),
             ..Default::default()
-        }),
+        },
     );
 
     dump_peaks(&peaks);
@@ -943,7 +943,7 @@ fn find_rocit20_plate_3_ltr_19_902_8_603_5_6() {
     let test = find_test("PLATE_3-LTR_19_Q1=902.8 Q3=603.5");
     let peaks = find_peaks(
         &test.data,
-        Some(FindPeaksOptions {
+        FindPeaksOptions {
             filter: Some(PeakFilter {
                 auto_baseline: Some(true),
                 auto_noise: Some(false),
@@ -958,7 +958,7 @@ fn find_rocit20_plate_3_ltr_19_902_8_603_5_6() {
             }),
             artifact_filter: get_artifact_options(),
             ..Default::default()
-        }),
+        },
     );
 
     dump_peaks(&peaks);
@@ -977,7 +977,7 @@ fn find_rocit20_plate_3_10213_924_8_627_5_6() {
     let test = find_test("PLATE_3-rocit10213_Q1=924.8 Q3=627.5");
     let peaks = find_peaks(
         &test.data,
-        Some(FindPeaksOptions {
+        FindPeaksOptions {
             filter: Some(PeakFilter {
                 auto_baseline: Some(false),
                 auto_noise: Some(false),
@@ -992,7 +992,7 @@ fn find_rocit20_plate_3_10213_924_8_627_5_6() {
             }),
             artifact_filter: get_artifact_options(),
             ..Default::default()
-        }),
+        },
     );
 
     dump_peaks(&peaks);
@@ -1008,7 +1008,7 @@ fn find_rocit20_plate_4_ltr_19_894_8_597_5_6() {
     let test = find_test("PLATE_4-ltr_19_Q1=894.8 Q3=597.5");
     let peaks = find_peaks(
         &test.data,
-        Some(FindPeaksOptions {
+        FindPeaksOptions {
             filter: Some(PeakFilter {
                 auto_baseline: Some(true),
                 auto_noise: Some(false),
@@ -1023,7 +1023,7 @@ fn find_rocit20_plate_4_ltr_19_894_8_597_5_6() {
             }),
             artifact_filter: get_artifact_options(),
             ..Default::default()
-        }),
+        },
     );
 
     dump_peaks(&peaks);
@@ -1042,7 +1042,7 @@ fn find_mauritius_cov2989_876_88_577_5_6() {
     let test = find_test("COVp298-COV19727_Q1=876.88 Q3=577.5");
     let peaks = find_peaks(
         &test.data,
-        Some(FindPeaksOptions {
+        FindPeaksOptions {
             filter: Some(PeakFilter {
                 auto_baseline: Some(true),
                 auto_noise: Some(false),
@@ -1057,7 +1057,7 @@ fn find_mauritius_cov2989_876_88_577_5_6() {
             }),
             artifact_filter: get_artifact_options(),
             ..Default::default()
-        }),
+        },
     );
 
     dump_peaks(&peaks);
@@ -1077,7 +1077,7 @@ fn find_mauritius_cov2989_815_7_184_1_6() {
     let test = find_test("COVp298-COV19727_Q1=815.7 Q3=184.1");
     let peaks = find_peaks(
         &test.data,
-        Some(FindPeaksOptions {
+        FindPeaksOptions {
             filter: Some(PeakFilter {
                 auto_baseline: Some(true),
                 auto_noise: Some(false),
@@ -1092,7 +1092,7 @@ fn find_mauritius_cov2989_815_7_184_1_6() {
             }),
             artifact_filter: get_artifact_options(),
             ..Default::default()
-        }),
+        },
     );
 
     dump_peaks(&peaks);
@@ -1112,7 +1112,7 @@ fn find_1_peaks_covp26_cov02499_324_1353_6() {
     let test = find_test("COVp26_COV02499_324.1353");
     let peaks = find_peaks(
         &test.data,
-        Some(FindPeaksOptions {
+        FindPeaksOptions {
             filter: Some(PeakFilter {
                 auto_noise: Some(true),
                 auto_baseline: Some(true),
@@ -1123,7 +1123,7 @@ fn find_1_peaks_covp26_cov02499_324_1353_6() {
             }),
             artifact_filter: get_artifact_options(),
             ..Default::default()
-        }),
+        },
     );
 
     dump_peaks(&peaks);
@@ -1142,7 +1142,7 @@ fn find_2_peaks_covp20_cov02037_302_1499_6() {
     let test = find_test("COVp20_COV02037_302.1499");
     let peaks = find_peaks(
         &test.data,
-        Some(FindPeaksOptions {
+        FindPeaksOptions {
             filter: Some(PeakFilter {
                 auto_noise: Some(true),
                 auto_baseline: Some(true),
@@ -1153,7 +1153,7 @@ fn find_2_peaks_covp20_cov02037_302_1499_6() {
             }),
             artifact_filter: get_artifact_options(),
             ..Default::default()
-        }),
+        },
     );
 
     dump_peaks(&peaks);
@@ -1170,7 +1170,7 @@ fn find_1_peaks_covp24_cov02302_326_124_6() {
     let test = find_test("COVp24_COV02302_326.124");
     let peaks = find_peaks(
         &test.data,
-        Some(FindPeaksOptions {
+        FindPeaksOptions {
             filter: Some(PeakFilter {
                 auto_noise: Some(true),
                 auto_baseline: Some(true),
@@ -1181,7 +1181,7 @@ fn find_1_peaks_covp24_cov02302_326_124_6() {
             }),
             artifact_filter: get_artifact_options(),
             ..Default::default()
-        }),
+        },
     );
 
     dump_peaks(&peaks);
@@ -1196,7 +1196,7 @@ fn find_1_peaks_covp20_cov02022_274_1186_6() {
     let test = find_test("COVp20_COV02022_274.1186");
     let peaks = find_peaks(
         &test.data,
-        Some(FindPeaksOptions {
+        FindPeaksOptions {
             filter: Some(PeakFilter {
                 auto_noise: Some(true),
                 auto_baseline: Some(true),
@@ -1207,7 +1207,7 @@ fn find_1_peaks_covp20_cov02022_274_1186_6() {
             }),
             artifact_filter: get_artifact_options(),
             ..Default::default()
-        }),
+        },
     );
 
     dump_peaks(&peaks);
@@ -1224,7 +1224,7 @@ fn find_1_peaks_covp22_cal_8_6_6() {
     let test = find_test("COVp22_Cal_8_6");
     let peaks = find_peaks(
         &test.data,
-        Some(FindPeaksOptions {
+        FindPeaksOptions {
             filter: Some(PeakFilter {
                 auto_noise: Some(true),
                 auto_baseline: Some(true),
@@ -1235,7 +1235,7 @@ fn find_1_peaks_covp22_cal_8_6_6() {
             }),
             artifact_filter: get_artifact_options(),
             ..Default::default()
-        }),
+        },
     );
 
     dump_peaks(&peaks);
@@ -1252,7 +1252,7 @@ fn find_1_peaks_covp23_cal_4_120_237_1008_6() {
     let test = find_test("COVp23_Cal_4_120_237.1008");
     let peaks = find_peaks(
         &test.data,
-        Some(FindPeaksOptions {
+        FindPeaksOptions {
             filter: Some(PeakFilter {
                 auto_noise: Some(true),
                 auto_baseline: Some(true),
@@ -1263,7 +1263,7 @@ fn find_1_peaks_covp23_cal_4_120_237_1008_6() {
             }),
             artifact_filter: get_artifact_options(),
             ..Default::default()
-        }),
+        },
     );
 
     dump_peaks(&peaks);
@@ -1278,7 +1278,7 @@ fn find_1_peaks_covp24_cal_2_12_274_1186_6() {
     let test = find_test("COVp24_Cal_2_12_274.1186");
     let peaks = find_peaks(
         &test.data,
-        Some(FindPeaksOptions {
+        FindPeaksOptions {
             filter: Some(PeakFilter {
                 auto_noise: Some(true),
                 auto_baseline: Some(true),
@@ -1289,7 +1289,7 @@ fn find_1_peaks_covp24_cal_2_12_274_1186_6() {
             }),
             artifact_filter: get_artifact_options(),
             ..Default::default()
-        }),
+        },
     );
 
     dump_peaks(&peaks);
@@ -1309,7 +1309,7 @@ fn find_1_peaks_covp26_cov02485_309_1671_6() {
     let test = find_test("COVp26_COV02485_309_1671");
     let peaks = find_peaks(
         &test.data,
-        Some(FindPeaksOptions {
+        FindPeaksOptions {
             filter: Some(PeakFilter {
                 auto_noise: Some(true),
                 auto_baseline: Some(true),
@@ -1320,7 +1320,7 @@ fn find_1_peaks_covp26_cov02485_309_1671_6() {
             }),
             artifact_filter: get_artifact_options(),
             ..Default::default()
-        }),
+        },
     );
 
     dump_peaks(&peaks);
@@ -1337,7 +1337,7 @@ fn find_1_peaks_covp25_cal_7_117_288_1343_6() {
     let test = find_test("COVp25_Cal_7_117_288_1343");
     let peaks = find_peaks(
         &test.data,
-        Some(FindPeaksOptions {
+        FindPeaksOptions {
             filter: Some(PeakFilter {
                 auto_noise: Some(true),
                 auto_baseline: Some(true),
@@ -1348,7 +1348,7 @@ fn find_1_peaks_covp25_cal_7_117_288_1343_6() {
             }),
             artifact_filter: get_artifact_options(),
             ..Default::default()
-        }),
+        },
     );
 
     dump_peaks(&peaks);

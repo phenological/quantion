@@ -19,7 +19,7 @@ get_features(
   group_mz_tol = .DEFAULTS$group_mz_tol,
   group_rt_tol = .DEFAULTS$group_rt_tol,
   frequency = .DEFAULTS$frequency,
-  cores = 1L,
+  threads = 1L,
   min_integral = NaN,
   min_intensity = .DEFAULTS$min_intensity,
   min_peak_width_points = .DEFAULTS$min_peak_width_points,
@@ -47,7 +47,7 @@ get_features(
   \item{group_mz_tol}{Absolute m/z tolerance (Da) used when grouping features. Default 0.0025.}
   \item{group_rt_tol}{RT tolerance (minutes) used when grouping features. Default 0.05.}
   \item{frequency}{Minimum number of samples in which a feature must appear to be kept. Default 1.}
-  \item{cores}{Number of CPU cores to use. Default 1.}
+  \item{threads}{Number of threads to use. Default 1.}
   \item{min_integral}{Minimum peak area. \code{NaN} disables.}
   \item{min_intensity}{Minimum apex intensity. Default 1000.}
   \item{min_peak_width_points}{Minimum peak width in points. Default 5.}
@@ -76,11 +76,11 @@ A data frame with one row per consensus feature and the following columns:
 }
 }
 \examples{
-\donttest{
+\dontrun{
 features <- get_features(
   "/path/to/samples",
   from = 0, to = 10,
-  cores = 4L,
+  threads = 4L,
   frequency = 2L
 )
 }

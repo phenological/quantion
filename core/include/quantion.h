@@ -113,8 +113,6 @@
 
 #define QUANTION_SECTION_FEATURE_NOISE 33
 
-#define QUANTION_SECTION_CHROM_INDEX 34
-
 #define QUANTION_SECTION_CHROM_TARGET_RT 35
 
 #define QUANTION_SECTION_CHROM_RT 36
@@ -442,26 +440,34 @@ int32_t get_peaks_from_eic(const struct ParsedFile *h,
                            double from,
                            double to,
                            const struct CPeakOptions *opts,
-                           uintptr_t cores,
+                           uintptr_t threads,
                            struct Buf *out);
 
 /**
- * Find peaks from chromatogram data and write the result to `out`.
+ * Find a peak in the chromatogram of each target and write the result to `out`.
+ *
+ * A target picks the chromatogram whose precursor and product m/z are both within 0.005.
  *
  * # Safety
  * `h` must be a valid `ParsedFile` pointer from this library.
- * `sample_indices` must point to `n` readable `u32` values.
- * `target_rts` and `half_widths` must point to `n` readable `f64` values.
+ * `precursors`, `products`, `target_rts` and `ranges` must point to `n` readable `f64` values.
+ * If IDs are provided, `ids_off` and `ids_len` must point to `n` readable `u32` values,
+ * and `ids_buf` must point to `ids_buf_len` readable bytes.
  * `opts` must be null or point to a valid `CPeakOptions`.
  * `out` must be a valid writable `Buf` pointer.
  */
 int32_t get_peaks_from_chrom(struct ParsedFile *h,
-                             const uint32_t *sample_indices,
+                             const double *precursors,
+                             const double *products,
                              const double *target_rts,
                              const double *ranges,
+                             const uint32_t *ids_off,
+                             const uint32_t *ids_len,
+                             const uint8_t *ids_buf,
+                             uintptr_t ids_buf_len,
                              uintptr_t n,
                              const struct CPeakOptions *opts,
-                             uintptr_t cores,
+                             uintptr_t threads,
                              struct Buf *out);
 
 /**
@@ -530,7 +536,7 @@ int plan_image(struct ParsedFile *h,
 /**
  * Get scans by query and write the result to `out`.
  *
- * `query_type`: 0=RtRange, 1=ClosestRt, 2=MzRange, 3=ClosestMz.
+ * `query_type`: 0=RtRange, 1=Rt, 2=MzRange, 3=Mz.
  * `from_value` and `to_value` are the range bounds for range queries (types 0 and 2).
  * For point queries (types 1 and 3), only `from_value` is used; `to_value` is ignored.
  *
@@ -601,9 +607,41 @@ int get_features(const char *dir,
                  double align_rt_tolerance,
                  int min_samples,
                  const struct CPeakOptions *peak_opts,
-                 int cores,
+                 int threads,
                  struct Buf *out);
 #endif
+
+/**
+ * Write the byte ranges `find_features` reads from a lazy or remote file to `out`.
+ *
+ * # Safety
+ * `h` must be a valid `ParsedFile` pointer from this library.
+ * `out` must be a valid writable `Buf` pointer.
+ */
+int plan_find_features(struct ParsedFile *h,
+                       double from,
+                       double to,
+                       double eic_ppm,
+                       double eic_mz,
+                       double grid_min_mz,
+                       double grid_max_mz,
+                       double grid_step,
+                       struct Buf *out);
+
+/**
+ * Write the byte ranges `get_peaks_from_eic` reads for these m/z values to `out`.
+ *
+ * # Safety
+ * `h` must be a valid `ParsedFile` pointer from this library.
+ * `mzs` must point to `count` readable `f64` values.
+ * `out` must be a valid writable `Buf` pointer.
+ */
+int plan_peaks_from_eic(struct ParsedFile *h,
+                        const double *mzs,
+                        uintptr_t count,
+                        double from,
+                        double to,
+                        struct Buf *out);
 
 /**
  * Find features in a single sample and write the result to `out`.
@@ -622,7 +660,7 @@ int find_features(struct ParsedFile *h,
                   double grid_max_mz,
                   double grid_step,
                   const struct CPeakOptions *peak_opts,
-                  int cores,
+                  int threads,
                   struct Buf *out);
 
 /**
@@ -637,6 +675,20 @@ int calculate_baseline(const double *y,
                        int lambda,
                        int max_iterations,
                        struct Buf *out);
+
+/**
+ * Write the byte ranges `find_feature` reads for these targets to `out`.
+ *
+ * # Safety
+ * `h` must be a valid `ParsedFile` pointer from this library.
+ * `target_rts` and `half_widths` must point to `n` readable `f64` values.
+ * `out` must be a valid writable `Buf` pointer.
+ */
+int plan_find_feature(struct ParsedFile *h,
+                      const double *target_rts,
+                      const double *half_widths,
+                      uintptr_t n,
+                      struct Buf *out);
 
 /**
  * Find a targeted feature for each ROI and write the result to `out`.
@@ -658,7 +710,7 @@ int find_feature(const struct ParsedFile *h,
                  const uint8_t *ids_buf,
                  uintptr_t ids_buf_len,
                  uintptr_t n,
-                 uintptr_t cores,
+                 uintptr_t threads,
                  double seed_ppm,
                  double seed_mz,
                  double final_ppm,

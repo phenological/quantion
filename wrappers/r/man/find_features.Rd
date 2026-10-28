@@ -15,7 +15,7 @@ find_features(
   grid_start = .DEFAULTS$grid_start,
   grid_end = .DEFAULTS$grid_end,
   grid_step_ppm = .DEFAULTS$grid_step,
-  cores = 1L,
+  threads = 1L,
   min_integral = NaN,
   min_intensity = .DEFAULTS$min_intensity,
   min_peak_width_points = .DEFAULTS$min_peak_width_points,
@@ -39,7 +39,7 @@ find_features(
   \item{grid_start}{Lower m/z bound of the search grid (Da). Default 40.}
   \item{grid_end}{Upper m/z bound of the search grid (Da). Default 1000.}
   \item{grid_step_ppm}{Grid step size (ppm). Default 0.005.}
-  \item{cores}{Number of CPU cores to use. Default 1.}
+  \item{threads}{Number of threads to use. Default 1.}
   \item{min_integral}{Minimum peak area. \code{NaN} disables.}
   \item{min_intensity}{Minimum apex intensity. Default 1000.}
   \item{min_peak_width_points}{Minimum peak width in points. Default 5.}
@@ -61,15 +61,9 @@ A data frame with one row per detected feature. Columns include \code{mz},
 }
 \examples{
 \donttest{
-features <- find_features(
-  file,
-  from = 0,
-  to = 10,
-  cores = 5L,
-  auto_noise = TRUE,
-  auto_baseline = TRUE,
-  min_intensity = 1000
-)
+url <- "https://raw.githubusercontent.com/phenological/ion-files/main/data/p21_LTR_20_b1_w20.ion"
+sample <- parse_ion(url)
+features <- find_features(sample, from = 2.3, to = 2.45, grid_start = 255, grid_end = 265)
 }
 }
 \seealso{

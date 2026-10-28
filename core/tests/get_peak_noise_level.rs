@@ -38,11 +38,8 @@ fn small_peak_next_to_large_peak_is_found() {
         let reference_rt = param_f64(eic, "exp.rt");
         let peak = get_peak(
             &data,
-            &Roi::peak(
-                param_f64(eic, "opt.target"),
-                param_f64(eic, "opt.roi_half_width"),
-            ),
-            Some(pipeline_options()),
+            &Roi { rt: param_f64(eic, "opt.target"), range: param_f64(eic, "opt.roi_half_width") },
+            pipeline_options(),
         );
         assert!(
             (peak.rt - reference_rt).abs() <= RT_TOLERANCE,

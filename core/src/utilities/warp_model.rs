@@ -10,18 +10,11 @@ use crate::utilities::{
     },
     get_peaks_from_eic::{MzWindow, read_eics_one_pass},
     load_model::Model,
-    structs::FromTo,
+    structs::{FromTo, Target},
 };
 
 const INPUT_NAMES: [&str; 2] = ["eics", "targets"];
 const ALLOWED_EDGE_GAP: f64 = 0.05;
-
-#[derive(Clone, Debug, Default, PartialEq)]
-pub struct Target {
-    pub id: String,
-    pub mz: f64,
-    pub rt: f64,
-}
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct PredictedRt {
@@ -233,6 +226,7 @@ impl WarpModel {
                 id: target.id.clone(),
                 mz: target.mz,
                 rt: get_calibrated_rt(target.rt, prediction.rt),
+                range: target.range,
             })
             .collect())
     }
@@ -430,6 +424,7 @@ pub(crate) fn get_median_targets(target_lists: &[Vec<Target>]) -> Vec<Target> {
             id: target.id.clone(),
             mz: target.mz,
             rt: get_median(&mut rts[target.id.as_str()].clone()),
+            range: target.range,
         })
         .collect()
 }

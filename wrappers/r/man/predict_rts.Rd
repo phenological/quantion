@@ -24,11 +24,12 @@ A data frame with columns \code{rt} (the predicted retention time) and
 }
 \examples{
 \donttest{
-warp <- load_warp(load_model("https://example.org/model.onnx"))
-sample <- parse_ion("https://example.org/file.ion")
-targets <- data.frame(mz = c(250.1, 310.2), rt = c(1.2, 3.1))
+model <- load_model(system.file("extdata", "model.onnx", package = "quantion"))
+warp <- load_warp(model)
+url <- "https://raw.githubusercontent.com/phenological/ion-files/main/data/p21_LTR_20_b1_w20.ion"
+sample <- parse_ion(url)
+targets <- data.frame(mz = 260.103, rt = 2.383)
 rts <- predict_rts(warp, sample, targets)
-targets$rt <- rts$rt
 }
 }
 \seealso{

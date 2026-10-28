@@ -74,7 +74,7 @@ fn feature_at_apex(features: &[Feature]) -> Option<&Feature> {
 fn detect(chrom_apex: f64, profile_points: usize, kind: SpectrumKind) -> Vec<Feature> {
     let (time, scans) = profile_run(chrom_apex, profile_points);
     let grid = vec![TARGET_MZ];
-    detect_features(&scans, &grid, &time, kind, &detection_options(), 1)
+    detect_features(&scans, &grid, &time, kind, &detection_options())
         .expect("detection should run")
 }
 
@@ -178,7 +178,6 @@ fn detect_over_grid(ions: &[(f64, f64)], profile_points: usize, grid: &[f64]) ->
         &time,
         SpectrumKind::Profile,
         &detection_options(),
-        1,
     )
     .expect("detection should run")
 }
@@ -241,7 +240,6 @@ fn detection_on_empty_scans_reports_no_candidates() {
         &time,
         SpectrumKind::Profile,
         &detection_options(),
-        1,
     );
     assert!(
         matches!(result, Err(FeatureError::NoCandidateMasses)),

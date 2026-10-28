@@ -148,7 +148,7 @@ fn rt_range_keeps_only_scans_in_window() {
 #[test]
 fn closest_rt_returns_the_nearest_full_scan() {
     let mut file = open_split_ion();
-    let (_, scans) = get_scans(&mut file, ScanQuery::ClosestRt(2.9), TimeUnit::Minutes, 1);
+    let (_, scans) = get_scans(&mut file, ScanQuery::Rt(2.9), TimeUnit::Minutes, 1);
 
     assert_eq!(scans.len(), 1);
     assert_eq!(scans[0].rt, 3.0);

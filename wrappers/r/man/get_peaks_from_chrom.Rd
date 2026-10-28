@@ -2,14 +2,14 @@
 \alias{get_peaks_from_chrom}
 \title{Find peaks from stored chromatograms}
 \description{
-Finds peaks from file-stored chromatograms using index, RT, and RT window.
-Use this when you already know which chromatogram index to read.
+Finds a peak in the stored chromatogram of each target. A target picks the
+chromatogram whose precursor (Q1) and product (Q3) m/z are both within 0.005.
 }
 \usage{
 get_peaks_from_chrom(
   bin,
-  items,
-  cores = 1L,
+  targets,
+  threads = 1L,
   min_integral = NaN,
   min_intensity = .DEFAULTS$min_intensity,
   min_peak_width_points = .DEFAULTS$min_peak_width_points,
@@ -26,9 +26,9 @@ get_peaks_from_chrom(
 }
 \arguments{
   \item{bin}{Sample file from \code{\link{parse_mzml}()} or \code{\link{parse_ion}()}.}
-  \item{items}{Data frame or list with columns \code{idx} (chromatogram index, integer),
-    \code{rt} (target retention time), and \code{window} or \code{range} (RT half-window).}
-  \item{cores}{Number of CPU cores to use. Default 1.}
+  \item{targets}{Data frame with columns \code{id}, \code{precursor} (Q1 m/z),
+    \code{product} (Q3 m/z), \code{rt} and \code{range} (RT half-window).}
+  \item{threads}{Number of threads to use. Default 1.}
   \item{min_integral}{Minimum peak area. \code{NaN} disables.}
   \item{min_intensity}{Minimum apex intensity. Default 1000.}
   \item{min_peak_width_points}{Minimum peak width in points. Default 5.}
@@ -44,18 +44,21 @@ get_peaks_from_chrom(
 
 }
 \value{
-A data frame with one row per input item. Columns include \code{index}, \code{id},
+A data frame with one row per target. A target with no matching chromatogram gets
+zeros. Columns include \code{id},
 \code{ort}, \code{rt}, \code{from}, \code{to}, \code{intensity}, \code{integral},
 \code{total_area}, \code{timestamp}.
 }
 \examples{
-\donttest{
-items <- data.frame(
-  idx    = c(0L, 5L),
-  rt     = c(1.2, 2.85),
-  window = c(0.4, 0.5)
+\dontrun{
+targets <- data.frame(
+  id        = c("compound_1", "compound_2"),
+  precursor = c(500.3, 520.4),
+  product   = c(184.1, 184.1),
+  rt        = c(3.20, 3.65),
+  range     = c(0.4, 0.4)
 )
-get_peaks_from_chrom(sample, items, cores = 2L)
+get_peaks_from_chrom(sample, targets, threads = 2L)
 }
 }
 \seealso{

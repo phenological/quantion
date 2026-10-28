@@ -11,7 +11,6 @@ import {
   SECTION_CHROM_FROM,
   SECTION_CHROM_ID_BYTES,
   SECTION_CHROM_ID_STARTS,
-  SECTION_CHROM_INDEX,
   SECTION_CHROM_INTEGRAL,
   SECTION_CHROM_INTENSITY,
   SECTION_CHROM_RT,
@@ -111,7 +110,6 @@ const RECORD_COLUMNS: Record<number, Column[]> = {
     { name: "noise", id: SECTION_FEATURE_NOISE, kind: "number" },
   ],
   [PAYLOAD_CHROM_PEAKS]: [
-    { name: "index", id: SECTION_CHROM_INDEX, kind: "count" },
     {
       name: "id",
       startsId: SECTION_CHROM_ID_STARTS,

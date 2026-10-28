@@ -76,7 +76,44 @@ async function main() {
   console.log(`query_bytes = ${oneQuery.bytes_sent}`);
   console.log(`query_requests = ${oneQuery.requests}`);
   console.log(`matches_local = ${same ? "yes" : "no"}`);
+
+  const model = path.join(root, "core/tests/fixtures/shift_model.onnx");
+  const warp = quantion.loadWarp(await quantion.loadModel(model));
+  const target = { id: "a", mz: 89.04768, rt: 2.385, range: 0.1 };
+  const fromTo = { from: FROM_RT, to: TO_RT };
+  const calls = {
+    calculate_eic: (file) => quantion.calculateEic(file, MASS, fromTo),
+    get_scans: (file) => quantion.getScans(file, { rt: { from: 2.3, to: 2.5 } }),
+    get_peaks_from_eic: (file) => quantion.getPeaksFromEic(file, [target], fromTo),
+    get_peaks_from_chrom: (file) => quantion.getPeaksFromChrom(file, [{ id: "a", precursor: 89.04768, product: 89.04768, rt: 2.385, range: 0.1 }]),
+    find_features: (file) => quantion.findFeatures(file, fromTo),
+    find_feature: (file) => quantion.findFeature(file, [target]),
+    ion_to_mzml: (file) => quantion.ionToMzml(file),
+    mzml_to_ion: (file) => quantion.mzmlToIon(file),
+    predict_rts: (file) => warp.predictRts(file, [{ mz: 250.1, rt: 1.2 }]),
+  };
+  for (const [name, call] of Object.entries(calls)) {
+    console.log(`fresh_${name} = ${await compare(call, url, fixture)}`);
+  }
   return 0;
+}
+
+function toText(value) {
+  return JSON.stringify(value, (_, item) =>
+    ArrayBuffer.isView(item) ? Array.from(item) : typeof item === "bigint" ? String(item) : item,
+  );
+}
+
+async function compare(call, url, fixture) {
+  let remote;
+  try {
+    remote = await call(await quantion.parseIon(new URL(url)));
+  } catch (error) {
+    const text = String(error?.message ?? error).split("\n")[0];
+    return text.includes("not a URL") ? "refused" : "error " + text.slice(0, 80);
+  }
+  const local = await call(await quantion.parseIon(fixture));
+  return toText(remote) === toText(local) ? "same" : "differs";
 }
 
 main().then((code) => process.exit(code)).catch((error) => {

@@ -28,8 +28,8 @@ from quantion.file import SampleFile
 from quantion.model import Model
 from quantion.warp_model import WarpModel
 from quantion._pack import pack_peak_options, encode_target_ids, unpack_targets
-from quantion._shared import to_cores
-from quantion._types import FromTo, GroupedFeature, Feature, Peak, Target, TargetPeak
+from quantion._shared import to_threads
+from quantion._types import ChromTarget, FromTo, GroupedFeature, Feature, Peak, Target, TargetPeak
 
 __version__ = "0.1.6"
 
@@ -60,6 +60,7 @@ __all__ = [
     "WarpModel",
     "FromTo",
     "Target",
+    "ChromTarget",
     "Peak",
     "TargetPeak",
     "Feature",
@@ -67,7 +68,7 @@ __all__ = [
     "pack_peak_options",
     "encode_target_ids",
     "unpack_targets",
-    "to_cores",
+    "to_threads",
 ]
 
 
@@ -94,8 +95,8 @@ class Quantion:
     def calculate_eic(self, file: SampleFile, target_mz: float, from_to: FromTo, ppm_tol: float = 20.0, mz_tol: float = 0.005):
         return calculate_eic(file, target_mz, from_to, ppm_tol, mz_tol)
 
-    def get_scans(self, file: SampleFile, *, rt_range=None, rt=None, mz_range=None, mz=None, level: int = 1):
-        return get_scans(file, rt_range=rt_range, rt=rt, mz_range=mz_range, mz=mz, level=level)
+    def get_scans(self, file: SampleFile, *, rt=None, mz=None, level: int = 1):
+        return get_scans(file, rt=rt, mz=mz, level=level)
 
     def find_peaks(self, x, y, options=None):
         return find_peaks(x, y, options)
@@ -115,20 +116,20 @@ class Quantion:
     def calculate_baseline(self, y, lambda_: int = 0, max_iterations: int = 0):
         return calculate_baseline(y, lambda_, max_iterations)
 
-    def get_peaks_from_eic(self, file: SampleFile, targets, from_to: FromTo = {"from": 0.5, "to": 5.0}, options=None, cores: int = 1):
-        return get_peaks_from_eic(file, targets, from_to, options, cores)
+    def get_peaks_from_eic(self, file: SampleFile, targets, from_to: FromTo = {"from": 0.5, "to": 5.0}, options=None, threads: int = 1):
+        return get_peaks_from_eic(file, targets, from_to, options, threads)
 
-    def get_peaks_from_chrom(self, file: SampleFile, items, options=None, cores: int = 1):
-        return get_peaks_from_chrom(file, items, options, cores)
+    def get_peaks_from_chrom(self, file: SampleFile, targets, options=None, threads: int = 1):
+        return get_peaks_from_chrom(file, targets, options, threads)
 
-    def find_features(self, file: SampleFile, from_to: FromTo, *, eic=None, grid=None, options=None, cores: int = 1):
-        return find_features(file, from_to, eic=eic, grid=grid, options=options, cores=cores)
+    def find_features(self, file: SampleFile, from_to: FromTo, *, eic=None, grid=None, options=None, threads: int = 1):
+        return find_features(file, from_to, eic=eic, grid=grid, options=options, threads=threads)
 
-    def find_feature(self, file: SampleFile, targets, *, scan_eic=None, eic=None, options=None, cores: int = 1):
-        return find_feature(file, targets, scan_eic=scan_eic, eic=eic, options=options, cores=cores)
+    def find_feature(self, file: SampleFile, targets, *, scan_eic=None, eic=None, options=None, threads: int = 1):
+        return find_feature(file, targets, scan_eic=scan_eic, eic=eic, options=options, threads=threads)
 
-    def get_features(self, directory_path: str, from_to: FromTo, *, eic=None, grid=None, grouping=None, options=None, cores: int = 1):
-        return get_features(directory_path, from_to, eic=eic, grid=grid, grouping=grouping, options=options, cores=cores)
+    def get_features(self, directory_path: str, from_to: FromTo, *, eic=None, grid=None, grouping=None, options=None, threads: int = 1):
+        return get_features(directory_path, from_to, eic=eic, grid=grid, grouping=grouping, options=options, threads=threads)
 
     def load_model(self, source) -> Model:
         return load_model(source)

@@ -11,9 +11,9 @@ use quantion::utilities::{
     get_peak::get_peak,
     get_peaks_from_chrom::get_peaks_from_chrom,
     get_peaks_from_eic::get_peaks_from_eic,
-    structs::{DataXY, FromTo, Peak, Roi},
+    structs::{ChromTarget, DataXY, FromTo, Peak, Roi, Target},
 };
-use quantion::warp::{Target, load_warp};
+use quantion::warp::load_warp;
 
 const FROM_RT: f64 = 0.0;
 const TO_RT: f64 = 5.0;
@@ -23,7 +23,7 @@ const GRID_STEP: f64 = 0.005;
 const GRID_START: f64 = 89.0;
 const GRID_END: f64 = 91.0;
 const ROI_RANGE: f64 = 0.05;
-const CORES: usize = 1;
+const THREADS: usize = 1;
 const MS1_LEVEL: u8 = 1;
 
 const FEATURE_MIN_INTENSITY: f64 = 500.0;
@@ -137,7 +137,7 @@ fn feature_options() -> FindFeaturesOptions {
 fn alignment_options() -> AlignmentOptions {
     let mut options = AlignmentOptions::default();
     options.eic_options = eic_options();
-    options.peak_options = Some(feature_peak_options());
+    options.peak_options = feature_peak_options();
     options.min_samples = 1;
     options
 }
@@ -181,17 +181,24 @@ fn shared_peak_lines(prefix: &str, peak: &Peak, out: &mut Vec<String>) {
 fn peaks_from_eic(fixture: &Path, channel: &Channel, prefix: &str, out: &mut Vec<String>) {
     let mut ion = open(fixture);
     let mut reader = EicReader::Ion(&mut ion);
-    let rois: Vec<Roi> = channel
+    let targets: Vec<Target> = channel
         .targets
         .iter()
-        .map(|(id, rt)| Roi::eic(*id, *rt, channel.mass, ROI_RANGE))
+        .map(|(id, rt)| Target {
+            id: id.to_string(),
+            mz: channel.mass,
+            rt: *rt,
+            range: ROI_RANGE,
+        })
         .collect();
     let rows = get_peaks_from_eic(
         &mut reader,
         time_range(),
-        &rois,
-        Some(peak_options(channel)),
-        CORES,
+        &targets,
+        FindPeaksOptions {
+            threads: THREADS,
+            ..peak_options(channel)
+        },
     )
     .expect("get_peaks_from_eic");
     for (id, _, _, peak) in &rows {
@@ -199,26 +206,35 @@ fn peaks_from_eic(fixture: &Path, channel: &Channel, prefix: &str, out: &mut Vec
     }
 }
 
-fn chromatogram_index(channel: &Channel) -> usize {
-    CHANNELS
-        .iter()
-        .filter(|other| other.mass < channel.mass)
-        .count()
-}
-
 fn peaks_from_chrom(fixture: &Path, channel: &Channel, prefix: &str, out: &mut Vec<String>) {
-    let mut ion = open(fixture);
+    let transitions = fixture
+        .parent()
+        .and_then(Path::parent)
+        .expect("fixtures folder");
+    let mut ion = open(&transitions.join("srm.ion"));
     let mzml = ion.to_mzml().expect("read chromatograms");
-    let index = chromatogram_index(channel);
-    let rois: Vec<Roi> = channel
+    let targets: Vec<ChromTarget> = channel
         .targets
         .iter()
-        .map(|(id, rt)| Roi::chrom(*id, index, *rt, ROI_RANGE))
+        .map(|(id, rt)| ChromTarget {
+            id: id.to_string(),
+            precursor: channel.mass,
+            product: channel.mass,
+            rt: *rt,
+            range: ROI_RANGE,
+        })
         .collect();
-    let rows = get_peaks_from_chrom(&mzml, &rois, Some(chrom_peak_options(channel)), CORES)
-        .unwrap_or_default();
-    for (roi, row) in channel.targets.iter().zip(&rows) {
-        let name = format!("{prefix}.{}", roi.0);
+    let rows = get_peaks_from_chrom(
+        &mzml,
+        &targets,
+        FindPeaksOptions {
+            threads: THREADS,
+            ..chrom_peak_options(channel)
+        },
+    )
+    .unwrap_or_default();
+    for row in &rows {
+        let name = format!("{prefix}.{}", row.id);
         out.push(format!("{name}.rt = {}", number(row.peak_rt)));
         out.push(format!("{name}.from = {}", number(row.from_rt)));
         out.push(format!("{name}.to = {}", number(row.to_rt)));
@@ -230,8 +246,15 @@ fn peaks_from_chrom(fixture: &Path, channel: &Channel, prefix: &str, out: &mut V
 fn features(fixture: &Path, out: &mut Vec<String>) {
     let mut ion = open(fixture);
     let mut reader = EicReader::Ion(&mut ion);
-    let found = find_features(&mut reader, time_range(), Some(feature_options()), CORES)
-        .expect("find_features");
+    let found = find_features(
+        &mut reader,
+        time_range(),
+        FindFeaturesOptions {
+            threads: THREADS,
+            ..feature_options()
+        },
+    )
+    .expect("find_features");
     out.push(format!("find_features.count = {}", found.len()));
     for (index, f) in found.iter().enumerate() {
         let name = format!("find_features[{index}]");
@@ -249,9 +272,14 @@ fn consensus_features(directory: &str, out: &mut Vec<String>) {
     let found = get_features(
         directory,
         time_range(),
-        feature_options(),
-        alignment_options(),
-        CORES,
+        FindFeaturesOptions {
+            threads: THREADS,
+            ..feature_options()
+        },
+        AlignmentOptions {
+            threads: THREADS,
+            ..alignment_options()
+        },
     )
     .expect("get_features");
     out.push(format!("get_features.count = {}", found.len()));
@@ -284,7 +312,7 @@ fn report_channel(fixture: &Path, channel: &Channel, out: &mut Vec<String>) {
     ));
     out.push(format!("{name}.find_noise_level.width = {}", noise.width));
 
-    let found = find_peaks(&data, Some(peak_options(channel)));
+    let found = find_peaks(&data, peak_options(channel));
     out.push(format!("{name}.find_peaks.count = {}", found.len()));
     for (index, peak) in found.iter().enumerate() {
         peak_lines(&format!("{name}.find_peaks[{index}]"), peak, out);
@@ -293,8 +321,11 @@ fn report_channel(fixture: &Path, channel: &Channel, out: &mut Vec<String>) {
     let target = channel.targets[2].1;
     let single = get_peak(
         &data,
-        &Roi::peak(target, ROI_RANGE),
-        Some(peak_options(channel)),
+        &Roi {
+            rt: target,
+            range: ROI_RANGE,
+        },
+        peak_options(channel),
     );
     peak_lines(&format!("{name}.get_peak"), &single, out);
 
@@ -327,6 +358,7 @@ fn predicted_rts(fixture: &Path, directory: &str, out: &mut Vec<String>) {
                 id: id.to_string(),
                 mz: channel.mass,
                 rt: *rt,
+                range: 0.0,
             })
         })
         .collect();

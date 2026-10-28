@@ -8,15 +8,17 @@ use std::{
 #[cfg(not(all(target_arch = "wasm32", not(target_os = "wasi"))))]
 use rayon::prelude::*;
 
+use ionic::{IonReader, source::ByteRange};
+
 use crate::utilities::{
     calculate_eic::{
         CentroidScan, EicOptions, EicReader, FastError, MS1_LEVEL, SpectrumKind, get_scan_times,
-        get_spectrum_kind, lower_bound, mz_tolerance_for, read_mz_window,
+        get_spectrum_kind, lower_bound, mz_tolerance_for, plan_window_ranges, read_mz_window,
         summed_intensity_in_window, with_eic_apex_intensity,
     },
     find_masses::find_masses,
     find_peaks::{FindPeaksOptions, find_peaks},
-    parallel::run_with_cores,
+    parallel::run_with_threads,
     structs::{DataXY, FromTo},
 };
 
@@ -130,6 +132,7 @@ pub struct FindFeaturesOptions {
     pub mz_scan_grid: MzScanGrid,
     pub min_seed_width_points: usize,
     pub memory_budget_bytes: usize,
+    pub threads: usize,
 }
 
 impl Default for FindFeaturesOptions {
@@ -149,6 +152,7 @@ impl Default for FindFeaturesOptions {
             mz_scan_grid: MzScanGrid::default(),
             min_seed_width_points: 5,
             memory_budget_bytes: 256 * 1024 * 1024,
+            threads: 1,
         }
     }
 }
@@ -156,11 +160,8 @@ impl Default for FindFeaturesOptions {
 pub fn find_features(
     reader: &mut EicReader,
     time_window: FromTo,
-    options: Option<FindFeaturesOptions>,
-    cores: usize,
+    opts: FindFeaturesOptions,
 ) -> Result<Vec<Feature>, FeatureError> {
-    let opts = options.unwrap_or_default();
-
     if !opts.mz_scan_grid.step.is_finite() || opts.mz_scan_grid.step <= 0.0 {
         return Err(FeatureError::InvalidStepSize(opts.mz_scan_grid.step));
     }
@@ -191,10 +192,28 @@ pub fn find_features(
         &scans,
         seed_intensity_threshold(&opts),
         opts.seed_eic_options,
-        cores,
+        opts.threads,
     );
 
-    detect_features(&scans, &grid, &time, kind, &opts, cores)
+    detect_features(&scans, &grid, &time, kind, &opts)
+}
+
+pub fn plan_features_ranges(
+    ion: &mut IonReader,
+    time_window: FromTo,
+    options: &FindFeaturesOptions,
+) -> Result<Vec<ByteRange>, FastError> {
+    let grid = build_mz_grid(
+        options.mz_scan_grid.min_mz,
+        options.mz_scan_grid.max_mz,
+        options.mz_scan_grid.step,
+        options.mz_scan_grid.ppm,
+    );
+    if grid.is_empty() {
+        return Ok(Vec::new());
+    }
+    let (mz_low, mz_high) = grid_read_window(&grid, options);
+    plan_window_ranges(ion, time_window.from, time_window.to, mz_low, mz_high)
 }
 
 pub fn detect_features(
@@ -203,9 +222,8 @@ pub fn detect_features(
     time: &[f64],
     kind: SpectrumKind,
     opts: &FindFeaturesOptions,
-    cores: usize,
 ) -> Result<Vec<Feature>, FeatureError> {
-    run_with_cores(cores, || {
+    run_with_threads(opts.threads, || {
         let candidates = match kind {
             SpectrumKind::Centroid => grid.to_vec(),
             SpectrumKind::Profile => collect_candidates(scans, grid, opts),
@@ -284,7 +302,7 @@ pub(crate) fn keep_masses_with_signal(
     scans: &[Scan],
     min_intensity: f64,
     eic_options: EicOptions,
-    cores: usize,
+    threads: usize,
 ) -> Vec<f64> {
     let low_bounds: Vec<f64> = grid
         .iter()
@@ -296,7 +314,7 @@ pub(crate) fn keep_masses_with_signal(
         .collect();
 
     let has_signal =
-        find_masses_with_signal(&low_bounds, &high_bounds, scans, min_intensity, cores);
+        find_masses_with_signal(&low_bounds, &high_bounds, scans, min_intensity, threads);
 
     grid.iter()
         .copied()
@@ -311,10 +329,10 @@ fn find_masses_with_signal(
     high_bounds: &[f64],
     scans: &[Scan],
     min_intensity: f64,
-    cores: usize,
+    threads: usize,
 ) -> Vec<bool> {
     let width = low_bounds.len();
-    run_with_cores(cores, || {
+    run_with_threads(threads, || {
         scans
             .par_iter()
             .fold(
@@ -342,7 +360,7 @@ fn find_masses_with_signal(
     high_bounds: &[f64],
     scans: &[Scan],
     min_intensity: f64,
-    _cores: usize,
+    _threads: usize,
 ) -> Vec<bool> {
     let mut found = vec![false; low_bounds.len()];
     for scan in scans {
@@ -485,7 +503,7 @@ fn extract_features(
             x: time.to_vec(),
             y: eic,
         };
-        find_peaks(&data, Some(opts.peak_options.clone()))
+        find_peaks(&data, opts.peak_options.clone())
             .into_iter()
             .filter(|peak| min_width == 0 || peak.n_points >= min_width)
             .map(|peak| {

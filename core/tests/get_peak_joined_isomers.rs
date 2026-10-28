@@ -70,8 +70,8 @@ fn pipeline_options() -> FindPeaksOptions {
 fn pick(case: &Case, target: &Target) -> Peak {
     get_peak(
         &case.data,
-        &Roi::peak(target.target_rt, target.window),
-        Some(pipeline_options()),
+        &Roi { rt: target.target_rt, range: target.window },
+        pipeline_options(),
     )
 }
 

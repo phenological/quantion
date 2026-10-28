@@ -23,7 +23,7 @@ mzml_to_ion_file(
 Invisibly returns \code{output_path}.
 }
 \examples{
-\donttest{
+\dontrun{
 mzml_to_ion_file("/path/to/file.mzML", "/path/to/file.ion", level = 12L)
 }
 }

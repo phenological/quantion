@@ -49,7 +49,7 @@ fn dip_on_the_top_does_not_cut_the_peak() {
         x: TIME.to_vec(),
         y: INTENSITY.to_vec(),
     };
-    let peak = get_peak(&eic, &Roi::peak(TARGET_RT, WINDOW), Some(options()));
+    let peak = get_peak(&eic, &Roi { rt: TARGET_RT, range: WINDOW }, options());
     let scan = TIME[1] - TIME[0];
 
     assert!(

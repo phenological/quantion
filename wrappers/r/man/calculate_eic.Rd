@@ -27,7 +27,9 @@ A list with \code{x} (retention time, numeric) and \code{y} (intensity, numeric)
 }
 \examples{
 \donttest{
-eic <- calculate_eic(file, 288.1326, from = 2.5, to = 4.0)
+url <- "https://raw.githubusercontent.com/phenological/ion-files/main/data/p21_LTR_20_b1_w20.ion"
+sample <- parse_ion(url)
+eic <- calculate_eic(sample, 260.103, from = 0.5, to = 5)
 }
 }
 \seealso{

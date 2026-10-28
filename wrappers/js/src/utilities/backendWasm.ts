@@ -36,12 +36,16 @@ const NOISE_LEVEL_INTENSITY_OFFSET = 8;
 const PEAK_OPTIONS_STRUCT_BYTES = 80;
 const QUANTION_ABI_VERSION = 1;
 const ERR_FAST_PATH = 6;
+const ERR_REMOTE_FILE = 12;
 
 function rcError(name: string, rc: number): Error {
   if (rc === ERR_FAST_PATH) {
     return new Error(
       `${name}: fast EIC path unavailable: this .ion file has no usable spectrum bounds (A3); re-encode it with the current Ionic to use the fast EIC path`,
     );
+  }
+  if (rc === ERR_REMOTE_FILE) {
+    return new Error(`${name}: this needs the whole file: open it from a path or raw bytes, not a URL`);
   }
   return new Error(`${name} failed with code ${rc}`);
 }
@@ -308,12 +312,17 @@ class WasmExports {
   ) => number;
   readonly getPeaksFromChrom: (
     handle: number,
-    idxPtr: number,
+    precursorPtr: number,
+    productPtr: number,
     rtPtr: number,
-    winPtr: number,
+    rangePtr: number,
+    offPtr: number,
+    lenPtr: number,
+    idPtr: number,
+    idBytesLen: number,
     count: number,
     optsPtr: number,
-    cores: number,
+    threads: number,
     outBuf: number,
   ) => number;
   readonly getPeaksFromEic: (
@@ -329,7 +338,7 @@ class WasmExports {
     from: number,
     to: number,
     optsPtr: number,
-    cores: number,
+    threads: number,
     outBuf: number,
   ) => number;
   readonly findNoiseLevel: (
@@ -355,7 +364,7 @@ class WasmExports {
     idBytesPtr: number,
     idBytesLen: number,
     count: number,
-    cores: number,
+    threads: number,
     scanPpm: number,
     scanMz: number,
     eicPpm: number,
@@ -412,6 +421,21 @@ class WasmExports {
     handle: number,
     mzPtr: number,
     rtPtr: number,
+    count: number,
+    outBuf: number,
+  ) => number;
+  readonly planPeaksFromEic: (
+    handle: number,
+    mzPtr: number,
+    count: number,
+    from: number,
+    to: number,
+    outBuf: number,
+  ) => number;
+  readonly planFindFeature: (
+    handle: number,
+    rtPtr: number,
+    windowPtr: number,
     count: number,
     outBuf: number,
   ) => number;
@@ -508,6 +532,8 @@ class WasmExports {
     this.calibrateRts = this.resolve(ex, ["calibrate_rts"]);
     this.predictRtsFromFile = this.resolve(ex, ["predict_rts_from_file"]);
     this.planPredictRts = this.resolve(ex, ["plan_predict_rts"]);
+    this.planPeaksFromEic = this.resolve(ex, ["plan_peaks_from_eic"]);
+    this.planFindFeature = this.resolve(ex, ["plan_find_feature"]);
     this.parseIonUrl =
       typeof ex["parse_ion_url"] === "function"
         ? this.guard.watch(
@@ -683,14 +709,6 @@ class WasmApi {
     this.peakOptionsSlot = this.heap.allocPermanent(PEAK_OPTIONS_STRUCT_BYTES);
     this.handleScratchSlot = this.heap.allocPermanent(4);
     this.noiseLevelSlot = this.heap.allocPermanent(NOISE_LEVEL_SLOT_BYTES);
-  }
-
-  private assertLocalHandle(handle: number, functionName: string): void {
-    if (this.source_id_by_handle.has(handle)) {
-      throw new Error(
-        `${functionName}: remote browser Ion handles need plan_peaks_from_eic; use Node, Python, R, or a local/in-memory file`,
-      );
-    }
   }
 
   parseMzMLRaw(data: Uint8Array): number {
@@ -1061,6 +1079,56 @@ class WasmApi {
     }
   }
 
+  private remoteSource(handle: number): RemoteSource | undefined {
+    const sourceId = this.source_id_by_handle.get(handle);
+    if (sourceId === undefined) return undefined;
+    const source = range_sources.get(sourceId);
+    if (!source) throw new Error("the remote source of this file is missing");
+    return source;
+  }
+
+  async prefetchPeaks(
+    handle: number,
+    mzs: Float64Array,
+    from: number,
+    to: number,
+  ): Promise<void> {
+    const source = this.remoteSource(handle);
+    if (!source) return;
+    const mzAllocation = this.heap.allocAndWrite(toUint8View(mzs));
+    try {
+      const rc = this.fn.planPeaksFromEic(handle, mzAllocation[0], mzs.length, from, to, this.blobScratchSlot);
+      if (rc !== 0) throw rcError("plan_peaks_from_eic", rc);
+    } finally {
+      this.heap.freeMany([mzAllocation]);
+    }
+    await prefetchRangesForSource(source, this.readRangesFromSlot(this.blobScratchSlot));
+  }
+
+  async prefetchFeature(
+    handle: number,
+    rts: Float64Array,
+    windows: Float64Array,
+  ): Promise<void> {
+    const source = this.remoteSource(handle);
+    if (!source) return;
+    const rtAllocation = this.heap.allocAndWrite(toUint8View(rts));
+    const windowAllocation = this.heap.allocAndWrite(toUint8View(windows));
+    try {
+      const rc = this.fn.planFindFeature(
+        handle,
+        rtAllocation[0],
+        windowAllocation[0],
+        rts.length,
+        this.blobScratchSlot,
+      );
+      if (rc !== 0) throw rcError("plan_find_feature", rc);
+    } finally {
+      this.heap.freeMany([rtAllocation, windowAllocation]);
+    }
+    await prefetchRangesForSource(source, this.readRangesFromSlot(this.blobScratchSlot));
+  }
+
   async prefetchRts(
     warp: number,
     handle: number,
@@ -1115,7 +1183,7 @@ class WasmApi {
 
   fileToMzml(handle: number): string {
     const rc = this.fn.binToMzml(handle, this.textOutputSlot);
-    if (rc !== 0) throw new Error("bin_to_mzml failed with code " + rc);
+    if (rc !== 0) throw rcError("bin_to_mzml", rc);
     const { ptr, len } = this.heap.readOutputSlot(this.textOutputSlot);
     return this.heap.decoder.decode(this.heap.copyOutAndFree(ptr, len));
   }
@@ -1131,7 +1199,7 @@ class WasmApi {
       compressionLevel,
       f32Compress,
     );
-    if (rc !== 0) throw new Error("mzml_to_bin failed with code " + rc);
+    if (rc !== 0) throw rcError("mzml_to_bin", rc);
     const { ptr, len } = this.heap.readOutputSlot(this.blobScratchSlot);
     return this.heap.copyOutAndFree(ptr, len);
   }
@@ -1392,9 +1460,8 @@ class WasmApi {
     from: number,
     to: number,
     opts: PeakOptions | undefined,
-    cores: number,
+    threads: number,
   ): any {
-    this.assertLocalHandle(handle, "getPeaksFromEic");
     const emptyU32 = new Uint32Array(count);
     const emptyBytes = new Uint8Array(0);
     const [rtPtr, rtLen] = this.heap.allocAndWrite(toUint8View(rts));
@@ -1422,7 +1489,7 @@ class WasmApi {
         from,
         to,
         this.peakOptsPtr(opts),
-        cores,
+        threads,
         this.bridgeOutputSlot,
       );
     } finally {
@@ -1441,38 +1508,52 @@ class WasmApi {
 
   getPeaksFromChrom(
     handle: number,
-    indices: Uint32Array,
+    precursors: Float64Array,
+    products: Float64Array,
     rts: Float64Array,
-    windows: Float64Array,
+    ranges: Float64Array,
+    offsets: Uint32Array | null,
+    lengths: Uint32Array | null,
+    idBytes: Uint8Array | null,
+    idBytesLen: number,
     count: number,
     opts: PeakOptions | undefined,
-    cores: number,
+    threads: number,
   ): any {
-    this.assertLocalHandle(handle, "getPeaksFromChrom");
-    const [idxPtr, idxLen] = this.heap.allocAndWrite(toUint8View(indices));
-    const [rtPtr, rtLen] = this.heap.allocAndWrite(toUint8View(rts));
-    const [winPtr, winLen] = this.heap.allocAndWrite(toUint8View(windows));
+    const emptyU32 = new Uint32Array(count);
+    const allocations = [
+      this.heap.allocAndWrite(toUint8View(precursors)),
+      this.heap.allocAndWrite(toUint8View(products)),
+      this.heap.allocAndWrite(toUint8View(rts)),
+      this.heap.allocAndWrite(toUint8View(ranges)),
+      this.heap.allocAndWrite(toUint8View(offsets ?? emptyU32)),
+      this.heap.allocAndWrite(toUint8View(lengths ?? emptyU32)),
+      this.heap.allocAndWrite(idBytes ?? new Uint8Array(0)),
+    ];
+    const [precursorPtr, productPtr, rtPtr, rangePtr, offPtr, lenPtr, idPtr] =
+      allocations.map(([pointer]) => pointer);
     let rc: number;
     try {
       rc = this.fn.getPeaksFromChrom(
         handle,
-        idxPtr,
+        precursorPtr,
+        productPtr,
         rtPtr,
-        winPtr,
+        rangePtr,
+        offPtr,
+        lenPtr,
+        idPtr,
+        idBytesLen,
         count,
         this.peakOptsPtr(opts),
-        cores,
+        threads,
         this.bridgeOutputSlot,
       );
     } finally {
-      this.heap.freeMany([
-        [idxPtr, idxLen],
-        [rtPtr, rtLen],
-        [winPtr, winLen],
-      ]);
+      this.heap.freeMany(allocations);
     }
     if (rc !== 0)
-      throw new Error("get_peaks_from_chrom failed with code " + rc);
+      throw rcError("get_peaks_from_chrom", rc);
     return readRecords(this.heap.readBridgeFromSlot(this.bridgeOutputSlot));
   }
 
@@ -1486,14 +1567,13 @@ class WasmApi {
     idBytes: Uint8Array | null,
     idBytesLen: number,
     count: number,
-    cores: number,
+    threads: number,
     scanPpm: number,
     scanMz: number,
     eicPpm: number,
     eicMz: number,
     opts: PeakOptions | undefined,
   ): any {
-    this.assertLocalHandle(handle, "findFeature");
     const emptyU32 = new Uint32Array(count);
     const emptyBytes = new Uint8Array(0);
     const [rtPtr, rtLen] = this.heap.allocAndWrite(toUint8View(rts));
@@ -1518,7 +1598,7 @@ class WasmApi {
         idPtr,
         idBytesLen,
         count,
-        cores,
+        threads,
         scanPpm,
         scanMz,
         eicPpm,
@@ -1696,6 +1776,23 @@ export class WasmBackend implements Backend {
     return this.getApi().prefetchRts(warp as number, handle as number, mzs, rts);
   }
 
+  prefetchPeaks(
+    handle: FileHandle,
+    mzs: Float64Array,
+    from: number,
+    to: number,
+  ): Promise<void> {
+    return this.getApi().prefetchPeaks(handle as number, mzs, from, to);
+  }
+
+  prefetchFeature(
+    handle: FileHandle,
+    rts: Float64Array,
+    windows: Float64Array,
+  ): Promise<void> {
+    return this.getApi().prefetchFeature(handle as number, rts, windows);
+  }
+
   predictRts(
     warp: WarpModelHandle,
     handle: FileHandle,
@@ -1828,7 +1925,7 @@ export class WasmBackend implements Backend {
     from: number,
     to: number,
     opts: PeakOptions | undefined,
-    cores: number,
+    threads: number,
   ): any {
     return this.getApi().getPeaksFromEic(
       handle as number,
@@ -1843,27 +1940,37 @@ export class WasmBackend implements Backend {
       from,
       to,
       opts,
-      cores,
+      threads,
     );
   }
 
   getPeaksFromChrom(
     handle: FileHandle,
-    indices: Uint32Array,
+    precursors: Float64Array,
+    products: Float64Array,
     rts: Float64Array,
-    windows: Float64Array,
+    ranges: Float64Array,
+    offsets: Uint32Array | null,
+    lengths: Uint32Array | null,
+    idBytes: Uint8Array | null,
+    idBytesLen: number,
     count: number,
     opts: PeakOptions | undefined,
-    cores: number,
+    threads: number,
   ): any {
     return this.getApi().getPeaksFromChrom(
       handle as number,
-      indices,
+      precursors,
+      products,
       rts,
-      windows,
+      ranges,
+      offsets,
+      lengths,
+      idBytes,
+      idBytesLen,
       count,
       opts,
-      cores,
+      threads,
     );
   }
 
@@ -1877,7 +1984,7 @@ export class WasmBackend implements Backend {
     idBytes: Uint8Array | null,
     idBytesLen: number,
     count: number,
-    cores: number,
+    threads: number,
     scanPpm: number,
     scanMz: number,
     eicPpm: number,
@@ -1894,7 +2001,7 @@ export class WasmBackend implements Backend {
       idBytes,
       idBytesLen,
       count,
-      cores,
+      threads,
       scanPpm,
       scanMz,
       eicPpm,

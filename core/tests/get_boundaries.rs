@@ -92,7 +92,7 @@ fn measured_window(sample: &Sample) -> (usize, usize) {
         x: sample.x.clone(),
         y: sample.y.clone(),
     };
-    let edges = get_boundaries(&data, sample.peak_x, Some(BoundariesOptions::default()));
+    let edges = get_boundaries(&data, sample.peak_x, BoundariesOptions::default());
     (edges.from.index.expect("from"), edges.to.index.expect("to"))
 }
 
@@ -194,7 +194,7 @@ fn find_peaks_locates_apex_in_window() {
             };
             let low = sample.x[sample.expected_from];
             let high = sample.x[sample.expected_to];
-            let inside = find_peaks(&data, Some(detection_options()))
+            let inside = find_peaks(&data, detection_options())
                 .iter()
                 .any(|peak| peak.rt >= low && peak.rt <= high);
             if inside {

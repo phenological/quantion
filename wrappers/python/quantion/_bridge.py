@@ -56,6 +56,7 @@ _CODE_MSG = {
     4: "parse error",
     5: "encode error",
     6: "fast EIC path unavailable: this .ion file has no usable spectrum bounds (A3); re-encode it with the current Ionic to use the fast EIC path",
+    12: "this needs the whole file: open it from a path or raw bytes, not a URL",
 }
 
 
@@ -88,6 +89,12 @@ class _ABI:
         "plan_open": ([POINTER(c_uint8), c_size_t, POINTER(_Buf)], c_int32),
         "plan_eic": ([c_void_p, c_double, c_double, c_double, c_double, c_double,
              POINTER(_Buf)], c_int32),
+        "plan_peaks_from_eic": ([c_void_p, POINTER(c_double), c_size_t, c_double, c_double,
+             POINTER(_Buf)], c_int32),
+        "plan_find_features": ([c_void_p, c_double, c_double, c_double, c_double, c_double,
+             c_double, c_double, POINTER(_Buf)], c_int32),
+        "plan_find_feature": ([c_void_p, POINTER(c_double), POINTER(c_double), c_size_t,
+             POINTER(_Buf)], c_int32),
         "free_mzml": ([c_void_p], None),
         "free_": ([POINTER(c_uint8), c_size_t], None),
         "bin_to_mzml": ([c_void_p, POINTER(_Buf)], c_int32),
@@ -106,7 +113,8 @@ class _ABI:
              c_size_t, c_double, c_double,
              POINTER(PeakOptions), c_size_t, POINTER(_Buf)], c_int32),
         "get_peaks_from_chrom": ([c_void_p,
-             POINTER(c_uint32), POINTER(c_double), POINTER(c_double),
+             POINTER(c_double), POINTER(c_double), POINTER(c_double), POINTER(c_double),
+             POINTER(c_uint32), POINTER(c_uint32), POINTER(c_uint8), c_size_t,
              c_size_t, POINTER(PeakOptions), c_size_t, POINTER(_Buf)], c_int32),
         "find_peaks": ([POINTER(c_double), POINTER(c_double), c_size_t,
              POINTER(PeakOptions), POINTER(_Buf)], c_int32),
@@ -406,7 +414,7 @@ _RECORD_COLUMNS = {
         ("n_points", 32, _COUNT), ("noise", 33, _NUMBER),
     ],
     PAYLOAD_CHROM_PEAKS: [
-        ("index", 34, _COUNT), ("id", (42, 43), _TEXT), ("ort", 35, _NUMBER),
+        ("id", (42, 43), _TEXT), ("ort", 35, _NUMBER),
         ("rt", 36, _NUMBER), ("from", 37, _NUMBER), ("to", 38, _NUMBER),
         ("intensity", 39, _NUMBER), ("integral", 40, _NUMBER),
         ("total_area", 41, _NUMBER), ("timestamp", (44, 45), _TEXT),

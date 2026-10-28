@@ -1,109 +1,42 @@
-import { describe, test, expect, beforeEach } from "@jest/globals";
+import { describe, it, expect, beforeAll } from "@jest/globals";
+import * as path from "path";
+import { NodeBackend } from "../utilities/backendNode";
+import { setBackend, parseIon, getPeaksFromChrom } from "../utilities/api";
 
-const modulePaths: Array<[string, string, string]> = [
-  ["source", "../utilities/api", "../utilities/sampleFile"],
-  ["built", "../../lib/utilities/api.js", "../../lib/utilities/sampleFile.js"],
-];
+const srmFile = path.join(__dirname, "../../../../core/tests/fixtures/srm.ion");
+const alanine = 89.04768;
+const serine = 90.0555;
 
-describe.each(modulePaths)(
-  "getPeaksFromChrom index validation (%s)",
-  (_name, apiPath, sampleFilePath) => {
-    const api = require(apiPath);
-    const { SampleFile } = require(sampleFilePath);
+function getNodeBackend(): NodeBackend | null {
+  try {
+    return new NodeBackend(process);
+  } catch {
+    return null;
+  }
+}
 
-    let backend: any;
-    let file: any;
+const nodeBackend = getNodeBackend();
+const describeWithNode = nodeBackend ? describe : describe.skip;
 
-    beforeEach(() => {
-      backend = {
-        ready: true,
-        handlesAreGcFinalized: true,
-        getPeaksFromChrom: jest.fn(() => []),
-        freeFile: jest.fn(),
-      };
-      api.setBackend(backend);
-      file = new SampleFile({}, backend);
-    });
+function getTarget(precursor: number, product: number) {
+  return { id: "alanine", precursor, product, rt: 2.385, range: 0.1 };
+}
 
-    test("a negative index throws instead of returning rows", () => {
-      expect(() =>
-        api.getPeaksFromChrom(file, [{ id: "a", idx: -1, rt: 1, range: 0.1 }], {}, 1),
-      ).toThrow(RangeError);
-      expect(backend.getPeaksFromChrom).not.toHaveBeenCalled();
-    });
+describeWithNode("getPeaksFromChrom", () => {
+  beforeAll(() => {
+    setBackend(nodeBackend!);
+  });
 
-    test("the error names the item and what it needs", () => {
-      expect(() =>
-        api.getPeaksFromChrom(
-          file,
-          [
-            { id: "a", idx: 0, rt: 1, range: 0.1 },
-            { id: "b", idx: -1, rt: 2, range: 0.1 },
-          ],
-          {},
-          1,
-        ),
-      ).toThrow(/item 1 needs a non-negative integer idx/);
-    });
+  it("finds the transition of a target", async () => {
+    const [row] = getPeaksFromChrom(await parseIon(srmFile), [getTarget(alanine, alanine)]);
+    expect(row.id).toBe("alanine");
+    expect(row.intensity).toBeGreaterThan(0);
+    expect(Math.abs(row.rt - 2.385)).toBeLessThan(0.05);
+  });
 
-    test("a missing index throws", () => {
-      expect(() =>
-        api.getPeaksFromChrom(file, [{ id: "a", rt: 1, range: 0.1 }], {}, 1),
-      ).toThrow(/non-negative integer idx/);
-      expect(backend.getPeaksFromChrom).not.toHaveBeenCalled();
-    });
-
-    test("a fractional index throws", () => {
-      expect(() =>
-        api.getPeaksFromChrom(file, [{ id: "a", idx: 1.5, rt: 1, range: 0.1 }], {}, 1),
-      ).toThrow(/non-negative integer idx/);
-    });
-
-    test("a NaN index throws", () => {
-      expect(() =>
-        api.getPeaksFromChrom(file, [{ id: "a", idx: NaN, rt: 1, range: 0.1 }], {}, 1),
-      ).toThrow(/non-negative integer idx/);
-    });
-
-    test("an infinite index throws", () => {
-      expect(() =>
-        api.getPeaksFromChrom(
-          file,
-          [{ id: "a", idx: Infinity, rt: 1, range: 0.1 }],
-          {},
-          1,
-        ),
-      ).toThrow(/non-negative integer idx/);
-    });
-
-    test("valid indices reach the backend unchanged", () => {
-      api.getPeaksFromChrom(
-        file,
-        [
-          { id: "a", idx: 0, rt: 1, range: 0.1 },
-          { id: "b", idx: 3, rt: 2, window: 0.2 },
-        ],
-        {},
-        1,
-      );
-
-      const call = backend.getPeaksFromChrom.mock.calls[0];
-      expect(Array.from(call[1])).toEqual([0, 3]);
-      expect(Array.from(call[2])).toEqual([1, 2]);
-      expect(Array.from(call[3])).toEqual([0.1, 0.2]);
-      expect(call[4]).toBe(2);
-    });
-
-    test("the index alias is accepted", () => {
-      api.getPeaksFromChrom(file, [{ id: "a", index: 2, rt: 1, range: 0.1 }], {}, 1);
-
-      const call = backend.getPeaksFromChrom.mock.calls[0];
-      expect(Array.from(call[1])).toEqual([2]);
-    });
-
-    test("an empty item list reaches the backend", () => {
-      api.getPeaksFromChrom(file, [], {}, 1);
-      expect(backend.getPeaksFromChrom).toHaveBeenCalledTimes(1);
-    });
-  },
-);
+  it("finds nothing for a wrong product", async () => {
+    const [row] = getPeaksFromChrom(await parseIon(srmFile), [getTarget(alanine, serine)]);
+    expect(row.id).toBe("alanine");
+    expect(row.intensity).toBe(0);
+  });
+});
