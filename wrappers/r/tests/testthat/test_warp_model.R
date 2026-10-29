@@ -44,13 +44,13 @@ test_that("a target without mz is named by its index", {
   skip_if(!nzchar(sample_file), "no api.ion sample next to the package")
   broken <- data.frame(id = c("first", "broken"), mz = c(250.1, NA), rt = c(1.2, 2.0))
   expect_error(predict_rts(get_warp(model_file), parse_ion(sample_file), broken),
-               "predict_rts failed: target 2 has no valid m/z or rt")
+               "predict_rts: target 2 has no valid m/z or rt")
 })
 
 test_that("a file whose scans do not cover the model range is refused", {
   skip_if(!nzchar(sample_file), "no api.ion sample next to the package")
   expect_error(predict_rts(get_warp(model_file), parse_ion(empty_file), targets),
-               "predict_rts failed: the file has no scans, the warp model needs")
+               "predict_rts: the file has no scans, the warp model needs")
 })
 
 test_that("a disposed warp model cannot be used", {
@@ -101,7 +101,7 @@ test_that("calibrate needs an id for each target", {
   skip_if(!nzchar(sample_file), "no api.ion sample next to the package")
   broken <- data.frame(id = c("first", ""), mz = c(250.1, 310.2), rt = c(1.2, 3.1))
   expect_error(calibrate(get_warp(model_file), list(parse_ion(sample_file)), list(broken)),
-               "calibrate failed: target 2 in list 1 has no id")
+               "calibrate: target 2 in list 1 has no id")
 })
 
 test_that("a model and a warp can be disposed twice", {
@@ -132,10 +132,10 @@ test_that("the model keeps working after the warp is made", {
 })
 
 test_that("load_warp needs a model", {
-  expect_error(load_warp(model_file), "expected a model from load_model")
+  expect_error(load_warp(model_file), "load_warp: model must be a model from load_model")
 })
 
 test_that("a missing model file is refused", {
   skip_if(!nzchar(sample_file), "no api.ion sample next to the package")
-  expect_error(load_model(file.path(fixtures, "missing.onnx")), "load_model failed: the model was not read")
+  expect_error(load_model(file.path(fixtures, "missing.onnx")), "load_model: the file could not be read")
 })

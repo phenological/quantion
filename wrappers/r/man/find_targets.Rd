@@ -1,73 +1,36 @@
 \name{find_targets}
 \alias{find_targets}
-\title{Find peaks for many targets using EICs}
+\title{Find the peak of each target}
 \description{
-Builds an EIC for each target and finds the best peak near the given RT.
-Use this for batch targeted peak extraction from one file.
+For each target, build its EIC at \code{mz} and find its peak near \code{rt}. A target without \code{range} (or with 0) searches its whole EIC.
 }
 \usage{
-find_targets(
-  file,
-  targets,
-  from = 0.5,
-  to = 5,
-  threads = 1L,
-  min_integral = NaN,
-  min_intensity = .DEFAULTS$min_intensity,
-  min_peak_width_points = .DEFAULTS$min_peak_width_points,
-  noise = NaN,
-  auto_noise = .DEFAULTS$auto_noise,
-  auto_baseline = .DEFAULTS$auto_baseline,
-  lambda = 0L,
-  max_iterations = 0L,
-  allow_overlap = FALSE,
-  min_snr = .DEFAULTS$min_snr,
-  min_r2 = .DEFAULTS$min_r2,
-  shape = .DEFAULTS$shape,
-  kernel_size = .DEFAULTS$kernel_size
-)
+find_targets(file, targets, options = find_targets_options())
 }
 \arguments{
-  \item{file}{Sample file from \code{\link{parse_mzml}()} or \code{\link{parse_ion}()}.}
-  \item{targets}{Data frame with columns \code{id} (character), \code{rt} (numeric),
-    \code{mz} (numeric), \code{range} (numeric RT half-window).}
-  \item{from}{EIC extraction start time (minutes). Default 0.5.}
-  \item{to}{EIC extraction end time (minutes). Default 5.}
-  \item{threads}{Number of threads to use. Default 1.}
-  \item{min_integral}{Minimum peak area. \code{NaN} disables.}
-  \item{min_intensity}{Minimum apex intensity. Default 1000.}
-  \item{min_peak_width_points}{Minimum peak width in points. Default 5.}
-  \item{noise}{Fixed noise level. \code{NaN} disables.}
-  \item{auto_noise}{Estimate noise automatically. Default \code{TRUE}.}
-  \item{auto_baseline}{Subtract baseline before detection. Default \code{TRUE}.}
-  \item{lambda}{airPLS smoothing parameter for baseline estimation. \code{0} uses a default.}
-  \item{max_iterations}{Maximum airPLS iterations. \code{0} uses a default.}
-  \item{allow_overlap}{Allow overlapping peak boundaries. Default \code{FALSE}.}
-  \item{min_snr}{Minimum signal-to-noise ratio. Default 1.}
-  \item{min_r2}{Minimum fit R-squared (Gaussian or EMG) for the artifact filter; \code{0} disables it (keep peaks regardless of shape). Default 0.3.}
-  \item{shape}{Peak shape used when fitting.}
-
-  \item{kernel_size}{Smoothing kernel size used before peak detection.}
-
+  \item{file}{A sample from \code{\link{parse_ion}()} or \code{\link{parse_mzml}()}.}
+  \item{targets}{A data.frame with columns \code{mz} and \code{rt}, and optional \code{id} and \code{range}.}
+  \item{options}{Settings from \code{\link{find_targets_options}()}.}
 }
 \value{
-A data frame with one row per target, in the same order, with the peak columns
-\code{rt}, \code{from}, \code{to}, \code{intensity}, \code{integral},
-\code{n_points}, \code{noise} and \code{r2}. A target with no peak gets zeros.
+A data.frame with one row per target in the same order: \code{rt}, \code{from}, \code{to}, \code{intensity}, \code{integral}, \code{n_points}, \code{noise}, \code{r2}. A target with no peak gets a row of zeros.
 }
 \examples{
-\donttest{
-url <- "https://raw.githubusercontent.com/phenological/ion-files/main/data/p21_LTR_20_b1_w20.ion"
-sample <- parse_ion(url)
+\dontrun{
+sample <- parse_ion("sample.ion")
 targets <- data.frame(
-  id     = c("Alanine", "Sarcosine"),
-  rt     = c(2.383, 2.189),
-  mz     = c(260.103, 260.103),
-  range  = c(0.05, 0.05)
+  id    = c("compound_1", "compound_2"),
+  mz    = c(260.103, 260.103),
+  rt    = c(2.383, 2.189),
+  range = c(0.05, 0.05)
 )
-find_targets(sample, targets)
+peaks <- find_targets(sample, targets, options = find_targets_options(
+  eic        = calculate_eic_options(from = 0.5, to = 5),
+  find_peaks = find_peaks_options(min_intensity = 1000),
+  threads    = 4L
+))
 }
 }
 \seealso{
-\code{\link{calculate_eic}()}, \code{\link{get_peak}()}, \code{\link{find_transitions}()}
+\code{\link{find_targets_options}()}, \code{\link{find_transitions}()}
 }

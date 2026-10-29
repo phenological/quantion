@@ -1,6 +1,6 @@
 #![allow(clippy::excessive_precision)]
 
-//! SAN plot (Signal–Artifact–Noise) — spectral quality analysis
+//! SAN plot (Signal–Artifact–NoiseLevel) — spectral quality analysis
 //!
 //! Rust implementation of JavaScript version from:
 //! https://github.com/mljs/spectra-processing/blob/main/src/x/xNoiseSanPlot.ts

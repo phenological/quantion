@@ -1,6 +1,6 @@
 use serde::Deserialize;
 
-#[derive(Debug, Deserialize)]
+#[derive(Clone, Debug, Default, Deserialize)]
 pub struct DataXY {
     pub x: Vec<f64>,
     pub y: Vec<f64>,
@@ -15,7 +15,7 @@ impl DataXY {
     }
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct FromTo {
     pub from: f64,
     pub to: f64,
@@ -30,7 +30,7 @@ pub struct Peak {
     pub intensity: f64,
     pub n_points: usize,
     pub noise: f64,
-    pub r2: Option<f64>,
+    pub r2: f64,
 }
 
 impl Default for Peak {
@@ -41,7 +41,7 @@ impl Default for Peak {
             rt: 0.0,
             integral: 0.0,
             intensity: 0.0,
-            r2: None,
+            r2: 0.0,
             n_points: 0,
             noise: 0.0,
         }
@@ -56,15 +56,25 @@ pub struct Roi {
 
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Target {
-    pub id: String,
+    pub id: Option<String>,
     pub mz: f64,
     pub rt: f64,
-    pub range: f64,
+    pub range: Option<f64>,
+}
+
+impl Target {
+    pub(crate) fn get_id(&self) -> &str {
+        self.id.as_deref().unwrap_or("")
+    }
+
+    pub(crate) fn get_range(&self) -> f64 {
+        self.range.unwrap_or(0.0)
+    }
 }
 
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Transition {
-    pub id: String,
+    pub id: Option<String>,
     pub precursor: f64,
     pub product: f64,
     pub rt: f64,

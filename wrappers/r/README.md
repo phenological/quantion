@@ -8,202 +8,148 @@ R wrappers for the quantion library for LC-MS data processing.
 remotes::install_github("phenological/quantion", subdir = "wrappers/r")
 ```
 
-The install downloads the native library for your platform from the GitHub release that matches the package version.
+The install builds the native library from its Rust source, so it needs `cargo` and `rustc` (1.88 or newer).
 
 ## Concepts
 
-**Sample**: A pointer to a parsed mzML file held in memory, or to an ion file decoded on demand. Create samples with `parse_mzml()` or `parse_ion()`. Memory is freed automatically when no longer in use, or call `dispose()` to free manually.
+**Sample**: an opened file. Create it with `parse_ion()` or `parse_mzml()`. Its memory is freed by the garbage collector, or at once with `dispose()`.
 
-**XY data**: A pair of numeric vectors where `x` is retention time and `y` is intensity.
+**Options**: every function with settings takes one `options` argument built by a helper named after it, such as `find_targets_options()`. Groups of settings nest through their own helpers: `calculate_eic_options()`, `grid_options()`, `grouping_options()` and `find_peaks_options()`. A misspelt or wrong setting is an error as soon as the helper runs.
 
-## Load files
-
-### mzML
-
-Load an mzML file into a sample.
+**Errors**: every error is a condition of class `quantion_error` with `kind`, `code`, `function`, `argument` and `message`, the same as in the other quantion languages.
 
 ```r
-mzml_path <- "/path/to/file.mzML"
-buf <- readBin(mzml_path, "raw", file.info(mzml_path)$size)
-sample <- quantion::parse_mzml(buf)
+result <- tryCatch(
+  calculate_eic(sample, -1),
+  quantion_error = function(error) error$kind
+)
+# "invalid_argument"
 ```
 
-### ion
-
-Load an ion binary file into a sample.
+## Files
 
 ```r
-ion_path <- "/path/to/file.ion"
-buf <- readBin(ion_path, "raw", file.info(ion_path)$size)
-sample <- quantion::parse_ion(buf)
+sample <- quantion::parse_ion("sample.ion")
+remote <- quantion::parse_ion("https://example.org/sample.ion")
+mzml <- quantion::parse_mzml("sample.mzML")
 ```
 
-## Convert
+A path or URL is read lazily: only the bytes a query needs are fetched. Functions that need the whole file (`find_transitions`, `write_ion`, `write_mzml`) refuse a sample opened from a URL with a `remote_file` error.
 
-### mzML to ion
-
-Convert a sample to compressed ion bytes.
+Write a sample as .ion or mzML. Without `out`, you get the bytes back.
 
 ```r
-out <- quantion::mzml_to_ion(sample, level = 12L, f32_compress = FALSE)
-writeBin(out, "/path/to/file.ion")
+bytes <- quantion::write_ion(sample)
+quantion::write_ion(mzml, options = quantion::write_ion_options(out = "sample.ion", level = 12L))
+quantion::write_mzml(sample, options = quantion::write_mzml_options(out = "sample.mzML"))
 ```
 
-### Sample to mzML
-
-Get mzML text from a sample.
+## Extract
 
 ```r
-mzml <- quantion::ion_to_mzml(sample)
+eic <- quantion::calculate_eic(sample, 260.103,
+  options = quantion::calculate_eic_options(from = 0.5, to = 5, ppm_tolerance = 10))
+
+scans <- quantion::get_scans(sample, rt = c(1.0, 2.5))
+closest <- quantion::get_scans(sample, rt = 108,
+  options = quantion::get_scans_options(level = 2L, time_unit = "SECONDS"))
+
+image <- quantion::get_ion_image(sample, 760.585,
+  options = quantion::get_ion_image_options(tolerance = 0.05))
 ```
 
-## Extract from samples
+`calculate_eic_options()` reads the whole run by default (`from = 0`, `to = Inf`) with 20 ppm or 0.005 Da, whichever is wider. `time_unit` is `"MINUTES"` or `"SECONDS"`.
 
-### Extract EIC
-
-Get an extracted ion chromatogram for one m/z from a sample.
+## Traces
 
 ```r
-eic <- quantion::calculate_eic(sample, mz = 288.1326, from = 2.5, to = 4.0, ppm_tolerance = 10, mz_tolerance = 0.005)
-eic_df <- data.frame(x = eic$x, y = eic$y)
+peaks <- quantion::find_peaks(eic$x, eic$y,
+  options = quantion::find_peaks_options(min_intensity = 1000, min_snr = 3))
+
+peak <- quantion::get_peak(eic$x, eic$y, rt = 2.383,
+  options = quantion::get_peak_options(range = 0.05))
+anywhere <- quantion::get_peak(eic$x, eic$y, rt = 2.383)
+
+fit <- quantion::fit_peak(eic$x, eic$y, rt = 2.383)
+noise <- quantion::find_noise_level(eic$y)$intensity
+baseline <- quantion::calculate_baseline(eic$y, options = quantion::calculate_baseline_options(lambda = 50))
 ```
 
-### Get scans
+A `get_peak` without a range searches the whole trace. No peak gives a peak with every field 0.
 
-Get scans from a sample by retention time or m/z query.
+Simulate a chromatogram from peak curves. A `tail` of 0 draws a Gaussian, above 0 an EMG.
 
 ```r
-scans <- quantion::get_scans(sample, rt = c(2.5, 4.0), level = 1L)
+peak_1 <- list(height = 9800, center = 2.38, fwhm = 0.021, tail = 0.006)
+peak_2 <- list(height = 4200, center = 2.45, fwhm = 0.018, tail = 0)
+chrom <- quantion::draw_peaks(list(peak_1, peak_2),
+  options = quantion::draw_peaks_options(from = 2, to = 3, points = 2000L))
 ```
 
-## Process XY data
+## Targets
 
-### Calculate baseline
-
-Estimate a baseline for XY data.
-
-```r
-xs <- seq(0, 10, length.out = 1000)
-ys <- sin(xs) + 0.1 * xs + 2
-baseline <- quantion::calculate_baseline(ys, lambda = 0L, max_iterations = 0L)
-```
-
-### Find peaks
-
-Find all peaks in XY data.
-
-```r
-peaks <- quantion::find_peaks(eic_df$x, eic_df$y, min_intensity = 1000, min_peak_width_points = 10L, auto_noise = TRUE, auto_baseline = TRUE)
-```
-
-### Get single peak
-
-Find one peak near a target retention time in XY data.
-
-```r
-peak <- quantion::get_peak(eic_df$x, eic_df$y, rt = 3.4, range = 0.6, min_intensity = 1000, min_peak_width_points = 10L, auto_noise = TRUE, auto_baseline = TRUE)
-```
-
-## Predict retention times
-
-Load an ONNX model from a path, a URL, or raw bytes, read the keys and values
-stored in it, and make a warp model from it. The model stays usable after
-`load_warp`, and the warp keeps working if the model is disposed.
-
-```r
-model <- quantion::load_model("model.onnx")
-quantion::get_keys(model)               # "points" "time_from" ... "targets"
-quantion::get_value(model, "points")    # "1024"
-
-warp <- quantion::load_warp(model)
-quantion::get_value(warp, "targets")    # the warp has the same keys and values
-```
-
-Predict each target's retention time in a sample. You get a data frame with
-`rt` and `uncertainty`, one row per target, in the same order.
-
-```r
-targets <- data.frame(id = "feature_1", mz = 300.1, rt = 2.38)
-rts <- quantion::predict_rts(warp, sample, targets)
-```
-
-Without reference RTs, calibrate from anchor samples such as LTRs or QCs: give
-the samples and, for each one, the targets seen in it. Each target gets the
-median calibrated RT over the samples where it was seen. One sample works, three
-are better, five or more are best. Each RT must be the one measured in
-that anchor sample: a generic target list runs without error but gives wrong RTs.
-
-```r
-anchor_samples <- list(ltr_1, ltr_2, ltr_3)
-target_lists <- list(seen_in_ltr_1, seen_in_ltr_2, seen_in_ltr_3)
-calibrated <- quantion::calibrate(warp, anchor_samples, target_lists)
-rts <- quantion::predict_rts(warp, other_sample, calibrated)
-
-quantion::dispose(warp)
-quantion::dispose(model)
-```
-
-## Find peaks from samples
-
-### From chromatograms
-
-Find peaks in the SRM chromatograms stored in a sample. Each target picks the
-chromatogram whose precursor (Q1) and product (Q3) m/z are both within 0.005.
+Find the peak of each target in its EIC. `id` and `range` are optional; a target without `range` searches its whole EIC.
 
 ```r
 targets <- data.frame(
+  id    = c("compound_1", "compound_2"),
+  mz    = c(260.103, 260.103),
+  rt    = c(2.383, 2.189),
+  range = c(0.05, 0.05)
+)
+peaks <- quantion::find_targets(sample, targets, options = quantion::find_targets_options(
+  eic        = quantion::calculate_eic_options(from = 0.5, to = 5),
+  find_peaks = quantion::find_peaks_options(min_intensity = 1000),
+  threads    = 4L
+))
+```
+
+Find peaks in the SRM chromatograms stored in a sample. Each transition picks the chromatogram whose precursor (Q1) and product (Q3) are both within 0.005 m/z.
+
+```r
+transitions <- data.frame(
   id        = c("compound_1", "compound_2"),
   precursor = c(500.3, 520.4),
   product   = c(184.1, 184.1),
   rt        = c(3.20, 3.65),
   range     = c(0.4, 0.4)
 )
-peaks <- quantion::find_transitions(sample, targets, threads = 2L)
+peaks <- quantion::find_transitions(sample, transitions,
+  options = quantion::find_transitions_options(threads = 2L))
 ```
 
-### From EICs
-
-Find peaks for many targets using extracted ion chromatograms from a sample.
+## Features
 
 ```r
-targets <- data.frame(
-  id     = c("1-methylhistidine", "Leucine", "Glutamine", "Alanine", "Arginine", "Asparagine"),
-  rt     = c(2.61, 4.15, 1.91, 2.39, 2.59, 1.75),
-  mz     = c(340.1404, 302.1499, 317.1244, 260.1030, 345.1670, 303.1088),
-  range  = c(0.2, 0.2, 0.2, 0.2, 0.2, 0.2)
-)
-peaks <- quantion::find_targets(sample, targets, auto_noise = TRUE, auto_baseline = TRUE, threads = 2L)
+features <- quantion::find_features(sample, options = quantion::find_features_options(
+  grid    = quantion::grid_options(start = 100, end = 600),
+  threads = 4L
+))
+
+matched <- quantion::match_features("samples/", options = quantion::match_features_options(
+  grouping = quantion::grouping_options(min_frequency = 0.5),
+  threads  = 8L
+))
 ```
 
-## Untargeted
+`frequency` in the matched table is the fraction of samples (0 to 1) where a feature was found; `min_frequency` keeps only features found in at least that fraction.
 
-### From single sample
-
-Find all features in a sample.
+## Predict retention times
 
 ```r
-features <- quantion::find_features(
-  sample,
-  from = 0, to = 10,
-  threads = 5L,
-  auto_noise = TRUE,
-  auto_baseline = TRUE,
-  min_peak_width_points = 10L,
-  min_intensity = 1000
-)
+model <- quantion::load_model("model.onnx")
+quantion::get_value(model, "points")
+
+warp <- quantion::load_warp(model)
+predicted <- quantion::predict_rts(warp, sample, data.frame(id = "compound_1", mz = 260.103, rt = 2.383))
 ```
 
-### Align features across samples
-
-Find and align features across many samples.
+Without reference retention times, calibrate from anchor samples such as LTRs or QCs: give the samples and, for each one, the targets seen in it with their measured `rt`. Each target gets the median over the anchors.
 
 ```r
-features <- quantion::match_features(
-  "/path/to/sample/directory",
-  from = 0,
-  to = 10,
-  threads = 5L,
-  auto_noise = TRUE,
-  auto_baseline = TRUE
-)
+calibrated <- quantion::calibrate(warp, list(anchor_1, anchor_2), list(seen_in_anchor_1, seen_in_anchor_2))
+predicted <- quantion::predict_rts(warp, sample, calibrated)
+
+quantion::dispose(warp)
+quantion::dispose(model)
 ```

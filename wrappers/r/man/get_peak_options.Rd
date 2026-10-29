@@ -1,0 +1,22 @@
+\name{get_peak_options}
+\alias{get_peak_options}
+\title{Settings for get_peak}
+\description{
+Settings for \code{\link{get_peak}()}. Every field is checked when the object is built; a misspelt name or a wrong type gives an error.
+}
+\usage{
+get_peak_options(range = 0, find_peaks = find_peaks_options())
+}
+\arguments{
+  \item{range}{Half-width of the search window around rt. 0 searches the whole trace.}
+  \item{find_peaks}{Peak-picking settings from \code{\link{find_peaks_options}()}.}
+}
+\value{
+An options object for \code{\link{get_peak}()}.
+}
+\examples{
+get_peak_options(range = 0.05)
+}
+\seealso{
+\code{\link{get_peak}()}
+}

@@ -22,10 +22,10 @@ fn get_warp() -> WarpModel {
 
 fn get_target(id: &str, mz: f64, rt: f64) -> Target {
     Target {
-        id: id.to_string(),
+        id: Some(id.to_string()),
         mz,
         rt,
-        range: 0.0,
+        range: None,
     }
 }
 
@@ -135,7 +135,7 @@ fn predict_rts_gives_one_prediction_per_target_from_a_file() {
     let mut ion = open_file(COVERING_FILE);
 
     let predicted = warp
-        .predict_rts(&mut EicReader::Ion(&mut ion), &targets)
+        .predict_rts_from_reader(&mut EicReader::Ion(&mut ion), &targets)
         .expect("predictions");
 
     assert_eq!(predicted.len(), targets.len());
@@ -155,7 +155,7 @@ fn a_target_without_mz_is_refused() {
         get_target("broken", f64::NAN, 2.0),
     ];
 
-    let result = warp.predict_rts(&mut EicReader::Ion(&mut ion), &targets);
+    let result = warp.predict_rts_from_reader(&mut EicReader::Ion(&mut ion), &targets);
 
     assert!(matches!(result, Err(WarpError::TargetMissing(1))));
 }
@@ -166,7 +166,7 @@ fn a_file_without_scans_in_the_model_range_is_refused() {
     let targets = get_targets();
     let mut ion = open_file(EMPTY_FILE);
 
-    let result = warp.predict_rts(&mut EicReader::Ion(&mut ion), &targets);
+    let result = warp.predict_rts_from_reader(&mut EicReader::Ion(&mut ion), &targets);
 
     assert!(matches!(
         result,
@@ -197,11 +197,11 @@ fn calibrate_with_one_sample_moves_each_rt_by_its_predicted_shift() {
     let targets = get_targets();
     let mut ion = open_file(COVERING_FILE);
     let predicted = warp
-        .predict_rts(&mut EicReader::Ion(&mut ion), &targets)
+        .predict_rts_from_reader(&mut EicReader::Ion(&mut ion), &targets)
         .expect("predictions");
 
     let calibrated = warp
-        .calibrate(
+        .calibrate_from_readers(
             &mut [EicReader::Ion(&mut ion)],
             std::slice::from_ref(&targets),
         )
@@ -226,14 +226,14 @@ fn calibrate_takes_the_median_over_the_samples() {
     let mut second = open_file(COVERING_FILE);
     let mut third = open_file(COVERING_FILE);
     let middle = warp
-        .calibrate(
+        .calibrate_from_readers(
             &mut [EicReader::Ion(&mut first)],
             std::slice::from_ref(&targets),
         )
         .expect("one sample");
 
     let calibrated = warp
-        .calibrate(
+        .calibrate_from_readers(
             &mut [
                 EicReader::Ion(&mut first),
                 EicReader::Ion(&mut second),
@@ -254,13 +254,13 @@ fn calibrate_uses_the_samples_where_a_target_was_seen() {
     let mut second = open_file(COVERING_FILE);
 
     let calibrated = warp
-        .calibrate(
+        .calibrate_from_readers(
             &mut [EicReader::Ion(&mut first), EicReader::Ion(&mut second)],
             &[targets[..1].to_vec(), targets.clone()],
         )
         .expect("calibration");
 
-    let ids: Vec<&str> = calibrated.iter().map(|target| target.id.as_str()).collect();
+    let ids: Vec<&str> = calibrated.iter().map(|target| target.get_id()).collect();
     assert_eq!(ids, ["alanine", "sarcosine", "leucine", "valine"]);
 }
 
@@ -270,7 +270,7 @@ fn calibrate_needs_one_target_list_per_sample() {
     let mut ion = open_file(COVERING_FILE);
 
     let error = warp
-        .calibrate(
+        .calibrate_from_readers(
             &mut [EicReader::Ion(&mut ion)],
             &[get_targets(), get_targets()],
         )
@@ -286,11 +286,11 @@ fn calibrate_needs_one_target_list_per_sample() {
 fn calibrate_needs_an_id_for_each_target() {
     let warp = get_warp();
     let mut targets = get_targets();
-    targets[1].id.clear();
+    targets[1].id = None;
     let mut ion = open_file(COVERING_FILE);
 
     let error = warp
-        .calibrate(&mut [EicReader::Ion(&mut ion)], &[targets])
+        .calibrate_from_readers(&mut [EicReader::Ion(&mut ion)], &[targets])
         .expect_err("a target without id");
 
     assert_eq!(error.to_string(), "target 2 in list 1 has no id");
@@ -302,7 +302,7 @@ fn no_targets_give_no_predictions_without_reading_the_file() {
     let mut ion = open_file(EMPTY_FILE);
 
     let predicted = warp
-        .predict_rts(&mut EicReader::Ion(&mut ion), &[])
+        .predict_rts_from_reader(&mut EicReader::Ion(&mut ion), &[])
         .expect("predictions");
 
     assert!(predicted.is_empty());
@@ -323,7 +323,7 @@ fn the_warp_keeps_working_after_the_model_is_dropped() {
     let mut ion = open_file(COVERING_FILE);
 
     let predicted = warp
-        .predict_rts(&mut EicReader::Ion(&mut ion), &get_targets())
+        .predict_rts_from_reader(&mut EicReader::Ion(&mut ion), &get_targets())
         .expect("predictions");
 
     assert_eq!(predicted.len(), get_targets().len());
@@ -392,10 +392,10 @@ mod from_url {
         let mut reader = EicReader::Ion(&mut ion);
 
         let url_predictions = from_url
-            .predict_rts(&mut reader, &targets)
+            .predict_rts_from_reader(&mut reader, &targets)
             .expect("url predictions");
         let path_predictions = from_path
-            .predict_rts(&mut reader, &targets)
+            .predict_rts_from_reader(&mut reader, &targets)
             .expect("path predictions");
 
         assert_eq!(url_predictions, path_predictions);

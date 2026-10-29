@@ -1,33 +1,24 @@
 \name{calculate_baseline}
 \alias{calculate_baseline}
-\title{Estimate a signal baseline}
+\title{Estimate a baseline}
 \description{
-Fits an airPLS baseline to one numeric signal vector.
+Estimate a signal's baseline with airPLS.
 }
 \usage{
-calculate_baseline(
-  y,
-  lambda = 0L,
-  max_iterations = 0L
-)
+calculate_baseline(y, options = calculate_baseline_options())
 }
 \arguments{
-  \item{y}{Numeric signal vector.}
-  \item{lambda}{airPLS smoothing parameter. \code{0} uses a default.}
-  \item{max_iterations}{Maximum airPLS iterations. \code{0} uses a default.}
+  \item{y}{Intensities.}
+  \item{options}{Settings from \code{\link{calculate_baseline_options}()}.}
 }
 \value{
-Numeric vector, same length as \code{y}, with the estimated baseline values.
+A numeric vector, the same length as \code{y}.
 }
 \examples{
-\donttest{
-x <- seq(0, 10, length.out = 1000)
-y <- sin(x) + 0.1 * x + 2
-bl <- calculate_baseline(y)
-plot(x, y, type = "l")
-lines(x, bl, col = 2)
-}
+trace <- draw_peaks(list(list(height = 1000, center = 2, fwhm = 0.05, tail = 0.01)),
+                    draw_peaks_options(from = 1, to = 3, points = 400L))
+baseline <- calculate_baseline(trace$y, options = calculate_baseline_options(lambda = 50))
 }
 \seealso{
-\code{\link{find_peaks}()}, \code{\link{get_peak}()}
+\code{\link{calculate_baseline_options}()}
 }

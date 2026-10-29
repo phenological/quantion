@@ -13,3 +13,5 @@ export * from "./utilities/api";
 export { SampleFile } from "./utilities/sampleFile";
 export { Model } from "./utilities/model";
 export { WarpModel } from "./utilities/warpModel";
+export { QuantionError, ERROR_CODES, type ErrorKind } from "./utilities/errors";
+export * from "./types/types";

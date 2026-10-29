@@ -1,31 +1,23 @@
 \name{find_noise_level}
 \alias{find_noise_level}
-\title{Estimate the noise level of a signal}
+\title{Estimate the noise level}
 \description{
-Estimates the noise level of an intensity vector. The value is the intensity
-below which a point is treated as noise, and it is what \code{auto_noise = TRUE}
-computes for you in the peak finders.
+Estimate the noise level of a signal.
 }
 \usage{
-find_noise_level(
-  y
-)
+find_noise_level(y)
 }
 \arguments{
-  \item{y}{A numeric vector of intensities.}
+  \item{y}{Intensities.}
 }
 \value{
-A list with \code{width}, the number of points in the window the estimate came
-from, and \code{intensity}, the estimated noise level.
+A list with \code{width} (the window width the estimate came from) and \code{intensity}.
 }
 \examples{
-\donttest{
-url <- "https://raw.githubusercontent.com/phenological/ion-files/main/data/p21_LTR_20_b1_w20.ion"
-sample <- parse_ion(url)
-eic <- calculate_eic(sample, 260.103, from = 0.5, to = 5)
-noise <- find_noise_level(eic$y)$intensity
-}
+trace <- draw_peaks(list(list(height = 1000, center = 2, fwhm = 0.05, tail = 0.01)),
+                    draw_peaks_options(from = 1, to = 3, points = 400L))
+noise <- find_noise_level(trace$y)$intensity
 }
 \seealso{
-\code{\link{calculate_baseline}()}, \code{\link{find_peaks}()}, \code{\link{get_peak}()}
+\code{\link{find_peaks}()}
 }

@@ -1,11 +1,16 @@
 import type {
-  CentroidScan,
-  IonImage,
-  NoiseLevel,
+  DataXY,
+  Feature,
   FindPeaksOptions,
-  WarpTarget,
+  IonImage,
   ModelEntry,
+  NoiseLevel,
+  Peak,
+  PeakParameters,
+  Scan,
+  Target,
 } from "../types/types";
+import type { Complete } from "./options";
 
 export type FileHandle = unknown;
 export type ModelHandle = unknown;
@@ -17,25 +22,81 @@ export interface ByteRangeResult {
   length: bigint;
 }
 
+export interface EicSettings {
+  from: number;
+  to: number;
+  ppmTolerance: number;
+  mzTolerance: number;
+  timeUnit: number;
+}
+
+export interface GridSettings {
+  start: number;
+  end: number;
+  stepSize: number;
+}
+
+export interface GroupingSettings {
+  ppmTolerance: number;
+  mzTolerance: number;
+  rtTolerance: number;
+  minFrequency: number;
+}
+
+export interface TargetColumns {
+  rts: Float64Array;
+  mzs: Float64Array;
+  ranges: Float64Array;
+  ids: string[];
+}
+
+export interface TransitionColumns {
+  precursors: Float64Array;
+  products: Float64Array;
+  rts: Float64Array;
+  ranges: Float64Array;
+  ids: string[];
+}
+
+export interface PeakColumns {
+  heights: Float64Array;
+  centers: Float64Array;
+  fwhms: Float64Array;
+  tails: Float64Array;
+}
+
+export type PeakSettings = Complete<FindPeaksOptions>;
+
 export interface Backend {
   readonly ready: boolean;
   readonly handlesAreGcFinalized: boolean;
+  readonly canReadPaths: boolean;
 
   init(): Promise<void>;
 
-  parseMzML(data: Uint8Array): FileHandle;
-  parseBin(data: Uint8Array, maxCacheSize?: number): FileHandle;
-  parseIonPath(
-    path: string,
-    cacheSize: number,
-  ): FileHandle | Promise<FileHandle>;
-
+  parseMzmlBytes(data: Uint8Array): FileHandle;
+  parseMzmlPath(path: string): FileHandle;
+  parseIonPath(path: string, cacheSize: number): MaybePromise<FileHandle>;
   parseIonRemote(url: URL, cacheSize: number): Promise<FileHandle>;
   parseIonBuffer(
     bytes: Uint8Array,
     cacheSize: number,
-  ): FileHandle | Promise<FileHandle>;
+  ): MaybePromise<FileHandle>;
   freeFile(handle: FileHandle): void;
+
+  writeIon(
+    handle: FileHandle,
+    out: string | null,
+    overwrite: boolean,
+    level: number,
+    f32Compress: boolean,
+    headers: Uint8Array,
+  ): MaybePromise<Uint8Array | undefined>;
+  writeMzml(
+    handle: FileHandle,
+    out: string | null,
+    overwrite: boolean,
+  ): Uint8Array | undefined;
 
   loadModelPath(path: string): ModelHandle;
   loadModelBytes(bytes: Uint8Array): ModelHandle;
@@ -48,22 +109,6 @@ export interface Backend {
     handle: FileHandle,
     mzs: Float64Array,
     rts: Float64Array,
-  ): Promise<void>;
-  prefetchTargets(
-    handle: FileHandle,
-    mzs: Float64Array,
-    from: number,
-    to: number,
-  ): Promise<void>;
-  prefetchFeatures?(
-    handle: FileHandle,
-    from: number,
-    to: number,
-    eicPpm: number,
-    eicMz: number,
-    gridStart: number,
-    gridEnd: number,
-    gridStep: number,
   ): Promise<void>;
   predictRts(
     warp: WarpModelHandle,
@@ -78,55 +123,53 @@ export interface Backend {
     ids: string[],
     mzs: Float64Array,
     rts: Float64Array,
-  ): WarpTarget[];
-  fileToMzml(handle: FileHandle): string;
-  fileToBin(
-    handle: FileHandle,
-    level: number,
-    f32Compress: boolean,
-  ): Uint8Array;
+  ): Target[];
 
   calculateEic(
     handle: FileHandle,
-    targetMz: number,
-    from: number,
-    to: number,
-    ppmTolerance: number,
-    mzTolerance: number,
-  ): MaybePromise<{ x: Float64Array; y: Float64Array }>;
+    mz: number,
+    eic: EicSettings,
+  ): MaybePromise<DataXY>;
 
   getScans(
     handle: FileHandle,
     queryType: number,
-    a: number,
-    b: number,
+    from: number,
+    to: number,
     level: number,
-  ): MaybePromise<CentroidScan[]>;
+    timeUnit: number,
+  ): MaybePromise<Scan[]>;
 
   getIonImage(
     handle: FileHandle,
     mz: number,
     tolerance: number,
     level: number,
-    onProgress?: (fetched: number, total: number, heldBytes: number) => void,
+    onProgress: (fetched: number, total: number, heldBytes: number) => void,
   ): MaybePromise<IonImage>;
 
-  findPeaks(
-    x: Float64Array,
-    y: Float64Array,
-    options: FindPeaksOptions | undefined,
-  ): any;
-
+  findPeaks(x: Float64Array, y: Float64Array, options: PeakSettings): Peak[];
   getPeak(
     x: Float64Array,
     y: Float64Array,
     rt: number,
     range: number,
-    options: FindPeaksOptions | undefined,
-  ): any;
-
+    options: PeakSettings,
+  ): Peak;
+  fitPeak(
+    x: Float64Array,
+    y: Float64Array,
+    rt: number,
+    shape: number,
+    intensity: number,
+  ): PeakParameters | null;
+  drawPeaks(
+    peaks: PeakColumns,
+    from: number,
+    to: number,
+    points: number,
+  ): DataXY;
   findNoiseLevel(y: Float32Array): NoiseLevel;
-
   calculateBaseline(
     y: Float64Array,
     lambda: number,
@@ -135,63 +178,33 @@ export interface Backend {
 
   findTargets(
     handle: FileHandle,
-    rts: Float64Array,
-    mzs: Float64Array,
-    ranges: Float64Array,
-    offsets: Uint32Array | null,
-    lengths: Uint32Array | null,
-    idBytes: Uint8Array | null,
-    idBytesLen: number,
-    count: number,
-    from: number,
-    to: number,
-    options: FindPeaksOptions | undefined,
+    targets: TargetColumns,
+    eic: EicSettings,
+    options: PeakSettings,
     threads: number,
-  ): any;
+  ): MaybePromise<Peak[]>;
 
   findTransitions(
     handle: FileHandle,
-    precursors: Float64Array,
-    products: Float64Array,
-    rts: Float64Array,
-    ranges: Float64Array,
-    offsets: Uint32Array | null,
-    lengths: Uint32Array | null,
-    idBytes: Uint8Array | null,
-    idBytesLen: number,
-    count: number,
-    options: FindPeaksOptions | undefined,
+    targets: TransitionColumns,
+    options: PeakSettings,
     threads: number,
-  ): any;
+  ): Peak[];
 
   findFeatures?(
     handle: FileHandle,
-    from: number,
-    to: number,
-    eicPpm: number,
-    eicMz: number,
-    gridStart: number,
-    gridEnd: number,
-    gridStep: number,
-    options: FindPeaksOptions | undefined,
+    eic: EicSettings,
+    grid: GridSettings,
+    options: PeakSettings,
     threads: number,
-  ): any;
-
+  ): MaybePromise<Feature[]>;
 
   matchFeatures?(
-    dirPath: string,
-    from: number,
-    to: number,
-    eicPpm: number,
-    eicMz: number,
-    gStart: number,
-    gEnd: number,
-    gStep: number,
-    groupPpm: number,
-    groupMz: number,
-    groupRt: number,
-    prevalence: number,
-    options: FindPeaksOptions | undefined,
+    directory: string,
+    eic: EicSettings,
+    grid: GridSettings,
+    grouping: GroupingSettings,
+    options: PeakSettings,
     threads: number,
-  ): any;
+  ): Feature[];
 }

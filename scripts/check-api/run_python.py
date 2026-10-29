@@ -9,6 +9,7 @@ TO_RT = 5.0
 FROM_TO = {"from": FROM_RT, "to": TO_RT}
 EIC_PPM = 20.0
 EIC_MZ = 0.005
+EIC = {"from": FROM_RT, "to": TO_RT, "ppm_tolerance": EIC_PPM, "mz_tolerance": EIC_MZ}
 GRID_START = 89.0
 GRID_END = 91.0
 GRID_STEP = 0.005
@@ -100,9 +101,7 @@ def shared_peak_lines(prefix, peak, out):
 
 def report_channel(file, transitions, channel, out):
     name = channel["name"]
-    eic = quantion.calculate_eic(
-        file, channel["mass"], FROM_TO, EIC_PPM, EIC_MZ
-    )
+    eic = quantion.calculate_eic(file, channel["mass"], EIC)
     x, y = list(eic["x"]), list(eic["y"])
 
     out.append(f"{name}.calculate_eic.points = {len(x)}")
@@ -119,7 +118,7 @@ def report_channel(file, transitions, channel, out):
         peak_lines(f"{name}.find_peaks[{index}]", peak, out)
 
     target = channel["targets"][2][1]
-    single = quantion.get_peak(x, y, target, ROI_RANGE, peak_options(channel))
+    single = quantion.get_peak(x, y, target, {"range": ROI_RANGE, "find_peaks": peak_options(channel)})
     peak_lines(f"{name}.get_peak", single, out)
 
     targets = [
@@ -127,7 +126,7 @@ def report_channel(file, transitions, channel, out):
         for id_, rt in channel["targets"]
     ]
     rows = quantion.find_targets(
-        file, targets, FROM_TO, peak_options(channel), THREADS
+        file, targets, {"eic": EIC, "find_peaks": peak_options(channel), "threads": THREADS}
     )
     for target, row in zip(targets, rows):
         shared_peak_lines(f"{name}.find_targets.{target['id']}", row, out)
@@ -137,7 +136,7 @@ def report_channel(file, transitions, channel, out):
         for id_, rt in channel["targets"]
     ]
     chrom_rows = quantion.find_transitions(
-        transitions, chrom_targets, chrom_peak_options(channel), THREADS
+        transitions, chrom_targets, {"find_peaks": chrom_peak_options(channel), "threads": THREADS}
     )
     for (id_, _), row in zip(channel["targets"], chrom_rows):
         prefix = f"{name}.find_transitions.{id_}"
@@ -163,17 +162,14 @@ def main():
     for channel in CHANNELS:
         report_channel(file, transitions, channel, out)
 
-    grid = {"start": GRID_START, "end": GRID_END, "step_size": GRID_STEP}
-    eic = {"ppm_tolerance": EIC_PPM, "mz_tolerance": EIC_MZ}
+    feature_options = {
+        "eic": EIC,
+        "grid": {"start": GRID_START, "end": GRID_END, "step_size": GRID_STEP},
+        "find_peaks": feature_peak_options(),
+        "threads": THREADS,
+    }
 
-    found = quantion.find_features(
-        file,
-        FROM_TO,
-        eic=eic,
-        grid=grid,
-        options=feature_peak_options(),
-        threads=THREADS,
-    )
+    found = quantion.find_features(file, feature_options)
     out.append(f"find_features.count = {len(found)}")
     for index, feature in enumerate(found):
         name = f"find_features[{index}]"
@@ -185,14 +181,7 @@ def main():
         out.append(f"{name}.intensity = {number(feature['intensity'])}")
         out.append(f"{name}.n_points = {int(feature['n_points'])}")
 
-    consensus = quantion.match_features(
-        directory,
-        FROM_TO,
-        eic=eic,
-        grid=grid,
-        options=feature_peak_options(),
-        threads=THREADS,
-    )
+    consensus = quantion.match_features(directory, feature_options)
     out.append(f"match_features.count = {len(consensus)}")
     for index, feature in enumerate(consensus):
         name = f"match_features[{index}]"

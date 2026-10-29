@@ -1,3 +1,4 @@
+use crate::options::FindPeaksOptions;
 use std::{
     cmp::Ordering,
     collections::HashSet,
@@ -10,14 +11,15 @@ use rayon::prelude::*;
 
 use ionic::{IonReader, source::ByteRange};
 
+use crate::options::CalculateEicOptions;
 use crate::utilities::{
     calculate_eic::{
-        EicOptions, EicReader, FastError, MS1_LEVEL, SpectrumKind, get_scan_times,
+        EicReader, FastError, MS1_LEVEL, SpectrumKind, get_scan_times,
         get_spectrum_kind, lower_bound, mz_tolerance_for, plan_window_ranges, read_mz_window,
         summed_intensity_in_window, with_eic_apex_intensity,
     },
     find_masses::find_masses,
-    find_peaks::{FindPeaksOptions, find_peaks},
+    find_peaks::find_peaks,
     parallel::run_with_threads,
     structs::{DataXY, FromTo},
 };
@@ -121,9 +123,9 @@ impl Default for MzScanGrid {
 }
 
 #[derive(Clone, Debug)]
-pub struct FindFeaturesOptions {
-    pub seed_eic_options: EicOptions,
-    pub final_eic_options: EicOptions,
+pub struct FeatureSettings {
+    pub seed_eic_options: CalculateEicOptions,
+    pub final_eic_options: CalculateEicOptions,
     pub peak_options: FindPeaksOptions,
     pub mz_scan_grid: MzScanGrid,
     pub min_seed_width_points: usize,
@@ -131,15 +133,15 @@ pub struct FindFeaturesOptions {
     pub threads: usize,
 }
 
-impl Default for FindFeaturesOptions {
+impl Default for FeatureSettings {
     fn default() -> Self {
         Self {
-            seed_eic_options: EicOptions {
+            seed_eic_options: CalculateEicOptions {
                 ppm_tolerance: 10.0,
                 mz_tolerance: 0.003,
                 ..Default::default()
             },
-            final_eic_options: EicOptions {
+            final_eic_options: CalculateEicOptions {
                 ppm_tolerance: 20.0,
                 mz_tolerance: 0.005,
                 ..Default::default()
@@ -156,7 +158,7 @@ impl Default for FindFeaturesOptions {
 pub fn find_features(
     reader: &mut EicReader,
     window: FromTo,
-    options: FindFeaturesOptions,
+    options: FeatureSettings,
 ) -> Result<Vec<Feature>, FeatureError> {
     if !options.mz_scan_grid.step.is_finite() || options.mz_scan_grid.step <= 0.0 {
         return Err(FeatureError::InvalidStepSize(options.mz_scan_grid.step));
@@ -197,7 +199,7 @@ pub fn find_features(
 pub fn plan_features_ranges(
     ion: &mut IonReader,
     window: FromTo,
-    options: &FindFeaturesOptions,
+    options: &FeatureSettings,
 ) -> Result<Vec<ByteRange>, FastError> {
     let grid = build_mz_grid(
         options.mz_scan_grid.min_mz,
@@ -213,11 +215,11 @@ pub fn plan_features_ranges(
 }
 
 pub fn detect_features(
-    scans: &[Scan],
+    scans: &[GridScan],
     grid: &[f64],
     time: &[f64],
     kind: SpectrumKind,
-    options: &FindFeaturesOptions,
+    options: &FeatureSettings,
 ) -> Result<Vec<Feature>, FeatureError> {
     run_with_threads(options.threads, || {
         let candidates = match kind {
@@ -244,14 +246,14 @@ pub fn detect_features(
 }
 
 #[derive(Clone, Debug, Default)]
-pub struct Scan {
+pub struct GridScan {
     pub mz: Vec<f64>,
     pub intensity: Vec<f64>,
 }
 
-type Scans = Vec<Scan>;
+type Scans = Vec<GridScan>;
 
-fn grid_read_window(grid: &[f64], options: &FindFeaturesOptions) -> (f64, f64) {
+fn grid_read_window(grid: &[f64], options: &FeatureSettings) -> (f64, f64) {
     let first_mz = grid[0];
     let last_mz = grid[grid.len() - 1];
     let low = first_mz - mz_tolerance_for(first_mz, options.seed_eic_options);
@@ -263,7 +265,7 @@ fn read_grid_scans(
     reader: &mut EicReader,
     scan_times: &[crate::utilities::calculate_eic::ScanTime],
     grid: &[f64],
-    options: &FindFeaturesOptions,
+    options: &FeatureSettings,
 ) -> Result<Scans, FeatureError> {
     let (mz_low, mz_high) = grid_read_window(grid, options);
     let mut scans = Vec::with_capacity(scan_times.len());
@@ -279,26 +281,21 @@ fn read_grid_scans(
             &mut mz,
             &mut intensity,
         )?;
-        scans.push(Scan { mz, intensity });
+        scans.push(GridScan { mz, intensity });
     }
 
     Ok(scans)
 }
 
-fn seed_intensity_threshold(options: &FindFeaturesOptions) -> f64 {
-    options
-        .peak_options
-        .filter
-        .as_ref()
-        .and_then(|filter| filter.min_intensity)
-        .unwrap_or(0.0)
+fn seed_intensity_threshold(options: &FeatureSettings) -> f64 {
+    options.peak_options.min_intensity
 }
 
 pub(crate) fn keep_masses_with_signal(
     grid: &[f64],
-    scans: &[Scan],
+    scans: &[GridScan],
     min_intensity: f64,
-    eic_options: EicOptions,
+    eic_options: CalculateEicOptions,
     threads: usize,
 ) -> Vec<f64> {
     let low_bounds: Vec<f64> = grid
@@ -324,7 +321,7 @@ pub(crate) fn keep_masses_with_signal(
 fn find_masses_with_signal(
     low_bounds: &[f64],
     high_bounds: &[f64],
-    scans: &[Scan],
+    scans: &[GridScan],
     min_intensity: f64,
     threads: usize,
 ) -> Vec<bool> {
@@ -355,7 +352,7 @@ fn find_masses_with_signal(
 fn find_masses_with_signal(
     low_bounds: &[f64],
     high_bounds: &[f64],
-    scans: &[Scan],
+    scans: &[GridScan],
     min_intensity: f64,
     _threads: usize,
 ) -> Vec<bool> {
@@ -367,7 +364,7 @@ fn find_masses_with_signal(
 }
 
 fn mark_signal_for_scan(
-    scan: &Scan,
+    scan: &GridScan,
     low_bounds: &[f64],
     high_bounds: &[f64],
     min_intensity: f64,
@@ -394,7 +391,7 @@ fn mark_signal_for_scan(
     }
 }
 
-fn eic_row_for_mass(scans: &[Scan], target_mz: f64, options: EicOptions) -> Vec<f64> {
+fn eic_row_for_mass(scans: &[GridScan], target_mz: f64, options: CalculateEicOptions) -> Vec<f64> {
     let tolerance = mz_tolerance_for(target_mz, options);
     let mz_low = target_mz - tolerance;
     let mz_high = target_mz + tolerance;
@@ -404,7 +401,7 @@ fn eic_row_for_mass(scans: &[Scan], target_mz: f64, options: EicOptions) -> Vec<
         .collect()
 }
 
-pub(crate) fn max_eic_per_mass(scans: &[Scan], masses: &[f64], options: EicOptions) -> Vec<f64> {
+pub(crate) fn max_eic_per_mass(scans: &[GridScan], masses: &[f64], options: CalculateEicOptions) -> Vec<f64> {
     if masses.is_empty() {
         return Vec::new();
     }
@@ -444,7 +441,7 @@ pub(crate) fn max_eic_per_mass(scans: &[Scan], masses: &[f64], options: EicOptio
     max_sum
 }
 
-fn keep_reaching(scans: &[Scan], masses: &[f64], threshold: f64, options: EicOptions) -> Vec<f64> {
+fn keep_reaching(scans: &[GridScan], masses: &[f64], threshold: f64, options: CalculateEicOptions) -> Vec<f64> {
     let max_value = max_eic_per_mass(scans, masses, options);
     masses
         .iter()
@@ -456,7 +453,7 @@ fn keep_reaching(scans: &[Scan], masses: &[f64], threshold: f64, options: EicOpt
 #[cfg(not(all(target_arch = "wasm32", not(target_os = "wasi"))))]
 const CHUNKS_PER_THREAD: usize = 8;
 
-fn filter_by_max(scans: &[Scan], masses: &[f64], threshold: f64, options: EicOptions) -> Vec<f64> {
+fn filter_by_max(scans: &[GridScan], masses: &[f64], threshold: f64, options: CalculateEicOptions) -> Vec<f64> {
     if masses.is_empty() {
         return Vec::new();
     }
@@ -475,24 +472,22 @@ fn filter_by_max(scans: &[Scan], masses: &[f64], threshold: f64, options: EicOpt
     }
 }
 
-fn collect_candidates(scans: &[Scan], grid: &[f64], options: &FindFeaturesOptions) -> Vec<f64> {
+fn collect_candidates(scans: &[GridScan], grid: &[f64], options: &FeatureSettings) -> Vec<f64> {
     let threshold = seed_intensity_threshold(options);
     filter_by_max(scans, grid, threshold, options.seed_eic_options)
 }
 
 fn extract_features(
-    scans: &[Scan],
+    scans: &[GridScan],
     masses: &[f64],
     time: &[f64],
-    options: &FindFeaturesOptions,
+    options: &FeatureSettings,
     kind: SpectrumKind,
 ) -> Vec<Feature> {
-    let min_width = options
-        .peak_options
-        .filter
-        .as_ref()
-        .and_then(|filter| filter.min_peak_width_points)
-        .unwrap_or(options.min_seed_width_points);
+    let min_width = match options.peak_options.min_peak_width_points {
+        0 => options.min_seed_width_points,
+        width => width,
+    };
 
     let extract_one = |&target_mz: &f64| -> Vec<Feature> {
         let eic = eic_row_for_mass(scans, target_mz, options.final_eic_options);
@@ -500,7 +495,7 @@ fn extract_features(
             x: time.to_vec(),
             y: eic,
         };
-        find_peaks(&data, options.peak_options.clone())
+        find_peaks(&data, &options.peak_options)
             .into_iter()
             .filter(|peak| min_width == 0 || peak.n_points >= min_width)
             .map(|peak| {
@@ -551,7 +546,7 @@ fn apex_scan_index(time: &[f64], eic: &[f64], rt_from: f64, rt_to: f64) -> Optio
     apex
 }
 
-fn peak_apex_mz(apex_scan: &Scan, center_mz: f64, options: EicOptions, kind: SpectrumKind) -> f64 {
+fn peak_apex_mz(apex_scan: &GridScan, center_mz: f64, options: CalculateEicOptions, kind: SpectrumKind) -> f64 {
     let tolerance = mz_tolerance_for(center_mz, options);
     let mz_lo = center_mz - tolerance;
     let mz_hi = center_mz + tolerance;
@@ -567,7 +562,7 @@ fn peak_apex_mz(apex_scan: &Scan, center_mz: f64, options: EicOptions, kind: Spe
         .unwrap_or(center_mz)
 }
 
-pub(crate) fn deduplicate_masses(mut masses: Vec<f64>, options: EicOptions) -> Vec<f64> {
+pub(crate) fn deduplicate_masses(mut masses: Vec<f64>, options: CalculateEicOptions) -> Vec<f64> {
     if masses.is_empty() {
         return masses;
     }
@@ -598,7 +593,7 @@ pub(crate) fn deduplicate_masses(mut masses: Vec<f64>, options: EicOptions) -> V
     out
 }
 
-fn deduplicate_features(xs: Vec<Feature>, eic: EicOptions, rt_tolerance: f64) -> Vec<Feature> {
+fn deduplicate_features(xs: Vec<Feature>, eic: CalculateEicOptions, rt_tolerance: f64) -> Vec<Feature> {
     if xs.is_empty() {
         return xs;
     }

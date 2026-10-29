@@ -68,6 +68,15 @@ function digest(values) {
   return hash.toString(16).padStart(8, "0");
 }
 
+function eicOptions() {
+  return {
+    from: FROM_RT,
+    to: TO_RT,
+    ppmTolerance: EIC_PPM,
+    mzTolerance: EIC_MZ,
+  };
+}
+
 function peakOptions(channel) {
   return {
     minIntensity: channel.minIntensity,
@@ -105,18 +114,12 @@ function sharedPeakLines(prefix, peak, out) {
 
 function peakLines(prefix, peak, out) {
   sharedPeakLines(prefix, peak, out);
-  out.push(`${prefix}.n_points = ${Number(peak.nPoints ?? peak.n_points)}`);
+  out.push(`${prefix}.n_points = ${peak.nPoints}`);
 }
 
 async function reportChannel(file, transitions, channel, out) {
   const name = channel.name;
-  const eic = await quantion.calculateEic(
-    file,
-    channel.mass,
-    { from: FROM_RT, to: TO_RT },
-    EIC_PPM,
-    EIC_MZ,
-  );
+  const eic = await quantion.calculateEic(file, channel.mass, eicOptions());
   const x = eic.x;
   const y = eic.y;
 
@@ -134,7 +137,10 @@ async function reportChannel(file, transitions, channel, out) {
   );
 
   const target = channel.targets[2][1];
-  const single = quantion.getPeak(x, y, target, ROI_RANGE, peakOptions(channel));
+  const single = quantion.getPeak(x, y, target, {
+    range: ROI_RANGE,
+    findPeaks: peakOptions(channel),
+  });
   peakLines(`${name}.get_peak`, single, out);
 
   const targets = channel.targets.map(([id, rt]) => ({
@@ -143,12 +149,11 @@ async function reportChannel(file, transitions, channel, out) {
     mz: channel.mass,
     range: ROI_RANGE,
   }));
-  const rows = await quantion.findTargets(
-    file,
-    targets,
-    { from: FROM_RT, to: TO_RT },
-    { ...peakOptions(channel), threads: THREADS },
-  );
+  const rows = await quantion.findTargets(file, targets, {
+    eic: eicOptions(),
+    findPeaks: peakOptions(channel),
+    threads: THREADS,
+  });
   rows.forEach((row, position) =>
     sharedPeakLines(`${name}.find_targets.${targets[position].id}`, row, out),
   );
@@ -160,18 +165,17 @@ async function reportChannel(file, transitions, channel, out) {
     rt,
     range: ROI_RANGE,
   }));
-  const chromRows = quantion.findTransitions(
-    transitions,
-    chromTargets,
-    { ...chromPeakOptions(channel), threads: THREADS },
-  );
+  const chromRows = quantion.findTransitions(transitions, chromTargets, {
+    findPeaks: chromPeakOptions(channel),
+    threads: THREADS,
+  });
   chromRows.forEach((row, position) => {
     const prefix = `${name}.find_transitions.${channel.targets[position][0]}`;
-    out.push(`${prefix}.rt = ${number(row.rt ?? row.peakRt)}`);
-    out.push(`${prefix}.from = ${number(row.from ?? row.fromRt)}`);
-    out.push(`${prefix}.to = ${number(row.to ?? row.toRt)}`);
+    out.push(`${prefix}.rt = ${number(row.rt)}`);
+    out.push(`${prefix}.from = ${number(row.from)}`);
+    out.push(`${prefix}.to = ${number(row.to)}`);
     out.push(`${prefix}.intensity = ${number(row.intensity)}`);
-    out.push(`${prefix}.area = ${number(row.integral ?? row.area)}`);
+    out.push(`${prefix}.area = ${number(row.integral)}`);
   });
 }
 
@@ -186,7 +190,7 @@ function featureLines(label, rows, out, withPoints) {
     out.push(`${name}.integral = ${number(row.integral)}`);
     out.push(`${name}.intensity = ${number(row.intensity)}`);
     if (withPoints) {
-      out.push(`${name}.n_points = ${Number(row.nPoints ?? row.n_points)}`);
+      out.push(`${name}.n_points = ${row.nPoints}`);
     }
   });
 }
@@ -212,20 +216,17 @@ async function main() {
   }
 
   const grid = { start: GRID_START, end: GRID_END, stepSize: GRID_STEP };
-  const eic = { ppmTolerance: EIC_PPM, mzTolerance: EIC_MZ };
+  const featureOptions = {
+    eic: eicOptions(),
+    grid,
+    findPeaks: featurePeakOptions(),
+    threads: THREADS,
+  };
 
-  const found = await quantion.findFeatures(
-    file,
-    { from: FROM_RT, to: TO_RT },
-    { eic, grid, findPeak: featurePeakOptions(), threads: THREADS },
-  );
+  const found = await quantion.findFeatures(file, featureOptions);
   featureLines("find_features", found, out, true);
 
-  const consensus = quantion.matchFeatures(
-    directory,
-    { from: FROM_RT, to: TO_RT },
-    { eic, grid, findPeak: featurePeakOptions(), threads: THREADS },
-  );
+  const consensus = quantion.matchFeatures(directory, featureOptions);
   featureLines("match_features", consensus, out, false);
 
   const warp = quantion.loadWarp(await quantion.loadModel(path.join(directory, "..", "shift_model.onnx")));

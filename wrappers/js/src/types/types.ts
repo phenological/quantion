@@ -1,74 +1,171 @@
 export type BinaryInput = Uint8Array | ArrayBuffer;
 export type IonInput = BinaryInput | URL | string;
 
-export type FindPeaksOptions = Partial<{
-  minIntegral: number;
-  minIntensity: number;
-  minPeakWidthPoints: number;
-  noise: number;
-  autoNoise: boolean | number;
-  autoBaseline: boolean | number;
-  lambda: number;
-  maxIterations: number;
-  allowOverlap: boolean | number;
-  minSnr: number;
-  minR2: number;
-  shape: "gaussian" | "emg" | number;
-  kernelSize: number;
-}>;
+export const TimeUnit = { MINUTES: "MINUTES", SECONDS: "SECONDS" } as const;
+export type TimeUnit = (typeof TimeUnit)[keyof typeof TimeUnit];
 
-export type BaselineOptions = Partial<{
-  lambda: number;
-  maxIterations: number;
-}>;
+export const PeakShape = { GAUSSIAN: "GAUSSIAN", EMG: "EMG" } as const;
+export type PeakShape = (typeof PeakShape)[keyof typeof PeakShape];
 
-export type NoiseLevel = {
-  width: number;
-  intensity: number;
-};
-
-export type Peak = {
+export interface FromTo {
   from: number;
   to: number;
-  rt: number;
-  integral: number;
-  intensity: number;
-  nPoints: number;
-  noise: number;
-};
+}
 
-export type WarpTarget = {
+export interface Target {
   id?: string;
   mz: number;
   rt: number;
-};
+  range?: number;
+}
 
-export type ModelEntry = {
-  key: string;
-  value: string;
-};
-
-export type PredictedRt = {
-  rt: number;
-  uncertainty: number;
-};
-
-export type Target = {
-  id?: string;
-  rt: number;
-  mz: number;
-  range: number;
-};
-
-export type Transition = {
+export interface Transition {
   id?: string;
   precursor: number;
   product: number;
   rt: number;
   range: number;
-};
+}
 
-export type Feature = {
+export interface Header {
+  name: string;
+  value: string;
+}
+
+export interface RtQuery {
+  rt: number | FromTo;
+}
+
+export interface MzQuery {
+  mz: number | FromTo;
+}
+
+export type ScanQuery = RtQuery | MzQuery;
+
+export interface FindPeaksOptions {
+  minIntegral?: number;
+  minIntensity?: number;
+  minPeakWidthPoints?: number;
+  noise?: number;
+  autoNoise?: boolean;
+  autoBaseline?: boolean;
+  lambda?: number;
+  maxIterations?: number;
+  allowOverlap?: boolean;
+  minSnr?: number;
+  minR2?: number;
+  shape?: PeakShape;
+  kernelSize?: number;
+}
+
+export interface GetPeakOptions {
+  range?: number;
+  findPeaks?: FindPeaksOptions;
+}
+
+export interface FitPeakOptions {
+  shape?: PeakShape;
+  intensity?: number;
+}
+
+export interface DrawPeaksOptions {
+  from?: number;
+  to?: number;
+  points?: number;
+}
+
+export interface CalculateBaselineOptions {
+  lambda?: number;
+  maxIterations?: number;
+}
+
+export interface CalculateEicOptions {
+  from?: number;
+  to?: number;
+  ppmTolerance?: number;
+  mzTolerance?: number;
+  timeUnit?: TimeUnit;
+}
+
+export interface GridOptions {
+  start?: number;
+  end?: number;
+  stepSize?: number;
+}
+
+export interface GroupingOptions {
+  ppmTolerance?: number;
+  mzTolerance?: number;
+  rtTolerance?: number;
+  minFrequency?: number;
+}
+
+export interface FindTargetsOptions {
+  eic?: CalculateEicOptions;
+  findPeaks?: FindPeaksOptions;
+  threads?: number;
+}
+
+export interface FindTransitionsOptions {
+  findPeaks?: FindPeaksOptions;
+  threads?: number;
+}
+
+export interface FindFeaturesOptions {
+  eic?: CalculateEicOptions;
+  grid?: GridOptions;
+  findPeaks?: FindPeaksOptions;
+  threads?: number;
+}
+
+export interface MatchFeaturesOptions {
+  eic?: CalculateEicOptions;
+  grid?: GridOptions;
+  grouping?: GroupingOptions;
+  findPeaks?: FindPeaksOptions;
+  threads?: number;
+}
+
+export interface GetScansOptions {
+  level?: number;
+  timeUnit?: TimeUnit;
+}
+
+export interface ParseIonOptions {
+  maxCacheSize?: number;
+}
+
+export interface WriteIonOptions {
+  out?: string | URL;
+  overwrite?: boolean;
+  level?: number;
+  f32Compress?: boolean;
+  headers?: Header[];
+}
+
+export interface WriteMzmlOptions {
+  out?: string;
+  overwrite?: boolean;
+}
+
+export interface GetIonImageOptions {
+  tolerance?: number;
+  level?: number;
+  onProgress?: (fetched: number, total: number, heldBytes: number) => void;
+}
+
+export interface Peak {
+  rt: number;
+  from: number;
+  to: number;
+  intensity: number;
+  integral: number;
+  nPoints: number;
+  noise: number;
+  r2: number;
+}
+
+export interface Feature {
   mz: number;
   rt: number;
   from: number;
@@ -78,62 +175,47 @@ export type Feature = {
   nPoints: number;
   noise: number;
   frequency?: number;
-};
+}
 
-export type FindFeaturesOptions = {
-  eic?: { ppmTolerance?: number; mzTolerance?: number };
-  grid?: { start?: number; end?: number; stepSize?: number };
-  findPeak?: FindPeaksOptions;
-  threads?: number;
-};
+export interface DataXY {
+  x: Float64Array;
+  y: Float64Array;
+}
 
-export type MatchFeaturesOptions = FindFeaturesOptions & {
-  grouping?: {
-    ppmTolerance?: number;
-    mzTolerance?: number;
-    rtTolerance?: number;
-    frequency?: number;
-  };
-};
+export interface NoiseLevel {
+  width: number;
+  intensity: number;
+}
 
-export type FindTargetsOptions = FindPeaksOptions & { threads?: number };
+export interface PeakParameters {
+  height: number;
+  center: number;
+  fwhm: number;
+  tail: number;
+  r2?: number;
+}
 
-export type FindTransitionsOptions = FindPeaksOptions & { threads?: number };
+export interface PredictedRt {
+  rt: number;
+  uncertainty: number;
+}
 
-export type FromTo = {
-  from: number;
-  to: number;
-};
-
-export type SpectrumSummary = {
-  rtSeconds: number;
-  basePeakMz: number;
-  selectedIonMz: number;
-  basePeakInt: number;
-  totalIonCurrent: number;
-  msLevel: number;
-  polarity: number;
-  positionX: number;
-  positionY: number;
-  positionZ: number;
-};
-
-export type CentroidScan = {
+export interface Scan {
   rt: number;
   mz: Float64Array;
   intensity: Float64Array;
-  metadata: SpectrumSummary;
-};
+  level: number;
+  precursorMz: number;
+  basePeakMz: number;
+  basePeakIntensity: number;
+  totalIonCurrent: number;
+  polarity: number;
+  x: number;
+  y: number;
+  z: number;
+}
 
-export type ScanQuery = { rt: number | FromTo } | { mz: number | FromTo };
-
-export type IonImageOptions = {
-  tolerance?: number;
-  level?: number;
-  onProgress?: (fetched: number, total: number, heldBytes: number) => void;
-};
-
-export type IonImage = {
+export interface IonImage {
   width: number;
   height: number;
   minX: number;
@@ -142,9 +224,14 @@ export type IonImage = {
   maxZ: number;
   data: Float64Array;
   counts: Uint32Array;
-};
+}
 
-export type ByteRange = {
+export interface ModelEntry {
+  key: string;
+  value: string;
+}
+
+export interface ByteRange {
   offset: number;
   length: number;
-};
+}

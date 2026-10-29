@@ -28,13 +28,17 @@ describeWithNode("findTransitions", () => {
   });
 
   it("finds the transition of a target", async () => {
-    const [row] = findTransitions(await parseIon(srmFile), [getTarget(alanine, alanine)]);
+    const [row] = findTransitions(await parseIon(srmFile), [
+      getTarget(alanine, alanine),
+    ]);
     expect(row.intensity).toBeGreaterThan(0);
     expect(Math.abs(row.rt - 2.385)).toBeLessThan(0.05);
   });
 
   it("finds nothing for a wrong product", async () => {
-    const [row] = findTransitions(await parseIon(srmFile), [getTarget(alanine, serine)]);
+    const [row] = findTransitions(await parseIon(srmFile), [
+      getTarget(alanine, serine),
+    ]);
     expect(row.intensity).toBe(0);
   });
 });

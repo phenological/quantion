@@ -4,13 +4,14 @@ mod tests {
 
     use ionic::{WriteOptions, mzml::structs::*};
 
+    use crate::options::FindPeaksOptions;
+    use crate::options::CalculateEicOptions;
     use crate::utilities::{
-        calculate_eic::{CentroidScan, EicOptions, SpectrumKind, SpectrumSummary},
-        find_features::{Feature, FindFeaturesOptions, MzScanGrid, MzTolerance},
-        find_peaks::FindPeaksOptions,
+        calculate_eic::{CentroidScan, SpectrumKind, SpectrumSummary},
+        find_features::{Feature, FeatureSettings, MzScanGrid, MzTolerance},
         ion::write_mzml_to_ion,
         match_features::{
-            FeatureClusterer, MatchFeaturesOptions, SearchBounds, TaggedFeature,
+            FeatureClusterer, MatchSettings, SearchBounds, TaggedFeature,
             aggregate_into_consensus, assign_best_per_sample, collect_filled_slots,
             compute_search_bounds, dedup, match_features, require_minimum_frequency,
             resolve_cluster, weighted_centroid_mz,
@@ -29,8 +30,8 @@ mod tests {
         }
     }
 
-    fn abs_eic(mz_tol: f64) -> EicOptions {
-        EicOptions {
+    fn abs_eic(mz_tol: f64) -> CalculateEicOptions {
+        CalculateEicOptions {
             ppm_tolerance: 0.0,
             mz_tolerance: mz_tol,
             ..Default::default()
@@ -923,15 +924,15 @@ mod tests {
         dir
     }
 
-    fn alignment_cfg() -> MatchFeaturesOptions {
-        MatchFeaturesOptions {
+    fn alignment_cfg() -> MatchSettings {
+        MatchSettings {
             mz_tolerance: MzTolerance {
                 mz_absolute: 0.005,
                 ppm: 20.0,
             },
             rt_tolerance: 0.15,
             min_samples: 1,
-            eic_options: EicOptions {
+            eic_options: CalculateEicOptions {
                 ppm_tolerance: 20.0,
                 mz_tolerance: 0.005,
                 ..Default::default()
@@ -1073,8 +1074,8 @@ mod tests {
         assert!((apex.mz - peak_mz).abs() < 1e-9);
     }
 
-    fn feature_cfg_for_mz(mz: f64) -> FindFeaturesOptions {
-        FindFeaturesOptions {
+    fn feature_cfg_for_mz(mz: f64) -> FeatureSettings {
+        FeatureSettings {
             mz_scan_grid: MzScanGrid {
                 min_mz: (mz - 2.0).max(40.0),
                 max_mz: (mz + 2.0).min(1000.0),
@@ -1084,8 +1085,8 @@ mod tests {
         }
     }
 
-    fn feature_cfg_for_mz_range(low: f64, high: f64) -> FindFeaturesOptions {
-        FindFeaturesOptions {
+    fn feature_cfg_for_mz_range(low: f64, high: f64) -> FeatureSettings {
+        FeatureSettings {
             mz_scan_grid: MzScanGrid {
                 min_mz: (low - 2.0).max(40.0),
                 max_mz: (high + 2.0).min(1000.0),
@@ -1112,7 +1113,7 @@ mod tests {
         let features = match_features(
             dir.to_str().unwrap(),
             FromTo { from: 3.0, to: 7.0 },
-            MatchFeaturesOptions {
+            MatchSettings {
                 features: feature_cfg_for_mz(peak_mz),
                 ..alignment_cfg()
             },
@@ -1170,7 +1171,7 @@ mod tests {
                 from: 7.0,
                 to: 11.0,
             },
-            MatchFeaturesOptions {
+            MatchSettings {
                 features: feature_cfg_for_mz(peak_mz),
                 ..alignment_cfg()
             },
@@ -1212,7 +1213,7 @@ mod tests {
         let features = match_features(
             dir.to_str().unwrap(),
             FromTo { from: 3.5, to: 6.5 },
-            MatchFeaturesOptions {
+            MatchSettings {
                 features: feature_cfg_for_mz(peak_mz),
                 ..alignment_cfg()
             },
@@ -1253,7 +1254,7 @@ mod tests {
         let features = match_features(
             dir.to_str().unwrap(),
             FromTo { from: 6.0, to: 9.0 },
-            MatchFeaturesOptions {
+            MatchSettings {
                 features: feature_cfg_for_mz(peak_mz),
                 ..alignment_cfg()
             },
@@ -1306,7 +1307,7 @@ mod tests {
         let features = match_features(
             dir.to_str().unwrap(),
             FromTo { from: 3.0, to: 7.0 },
-            MatchFeaturesOptions {
+            MatchSettings {
                 features: feature_cfg_for_mz_range(common_mz, rare_mz),
                 ..cfg
             },
@@ -1347,7 +1348,7 @@ mod tests {
         let features = match_features(
             dir.to_str().unwrap(),
             FromTo { from: 2.5, to: 5.5 },
-            MatchFeaturesOptions {
+            MatchSettings {
                 features: feature_cfg_for_mz(peak_mz),
                 ..cfg
             },
@@ -1380,7 +1381,7 @@ mod tests {
         let features = match_features(
             dir.to_str().unwrap(),
             FromTo { from: 3.0, to: 7.0 },
-            MatchFeaturesOptions {
+            MatchSettings {
                 features: feature_cfg_for_mz_range(mz_a, mz_b),
                 ..alignment_cfg()
             },
@@ -1413,7 +1414,7 @@ mod tests {
         let features = match_features(
             dir.to_str().unwrap(),
             FromTo { from: 4.0, to: 8.0 },
-            MatchFeaturesOptions {
+            MatchSettings {
                 features: feature_cfg_for_mz_range(mz_a, mz_b),
                 ..alignment_cfg()
             },
@@ -1483,12 +1484,12 @@ mod tests {
             intensity: 0.0,
             n_points: 3,
             noise: 0.0,
-            r2: None,
+            r2: 0.0,
         };
         assert!(p.from.is_nan(), "NaN from stays NaN");
         assert!(p.to.is_infinite(), "infinity survives");
         assert_eq!(p.rt, 1.5, "finite rt unchanged");
-        assert!(p.r2.is_none(), "absent r2 stays absent");
+        assert_eq!(p.r2, 0.0, "no r2 is zero");
     }
 
     #[test]
@@ -1500,7 +1501,7 @@ mod tests {
         assert_eq!(p.rt, 0.0);
         assert_eq!(p.n_points, 0);
         assert_eq!(p.noise, 0.0);
-        assert!(p.r2.is_none());
+        assert_eq!(p.r2, 0.0);
     }
 
     #[test]
@@ -1536,7 +1537,7 @@ mod tests {
         let features = match_features(
             dir.to_str().unwrap(),
             FromTo { from: 3.0, to: 7.0 },
-            MatchFeaturesOptions {
+            MatchSettings {
                 features: feature_cfg_for_mz(peak_mz),
                 ..alignment_cfg()
             },
@@ -1583,12 +1584,12 @@ mod tests {
             let mut features = match_features(
                 dir.to_str().unwrap(),
                 FromTo { from: 5.0, to: 9.0 },
-                MatchFeaturesOptions {
-                    features: FindFeaturesOptions {
+                MatchSettings {
+                    features: FeatureSettings {
                         threads: threads,
                         ..feature_cfg_for_mz(peak_mz)
                     },
-                    ..MatchFeaturesOptions {
+                    ..MatchSettings {
                         threads: threads,
                         ..alignment_cfg()
                     }
@@ -1630,7 +1631,7 @@ mod tests {
         let features = match_features(
             dir.to_str().unwrap(),
             FromTo { from: 3.0, to: 7.0 },
-            MatchFeaturesOptions {
+            MatchSettings {
                 features: feature_cfg_for_mz(peak_mz),
                 ..cfg
             },
@@ -1672,7 +1673,7 @@ mod tests {
         let features = match_features(
             dir.to_str().unwrap(),
             FromTo { from: 3.0, to: 7.0 },
-            MatchFeaturesOptions {
+            MatchSettings {
                 features: feature_cfg_for_mz_range(mz_a, mz_b),
                 ..alignment_cfg()
             },
@@ -1719,7 +1720,7 @@ mod tests {
         let features = match_features(
             dir.to_str().unwrap(),
             FromTo { from: 3.0, to: 7.0 },
-            MatchFeaturesOptions {
+            MatchSettings {
                 features: feature_cfg_for_mz_range(mz_a, mz_b),
                 ..alignment_cfg()
             },
@@ -1803,7 +1804,7 @@ mod tests {
         let features = match_features(
             dir.to_str().unwrap(),
             FromTo { from: 3.0, to: 7.0 },
-            MatchFeaturesOptions {
+            MatchSettings {
                 features: feature_cfg_for_mz(center),
                 ..alignment_cfg()
             },
@@ -1836,7 +1837,7 @@ mod tests {
         let features = match_features(
             dir.to_str().unwrap(),
             FromTo { from: 3.0, to: 7.0 },
-            MatchFeaturesOptions {
+            MatchSettings {
                 features: feature_cfg_for_mz_range(mzs[0], mzs[2]),
                 ..alignment_cfg()
             },
@@ -1877,7 +1878,7 @@ mod tests {
         let features = match_features(
             dir.to_str().unwrap(),
             FromTo { from: 3.0, to: 7.0 },
-            MatchFeaturesOptions {
+            MatchSettings {
                 features: feature_cfg_for_mz_range(mz_a, mz_b),
                 ..cfg
             },
@@ -1913,7 +1914,7 @@ mod tests {
         let features = match_features(
             dir.to_str().unwrap(),
             FromTo { from: 3.0, to: 7.0 },
-            MatchFeaturesOptions {
+            MatchSettings {
                 features: feature_cfg_for_mz_range(peak_mz, flat_mz),
                 ..alignment_cfg()
             },

@@ -10,280 +10,159 @@ npm install quantion
 
 ## Concepts
 
-**Sample**: A parsed mzML or opened ion source. Create samples with `parseMzML()` or `parseIon()`. Samples are automatically garbage collected when no longer referenced.
+**Sample**: an opened `.ion` or mzML file. Open it with `parseIon()` or `parseMzml()`. It is freed when no longer referenced, or call `dispose()` to free it sooner.
 
-**XY data**: A pair of numeric arrays where `x` is retention time and `y` is intensity.
+**DataXY**: a pair of `Float64Array`s, `x` = retention times, `y` = intensities.
+
+**Options**: every function takes one optional `options` object. Groups are nested and named the same in every quantion language: `eic`, `grid`, `grouping`, `findPeaks`, `threads`. An unknown key throws a `QuantionError` with kind `unknown_option`.
+
+**Enums**: `TimeUnit` (`MINUTES`, `SECONDS`) and `PeakShape` (`GAUSSIAN`, `EMG`). Use the constants or the uppercase strings.
 
 ## Quick start
-
-Load a file and extract peaks in a few lines:
 
 ```js
 import * as quantion from "quantion";
 
-const raw = await fetch("sample.mzML").then((r) => r.arrayBuffer());
+const sample = await quantion.parseIon("sample.ion");
+const eic = await quantion.calculateEic(sample, 260.103, { from: 0.5, to: 5 });
+const peaks = quantion.findPeaks(eic.x, eic.y, { minSnr: 3 });
 
-const sample = await quantion.parseMzML(raw);
-const eic = await quantion.calculateEic(sample, 174.112, { from: 1, to: 15 });
-const peaks = quantion.findPeaks(eic.x, eic.y, {
-  autoNoise: true,
-  minSnr: 3.0,
-});
-
-peaks.forEach((p) => {
-  console.log(`rt=${p.rt.toFixed(3)}  intensity=${p.intensity.toFixed(0)}`);
+peaks.forEach((peak) => {
+  console.log(`rt=${peak.rt.toFixed(3)}  intensity=${peak.intensity.toFixed(0)}`);
 });
 ```
 
-## Load files
-
-### Load mzML
-
-Load an mzML file into a sample.
+## Open and write files
 
 ```js
-const sample = await quantion.parseMzML(buffer);
+const sample = await quantion.parseIon("sample.ion");
+const remote = await quantion.parseIon("https://example.org/sample.ion", {
+  maxCacheSize: 64_000_000,
+});
+const fromBytes = await quantion.parseIon(new Uint8Array(bytes));
+
+const mzml = await quantion.parseMzml("sample.mzML");
 ```
 
-### Load ion
+A path or URL is read lazily: only the bytes a call needs are fetched. mzML is always loaded fully, from a path (Node) or bytes; a URL is refused.
 
-Open an ion binary source into a sample.
+`writeIon` and `writeMzml` return the bytes when `out` is left out, write a file when `out` is a path (Node only), and `writeIon` uploads with one `PUT` when `out` is a URL.
 
 ```js
-const sample = await quantion.parseIon(buffer);
-const sample = await quantion.parseIon(buffer, { maxCacheSize: 1000000 });
-const sample = await quantion.parseIon("./data/sample.ion");
-const sample = await quantion.parseIon(
-  new URL("https://example.com/sample.ion"),
-);
+const bytes = await quantion.writeIon(sample);
+await quantion.writeIon(sample, { out: "sample.ion", level: 12 });
+await quantion.writeIon(sample, {
+  out: "https://example.org/upload/sample.ion",
+  headers: [{ name: "Authorization", value: "Bearer <token>" }],
+});
+await quantion.writeMzml(sample, { out: "sample.mzML", overwrite: true });
 ```
 
-`string` inputs are filesystem paths only. URL inputs must use `new URL(...)`. URL range reads are supported by the Node.js backend.
-
-## Convert
-
-### Sample to mzML
-
-Get mzML text from a sample.
+## Read data
 
 ```js
-const mzml = quantion.ionToMzml(sample);
-```
+const eic = await quantion.calculateEic(sample, 260.103, {
+  from: 0.5,
+  to: 5,
+  ppmTolerance: 20,
+  mzTolerance: 0.005,
+});
 
-### Sample to ion
-
-Convert a sample to compressed ion bytes.
-
-```js
-const ionBytes = quantion.mzmlToIon(sample, { level: 12, f32Compress: false });
-```
-
-## Extract from samples
-
-### Extract EIC
-
-Get an extracted ion chromatogram for one m/z from a sample.
-
-```js
-const eic = await quantion.calculateEic(
+const scans = await quantion.getScans(sample, { rt: { from: 1.0, to: 2.5 } });
+const closest = await quantion.getScans(
   sample,
-  174.112,
-  { from: 1, to: 15 },
-  20.0, // ppm tolerance
-  0.005, // m/z tolerance
+  { rt: 108 },
+  { level: 2, timeUnit: quantion.TimeUnit.SECONDS },
 );
-// eic.x and eic.y are Float64Array
+
+const image = await quantion.getIonImage(sample, 760.585, { tolerance: 0.05 });
 ```
 
-### Get scans
+`getScans` always returns an array; one `rt` or `mz` gives at most one scan. `getIonImage` needs an `.ion` sample.
 
-Get scans from a sample by retention time range, m/z range, or closest value.
+## Process one trace
 
 ```js
-// Get scans in RT range
-const scans = await quantion.getScans(sample, { rt: { from: 1, to: 15 } }, 1);
+const peaks = quantion.findPeaks(eic.x, eic.y, { minIntensity: 1000 });
+const peak = quantion.getPeak(eic.x, eic.y, 2.383, { range: 0.05 });
+const anywhere = quantion.getPeak(eic.x, eic.y, 2.383);
 
-// Get scan closest to RT
-const scan = await quantion.getScans(sample, { rt: 5.3 }, 1);
+const fitted = quantion.fitPeak(eic.x, eic.y, 2.383, { shape: "GAUSSIAN" });
+const simulated = quantion.drawPeaks(
+  [
+    { height: 9800, center: 2.38, fwhm: 0.021, tail: 0.006 },
+    { height: 4200, center: 2.45, fwhm: 0.018, tail: 0 },
+  ],
+  { from: 2, to: 3, points: 2000 },
+);
 
-// Get scans in m/z range
-const scans = await quantion.getScans(sample, { mz: { from: 100, to: 500 } }, 2);
-
-// Get scan closest to m/z
-const scan = await quantion.getScans(sample, { mz: 174.112 }, 2);
+const noise = quantion.findNoiseLevel(eic.y).intensity;
+const baseline = quantion.calculateBaseline(eic.y, { lambda: 50 });
 ```
 
-## Process XY data
+`getPeak` without `range` searches the whole trace. No peak gives a `Peak` with every field 0.
 
-### Calculate baseline
-
-Estimate a baseline for XY data.
+## Find targets
 
 ```js
-const baseline = quantion.calculateBaseline(y, {
-  baselineWindow: 101,
-  baselineWindowFactor: 3,
+const targets = [
+  { id: "compound_1", mz: 260.103, rt: 2.383, range: 0.05 },
+  { id: "compound_2", mz: 260.103, rt: 2.189 },
+];
+const peaks = await quantion.findTargets(sample, targets, {
+  eic: { from: 0.5, to: 5 },
+  findPeaks: { minIntensity: 1000 },
+  threads: 4,
+});
+
+const transitions = [
+  { id: "compound_1", precursor: 500.3, product: 184.1, rt: 3.2, range: 0.4 },
+];
+const srmPeaks = quantion.findTransitions(sample, transitions, { threads: 2 });
+```
+
+`findTargets` returns one `Peak` per target in the same order. `findTransitions` needs the whole file, so a sample opened from a URL gives a `remote_file` error.
+
+## Untargeted
+
+```js
+const features = await quantion.findFeatures(sample, {
+  grid: { start: 100, end: 600 },
+  threads: 4,
+});
+
+const matched = quantion.matchFeatures("samples/", {
+  grouping: { minFrequency: 0.5 },
+  threads: 8,
 });
 ```
 
-### Find noise level
-
-Estimate the noise level in XY data. The result has `width`, the number of
-points the estimate came from, and `intensity`, the noise level itself.
-
-```js
-const { width, intensity } = quantion.findNoiseLevel(y);
-```
-
-### Find peaks
-
-Find all peaks in XY data.
-
-```js
-const peaks = quantion.findPeaks(x, y, {
-  autoNoise: true,
-  minSnr: 3.0,
-});
-```
-
-### Get single peak
-
-Find one peak near a target retention time in XY data.
-
-```js
-const peak = quantion.getPeak(x, y, 5.3, 0.6, { autoNoise: true });
-```
+`matchFeatures` runs on Node only. Each matched `Feature` has `frequency`, the fraction of samples it was found in.
 
 ## Predict retention times
 
-Load an ONNX model from a path (Node only), a URL, or bytes, read the keys and
-values stored in it, and make a warp model from it. The model stays usable after
-`loadWarp`, and the warp keeps working if the model is disposed.
-
 ```js
 const model = await quantion.loadModel("model.onnx");
-model.getKeys(); // ["points", "time_from", ..., "targets"]
-model.getValue("points"); // "1024"
-
 const warp = quantion.loadWarp(model);
-warp.getValue("targets"); // the warp has the same keys and values
-```
+const predicted = await warp.predictRts(sample, [{ mz: 260.103, rt: 2.383 }]);
 
-Predict each target's retention time in a sample. You get one
-`{ rt, uncertainty }` per target, in the same order.
-
-```js
-const targets = [{ id: "feature_1", mz: 300.1, rt: 2.38 }];
-const rts = await warp.predictRts(sample, targets);
-```
-
-Without reference RTs, calibrate from anchor samples such as LTRs or QCs: give
-the samples and, for each one, the targets seen in it. Each target gets the
-median calibrated RT over the samples where it was seen. One sample works, three
-are better, five or more are best. Each RT must be the one measured in
-that anchor sample: a generic target list runs without error but gives wrong RTs.
-
-```js
-const anchorSamples = [ltr1, ltr2, ltr3];
-const targetLists = [seenInLtr1, seenInLtr2, seenInLtr3];
-const calibrated = await warp.calibrate(anchorSamples, targetLists);
-const otherRts = await warp.predictRts(otherSample, calibrated);
+const calibrated = await warp.calibrate([anchor1, anchor2], [seenIn1, seenIn2]);
 
 warp.dispose();
 model.dispose();
 ```
 
-## Find peaks from samples
+## Errors
 
-### From EICs
-
-Find peaks for many targets using extracted ion chromatograms from a sample.
+Every error is a `QuantionError` with `kind`, `code`, `function` and `argument`, the same in every quantion language:
 
 ```js
-const targets = [
-  { rt: 5.3, mz: 174.112, range: 0.5, id: "compound_A" },
-  { rt: 7.1, mz: 203.156, range: 0.5, id: "compound_B" },
-];
-
-const peaks = await quantion.findTargets(
-  sample,
-  targets,
-  { from: 0.5, to: 10.0 },
-  { autoNoise: true, threads: 2 },
-);
-```
-
-### From chromatograms
-
-Find peaks in the SRM chromatograms stored in a sample. Each target picks the
-chromatogram whose precursor (Q1) and product (Q3) m/z are both within 0.005.
-
-```js
-const targets = [
-  { id: "compound_1", precursor: 500.3, product: 184.1, rt: 3.20, range: 0.4 },
-  { id: "compound_2", precursor: 520.4, product: 184.1, rt: 3.65, range: 0.4 },
-];
-
-const peaks = quantion.findTransitions(sample, targets, { autoNoise: true, threads: 2 });
-```
-
-## Untargeted
-
-### From single sample
-
-Find all features in a sample (Node.js only).
-
-```js
-const features = await quantion.findFeatures(
-  sample,
-  { from: 1, to: 15 },
-  {
-    eic: { ppmTolerance: 10, mzTolerance: 0.005 },
-    grid: { start: 40, end: 1000, stepSize: 0.005 },
-    findPeak: { autoNoise: true, minSnr: 3 },
-    threads: 4,
-  },
-);
-```
-
-### Find and align features across samples
-
-Find and align features across many samples (Node.js only).
-
-```js
-const features = quantion.matchFeatures(
-  "/path/to/ion/dir",
-  { from: 0, to: 20 },
-  {
-    eic: { ppmTolerance: 5 },
-    grid: { start: 50, end: 1000, stepSize: 0.01 },
-    grouping: {
-      ppmTolerance: 5,
-      mzTolerance: 0.0025,
-      rtTolerance: 0.05,
-      frequency: 2,
-    },
-    threads: 8,
-  },
-);
-```
-
-## Peak detection options
-
-Pass peak detection options as an object:
-
-```js
-const options = {
-  integralThreshold: 0.0,
-  intensityThreshold: 150.0,
-  widthThreshold: 5,
-  noise: NaN,
-  autoNoise: true,
-  autoBaseline: true,
-  baselineWindow: 0,
-  baselineWindowFactor: 0,
-  allowOverlap: false,
-  windowSize: 0,
-  minSnr: 3.0,
-};
+try {
+  await quantion.calculateEic(sample, -1);
+} catch (error) {
+  error.kind; // "invalid_argument"
+  error.code; // 1
+  error.argument; // "mz"
+  error.message; // "calculate_eic: mz must be greater than 0, got -1"
+}
 ```

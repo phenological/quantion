@@ -7,7 +7,8 @@ use ionic::{
 };
 
 use crate::{
-    ffi::{FileSource, ParsedFile},
+    ffi::ParsedFile,
+    sample_file::FileSource,
     utilities::{
         calculate_eic::{ScanQuery, TimeUnit, get_scans},
         ion::write_mzml_to_ion,
@@ -119,7 +120,7 @@ fn returns_every_segment_of_a_split_spectrum() {
             from: 0.0,
             to: 10.0,
         }),
-        TimeUnit::Minutes,
+        TimeUnit::MINUTES,
         1,
     );
 
@@ -136,7 +137,7 @@ fn rt_range_keeps_only_scans_in_window() {
     let (_, scans) = get_scans(
         &mut file,
         ScanQuery::RtRange(FromTo { from: 1.5, to: 2.5 }),
-        TimeUnit::Minutes,
+        TimeUnit::MINUTES,
         1,
     );
 
@@ -148,7 +149,7 @@ fn rt_range_keeps_only_scans_in_window() {
 #[test]
 fn closest_rt_returns_the_nearest_full_scan() {
     let mut file = open_split_ion();
-    let (_, scans) = get_scans(&mut file, ScanQuery::Rt(2.9), TimeUnit::Minutes, 1);
+    let (_, scans) = get_scans(&mut file, ScanQuery::Rt(2.9), TimeUnit::MINUTES, 1);
 
     assert_eq!(scans.len(), 1);
     assert_eq!(scans[0].rt, 3.0);
@@ -164,7 +165,7 @@ fn ms_level_filter_excludes_other_levels() {
             from: 0.0,
             to: 10.0,
         }),
-        TimeUnit::Minutes,
+        TimeUnit::MINUTES,
         2,
     );
 

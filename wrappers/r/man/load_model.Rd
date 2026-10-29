@@ -2,24 +2,21 @@
 \alias{load_model}
 \title{Load an ONNX model}
 \description{
-Loads an ONNX model. Read the keys and values stored in it with
-\code{\link{get_keys}()}, and make a warp model from it with \code{\link{load_warp}()}.
+Load an ONNX model from a path, a URL or raw bytes, and read the keys and values stored in it.
 }
 \usage{
-load_model(
-  source
-)
+load_model(source)
 }
 \arguments{
-  \item{source}{A path, a URL starting with \code{http://} or \code{https://}, or a raw vector with the model bytes.}
+  \item{source}{A path, an http(s) URL, or a raw vector of model bytes.}
 }
 \value{
-A model for use in \code{\link{load_warp}()} and \code{\link{get_keys}()}.
+A model (an external pointer of class \code{quantion_model}).
 }
 \examples{
 model <- load_model(system.file("extdata", "model.onnx", package = "quantion"))
 get_value(model, "points")
 }
 \seealso{
-\code{\link{load_warp}()}, \code{\link{get_keys}()}, \code{\link{dispose}()}
+\code{\link{load_warp}()}, \code{\link{get_keys}()}
 }

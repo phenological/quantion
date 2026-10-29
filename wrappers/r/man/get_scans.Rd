@@ -1,39 +1,29 @@
 \name{get_scans}
 \alias{get_scans}
-\title{Get scans by RT or m/z query}
+\title{Read scans}
 \description{
-Fetches scans from a loaded file. Give exactly one of \code{rt} or \code{mz} per call.
+Read scans by retention time or precursor m/z. A range \code{c(from, to)} returns every scan in it; one number returns the closest scan.
 }
 \usage{
-get_scans(
-  file,
-  rt = NULL,
-  mz = NULL,
-  level = 1L
-)
+get_scans(file, rt = NULL, mz = NULL, options = get_scans_options())
 }
 \arguments{
-  \item{file}{Sample file from \code{\link{parse_mzml}()} or \code{\link{parse_ion}()}.}
-  \item{rt}{\code{c(from, to)} in minutes for every scan in that range, or one RT in
-    minutes for the single closest scan.}
-  \item{mz}{\code{c(from, to)} in Da for every scan whose precursor m/z is in that range,
-    or one precursor m/z in Da for the single closest scan.}
-  \item{level}{MS level to query (integer 0–255). Default 1.}
+  \item{file}{A sample from \code{\link{parse_ion}()} or \code{\link{parse_mzml}()}.}
+  \item{rt}{One retention time, or \code{c(from, to)}.}
+  \item{mz}{One precursor m/z, or \code{c(from, to)}. Give \code{rt} or \code{mz}, not both.}
+  \item{options}{Settings from \code{\link{get_scans_options}()}.}
 }
 \value{
-Range query (\code{rt} or \code{mz} as \code{c(from, to)}): a list of scans,
-each with \code{rt}, \code{mz}, \code{intensity}, and metadata.
-
-Point query (\code{rt} or \code{mz}): a single scan list, or \code{NULL} if none found.
+A data.frame with one row per scan: \code{rt}, \code{mz} and \code{intensity} (list columns), \code{level}, \code{precursor_mz}, \code{base_peak_mz}, \code{base_peak_intensity}, \code{total_ion_current}, \code{polarity}, \code{x}, \code{y}, \code{z}.
 }
 \examples{
-\donttest{
-url <- "https://raw.githubusercontent.com/phenological/ion-files/main/data/p21_LTR_20_b1_w20.ion"
-sample <- parse_ion(url)
-scans <- get_scans(sample, rt = c(2.3, 2.4))
-scan <- get_scans(sample, rt = 2.383)
+\dontrun{
+sample <- parse_ion("sample.ion")
+scans <- get_scans(sample, rt = c(1.0, 2.5))
+closest <- get_scans(sample, rt = 108,
+                     options = get_scans_options(level = 2L, time_unit = "SECONDS"))
 }
 }
 \seealso{
-\code{\link{calculate_eic}()}, \code{\link{parse_mzml}()}, \code{\link{parse_ion}()}
+\code{\link{get_scans_options}()}
 }

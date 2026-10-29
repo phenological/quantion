@@ -1,3 +1,4 @@
+use crate::options::FindPeaksOptions;
 use std::{
     cmp::Ordering,
     collections::HashMap,
@@ -12,15 +13,15 @@ use rayon::prelude::*;
 
 #[cfg(not(all(target_arch = "wasm32", not(target_os = "wasi"))))]
 use crate::utilities::parallel::run_with_threads;
+use crate::options::CalculateEicOptions;
 use crate::utilities::{
     calculate_eic::{
-        CentroidScan, EicOptions, EicReader, MS1_LEVEL, SpectrumKind, get_scan_times,
+        CentroidScan, EicReader, MS1_LEVEL, SpectrumKind, get_scan_times,
         get_spectrum_kind, lower_bound, mz_tolerance_for, read_mz_window,
         summed_intensity_in_window, upper_bound,
     },
-    find_features::{Feature, FeatureError, FindFeaturesOptions, MzTolerance, find_features},
+    find_features::{Feature, FeatureError, FeatureSettings, MzTolerance, find_features},
     find_masses::find_masses,
-    find_peaks::FindPeaksOptions,
     get_peak::get_peak,
     math::median,
     mz_estimator::{MzEstimator, MzEstimatorKind, SampleMz, make_estimator, same_mass_gap},
@@ -88,31 +89,33 @@ impl From<Error> for AlignmentError {
 }
 
 #[derive(Clone, Debug)]
-pub struct MatchFeaturesOptions {
-    pub features: FindFeaturesOptions,
+pub struct MatchSettings {
+    pub features: FeatureSettings,
     pub mz_tolerance: MzTolerance,
     pub rt_tolerance: f64,
     pub min_samples: usize,
+    pub min_frequency: f64,
     pub min_real_support: usize,
-    pub eic_options: EicOptions,
+    pub eic_options: CalculateEicOptions,
     pub peak_options: FindPeaksOptions,
     pub mz_estimator: MzEstimatorKind,
     pub fill_window_minutes: f64,
     pub threads: usize,
 }
 
-impl Default for MatchFeaturesOptions {
+impl Default for MatchSettings {
     fn default() -> Self {
         Self {
-            features: FindFeaturesOptions::default(),
+            features: FeatureSettings::default(),
             mz_tolerance: MzTolerance {
                 mz_absolute: 0.0025,
                 ppm: 5.0,
             },
             rt_tolerance: 0.05,
             min_samples: 1,
+            min_frequency: 0.0,
             min_real_support: 1,
-            eic_options: EicOptions {
+            eic_options: CalculateEicOptions {
                 ppm_tolerance: 20.0,
                 mz_tolerance: 0.005,
                 ..Default::default()
@@ -426,9 +429,9 @@ struct ClusterSlot {
 pub fn match_features(
     directory: &str,
     window: FromTo,
-    options: MatchFeaturesOptions,
+    options: MatchSettings,
 ) -> Result<Vec<Feature>, AlignmentError> {
-    let features = FindFeaturesOptions {
+    let features = FeatureSettings {
         threads: options.threads,
         ..options.features.clone()
     };
@@ -441,7 +444,7 @@ pub fn match_features(
 pub fn match_detected_features(
     directory: &str,
     mut detected: Vec<(String, Vec<Feature>)>,
-    options: MatchFeaturesOptions,
+    options: MatchSettings,
 ) -> Result<Vec<Feature>, AlignmentError> {
     let sources = load_sample_files(directory)?;
     let mut datasets = Vec::with_capacity(sources.len());
@@ -461,10 +464,15 @@ pub fn match_detected_features(
     align_samples(datasets, options)
 }
 
+fn get_min_samples(min_samples: usize, min_frequency: f64, total_samples: usize) -> usize {
+    let from_frequency = (min_frequency.clamp(0.0, 1.0) * total_samples as f64).ceil() as usize;
+    min_samples.max(from_frequency).max(1)
+}
+
 #[cfg(not(all(target_arch = "wasm32", not(target_os = "wasi"))))]
 fn align_samples(
     mut datasets: Vec<SampleDataset>,
-    options: MatchFeaturesOptions,
+    options: MatchSettings,
 ) -> Result<Vec<Feature>, AlignmentError> {
     let threads = options.threads;
     let clusterer = FeatureClusterer {
@@ -492,9 +500,10 @@ fn align_samples(
         threads,
     )?;
 
+    let min_samples = get_min_samples(options.min_samples, options.min_frequency, datasets.len());
     let (single, split) = build_results(
         slots,
-        options.min_samples,
+        min_samples,
         datasets.len(),
         estimator.as_ref(),
         &options.mz_tolerance,
@@ -557,7 +566,7 @@ fn prepare_slots(
 fn resolve_samples(
     slots: &mut [ClusterSlot],
     datasets: &[SampleDataset],
-    eic_options: EicOptions,
+    eic_options: CalculateEicOptions,
     peak_options: FindPeaksOptions,
     fill_window: f64,
     threads: usize,
@@ -656,7 +665,7 @@ pub(crate) struct Resolved {
     pub(crate) masses: Option<Vec<MassPeak>>,
 }
 
-fn build_tiles(slots: &[ClusterSlot], eic_options: EicOptions) -> Vec<Vec<usize>> {
+fn build_tiles(slots: &[ClusterSlot], eic_options: CalculateEicOptions) -> Vec<Vec<usize>> {
     let mut jobs: Vec<usize> = (0..slots.len()).collect();
     jobs.sort_unstable_by(|&a, &b| {
         slots[a]
@@ -692,7 +701,7 @@ fn load_sample_scans(
     reader: &mut EicReader,
     slots: &[ClusterSlot],
     sample_idx: usize,
-    eic_options: EicOptions,
+    eic_options: CalculateEicOptions,
     fill_window: f64,
 ) -> Result<LoadedScans, AlignmentError> {
     let kind = get_spectrum_kind(reader);
@@ -748,7 +757,7 @@ fn resolve_tile(
     sample_idx: usize,
     all_times: &[f64],
     scans: &[(f64, Vec<f64>, Vec<f64>)],
-    eic_options: EicOptions,
+    eic_options: CalculateEicOptions,
     peak_options: &FindPeaksOptions,
     fill_window: f64,
     kind: SpectrumKind,
@@ -920,7 +929,7 @@ fn measure_mass(
             rt: bounds.center_rt,
             range: bounds.rt_to - bounds.rt_from,
         },
-        peak_options,
+        &peak_options,
     );
     (peak.intensity > 0.0).then_some(peak)
 }
@@ -968,7 +977,7 @@ fn detect_peak(
             rt: bounds.center_rt,
             range: bounds.rt_to - bounds.rt_from,
         },
-        peak_options,
+        &peak_options,
     );
     (p.intensity > 0.0).then_some(Feature {
         mz: bounds.target_mz,
@@ -1047,7 +1056,7 @@ pub fn weighted_centroid_mz(
     scans: &[CentroidScan],
     times: &[f64],
     target_mz: f64,
-    options: EicOptions,
+    options: CalculateEicOptions,
     rt_from: f64,
     rt_to: f64,
 ) -> Option<f64> {
@@ -1364,7 +1373,7 @@ fn load_sample_files(directory: &str) -> Result<Vec<(String, SampleSourceKind)>,
 fn detect_features_per_sample(
     samples: Vec<(String, SampleSourceKind)>,
     window: FromTo,
-    config: &FindFeaturesOptions,
+    config: &FeatureSettings,
 ) -> Result<Vec<SampleDataset>, AlignmentError> {
     let mut results = Vec::new();
 

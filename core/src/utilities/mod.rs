@@ -2,23 +2,16 @@ pub mod calculate_eic;
 pub mod ion;
 pub mod ion_image;
 pub mod parse_ion;
-pub use calculate_eic::{
-    EicOptions, EicReader, FastError, ScanTime, calculate_eic, get_scan_times, plan_eic_ranges,
-    read_mz_window,
-};
-pub use parse_ion::{IonInput, parse_ion};
 
 pub mod parallel;
 
 pub mod find_features;
-pub use find_features::find_features;
 
 pub mod find_masses;
 
 pub mod bridge;
 
 pub mod find_noise_level;
-pub use find_noise_level::{find_noise_level, find_noise_level_san_plot};
 
 pub mod find_peaks;
 
@@ -31,7 +24,6 @@ pub mod fit_peak;
 pub mod functions;
 
 pub mod calculate_baseline;
-pub use calculate_baseline::calculate_baseline;
 
 pub mod get_boundaries;
 

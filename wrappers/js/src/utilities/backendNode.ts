@@ -4,16 +4,29 @@ import * as fs from "fs";
 import * as path from "path";
 import type {
   Backend,
+  EicSettings,
   FileHandle,
+  GridSettings,
+  GroupingSettings,
   ModelHandle,
+  PeakColumns,
+  PeakSettings,
+  TargetColumns,
+  TransitionColumns,
   WarpModelHandle,
 } from "./backend";
 import type {
-  NoiseLevel,
-  FindPeaksOptions,
-  WarpTarget,
+  DataXY,
+  Feature,
+  IonImage,
   ModelEntry,
+  NoiseLevel,
+  Peak,
+  PeakParameters,
+  Scan,
+  Target,
 } from "../types/types";
+import { toQuantionError } from "./errors";
 import { readRecords } from "./recordBridge";
 import { readIonImage } from "./imageBridge";
 import { readScans } from "./scanBridge";
@@ -110,28 +123,30 @@ function toNodeBuffer(data: Uint8Array): Buffer {
   return Buffer.from(data.buffer, data.byteOffset, data.byteLength);
 }
 
-function unpackIds(
-  count: number,
-  offsets: Uint32Array | null,
-  lengths: Uint32Array | null,
-  idBytes: Uint8Array | null,
-): string[] | undefined {
-  if (!offsets || !lengths || !idBytes) return undefined;
-  const decoder = new TextDecoder();
-  const ids: string[] = new Array(count);
-  for (let i = 0; i < count; i++) {
-    const off = offsets[i];
-    const len = lengths[i];
-    ids[i] = len > 0 ? decoder.decode(idBytes.subarray(off, off + len)) : "";
+function catchNativeErrors(native: Record<string, unknown>): any {
+  const wrapped: Record<string, unknown> = {};
+  for (const [name, value] of Object.entries(native)) {
+    if (typeof value !== "function") {
+      wrapped[name] = value;
+      continue;
+    }
+    wrapped[name] = (...values: unknown[]) => {
+      try {
+        return (value as (...given: unknown[]) => unknown)(...values);
+      } catch (error) {
+        throw toQuantionError(error);
+      }
+    };
   }
-  return ids;
+  return wrapped;
 }
 
 export class NodeBackend implements Backend {
   private native: any;
-  private remote_by_handle = new WeakMap<object, RemoteSource>();
+  private remoteByHandle = new WeakMap<object, RemoteSource>();
   ready = false;
   readonly handlesAreGcFinalized = true;
+  readonly canReadPaths = true;
 
   constructor(proc: NodeJS.Process) {
     const addonPath = path.join(
@@ -142,53 +157,91 @@ export class NodeBackend implements Backend {
       "Release",
       "quantion.node",
     );
-    this.native = require(addonPath);
-    if (typeof this.native.bind !== "function") {
+    const native = require(addonPath);
+    if (typeof native.bind !== "function") {
       throw new Error("quantion: the native addon does not expose bind");
     }
-    this.native.bind(platformLibPath(proc));
+    native.bind(platformLibPath(proc));
+    this.native = catchNativeErrors(native);
     this.ready = true;
   }
 
   async init(): Promise<void> {}
 
-  parseMzML(data: Uint8Array): FileHandle {
-    return this.native.parseMzML(toNodeBuffer(data));
+  private async prefetch(
+    handle: FileHandle,
+    plan: () => ByteRangeResult[],
+  ): Promise<void> {
+    const source = this.remoteByHandle.get(handle as object);
+    if (!source) return;
+    await prefetchRanges(source, plan());
   }
 
-  parseBin(data: Uint8Array, maxCacheSize = 0): FileHandle {
-    return this.native.parseBin(toNodeBuffer(data), maxCacheSize);
+  parseMzmlBytes(data: Uint8Array): FileHandle {
+    return this.native.parseMzml(toNodeBuffer(data));
   }
 
-  parseIonPath(path: string, cacheSize = 0): FileHandle {
-    return this.native.parseIonPath(path, cacheSize);
+  parseMzmlPath(filePath: string): FileHandle {
+    return this.native.parseMzmlPath(filePath);
   }
 
-  planOpen(header: Uint8Array): ByteRangeResult[] {
-    return this.native.planOpen(toNodeBuffer(header));
+  parseIonPath(filePath: string, cacheSize: number): FileHandle {
+    return this.native.parseIonPath(filePath, cacheSize);
   }
 
-  async parseIonRemote(url: URL, cacheSize = 0): Promise<FileHandle> {
+  async parseIonRemote(url: URL, cacheSize: number): Promise<FileHandle> {
     const source = newRemoteSource(url.href);
     const header = await fetchHeader(source);
-    await prefetchRanges(source, this.planOpen(header));
-
+    await prefetchRanges(
+      source,
+      this.native.planOpen(toNodeBuffer(header)) as ByteRangeResult[],
+    );
     const serve = (offset: number, length: number): Buffer | null => {
       const bytes = source.cache.read(BigInt(offset), BigInt(length));
       return bytes ? toNodeBuffer(bytes) : null;
     };
-
     const handle = this.native.parseIonSource(serve, cacheSize) as FileHandle;
-    this.remote_by_handle.set(handle as object, source);
+    this.remoteByHandle.set(handle as object, source);
     return handle;
   }
 
-  parseIonBuffer(bytes: Uint8Array, cacheSize = 0): FileHandle {
+  parseIonBuffer(bytes: Uint8Array, cacheSize: number): FileHandle {
     return this.native.parseBin(toNodeBuffer(bytes), cacheSize);
   }
 
-  loadModelPath(path: string): ModelHandle {
-    return this.native.loadModelPath(path);
+  freeFile(handle: FileHandle): void {
+    this.remoteByHandle.delete(handle as object);
+    this.native.dispose(handle);
+  }
+
+  writeIon(
+    handle: FileHandle,
+    out: string | null,
+    overwrite: boolean,
+    level: number,
+    f32Compress: boolean,
+    headers: Uint8Array,
+  ): Uint8Array | undefined {
+    return this.native.writeIon(
+      handle,
+      out,
+      overwrite ? 1 : 0,
+      level,
+      f32Compress ? 1 : 0,
+      toNodeBuffer(headers),
+    );
+  }
+
+  writeMzml(
+    handle: FileHandle,
+    out: string | null,
+    overwrite: boolean,
+  ): Uint8Array | undefined {
+    return this.native.writeMzml(handle, out, overwrite ? 1 : 0);
+  }
+
+  loadModelPath(filePath: string): ModelHandle {
+    return this.native.loadModelPath(filePath);
   }
 
   loadModelBytes(bytes: Uint8Array): ModelHandle {
@@ -201,8 +254,8 @@ export class NodeBackend implements Backend {
 
   modelMetadata(model: ModelHandle): ModelEntry[] {
     return readRecords(
-      this.native.modelMetadata(model) as ArrayBuffer,
-    ) as ModelEntry[];
+      this.native.modelMetadata(model),
+    ) as unknown as ModelEntry[];
   }
 
   loadWarp(model: ModelHandle): WarpModelHandle {
@@ -219,52 +272,9 @@ export class NodeBackend implements Backend {
     mzs: Float64Array,
     rts: Float64Array,
   ): Promise<void> {
-    const source = this.remote_by_handle.get(handle as object);
-    if (!source) return;
-    const ranges = this.native.planPredictRts(
-      warp,
-      handle,
-      mzs,
-      rts,
-    ) as ByteRangeResult[];
-    await prefetchRanges(source, ranges);
-  }
-
-  async prefetchTargets(
-    handle: FileHandle,
-    mzs: Float64Array,
-    from: number,
-    to: number,
-  ): Promise<void> {
-    const source = this.remote_by_handle.get(handle as object);
-    if (!source) return;
-    const ranges = this.native.planFindTargets(handle, mzs, from, to) as ByteRangeResult[];
-    await prefetchRanges(source, ranges);
-  }
-
-  async prefetchFeatures(
-    handle: FileHandle,
-    from: number,
-    to: number,
-    eicPpm: number,
-    eicMz: number,
-    gridStart: number,
-    gridEnd: number,
-    gridStep: number,
-  ): Promise<void> {
-    const source = this.remote_by_handle.get(handle as object);
-    if (!source) return;
-    const ranges = this.native.planFindFeatures(
-      handle,
-      from,
-      to,
-      eicPpm,
-      eicMz,
-      gridStart,
-      gridEnd,
-      gridStep,
-    ) as ByteRangeResult[];
-    await prefetchRanges(source, ranges);
+    await this.prefetch(handle, () =>
+      this.native.planPredictRts(warp, handle, mzs, rts),
+    );
   }
 
   predictRts(
@@ -283,82 +293,40 @@ export class NodeBackend implements Backend {
     ids: string[],
     mzs: Float64Array,
     rts: Float64Array,
-  ): WarpTarget[] {
+  ): Target[] {
     return readRecords(
-      this.native.calibrateRts(warp, handles, listLengths, ids, mzs, rts) as ArrayBuffer,
-    ) as WarpTarget[];
-  }
-
-
-  freeFile(handle: FileHandle): void {
-    this.remote_by_handle.delete(handle as object);
-    this.native.dispose(handle);
-  }
-
-
-  fileToMzml(handle: FileHandle): string {
-    return this.native.binToMzML(handle) as string;
-  }
-
-  fileToBin(
-    handle: FileHandle,
-    level: number,
-    f32Compress: boolean,
-  ): Uint8Array {
-    return this.native.mzmlToBin(handle, level, f32Compress ? 1 : 0) as Buffer;
+      this.native.calibrateRts(warp, handles, listLengths, ids, mzs, rts),
+    ) as unknown as Target[];
   }
 
   async calculateEic(
     handle: FileHandle,
-    targetMz: number,
-    from: number,
-    to: number,
-    ppmTolerance: number,
-    mzTolerance: number,
-  ): Promise<{ x: Float64Array; y: Float64Array }> {
-    const source = this.remote_by_handle.get(handle as object);
-    if (source) {
-      const ranges = this.native.planEic(
-        handle,
-        targetMz,
-        from,
-        to,
-        ppmTolerance,
-        mzTolerance,
-      ) as ByteRangeResult[];
-      await prefetchRanges(source, ranges);
-    }
-    return this.native.calculateEic(
-      handle,
-      targetMz,
-      from,
-      to,
-      ppmTolerance,
-      mzTolerance,
-    ) as { x: Float64Array; y: Float64Array };
+    mz: number,
+    eic: EicSettings,
+  ): Promise<DataXY> {
+    const values = [
+      mz,
+      eic.from,
+      eic.to,
+      eic.ppmTolerance,
+      eic.mzTolerance,
+      eic.timeUnit,
+    ];
+    await this.prefetch(handle, () => this.native.planEic(handle, ...values));
+    return this.native.calculateEic(handle, ...values) as DataXY;
   }
 
   async getScans(
     handle: FileHandle,
     queryType: number,
-    a: number,
-    b: number,
+    from: number,
+    to: number,
     level: number,
-  ): Promise<any> {
-    const source = this.remote_by_handle.get(handle as object);
-    if (source) {
-      const ranges = this.native.planScans(
-        handle,
-        queryType,
-        a,
-        b,
-        level,
-      ) as ByteRangeResult[];
-      await prefetchRanges(source, ranges);
-    }
-    return readScans(
-      this.native.getScans(handle, queryType, a, b, level) as ArrayBuffer,
-    );
+    timeUnit: number,
+  ): Promise<Scan[]> {
+    const values = [queryType, from, to, level, timeUnit];
+    await this.prefetch(handle, () => this.native.planScans(handle, ...values));
+    return readScans(this.native.getScans(handle, ...values));
   }
 
   async getIonImage(
@@ -366,31 +334,17 @@ export class NodeBackend implements Backend {
     mz: number,
     tolerance: number,
     level: number,
-    _onProgress?: (fetched: number, total: number, heldBytes: number) => void,
-  ): Promise<any> {
-    const source = this.remote_by_handle.get(handle as object);
-    if (source) {
-      const ranges = this.native.planImage(
-        handle,
-        mz,
-        tolerance,
-        level,
-      ) as ByteRangeResult[];
-      await prefetchRanges(source, ranges);
-    }
-    return readIonImage(
-      this.native.getIonImage(handle, mz, tolerance, level) as ArrayBuffer,
+  ): Promise<IonImage> {
+    await this.prefetch(handle, () =>
+      this.native.planImage(handle, mz, tolerance, level),
     );
+    return readIonImage(this.native.getIonImage(handle, mz, tolerance, level));
   }
 
-  findPeaks(
-    x: Float64Array,
-    y: Float64Array,
-    options: FindPeaksOptions | undefined,
-  ): any {
+  findPeaks(x: Float64Array, y: Float64Array, options: PeakSettings): Peak[] {
     return readRecords(
-      this.native.findPeaks(x, y, options ?? null) as ArrayBuffer,
-    );
+      this.native.findPeaks(x, y, options),
+    ) as unknown as Peak[];
   }
 
   getPeak(
@@ -398,16 +352,43 @@ export class NodeBackend implements Backend {
     y: Float64Array,
     rt: number,
     range: number,
-    options: FindPeaksOptions | undefined,
-  ): any {
+    options: PeakSettings,
+  ): Peak {
     return readRecords(
-      this.native.getPeak(x, y, rt, range, options ?? null) as ArrayBuffer,
-    );
+      this.native.getPeak(x, y, rt, range, options),
+    )[0] as unknown as Peak;
   }
 
-  findNoiseLevel(y: Float64Array | Float32Array): NoiseLevel {
-    const y32 = y instanceof Float32Array ? y : new Float32Array(y);
-    return this.native.findNoiseLevel(y32) as NoiseLevel;
+  fitPeak(
+    x: Float64Array,
+    y: Float64Array,
+    rt: number,
+    shape: number,
+    intensity: number,
+  ): PeakParameters | null {
+    const rows = readRecords(this.native.fitPeak(x, y, rt, shape, intensity));
+    return rows.length ? (rows[0] as unknown as PeakParameters) : null;
+  }
+
+  drawPeaks(
+    peaks: PeakColumns,
+    from: number,
+    to: number,
+    points: number,
+  ): DataXY {
+    return this.native.drawPeaks(
+      peaks.heights,
+      peaks.centers,
+      peaks.fwhms,
+      peaks.tails,
+      from,
+      to,
+      points,
+    ) as DataXY;
+  }
+
+  findNoiseLevel(y: Float32Array): NoiseLevel {
+    return this.native.findNoiseLevel(y) as NoiseLevel;
   }
 
   calculateBaseline(
@@ -415,134 +396,111 @@ export class NodeBackend implements Backend {
     lambda: number,
     maxIterations: number,
   ): Float64Array {
-    return this.native.calculateBaseline(
-      y,
-      lambda,
-      maxIterations,
-    ) as Float64Array;
+    return this.native.calculateBaseline(y, lambda, maxIterations);
   }
 
-  findTargets(
+  async findTargets(
     handle: FileHandle,
-    rts: Float64Array,
-    mzs: Float64Array,
-    ranges: Float64Array,
-    offsets: Uint32Array | null,
-    lengths: Uint32Array | null,
-    idBytes: Uint8Array | null,
-    _idBytesLen: number,
-    count: number,
-    from: number,
-    to: number,
-    options: FindPeaksOptions | undefined,
+    targets: TargetColumns,
+    eic: EicSettings,
+    options: PeakSettings,
     threads: number,
-  ): any {
-    const ids = unpackIds(count, offsets, lengths, idBytes);
+  ): Promise<Peak[]> {
+    const window = [
+      eic.from,
+      eic.to,
+      eic.ppmTolerance,
+      eic.mzTolerance,
+      eic.timeUnit,
+    ];
+    await this.prefetch(handle, () =>
+      this.native.planFindTargets(handle, targets.mzs, ...window),
+    );
     return readRecords(
       this.native.findTargets(
         handle,
-        rts,
-        mzs,
-        ranges,
-        ids,
-        from,
-        to,
-        options ?? null,
+        targets.rts,
+        targets.mzs,
+        targets.ranges,
+        targets.ids,
+        ...window,
+        options,
         threads,
-      ) as ArrayBuffer,
-    );
+      ),
+    ) as unknown as Peak[];
   }
 
   findTransitions(
     handle: FileHandle,
-    precursors: Float64Array,
-    products: Float64Array,
-    rts: Float64Array,
-    ranges: Float64Array,
-    offsets: Uint32Array | null,
-    lengths: Uint32Array | null,
-    idBytes: Uint8Array | null,
-    _idBytesLen: number,
-    count: number,
-    options: FindPeaksOptions | undefined,
+    targets: TransitionColumns,
+    options: PeakSettings,
     threads: number,
-  ): any {
-    const ids = unpackIds(count, offsets, lengths, idBytes);
+  ): Peak[] {
     return readRecords(
       this.native.findTransitions(
         handle,
-        precursors,
-        products,
-        rts,
-        ranges,
-        ids,
-        options ?? null,
+        targets.precursors,
+        targets.products,
+        targets.rts,
+        targets.ranges,
+        targets.ids,
+        options,
         threads,
-      ) as ArrayBuffer,
-    );
+      ),
+    ) as unknown as Peak[];
   }
 
-  findFeatures(
+  async findFeatures(
     handle: FileHandle,
-    from: number,
-    to: number,
-    eicPpm: number,
-    eicMz: number,
-    gridStart: number,
-    gridEnd: number,
-    gridStep: number,
-    options: FindPeaksOptions | undefined,
+    eic: EicSettings,
+    grid: GridSettings,
+    options: PeakSettings,
     threads: number,
-  ): any {
-    return readRecords(
-      this.native.findFeatures(
-        handle,
-        from,
-        to,
-        eicPpm,
-        eicMz,
-        gridStart,
-        gridEnd,
-        gridStep,
-        options ?? null,
-        threads,
-      ) as ArrayBuffer,
+  ): Promise<Feature[]> {
+    const values = [
+      eic.from,
+      eic.to,
+      eic.ppmTolerance,
+      eic.mzTolerance,
+      eic.timeUnit,
+      grid.start,
+      grid.end,
+      grid.stepSize,
+    ];
+    await this.prefetch(handle, () =>
+      this.native.planFindFeatures(handle, ...values),
     );
+    return readRecords(
+      this.native.findFeatures(handle, ...values, options, threads),
+    ) as unknown as Feature[];
   }
 
   matchFeatures(
-    dirPath: string,
-    from: number,
-    to: number,
-    eicPpm: number,
-    eicMz: number,
-    gStart: number,
-    gEnd: number,
-    gStep: number,
-    groupPpm: number,
-    groupMz: number,
-    groupRt: number,
-    prevalence: number,
-    options: FindPeaksOptions | undefined,
+    directory: string,
+    eic: EicSettings,
+    grid: GridSettings,
+    grouping: GroupingSettings,
+    options: PeakSettings,
     threads: number,
-  ): any {
+  ): Feature[] {
     return readRecords(
       this.native.matchFeatures(
-        dirPath,
-        from,
-        to,
-        eicPpm,
-        eicMz,
-        gStart,
-        gEnd,
-        gStep,
-        groupPpm,
-        groupMz,
-        groupRt,
-        prevalence,
-        options ?? null,
+        directory,
+        eic.from,
+        eic.to,
+        eic.ppmTolerance,
+        eic.mzTolerance,
+        eic.timeUnit,
+        grid.start,
+        grid.end,
+        grid.stepSize,
+        grouping.ppmTolerance,
+        grouping.mzTolerance,
+        grouping.rtTolerance,
+        grouping.minFrequency,
+        options,
         threads,
-      ) as ArrayBuffer,
-    );
+      ),
+    ) as unknown as Feature[];
   }
 }

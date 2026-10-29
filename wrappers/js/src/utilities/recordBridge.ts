@@ -26,7 +26,6 @@ import {
   SECTION_FIT_FWHM,
   SECTION_FIT_HEIGHT,
   SECTION_FIT_R2,
-  SECTION_FIT_SHAPE,
   SECTION_FIT_TAIL,
   SECTION_PEAK_FROM,
   SECTION_PEAK_INTEGRAL,
@@ -78,7 +77,6 @@ const RECORD_COLUMNS: Record<number, Column[]> = {
     { name: "noise", id: SECTION_FEATURE_NOISE, kind: "number" },
   ],
   [PAYLOAD_FIT_RESULT]: [
-    { name: "shape", id: SECTION_FIT_SHAPE, kind: "number" },
     { name: "height", id: SECTION_FIT_HEIGHT, kind: "number" },
     { name: "center", id: SECTION_FIT_CENTER, kind: "number" },
     { name: "fwhm", id: SECTION_FIT_FWHM, kind: "number" },

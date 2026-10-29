@@ -30,5 +30,7 @@ class ChromatogramTargets(unittest.TestCase):
         self.assertEqual(row["intensity"], 0.0)
 
     def test_a_missing_precursor_is_refused(self):
-        with self.assertRaises(KeyError):
+        with self.assertRaises(support.quantion.QuantionError) as caught:
             self.peaks_for({"id": "alanine", "product": ALANINE, "rt": 2.385, "range": 0.1})
+        self.assertEqual(caught.exception.kind, "missing_argument")
+        self.assertEqual(caught.exception.argument, "targets[0].precursor")

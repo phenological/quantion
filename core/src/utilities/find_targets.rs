@@ -1,11 +1,13 @@
+use crate::options::FindPeaksOptions;
 use ionic::{IonReader, source::ByteRange};
 
+use crate::options::CalculateEicOptions;
+use crate::options::FindTargetsOptions;
 use crate::utilities::{
     calculate_eic::{
-        EicOptions, EicReader, FastError, MS1_LEVEL, get_scan_times, lower_bound, mz_tolerance_for,
+        EicReader, FastError, MS1_LEVEL, get_scan_times, lower_bound, mz_tolerance_for,
         plan_window_ranges, read_mz_window, upper_bound,
     },
-    find_peaks::FindPeaksOptions,
     get_peak::get_peak,
     structs::{DataXY, FromTo, Peak, Roi, Target},
 };
@@ -15,12 +17,12 @@ pub fn plan_targets_ranges(
     targets: &[Target],
     from: f64,
     to: f64,
+    options: CalculateEicOptions,
 ) -> Result<Vec<ByteRange>, FastError> {
     if targets.is_empty() {
         return Ok(Vec::new());
     }
 
-    let options = EicOptions::default();
     let mut mz_from = f64::INFINITY;
     let mut mz_to = f64::NEG_INFINITY;
     for target in targets {
@@ -51,21 +53,6 @@ struct PeakJob {
     mz_to: f64,
 }
 
-#[derive(Clone, Debug)]
-pub struct FindTargetsOptions {
-    pub peaks: FindPeaksOptions,
-    pub threads: usize,
-}
-
-impl Default for FindTargetsOptions {
-    fn default() -> Self {
-        Self {
-            peaks: FindPeaksOptions::default(),
-            threads: 1,
-        }
-    }
-}
-
 pub fn find_targets(
     reader: &mut EicReader,
     targets: &[Target],
@@ -85,7 +72,7 @@ pub fn find_targets(
     let rts_full: Vec<f64> = scan_times.iter().map(|s| s.rt).collect();
     let scan_count = scan_times.len();
 
-    let jobs = build_peak_jobs(targets);
+    let jobs = build_peak_jobs(targets, options.eic);
     if jobs.is_empty() {
         return Ok(vec![Peak::default(); targets.len()]);
     }
@@ -104,7 +91,7 @@ pub fn find_targets(
         &eic_values,
         scan_count,
         &rts_full,
-        &options.peaks,
+        &options.find_peaks,
         window,
         options.threads,
     );
@@ -117,8 +104,7 @@ pub fn find_targets(
     Ok(results)
 }
 
-fn build_peak_jobs(targets: &[Target]) -> Vec<PeakJob> {
-    let eic_opts = EicOptions::default();
+fn build_peak_jobs(targets: &[Target], eic_opts: CalculateEicOptions) -> Vec<PeakJob> {
     targets
         .iter()
         .enumerate()
@@ -127,7 +113,7 @@ fn build_peak_jobs(targets: &[Target]) -> Vec<PeakJob> {
             PeakJob {
                 roi_idx: idx,
                 rt: target.rt,
-                range: target.range,
+                range: target.get_range(),
                 mz_from: target.mz - tolerance,
                 mz_to: target.mz + tolerance,
             }
@@ -164,7 +150,7 @@ fn compute_peak_for_job(
             rt: job.rt,
             range: job.range,
         },
-        options.clone(),
+        options,
     )
 }
 

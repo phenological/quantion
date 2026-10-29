@@ -1,37 +1,27 @@
 \name{calculate_eic}
 \alias{calculate_eic}
-\title{Get an extracted ion chromatogram (EIC)}
+\title{Extract an ion chromatogram}
 \description{
-Extracts an EIC for one target m/z over a given retention-time range.
+Extract the ion chromatogram of one m/z. The retention-time range and the tolerances come from \code{\link{calculate_eic_options}()}.
 }
 \usage{
-calculate_eic(
-  file,
-  mz,
-  from,
-  to,
-  ppm_tolerance = 20,
-  mz_tolerance = 0.005
-)
+calculate_eic(file, mz, options = calculate_eic_options())
 }
 \arguments{
-  \item{file}{Sample file from \code{\link{parse_mzml}()} or \code{\link{parse_ion}()}.}
+  \item{file}{A sample from \code{\link{parse_ion}()} or \code{\link{parse_mzml}()}.}
   \item{mz}{The m/z to extract (Da).}
-  \item{from}{Start retention time (minutes).}
-  \item{to}{End retention time (minutes).}
-  \item{ppm_tolerance}{Mass tolerance in ppm.}
-  \item{mz_tolerance}{Absolute mass tolerance in Da.}
+  \item{options}{Settings from \code{\link{calculate_eic_options}()}.}
 }
 \value{
-A list with \code{x} (retention time, numeric) and \code{y} (intensity, numeric).
+A list with \code{x} (retention times in minutes) and \code{y} (summed intensities).
 }
 \examples{
-\donttest{
-url <- "https://raw.githubusercontent.com/phenological/ion-files/main/data/p21_LTR_20_b1_w20.ion"
-sample <- parse_ion(url)
-eic <- calculate_eic(sample, 260.103, from = 0.5, to = 5)
+\dontrun{
+sample <- parse_ion("sample.ion")
+eic <- calculate_eic(sample, 260.103, options = calculate_eic_options(from = 0.5, to = 5, ppm_tolerance = 10))
+whole_run <- calculate_eic(sample, 260.103)
 }
 }
 \seealso{
-\code{\link{get_scans}()}, \code{\link{find_peaks}()}, \code{\link{get_peak}()}
+\code{\link{calculate_eic_options}()}, \code{\link{find_peaks}()}
 }

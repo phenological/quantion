@@ -1,6 +1,7 @@
 import type { Backend, ModelHandle } from "./backend";
 import { fileHandleRegistry } from "./handleRegistry";
 import { Metadata } from "./metadata";
+import { invalidArgument } from "./errors";
 import type { ModelEntry } from "../types/types";
 
 type Cell = ReturnType<typeof fileHandleRegistry.register>;
@@ -42,7 +43,7 @@ export class Model extends Metadata {
     if (this.metadata === null) {
       const handle = this._handle;
       if (handle === null) {
-        throw new Error(`${caller}: the model has been disposed`);
+        throw invalidArgument(caller, "model", "is not open; it was disposed");
       }
       this.metadata = this._backend.modelMetadata(handle);
     }

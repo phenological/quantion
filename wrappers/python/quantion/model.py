@@ -24,14 +24,12 @@ class Metadata:
 
 class Model(Metadata):
     def __init__(self, handle: ctypes.c_void_p, abi: "_ABI") -> None:
-        self._handle: ctypes.c_void_p | None = handle
+        self._handle: Optional[ctypes.c_void_p] = handle
         self._abi = abi
         self._metadata: Optional[List[Dict[str, str]]] = None
 
     @property
-    def handle(self) -> ctypes.c_void_p:
-        if self._handle is None:
-            raise RuntimeError("Model: model has been disposed")
+    def handle(self) -> Optional[ctypes.c_void_p]:
         return self._handle
 
     def _get_metadata(self) -> List[Dict[str, str]]:

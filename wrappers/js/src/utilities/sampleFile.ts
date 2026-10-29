@@ -47,33 +47,4 @@ export class SampleFile {
       fileHandleRegistry.release(this, cell);
     }
   }
-
-  /**
-   * Serialize the sample back to mzML format.
-   * @returns Full mzML file content as a string.
-   */
-  toMzml(): string {
-    this.assertValid("toMzml");
-    return this._backend.fileToMzml(this._handle!);
-  }
-
-  /**
-   * Encode the sample as compressed ion binary bytes.
-   *
-   * @param options - Encoding options.
-   * @param options.level - Compression level, 0 (none) to 22 (max). Default 12.
-   * @param options.f32Compress - Compress intensity values to 32-bit float. Default false.
-   * @returns Raw ion binary bytes.
-   */
-  toIon(options: { level?: number; f32Compress?: boolean } = {}): Uint8Array {
-    const { level = 12, f32Compress = false } = options;
-    this.assertValid("toIon");
-    return this._backend.fileToBin(this._handle!, level, f32Compress);
-  }
-
-  private assertValid(caller: string): void {
-    if (!this._handle) {
-      throw new Error(`${caller}: file has been disposed`);
-    }
-  }
 }

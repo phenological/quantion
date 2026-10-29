@@ -1,12 +1,12 @@
+use crate::options::FindPeaksOptions;
 use ionic::mzml::structs::{
     BinaryDataArray, BinaryDataArrayList, Chromatogram, IsolationWindow, MzML, NumericArray,
 };
 #[cfg(not(all(target_arch = "wasm32", not(target_os = "wasi"))))]
 use rayon::{ThreadPoolBuilder, prelude::*};
 
+use crate::options::FindTransitionsOptions;
 use crate::utilities::{
-    calculate_baseline::BaselineOptions,
-    find_peaks::FindPeaksOptions,
     get_peak::get_peak,
     structs::{DataXY, Peak, Roi, Transition},
 };
@@ -15,21 +15,7 @@ const ACC_TIME_ARRAY: &str = "MS:1000595";
 const ACC_INTENSITY_ARRAY: &str = "MS:1000515";
 const ACC_ISOLATION_TARGET: &str = "MS:1000827";
 const TRANSITION_TOLERANCE: f64 = 0.005;
-
-#[derive(Clone, Debug)]
-pub struct FindTransitionsOptions {
-    pub peaks: FindPeaksOptions,
-    pub threads: usize,
-}
-
-impl Default for FindTransitionsOptions {
-    fn default() -> Self {
-        Self {
-            peaks: FindPeaksOptions::default(),
-            threads: 1,
-        }
-    }
-}
+const CHROMATOGRAM_BASELINE_LAMBDA: f64 = 50.0;
 
 pub fn find_transitions(
     mzml: &MzML,
@@ -41,11 +27,8 @@ pub fn find_transitions(
 
     let threads = options.threads;
     let peaks = FindPeaksOptions {
-        baseline: Some(BaselineOptions {
-            lambda: Some(50.0),
-            ..Default::default()
-        }),
-        ..options.peaks
+        lambda: CHROMATOGRAM_BASELINE_LAMBDA,
+        ..options.find_peaks.clone()
     };
 
     let make_row = |target: &Transition| {
@@ -189,5 +172,5 @@ fn find_peak(
         rt: target.rt,
         range: target.range,
     };
-    get_peak(&data, &roi, options.clone())
+    get_peak(&data, &roi, options)
 }

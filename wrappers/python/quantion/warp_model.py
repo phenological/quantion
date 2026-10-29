@@ -1,5 +1,5 @@
 import ctypes
-from typing import TYPE_CHECKING, Any, Dict, List, Sequence
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence
 
 from quantion.model import Metadata
 
@@ -12,31 +12,19 @@ class WarpModel(Metadata):
     def __init__(
         self, handle: ctypes.c_void_p, abi: "_ABI", metadata: List[Dict[str, str]]
     ) -> None:
-        self._handle: ctypes.c_void_p | None = handle
+        self._handle: Optional[ctypes.c_void_p] = handle
         self._abi = abi
         self._metadata = metadata
 
     @property
-    def handle(self) -> ctypes.c_void_p:
-        if self._handle is None:
-            raise RuntimeError("WarpModel: model has been disposed")
+    def handle(self) -> Optional[ctypes.c_void_p]:
         return self._handle
 
     def _get_metadata(self) -> List[Dict[str, str]]:
         return self._metadata
 
-    def predict_rts(
-        self, file: "SampleFile", targets: Sequence[Dict[str, Any]]
-    ) -> List[Dict[str, float]]:
-        """Predict each target's RT in this file.
-
-        Args:
-            file: The sample file.
-            targets: Dicts with "mz" and "rt".
-
-        Returns:
-            One {"rt", "uncertainty"} per target, in the same order.
-        """
+    def predict_rts(self, file: "SampleFile", targets: Sequence[Dict[str, Any]]) -> List[Dict[str, float]]:
+        """Predict where each target elutes in one sample: one {"rt", "uncertainty"} per target."""
         from quantion.api import _predict_rts
 
         return _predict_rts(self, file, targets)
@@ -46,15 +34,7 @@ class WarpModel(Metadata):
         anchor_samples: Sequence["SampleFile"],
         target_lists: Sequence[Sequence[Dict[str, Any]]],
     ) -> List[Dict[str, Any]]:
-        """Turn the RTs seen in anchor samples into targets for predict_rts.
-
-        Args:
-            anchor_samples: The samples where the targets were seen, like LTRs or QCs.
-            target_lists: One list per sample, with dicts of "id", "mz" and the "rt" seen in it.
-
-        Returns:
-            One {"id", "mz", "rt"} per id, with the median calibrated rt over the samples.
-        """
+        """Turn the rts seen in anchor samples into targets for predict_rts: one target per id with the median rt."""
         from quantion.api import _calibrate_rts
 
         return _calibrate_rts(self, anchor_samples, target_lists)

@@ -54,14 +54,12 @@ export const SECTION_FEATURE_INTEGRAL = 31;
 export const SECTION_FEATURE_POINT_COUNT = 32;
 export const SECTION_FEATURE_NOISE = 33;
 
-
 export const SECTION_FIT_SHAPE = 46;
 export const SECTION_FIT_HEIGHT = 47;
 export const SECTION_FIT_CENTER = 48;
 export const SECTION_FIT_FWHM = 49;
 export const SECTION_FIT_TAIL = 50;
 export const SECTION_FIT_R2 = 51;
-
 
 export const SECTION_CONSENSUS_MZ = 62;
 export const SECTION_CONSENSUS_RT = 63;
@@ -72,7 +70,6 @@ export const SECTION_CONSENSUS_INTEGRAL = 67;
 export const SECTION_CONSENSUS_FREQUENCY = 68;
 export const SECTION_CONSENSUS_POINT_COUNT = 87;
 export const SECTION_CONSENSUS_NOISE = 88;
-
 
 export const SECTION_WARP_TARGET_ID_STARTS = 79;
 export const SECTION_WARP_TARGET_ID_BYTES = 80;
@@ -114,18 +111,18 @@ const SECTION_TYPES: Record<number, number> = {
   [SECTION_CONSENSUS_POINT_COUNT]: ELEMENT_U32,
 };
 
-export type Section = {
+export interface Section {
   elementType: number;
   byteOffset: number;
   byteLength: number;
-};
+}
 
-export type Bridge = {
+export interface Bridge {
   buffer: ArrayBuffer;
   payloadKind: number;
   recordCount: number;
   sections: Map<number, Section>;
-};
+}
 
 function fail(reason: string): never {
   throw new Error(`quantion bridge: ${reason}`);

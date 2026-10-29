@@ -23,5 +23,7 @@ test_that("a wrong product finds nothing", {
 test_that("a missing product column is refused", {
   skip_if(!nzchar(srm_file), "no srm.ion fixture next to the package")
   targets <- data.frame(id = "alanine", precursor = 89.04768, rt = 2.385, range = 0.1)
-  expect_error(find_transitions(parse_ion(srm_file), targets), "missing columns: product")
+  error <- tryCatch(find_transitions(parse_ion(srm_file), targets), quantion_error = function(error) error)
+  expect_identical(error$kind, "missing_argument")
+  expect_identical(error$argument, "targets$product")
 })

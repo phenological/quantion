@@ -65,10 +65,27 @@ shared_peak_lines <- function(prefix, peak, out) {
     sprintf("%s.intensity = %s", prefix, number(peak$intensity)))
 }
 
+window_options <- function() {
+  calculate_eic_options(from = FROM_RT, to = TO_RT, ppm_tolerance = EIC_PPM, mz_tolerance = EIC_MZ)
+}
+
+peak_options <- function(channel, automatic = TRUE) {
+  find_peaks_options(min_intensity = channel$min_intensity,
+                     min_peak_width_points = channel$min_peak_width_points,
+                     auto_noise = automatic, auto_baseline = automatic)
+}
+
+feature_peak_options <- function() {
+  find_peaks_options(min_intensity = FEATURE_MIN_INTENSITY,
+                     min_peak_width_points = FEATURE_MIN_PEAK_WIDTH_POINTS,
+                     auto_noise = TRUE, auto_baseline = TRUE)
+}
+
+grid <- function() grid_options(start = GRID_START, end = GRID_END, step_size = GRID_STEP)
+
 report_channel <- function(file, transitions, channel, out) {
   name <- channel$name
-  eic <- calculate_eic(file, channel$mass, FROM_RT, TO_RT,
-                       ppm_tolerance = EIC_PPM, mz_tolerance = EIC_MZ)
+  eic <- calculate_eic(file, channel$mass, window_options())
   x <- as.numeric(eic$x)
   y <- as.numeric(eic$y)
 
@@ -81,30 +98,22 @@ report_channel <- function(file, transitions, channel, out) {
     sprintf("%s.find_noise_level.intensity = %s", name, number(noise$intensity)),
     sprintf("%s.find_noise_level.width = %d", name, noise$width))
 
-  found <- find_peaks(x, y,
-                      min_intensity = channel$min_intensity,
-                      min_peak_width_points = channel$min_peak_width_points,
-                      auto_noise = TRUE, auto_baseline = TRUE)
+  found <- find_peaks(x, y, peak_options(channel))
   out <- c(out, sprintf("%s.find_peaks.count = %d", name, nrow(found)))
   for (index in seq_len(nrow(found))) {
     out <- peak_lines(sprintf("%s.find_peaks[%d]", name, index - 1L), found[index, ], out)
   }
 
   target <- as.numeric(channel$targets[[3]][2])
-  single <- get_peak(x, y, target, ROI_RANGE,
-                     min_intensity = channel$min_intensity,
-                     min_peak_width_points = channel$min_peak_width_points,
-                     auto_noise = TRUE, auto_baseline = TRUE)
+  single <- get_peak(x, y, target, get_peak_options(range = ROI_RANGE, find_peaks = peak_options(channel)))
   out <- peak_lines(sprintf("%s.get_peak", name), single, out)
 
   ids <- vapply(channel$targets, function(t) t[1], character(1))
   rts <- vapply(channel$targets, function(t) as.numeric(t[2]), numeric(1))
   targets <- data.frame(id = ids, rt = rts, mz = channel$mass, range = ROI_RANGE,
                         stringsAsFactors = FALSE)
-  rows <- find_targets(file, targets, from = FROM_RT, to = TO_RT, threads = THREADS,
-                             min_intensity = channel$min_intensity,
-                             min_peak_width_points = channel$min_peak_width_points,
-                             auto_noise = TRUE, auto_baseline = TRUE)
+  rows <- find_targets(file, targets, find_targets_options(
+    eic = window_options(), find_peaks = peak_options(channel), threads = THREADS))
   for (index in seq_len(nrow(rows))) {
     out <- shared_peak_lines(
       sprintf("%s.find_targets.%s", name, targets$id[index]), rows[index, ], out)
@@ -112,10 +121,8 @@ report_channel <- function(file, transitions, channel, out) {
 
   chrom_targets <- data.frame(id = ids, precursor = channel$mass, product = channel$mass,
                               rt = rts, range = ROI_RANGE, stringsAsFactors = FALSE)
-  chrom_rows <- find_transitions(transitions, chrom_targets, threads = THREADS,
-                                     min_intensity = channel$min_intensity,
-                                     min_peak_width_points = channel$min_peak_width_points,
-                                     auto_noise = FALSE, auto_baseline = FALSE)
+  chrom_rows <- find_transitions(transitions, chrom_targets, find_transitions_options(
+    find_peaks = peak_options(channel, automatic = FALSE), threads = THREADS))
   for (index in seq_len(nrow(chrom_rows))) {
     prefix <- sprintf("%s.find_transitions.%s", name, ids[index])
     row <- chrom_rows[index, ]
@@ -165,22 +172,12 @@ main <- function() {
     out <- report_channel(file, transitions, channel, out)
   }
 
-  found <- find_features(file, from = FROM_RT, to = TO_RT,
-                         eic_ppm_tolerance = EIC_PPM, eic_mz_tolerance = EIC_MZ,
-                         grid_start = GRID_START, grid_end = GRID_END,
-                         grid_step_size = GRID_STEP, threads = THREADS,
-                         min_intensity = FEATURE_MIN_INTENSITY,
-                         min_peak_width_points = FEATURE_MIN_PEAK_WIDTH_POINTS,
-                         auto_noise = TRUE, auto_baseline = TRUE)
+  found <- find_features(file, find_features_options(
+    eic = window_options(), grid = grid(), find_peaks = feature_peak_options(), threads = THREADS))
   out <- feature_lines("find_features", found, out, TRUE)
 
-  consensus <- match_features(directory, from = FROM_RT, to = TO_RT,
-                            eic_ppm_tolerance = EIC_PPM, eic_mz_tolerance = EIC_MZ,
-                            grid_start = GRID_START, grid_end = GRID_END,
-                            grid_step_size = GRID_STEP, threads = THREADS,
-                            min_intensity = FEATURE_MIN_INTENSITY,
-                            min_peak_width_points = FEATURE_MIN_PEAK_WIDTH_POINTS,
-                            auto_noise = TRUE, auto_baseline = TRUE)
+  consensus <- match_features(directory, match_features_options(
+    eic = window_options(), grid = grid(), find_peaks = feature_peak_options(), threads = THREADS))
   out <- feature_lines("match_features", consensus, out, FALSE)
 
   warp <- load_warp(load_model(file.path(directory, "..", "shift_model.onnx")))

@@ -15,5 +15,5 @@ export * from "./utilities/api";
 export { SampleFile } from "./utilities/sampleFile";
 export { Model } from "./utilities/model";
 export { WarpModel } from "./utilities/warpModel";
-export { encodeTargetIds, unpackTargets } from "./utilities/pack";
-export { ContainmentCache, type ByteRange } from "./utilities/containmentCache";
+export { QuantionError, ERROR_CODES, type ErrorKind } from "./utilities/errors";
+export * from "./types/types";
