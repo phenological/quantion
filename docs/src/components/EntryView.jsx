@@ -1,13 +1,20 @@
-import { findEntry } from "../state/documentationState";
+import { getDisplayName } from "../names";
+import { actions, findEntry, findGroup, findLanguage, pages } from "../state/documentationState";
 import { useDocumentation } from "../state/DocumentationContext";
 import { CodeBlock } from "./CodeBlock";
 import { DetailTable } from "./DetailTable";
 import { GitHubIcon } from "./GitHubLinks";
+import { GroupView } from "./GroupView";
 import { ReturnsLine } from "./ReturnsLine";
+import { VersionsView } from "./VersionsView";
 
-function getDisplayName(entry, language) {
-  if (entry.kind !== "function" || language !== "js") return entry.name;
-  return entry.name.replace(/_([a-z])/g, (_, letter) => letter.toUpperCase());
+function GroupBadge({ group }) {
+  const { dispatch } = useDocumentation();
+  return (
+    <button type="button" className="badge" onClick={() => dispatch({ type: actions.entryChosen, entryName: group })}>
+      {group}
+    </button>
+  );
 }
 
 function EntryHeading({ title, group, summary }) {
@@ -15,19 +22,24 @@ function EntryHeading({ title, group, summary }) {
     <>
       <div className="entry-heading">
         <h2>{title}</h2>
-        {group && <span className="badge">{group}</span>}
+        {group && <GroupBadge group={group} />}
       </div>
       <p className="summary">{summary}</p>
     </>
   );
 }
 
+function getInstallLanguage(language) {
+  if (language === "r") return "r";
+  return "shell";
+}
+
 function Overview({ overview, language }) {
-  const languageLabel = useDocumentation().state.document.languages.find((item) => item.key === language).label;
+  const languageLabel = findLanguage(useDocumentation().state.document, language).label;
   return (
     <>
       <EntryHeading title={overview.title} summary={overview.summary} />
-      <CodeBlock title={`Install for ${languageLabel}`} code={overview.install[language]} language={language === "r" ? "r" : "shell"} />
+      <CodeBlock title={`Install for ${languageLabel}`} code={overview.install[language]} language={getInstallLanguage(language)} />
       <section className="block">
         <h3>Projects</h3>
         <div className="projects">
@@ -47,7 +59,7 @@ function Overview({ overview, language }) {
 }
 
 function Entry({ entry, language }) {
-  const languageLabel = useDocumentation().state.document.languages.find((item) => item.key === language).label;
+  const languageLabel = findLanguage(useDocumentation().state.document, language).label;
   const code = entry.languages[language];
   const isType = entry.kind === "type";
   return (
@@ -73,6 +85,8 @@ function Entry({ entry, language }) {
             </>
           )}
           {code.example && <CodeBlock title={`${languageLabel} example`} code={code.example} language={language} />}
+          {code.output && <CodeBlock title={`${languageLabel} output`} code={code.output} language="text" />}
+          {entry.expect && code.output && <p className="note">{entry.expect}</p>}
         </>
       )}
     </>
@@ -81,6 +95,10 @@ function Entry({ entry, language }) {
 
 export function EntryView() {
   const { state } = useDocumentation();
+  if (state.entryName === pages.versions) return <VersionsView />;
   const entry = findEntry(state.document, state.entryName);
-  return entry ? <Entry entry={entry} language={state.language} /> : <Overview overview={state.document.overview} language={state.language} />;
+  if (entry) return <Entry entry={entry} language={state.language} />;
+  const group = findGroup(state.document, state.entryName);
+  if (group) return <GroupView group={group} />;
+  return <Overview overview={state.document.overview} language={state.language} />;
 }

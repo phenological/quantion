@@ -1,9 +1,24 @@
 import { TypeText } from "./TypeText";
 
+function getVisibleRows(rows, language) {
+  const visibleRows = [];
+  for (const row of rows) {
+    if (row.languages[language]) visibleRows.push(row);
+  }
+  return visibleRows;
+}
+
+function hasAnyDefault(rows, language) {
+  for (const row of rows) {
+    if (row.languages[language].default !== undefined) return true;
+  }
+  return false;
+}
+
 export function DetailTable({ title, rows, language }) {
-  const visibleRows = rows.filter((row) => row.languages[language]);
+  const visibleRows = getVisibleRows(rows, language);
   if (!visibleRows.length) return null;
-  const hasDefault = visibleRows.some((row) => row.languages[language].default !== undefined);
+  const hasDefault = hasAnyDefault(visibleRows, language);
   return (
     <section className="block">
       <h3>{title}</h3>

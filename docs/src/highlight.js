@@ -30,22 +30,23 @@ function getWordKind(word, language, isCall, isType) {
   return null;
 }
 
+function getTokenKind(match, language) {
+  const [, comment, string, number, operator, call, type, word] = match;
+  if (comment) return "comment";
+  if (string) return "string";
+  if (number) return "number";
+  if (operator) return "operator";
+  return getWordKind(call ?? type ?? word, language, Boolean(call), Boolean(type));
+}
+
 export function splitIntoTokens(code, language) {
+  if (!patterns[language]) return [{ text: code }];
   const tokens = [];
   let position = 0;
   for (const match of code.matchAll(new RegExp(patterns[language].source, "g"))) {
     if (match.index > position) tokens.push({ kind: null, text: code.slice(position, match.index) });
-    const [text, comment, string, number, operator, call, type, word] = match;
-    const kind = comment
-      ? "comment"
-      : string
-        ? "string"
-        : number
-          ? "number"
-          : operator
-            ? "operator"
-            : getWordKind(call ?? type ?? word, language, Boolean(call), Boolean(type));
-    tokens.push({ kind, text });
+    const [text] = match;
+    tokens.push({ kind: getTokenKind(match, language), text });
     position = match.index + text.length;
   }
   if (position < code.length) tokens.push({ kind: null, text: code.slice(position) });

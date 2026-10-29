@@ -209,24 +209,20 @@ header.top {
 .group {
   display: grid;
   gap: 2px;
-  margin-bottom: 16px;
+  margin-bottom: 10px;
 }
 
-.group h2 {
-  margin: 0 0 4px;
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--muted);
+.group-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .group button {
   all: unset;
+  box-sizing: border-box;
   padding: 4px 8px;
   border-radius: 6px;
-  font-family: var(--font-code);
-  font-size: 13px;
   cursor: pointer;
 }
 
@@ -237,6 +233,53 @@ header.top {
 .group button[aria-current="true"] {
   background: var(--accent-strong);
   color: var(--panel);
+}
+
+.group button:focus-visible {
+  outline: 2px solid var(--accent);
+}
+
+.page-button {
+  font-family: var(--font-code);
+  font-size: 13px;
+}
+
+.group .group-name {
+  flex: 1;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.group .group-toggle {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 24px;
+  padding: 0;
+}
+
+.chevron {
+  width: 6px;
+  height: 6px;
+  border-right: 1.5px solid var(--muted);
+  border-bottom: 1.5px solid var(--muted);
+  transform: rotate(-45deg);
+  transition: transform 0.15s ease;
+}
+
+.group-toggle[aria-expanded="true"] .chevron {
+  transform: rotate(45deg);
+}
+
+.group-items {
+  display: grid;
+  gap: 2px;
+  margin: 2px 0 4px 8px;
+  padding-left: 6px;
+  border-left: 1px solid var(--line);
 }
 
 main {
@@ -296,6 +339,99 @@ a:focus-visible {
   border: 1px solid var(--accent);
   border-radius: 999px;
   padding: 1px 9px;
+  background: none;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.badge:hover {
+  background: var(--accent-soft);
+}
+
+.experimental {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  color: var(--warning);
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  padding: 1px 9px;
+}
+
+.experimental-icon {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.experimental-mark {
+  display: inline-flex;
+  vertical-align: -2px;
+  margin-left: 6px;
+  color: var(--warning);
+}
+
+.note {
+  margin: 10px 0 0;
+  color: var(--muted);
+}
+
+.text-link,
+.group-list-name {
+  all: unset;
+  font-family: var(--font-code);
+  color: var(--accent-strong);
+  cursor: pointer;
+}
+
+.text-link:hover,
+.group-list-name:hover {
+  text-decoration: underline;
+}
+
+.text-link:focus-visible,
+.group-list-name:focus-visible {
+  outline: 2px solid var(--accent);
+}
+
+.group-list,
+.version-history {
+  display: grid;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.group-list li,
+.version-history li {
+  display: grid;
+  grid-template-columns: minmax(150px, max-content) minmax(0, 1fr);
+  gap: 4px 18px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.group-list-name {
+  font-size: 14px;
+}
+
+.group-list-summary,
+.version-history-date {
+  color: var(--muted);
+}
+
+.version-history-number {
+  font-family: var(--font-code);
+  font-weight: 600;
+  color: var(--accent-strong);
+}
+
+.version-history-message {
+  grid-column: 2;
 }
 
 .summary {
@@ -488,6 +624,15 @@ table.details td {
 
   .layout {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .group-list li,
+  .version-history li {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .version-history-message {
+    grid-column: 1;
   }
 
   .sidebar {

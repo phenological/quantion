@@ -44,6 +44,50 @@
       }
     ]
   },
+  "groups": [
+    {
+      "name": "Files",
+      "description": "Open, read and write raw files: Ionic (.ion) and mzML."
+    },
+    {
+      "name": "Traces",
+      "description": "Functions that work on one trace: a chromatogram given as x, the retention times, and y, the intensities. They need no file. To make a trace from a raw .ion or .mzML file, use calculate_eic."
+    },
+    {
+      "name": "Targeted",
+      "description": "For targeted quantification: you give one file and the compounds you look for, and you get one peak per compound, all from that file."
+    },
+    {
+      "name": "Untargeted",
+      "description": "For untargeted detection: every peak in a file, found by scanning an m/z grid, and matched across files."
+    },
+    {
+      "name": "Models",
+      "description": "Tools to load and evaluate deep-learning models stored as ONNX. Not every ONNX operator can run, only: convolution, pooling, dense layers, multi-head attention, normalization, common activations and arithmetic operations.",
+      "experimental": true,
+      "warning": "This is an experimental feature."
+    },
+    {
+      "name": "Inputs",
+      "description": "Types you pass to the functions."
+    },
+    {
+      "name": "Enums",
+      "description": "Fixed sets of values, written in uppercase in every language."
+    },
+    {
+      "name": "Options",
+      "description": "One options type for each function that has settings, named after the function. Every field has a default."
+    },
+    {
+      "name": "Results",
+      "description": "Types the functions return."
+    },
+    {
+      "name": "Errors",
+      "description": "One error for every function, with a kind and a fixed number code, in every language. Rust returns it in a Result; the other languages throw it."
+    }
+  ],
   "entries": [
     {
       "name": "parse_ion",
@@ -114,19 +158,19 @@
       "languages": {
         "rust": {
           "signature": "pub fn parse_ion(input: impl Into<IonInput>, options: ParseIonOptions) -> Result<SampleFile, QuantionError>",
-          "example": "use quantion::{ParseIonOptions, parse_ion};\n\nlet mut file = parse_ion(\"sample.ion\", ParseIonOptions::default())?;\nlet mut remote = parse_ion(\"https://example.org/sample.ion\", ParseIonOptions::default())?;"
+          "example": "use quantion::{ParseIonOptions, parse_ion};\n\nlet mut file = parse_ion(\"sample.ion\", ParseIonOptions::default())?;\nlet mut remote = parse_ion(\"https://example.org/sample.ion\", ParseIonOptions { max_cache_size: 64_000_000 })?;"
         },
         "python": {
           "signature": "def parse_ion(source, options: ParseIonOptions | None = None) -> SampleFile",
-          "example": "file = quantion.parse_ion(\"sample.ion\")\nremote = quantion.parse_ion(\"https://example.org/sample.ion\", {\"max_cache_size\": 64_000_000})"
+          "example": "from quantion import parse_ion\n\nfile = parse_ion(\"sample.ion\")\nremote = parse_ion(\"https://example.org/sample.ion\", {\"max_cache_size\": 64_000_000})"
         },
         "js": {
           "signature": "async function parseIon(source: IonInput, options?: ParseIonOptions): Promise<SampleFile>",
-          "example": "const file = await quantion.parseIon(\"sample.ion\");\nconst remote = await quantion.parseIon(\"https://example.org/sample.ion\", { maxCacheSize: 64_000_000 });"
+          "example": "import { parseIon } from \"quantion\";\n\nconst file = await parseIon(\"sample.ion\");\nconst remote = await parseIon(\"https://example.org/sample.ion\", { maxCacheSize: 64_000_000 });"
         },
         "r": {
           "signature": "parse_ion(source, options = parse_ion_options())",
-          "example": "sample <- parse_ion(\"sample.ion\")\nremote <- parse_ion(\"https://example.org/sample.ion\",\n                    options = parse_ion_options(max_cache_size = 64e6))"
+          "example": "library(quantion)\n\nsample <- parse_ion(\"sample.ion\")\nremote <- parse_ion(\"https://example.org/sample.ion\",\n                    options = parse_ion_options(max_cache_size = 64e6))"
         }
       }
     },
@@ -174,19 +218,19 @@
       "languages": {
         "rust": {
           "signature": "pub fn parse_mzml(input: impl Into<MzmlInput>) -> Result<SampleFile, QuantionError>",
-          "example": "let mut file = parse_mzml(\"sample.mzML\")?;"
+          "example": "use quantion::parse_mzml;\n\nlet mut file = parse_mzml(\"sample.mzML\")?;"
         },
         "python": {
           "signature": "def parse_mzml(source) -> SampleFile",
-          "example": "file = quantion.parse_mzml(\"sample.mzML\")"
+          "example": "from quantion import parse_mzml\n\nfile = parse_mzml(\"sample.mzML\")"
         },
         "js": {
           "signature": "async function parseMzml(source: string | BinaryInput): Promise<SampleFile>",
-          "example": "const file = await quantion.parseMzml(\"sample.mzML\");"
+          "example": "import { parseMzml } from \"quantion\";\n\nconst file = await parseMzml(\"sample.mzML\");"
         },
         "r": {
           "signature": "parse_mzml(source)",
-          "example": "sample <- parse_mzml(\"sample.mzML\")"
+          "example": "library(quantion)\n\nsample <- parse_mzml(\"sample.mzML\")"
         }
       }
     },
@@ -259,19 +303,19 @@
       "languages": {
         "rust": {
           "signature": "pub fn write_ion(file: &mut SampleFile, options: WriteIonOptions) -> Result<Option<Vec<u8>>, QuantionError>",
-          "example": "let bytes = write_ion(&mut file, WriteIonOptions::default())?;\n\nwrite_ion(&mut file, WriteIonOptions { out: Some(IonOutput::Path(\"sample.ion\".into())), ..Default::default() })?;\n\nwrite_ion(&mut file, WriteIonOptions {\n    out: Some(IonOutput::Url(\"https://example.org/upload/sample.ion\".into())),\n    headers: vec![Header { name: \"Authorization\".into(), value: \"Bearer <token>\".into() }],\n    ..Default::default()\n})?;"
+          "example": "use quantion::{Header, IonOutput, WriteIonOptions, parse_mzml, write_ion};\n\nlet mut file = parse_mzml(\"sample.mzML\")?;\n\nlet bytes = write_ion(&mut file, WriteIonOptions::default())?;\n\nwrite_ion(&mut file, WriteIonOptions { out: Some(\"sample.ion\".into()), ..Default::default() })?;\n\nwrite_ion(&mut file, WriteIonOptions {\n    out: Some(IonOutput::Url(\"https://example.org/upload/sample.ion\".into())),\n    headers: vec![Header { name: \"Authorization\".into(), value: \"Bearer <token>\".into() }],\n    ..Default::default()\n})?;"
         },
         "python": {
           "signature": "def write_ion(file: SampleFile, options: WriteIonOptions | None = None) -> bytes | None",
-          "example": "data = quantion.write_ion(file)\n\nquantion.write_ion(file, {\"out\": \"sample.ion\", \"level\": 12})\n\nquantion.write_ion(file, {\n    \"out\": \"https://example.org/upload/sample.ion\",\n    \"headers\": [{\"name\": \"Authorization\", \"value\": \"Bearer <token>\"}],\n})"
+          "example": "from quantion import parse_mzml, write_ion\n\nfile = parse_mzml(\"sample.mzML\")\n\ndata = write_ion(file)\n\nwrite_ion(file, {\"out\": \"sample.ion\", \"level\": 12})\n\nwrite_ion(file, {\n    \"out\": \"https://example.org/upload/sample.ion\",\n    \"headers\": [{\"name\": \"Authorization\", \"value\": \"Bearer <token>\"}],\n})"
         },
         "js": {
           "signature": "async function writeIon(file: SampleFile, options?: WriteIonOptions): Promise<Uint8Array | undefined>",
-          "example": "const data = await quantion.writeIon(file);\n\nawait quantion.writeIon(file, { out: \"sample.ion\" });\n\nawait quantion.writeIon(file, {\n  out: \"https://example.org/upload/sample.ion\",\n  headers: [{ name: \"Authorization\", value: \"Bearer <token>\" }],\n});"
+          "example": "import { parseMzml, writeIon } from \"quantion\";\n\nconst file = await parseMzml(\"sample.mzML\");\n\nconst data = await writeIon(file);\n\nawait writeIon(file, { out: \"sample.ion\" });\n\nawait writeIon(file, {\n  out: \"https://example.org/upload/sample.ion\",\n  headers: [{ name: \"Authorization\", value: \"Bearer <token>\" }],\n});"
         },
         "r": {
           "signature": "write_ion(file, options = write_ion_options())",
-          "example": "data <- write_ion(sample)\n\nwrite_ion(sample, options = write_ion_options(out = \"sample.ion\"))\n\nwrite_ion(sample, options = write_ion_options(\n  out = \"https://example.org/upload/sample.ion\",\n  headers = list(header(\"Authorization\", \"Bearer <token>\"))\n))"
+          "example": "library(quantion)\n\nsample <- parse_mzml(\"sample.mzML\")\n\ndata <- write_ion(sample)\n\nwrite_ion(sample, options = write_ion_options(out = \"sample.ion\"))\n\nwrite_ion(sample, options = write_ion_options(\n  out = \"https://example.org/upload/sample.ion\",\n  headers = list(header(\"Authorization\", \"Bearer <token>\"))\n))"
         }
       }
     },
@@ -344,19 +388,19 @@
       "languages": {
         "rust": {
           "signature": "pub fn write_mzml(file: &mut SampleFile, options: WriteMzmlOptions) -> Result<Option<Vec<u8>>, QuantionError>",
-          "example": "write_mzml(&mut file, WriteMzmlOptions { out: Some(\"sample.mzML\".into()), ..Default::default() })?;"
+          "example": "use quantion::{ParseIonOptions, WriteMzmlOptions, parse_ion, write_mzml};\n\nlet mut file = parse_ion(\"sample.ion\", ParseIonOptions::default())?;\nwrite_mzml(&mut file, WriteMzmlOptions { out: Some(\"sample.mzML\".into()), ..Default::default() })?;"
         },
         "python": {
           "signature": "def write_mzml(file: SampleFile, options: WriteMzmlOptions | None = None) -> bytes | None",
-          "example": "quantion.write_mzml(file, {\"out\": \"sample.mzML\"})"
+          "example": "from quantion import parse_ion, write_mzml\n\nfile = parse_ion(\"sample.ion\")\nwrite_mzml(file, {\"out\": \"sample.mzML\"})"
         },
         "js": {
           "signature": "async function writeMzml(file: SampleFile, options?: WriteMzmlOptions): Promise<Uint8Array | undefined>",
-          "example": "await quantion.writeMzml(file, { out: \"sample.mzML\" });"
+          "example": "import { parseIon, writeMzml } from \"quantion\";\n\nconst file = await parseIon(\"sample.ion\");\nawait writeMzml(file, { out: \"sample.mzML\" });"
         },
         "r": {
           "signature": "write_mzml(file, options = write_mzml_options())",
-          "example": "write_mzml(sample, options = write_mzml_options(out = \"sample.mzML\"))"
+          "example": "library(quantion)\n\nsample <- parse_ion(\"sample.ion\")\nwrite_mzml(sample, options = write_mzml_options(out = \"sample.mzML\"))"
         }
       }
     },
@@ -479,19 +523,19 @@
       "languages": {
         "rust": {
           "signature": "pub fn get_scans(file: &mut SampleFile, query: ScanQuery, options: GetScansOptions) -> Result<Vec<Scan>, QuantionError>",
-          "example": "let scans = get_scans(&mut file, ScanQuery::RtRange(FromTo { from: 1.0, to: 2.5 }), GetScansOptions::default())?;\nlet closest = get_scans(&mut file, ScanQuery::Rt(108.0), GetScansOptions { level: 2, time_unit: TimeUnit::SECONDS })?;"
+          "example": "use quantion::{FromTo, GetScansOptions, ParseIonOptions, ScanQuery, TimeUnit, get_scans, parse_ion};\n\nlet mut file = parse_ion(\"sample.ion\", ParseIonOptions::default())?;\nlet scans = get_scans(&mut file, ScanQuery::RtRange(FromTo { from: 1.0, to: 2.5 }), GetScansOptions::default())?;\nlet closest = get_scans(&mut file, ScanQuery::Rt(108.0), GetScansOptions { time_unit: TimeUnit::SECONDS, ..Default::default() })?;"
         },
         "python": {
           "signature": "def get_scans(file, *, rt: float | FromTo | None = None, mz: float | FromTo | None = None,\n              options: GetScansOptions | None = None) -> list[Scan]",
-          "example": "scans = quantion.get_scans(file, rt={\"from\": 1.0, \"to\": 2.5})\nclosest = quantion.get_scans(file, rt=108, options={\"level\": 2, \"time_unit\": TimeUnit.SECONDS})"
+          "example": "from quantion import TimeUnit, get_scans, parse_ion\n\nfile = parse_ion(\"sample.ion\")\nscans = get_scans(file, rt={\"from\": 1.0, \"to\": 2.5})\nclosest = get_scans(file, rt=108, options={\"time_unit\": TimeUnit.SECONDS})"
         },
         "js": {
           "signature": "async function getScans(file: SampleFile, query: ScanQuery, options?: GetScansOptions): Promise<Scan[]>",
-          "example": "const scans = await quantion.getScans(file, { rt: { from: 1.0, to: 2.5 } });\nconst closest = await quantion.getScans(file, { rt: 108 }, { level: 2, timeUnit: TimeUnit.SECONDS });"
+          "example": "import { TimeUnit, getScans, parseIon } from \"quantion\";\n\nconst file = await parseIon(\"sample.ion\");\nconst scans = await getScans(file, { rt: { from: 1.0, to: 2.5 } });\nconst closest = await getScans(file, { rt: 108 }, { timeUnit: TimeUnit.SECONDS });"
         },
         "r": {
           "signature": "get_scans(file, rt = NULL, mz = NULL, options = get_scans_options())",
-          "example": "scans <- get_scans(sample, rt = c(1.0, 2.5))\nclosest <- get_scans(sample, rt = 108,\n                     options = get_scans_options(level = 2L, time_unit = \"SECONDS\"))"
+          "example": "library(quantion)\n\nsample <- parse_ion(\"sample.ion\")\nscans <- get_scans(sample, rt = c(1.0, 2.5))\nclosest <- get_scans(sample, rt = 108, options = get_scans_options(time_unit = \"SECONDS\"))"
         }
       }
     },
@@ -589,19 +633,19 @@
       "languages": {
         "rust": {
           "signature": "pub fn calculate_eic(file: &mut SampleFile, mz: f64, options: CalculateEicOptions) -> Result<DataXY, QuantionError>",
-          "example": "let eic = calculate_eic(&mut file, 260.103, CalculateEicOptions {\n    from: 0.5,\n    to: 5.0,\n    ppm_tolerance: 10.0,\n    ..Default::default()\n})?;\nlet whole_run = calculate_eic(&mut file, 260.103, CalculateEicOptions::default())?;"
+          "example": "use quantion::{CalculateEicOptions, ParseIonOptions, calculate_eic, parse_ion};\n\nlet mut file = parse_ion(\"sample.ion\", ParseIonOptions::default())?;\nlet eic = calculate_eic(&mut file, 260.103, CalculateEicOptions {\n    from: 0.5,\n    to: 5.0,\n    ppm_tolerance: 10.0,\n    ..Default::default()\n})?;\nlet whole_run = calculate_eic(&mut file, 260.103, CalculateEicOptions::default())?;"
         },
         "python": {
           "signature": "def calculate_eic(file, mz: float, options: CalculateEicOptions | None = None) -> DataXY",
-          "example": "eic = quantion.calculate_eic(file, 260.103, {\"from\": 0.5, \"to\": 5.0, \"ppm_tolerance\": 10})\nwhole_run = quantion.calculate_eic(file, 260.103)"
+          "example": "from quantion import calculate_eic, parse_ion\n\nfile = parse_ion(\"sample.ion\")\neic = calculate_eic(file, 260.103, {\"from\": 0.5, \"to\": 5.0, \"ppm_tolerance\": 10})\nwhole_run = calculate_eic(file, 260.103)"
         },
         "js": {
           "signature": "async function calculateEic(file: SampleFile, mz: number, options?: CalculateEicOptions): Promise<DataXY>",
-          "example": "const eic = await quantion.calculateEic(file, 260.103, { from: 0.5, to: 5, ppmTolerance: 10 });\nconst wholeRun = await quantion.calculateEic(file, 260.103);"
+          "example": "import { calculateEic, parseIon } from \"quantion\";\n\nconst file = await parseIon(\"sample.ion\");\nconst eic = await calculateEic(file, 260.103, { from: 0.5, to: 5, ppmTolerance: 10 });\nconst wholeRun = await calculateEic(file, 260.103);"
         },
         "r": {
           "signature": "calculate_eic(file, mz, options = calculate_eic_options())",
-          "example": "eic <- calculate_eic(sample, 260.103, options = calculate_eic_options(from = 0.5, to = 5, ppm_tolerance = 10))\nwhole_run <- calculate_eic(sample, 260.103)"
+          "example": "library(quantion)\n\nsample <- parse_ion(\"sample.ion\")\neic <- calculate_eic(sample, 260.103, options = calculate_eic_options(from = 0.5, to = 5, ppm_tolerance = 10))\nwhole_run <- calculate_eic(sample, 260.103)"
         }
       }
     },
@@ -700,19 +744,19 @@
       "languages": {
         "rust": {
           "signature": "pub fn get_ion_image(file: &mut SampleFile, mz: f64, options: GetIonImageOptions) -> Result<IonImage, QuantionError>",
-          "example": "let image = get_ion_image(&mut file, 760.585, GetIonImageOptions::default())?;"
+          "example": "use quantion::{GetIonImageOptions, ParseIonOptions, get_ion_image, parse_ion};\n\nlet mut file = parse_ion(\"imaging.ion\", ParseIonOptions::default())?;\nlet image = get_ion_image(&mut file, 760.585, GetIonImageOptions { tolerance: 0.05, ..Default::default() })?;"
         },
         "python": {
           "signature": "def get_ion_image(file, mz: float, options: GetIonImageOptions | None = None) -> IonImage",
-          "example": "image = quantion.get_ion_image(file, 760.585, {\"tolerance\": 0.05})"
+          "example": "from quantion import get_ion_image, parse_ion\n\nfile = parse_ion(\"imaging.ion\")\nimage = get_ion_image(file, 760.585, {\"tolerance\": 0.05})"
         },
         "js": {
           "signature": "async function getIonImage(file: SampleFile, mz: number, options?: GetIonImageOptions): Promise<IonImage>",
-          "example": "const image = await quantion.getIonImage(file, 760.585, { tolerance: 0.05 });"
+          "example": "import { getIonImage, parseIon } from \"quantion\";\n\nconst file = await parseIon(\"imaging.ion\");\nconst image = await getIonImage(file, 760.585, { tolerance: 0.05 });"
         },
         "r": {
           "signature": "get_ion_image(file, mz, options = get_ion_image_options())",
-          "example": "image <- get_ion_image(sample, 760.585, options = get_ion_image_options(tolerance = 0.05))"
+          "example": "library(quantion)\n\nsample <- parse_ion(\"imaging.ion\")\nimage <- get_ion_image(sample, 760.585, options = get_ion_image_options(tolerance = 0.05))"
         }
       }
     },
@@ -810,19 +854,19 @@
       "languages": {
         "rust": {
           "signature": "pub fn find_peaks(data: &DataXY, options: FindPeaksOptions) -> Result<Vec<Peak>, QuantionError>",
-          "example": "let peaks = find_peaks(&eic, FindPeaksOptions { min_snr: 3.0, ..Default::default() })?;"
+          "example": "use quantion::{CalculateEicOptions, FindPeaksOptions, ParseIonOptions, calculate_eic, find_peaks, parse_ion};\n\nlet mut file = parse_ion(\"sample.ion\", ParseIonOptions::default())?;\nlet eic = calculate_eic(&mut file, 260.103, CalculateEicOptions::default())?;\nlet peaks = find_peaks(&eic, FindPeaksOptions { min_snr: 3.0, ..Default::default() })?;"
         },
         "python": {
           "signature": "def find_peaks(x, y, options: FindPeaksOptions | None = None) -> list[Peak]",
-          "example": "peaks = quantion.find_peaks(eic[\"x\"], eic[\"y\"], {\"min_snr\": 3})"
+          "example": "from quantion import calculate_eic, find_peaks, parse_ion\n\nfile = parse_ion(\"sample.ion\")\neic = calculate_eic(file, 260.103)\npeaks = find_peaks(eic[\"x\"], eic[\"y\"], {\"min_snr\": 3})"
         },
         "js": {
           "signature": "function findPeaks(x: Float64Array, y: Float64Array, options?: FindPeaksOptions): Peak[]",
-          "example": "const peaks = quantion.findPeaks(eic.x, eic.y, { minSnr: 3 });"
+          "example": "import { calculateEic, findPeaks, parseIon } from \"quantion\";\n\nconst file = await parseIon(\"sample.ion\");\nconst eic = await calculateEic(file, 260.103);\nconst peaks = findPeaks(eic.x, eic.y, { minSnr: 3 });"
         },
         "r": {
           "signature": "find_peaks(x, y, options = find_peaks_options())",
-          "example": "peaks <- find_peaks(eic$x, eic$y, options = find_peaks_options(min_snr = 3))"
+          "example": "library(quantion)\n\nsample <- parse_ion(\"sample.ion\")\neic <- calculate_eic(sample, 260.103)\npeaks <- find_peaks(eic$x, eic$y, options = find_peaks_options(min_snr = 3))"
         }
       }
     },
@@ -945,19 +989,19 @@
       "languages": {
         "rust": {
           "signature": "pub fn get_peak(data: &DataXY, rt: f64, options: GetPeakOptions) -> Result<Peak, QuantionError>",
-          "example": "let peak = get_peak(&eic, 2.383, GetPeakOptions { range: 0.05, ..Default::default() })?;\nlet anywhere = get_peak(&eic, 2.383, GetPeakOptions::default())?;"
+          "example": "use quantion::{CalculateEicOptions, GetPeakOptions, ParseIonOptions, calculate_eic, get_peak, parse_ion};\n\nlet mut file = parse_ion(\"sample.ion\", ParseIonOptions::default())?;\nlet eic = calculate_eic(&mut file, 260.103, CalculateEicOptions::default())?;\nlet peak = get_peak(&eic, 2.383, GetPeakOptions { range: 0.05, ..Default::default() })?;\nlet anywhere = get_peak(&eic, 2.383, GetPeakOptions::default())?;"
         },
         "python": {
           "signature": "def get_peak(x, y, rt: float, options: GetPeakOptions | None = None) -> Peak",
-          "example": "peak = quantion.get_peak(eic[\"x\"], eic[\"y\"], 2.383, {\"range\": 0.05})\nanywhere = quantion.get_peak(eic[\"x\"], eic[\"y\"], 2.383)"
+          "example": "from quantion import calculate_eic, get_peak, parse_ion\n\nfile = parse_ion(\"sample.ion\")\neic = calculate_eic(file, 260.103)\npeak = get_peak(eic[\"x\"], eic[\"y\"], 2.383, {\"range\": 0.05})\nanywhere = get_peak(eic[\"x\"], eic[\"y\"], 2.383)"
         },
         "js": {
           "signature": "function getPeak(x: Float64Array, y: Float64Array, rt: number, options?: GetPeakOptions): Peak",
-          "example": "const peak = quantion.getPeak(eic.x, eic.y, 2.383, { range: 0.05 });\nconst anywhere = quantion.getPeak(eic.x, eic.y, 2.383);"
+          "example": "import { calculateEic, getPeak, parseIon } from \"quantion\";\n\nconst file = await parseIon(\"sample.ion\");\nconst eic = await calculateEic(file, 260.103);\nconst peak = getPeak(eic.x, eic.y, 2.383, { range: 0.05 });\nconst anywhere = getPeak(eic.x, eic.y, 2.383);"
         },
         "r": {
           "signature": "get_peak(x, y, rt, options = get_peak_options())",
-          "example": "peak <- get_peak(eic$x, eic$y, rt = 2.383, options = get_peak_options(range = 0.05))\nanywhere <- get_peak(eic$x, eic$y, rt = 2.383)"
+          "example": "library(quantion)\n\nsample <- parse_ion(\"sample.ion\")\neic <- calculate_eic(sample, 260.103)\npeak <- get_peak(eic$x, eic$y, rt = 2.383, options = get_peak_options(range = 0.05))\nanywhere <- get_peak(eic$x, eic$y, rt = 2.383)"
         }
       }
     },
@@ -1080,19 +1124,19 @@
       "languages": {
         "rust": {
           "signature": "pub fn fit_peak(data: &DataXY, rt: f64, options: FitPeakOptions) -> Result<Option<PeakParameters>, QuantionError>",
-          "example": "let params = fit_peak(&eic, 2.383, FitPeakOptions::default())?;\nlet gaussian = fit_peak(&eic, 2.383, FitPeakOptions { shape: PeakShape::GAUSSIAN, ..Default::default() })?;"
+          "example": "use quantion::{CalculateEicOptions, FitPeakOptions, ParseIonOptions, PeakShape, calculate_eic, fit_peak, parse_ion};\n\nlet mut file = parse_ion(\"sample.ion\", ParseIonOptions::default())?;\nlet eic = calculate_eic(&mut file, 260.103, CalculateEicOptions::default())?;\nlet params = fit_peak(&eic, 2.383, FitPeakOptions::default())?;\nlet gaussian = fit_peak(&eic, 2.383, FitPeakOptions { shape: PeakShape::GAUSSIAN, ..Default::default() })?;"
         },
         "python": {
           "signature": "def fit_peak(x, y, rt: float, options: FitPeakOptions | None = None) -> PeakParameters | None",
-          "example": "params = quantion.fit_peak(eic[\"x\"], eic[\"y\"], 2.383)\nforced = quantion.fit_peak(eic[\"x\"], eic[\"y\"], 2.383, {\"shape\": \"GAUSSIAN\", \"intensity\": 9800})"
+          "example": "from quantion import PeakShape, calculate_eic, fit_peak, parse_ion\n\nfile = parse_ion(\"sample.ion\")\neic = calculate_eic(file, 260.103)\nparams = fit_peak(eic[\"x\"], eic[\"y\"], 2.383)\ngaussian = fit_peak(eic[\"x\"], eic[\"y\"], 2.383, {\"shape\": PeakShape.GAUSSIAN})"
         },
         "js": {
           "signature": "function fitPeak(x: Float64Array, y: Float64Array, rt: number, options?: FitPeakOptions): PeakParameters | null",
-          "example": "const params = quantion.fitPeak(eic.x, eic.y, 2.383);\nconst gaussian = quantion.fitPeak(eic.x, eic.y, 2.383, { shape: PeakShape.GAUSSIAN });"
+          "example": "import { PeakShape, calculateEic, fitPeak, parseIon } from \"quantion\";\n\nconst file = await parseIon(\"sample.ion\");\nconst eic = await calculateEic(file, 260.103);\nconst params = fitPeak(eic.x, eic.y, 2.383);\nconst gaussian = fitPeak(eic.x, eic.y, 2.383, { shape: PeakShape.GAUSSIAN });"
         },
         "r": {
           "signature": "fit_peak(x, y, rt, options = fit_peak_options())",
-          "example": "params <- fit_peak(eic$x, eic$y, rt = 2.383)\ngaussian <- fit_peak(eic$x, eic$y, rt = 2.383, options = fit_peak_options(shape = \"GAUSSIAN\"))"
+          "example": "library(quantion)\n\nsample <- parse_ion(\"sample.ion\")\neic <- calculate_eic(sample, 260.103)\nparams <- fit_peak(eic$x, eic$y, rt = 2.383)\ngaussian <- fit_peak(eic$x, eic$y, rt = 2.383, options = fit_peak_options(shape = \"GAUSSIAN\"))"
         }
       }
     },
@@ -1165,19 +1209,19 @@
       "languages": {
         "rust": {
           "signature": "pub fn draw_peaks(params: &[PeakParameters], options: DrawPeaksOptions) -> Result<DataXY, QuantionError>",
-          "example": "let chrom = draw_peaks(&peaks, DrawPeaksOptions { from: 2.0, to: 3.0, points: 2000 })?;\nlet fitted = draw_peaks(&peaks, DrawPeaksOptions::default())?;"
+          "example": "use quantion::{DrawPeaksOptions, PeakParameters, draw_peaks};\n\nlet peaks = vec![\n    PeakParameters { height: 9800.0, center: 2.38, fwhm: 0.021, tail: 0.006, r2: 0.0 },\n    PeakParameters { height: 4200.0, center: 2.45, fwhm: 0.018, tail: 0.0, r2: 0.0 },\n    PeakParameters { height: 1500.0, center: 2.60, fwhm: 0.030, tail: 0.010, r2: 0.0 },\n];\nlet chromatogram = draw_peaks(&peaks, DrawPeaksOptions { from: 2.0, to: 3.0, points: 2000 })?;\nlet fitted = draw_peaks(&peaks, DrawPeaksOptions::default())?;"
         },
         "python": {
           "signature": "def draw_peaks(params: Sequence[PeakParameters], options: DrawPeaksOptions | None = None) -> DataXY",
-          "example": "peaks = [\n    {\"height\": 9800, \"center\": 2.38, \"fwhm\": 0.021, \"tail\": 0.006},\n    {\"height\": 4200, \"center\": 2.45, \"fwhm\": 0.018, \"tail\": 0},\n    {\"height\": 1500, \"center\": 2.60, \"fwhm\": 0.030, \"tail\": 0.010},\n]\nchrom = quantion.draw_peaks(peaks, {\"from\": 2.0, \"to\": 3.0, \"points\": 2000})\nfitted = quantion.draw_peaks(peaks)"
+          "example": "from quantion import draw_peaks\n\npeaks = [\n    {\"height\": 9800, \"center\": 2.38, \"fwhm\": 0.021, \"tail\": 0.006},\n    {\"height\": 4200, \"center\": 2.45, \"fwhm\": 0.018, \"tail\": 0},\n    {\"height\": 1500, \"center\": 2.60, \"fwhm\": 0.030, \"tail\": 0.010},\n]\nchromatogram = draw_peaks(peaks, {\"from\": 2.0, \"to\": 3.0, \"points\": 2000})\nfitted = draw_peaks(peaks)"
         },
         "js": {
           "signature": "function drawPeaks(params: PeakParameters[], options?: DrawPeaksOptions): DataXY",
-          "example": "const chrom = quantion.drawPeaks(peaks, { from: 2, to: 3, points: 2000 });\nconst fitted = quantion.drawPeaks(peaks);"
+          "example": "import { drawPeaks } from \"quantion\";\n\nconst peaks = [\n  { height: 9800, center: 2.38, fwhm: 0.021, tail: 0.006 },\n  { height: 4200, center: 2.45, fwhm: 0.018, tail: 0 },\n  { height: 1500, center: 2.6, fwhm: 0.03, tail: 0.01 },\n];\nconst chromatogram = drawPeaks(peaks, { from: 2, to: 3, points: 2000 });\nconst fitted = drawPeaks(peaks);"
         },
         "r": {
           "signature": "draw_peaks(params, options = draw_peaks_options())",
-          "example": "chrom <- draw_peaks(list(peak_1, peak_2, peak_3),\n                    options = draw_peaks_options(from = 2, to = 3, points = 2000L))"
+          "example": "library(quantion)\n\npeaks <- list(\n  list(height = 9800, center = 2.38, fwhm = 0.021, tail = 0.006),\n  list(height = 4200, center = 2.45, fwhm = 0.018, tail = 0),\n  list(height = 1500, center = 2.60, fwhm = 0.030, tail = 0.010)\n)\nchromatogram <- draw_peaks(peaks, options = draw_peaks_options(from = 2, to = 3, points = 2000L))\nfitted <- draw_peaks(peaks)"
         }
       }
     },
@@ -1225,19 +1269,19 @@
       "languages": {
         "rust": {
           "signature": "pub fn find_noise_level(y: &[f64]) -> NoiseLevel",
-          "example": "let noise = find_noise_level(&eic.y).intensity;"
+          "example": "use quantion::{CalculateEicOptions, ParseIonOptions, calculate_eic, find_noise_level, parse_ion};\n\nlet mut file = parse_ion(\"sample.ion\", ParseIonOptions::default())?;\nlet eic = calculate_eic(&mut file, 260.103, CalculateEicOptions::default())?;\nlet noise = find_noise_level(&eic.y).intensity;"
         },
         "python": {
           "signature": "def find_noise_level(y) -> NoiseLevel",
-          "example": "noise = quantion.find_noise_level(eic[\"y\"])[\"intensity\"]"
+          "example": "from quantion import calculate_eic, find_noise_level, parse_ion\n\nfile = parse_ion(\"sample.ion\")\neic = calculate_eic(file, 260.103)\nnoise = find_noise_level(eic[\"y\"])[\"intensity\"]"
         },
         "js": {
           "signature": "function findNoiseLevel(y: Float64Array): NoiseLevel",
-          "example": "const noise = quantion.findNoiseLevel(eic.y).intensity;"
+          "example": "import { calculateEic, findNoiseLevel, parseIon } from \"quantion\";\n\nconst file = await parseIon(\"sample.ion\");\nconst eic = await calculateEic(file, 260.103);\nconst noise = findNoiseLevel(eic.y).intensity;"
         },
         "r": {
           "signature": "find_noise_level(y)",
-          "example": "noise <- find_noise_level(eic$y)$intensity"
+          "example": "library(quantion)\n\nsample <- parse_ion(\"sample.ion\")\neic <- calculate_eic(sample, 260.103)\nnoise <- find_noise_level(eic$y)$intensity"
         }
       }
     },
@@ -1310,25 +1354,25 @@
       "languages": {
         "rust": {
           "signature": "pub fn calculate_baseline(y: &[f64], options: CalculateBaselineOptions) -> Result<Vec<f64>, QuantionError>",
-          "example": "let baseline = calculate_baseline(&eic.y, CalculateBaselineOptions::default())?;"
+          "example": "use quantion::{CalculateBaselineOptions, CalculateEicOptions, ParseIonOptions, calculate_baseline, calculate_eic, parse_ion};\n\nlet mut file = parse_ion(\"sample.ion\", ParseIonOptions::default())?;\nlet eic = calculate_eic(&mut file, 260.103, CalculateEicOptions::default())?;\nlet baseline = calculate_baseline(&eic.y, CalculateBaselineOptions { lambda: 50.0, ..Default::default() })?;"
         },
         "python": {
           "signature": "def calculate_baseline(y, options: CalculateBaselineOptions | None = None) -> np.ndarray",
-          "example": "baseline = quantion.calculate_baseline(eic[\"y\"], {\"lambda\": 50})"
+          "example": "from quantion import calculate_baseline, calculate_eic, parse_ion\n\nfile = parse_ion(\"sample.ion\")\neic = calculate_eic(file, 260.103)\nbaseline = calculate_baseline(eic[\"y\"], {\"lambda\": 50})"
         },
         "js": {
           "signature": "function calculateBaseline(y: Float64Array, options?: CalculateBaselineOptions): Float64Array",
-          "example": "const baseline = quantion.calculateBaseline(eic.y, { lambda: 50 });"
+          "example": "import { calculateBaseline, calculateEic, parseIon } from \"quantion\";\n\nconst file = await parseIon(\"sample.ion\");\nconst eic = await calculateEic(file, 260.103);\nconst baseline = calculateBaseline(eic.y, { lambda: 50 });"
         },
         "r": {
           "signature": "calculate_baseline(y, options = calculate_baseline_options())",
-          "example": "baseline <- calculate_baseline(eic$y, options = calculate_baseline_options(lambda = 50))"
+          "example": "library(quantion)\n\nsample <- parse_ion(\"sample.ion\")\neic <- calculate_eic(sample, 260.103)\nbaseline <- calculate_baseline(eic$y, options = calculate_baseline_options(lambda = 50))"
         }
       }
     },
     {
       "name": "find_targets",
-      "group": "Targets",
+      "group": "Targeted",
       "kind": "function",
       "summary": "For each target, build its EIC at mz and find its peak near rt ± range.",
       "arguments": [
@@ -1420,25 +1464,30 @@
       "languages": {
         "rust": {
           "signature": "pub fn find_targets(file: &mut SampleFile, targets: &[Target], options: FindTargetsOptions) -> Result<Vec<Peak>, QuantionError>",
-          "example": "let targets = [\n    Target { id: Some(\"Alanine\".into()), mz: 260.103, rt: 2.383, range: Some(0.05) },\n    Target { id: Some(\"Sarcosine\".into()), mz: 260.103, rt: 2.189, range: Some(0.05) },\n];\nlet peaks = find_targets(&mut file, &targets, FindTargetsOptions {\n    eic: CalculateEicOptions { from: 0.5, to: 5.0, ..Default::default() },\n    find_peaks: FindPeaksOptions { min_intensity: 1000.0, ..Default::default() },\n    threads: 4,\n})?;"
+          "example": "use quantion::{\n    CalculateEicOptions, FindPeaksOptions, FindTargetsOptions, ParseIonOptions, QuantionError, Target, find_targets,\n    parse_ion,\n};\n\nfn main() -> Result<(), QuantionError> {\n    let ids = [\"compound_1\", \"compound_2\", \"compound_3\"];\n    let targets = vec![\n        Target { id: Some(ids[0].to_string()), mz: 260.103, rt: 2.383, range: Some(0.05) },\n        Target { id: Some(ids[1].to_string()), mz: 304.155, rt: 3.120, range: Some(0.05) },\n        Target { id: Some(ids[2].to_string()), mz: 412.210, rt: 4.050, range: Some(0.05) },\n    ];\n\n    let mut file = parse_ion(\"sample.ion\", ParseIonOptions::default())?;\n    let options = FindTargetsOptions {\n        eic: CalculateEicOptions { from: 0.5, to: 5.0, ..Default::default() },\n        find_peaks: FindPeaksOptions { min_intensity: 1000.0, ..Default::default() },\n        threads: 4,\n    };\n    let peaks = find_targets(&mut file, &targets, options)?;\n\n    for index in 0..peaks.len() {\n        let peak = &peaks[index];\n        println!(\"{}: rt {:.3}  intensity {:.0}  integral {:.0}\", ids[index], peak.rt, peak.intensity, peak.integral);\n    }\n    Ok(())\n}",
+          "output": "compound_1: rt 2.381  intensity 12040  integral 15230\ncompound_2: rt 3.118  intensity 6310  integral 8420\ncompound_3: rt 0.000  intensity 0  integral 0"
         },
         "python": {
           "signature": "def find_targets(file, targets: Sequence[Target], options: FindTargetsOptions | None = None) -> list[Peak]",
-          "example": "targets = [\n    {\"id\": \"Alanine\",   \"mz\": 260.103, \"rt\": 2.383, \"range\": 0.05},\n    {\"id\": \"Sarcosine\", \"mz\": 260.103, \"rt\": 2.189, \"range\": 0.05},\n]\npeaks = quantion.find_targets(file, targets, {\n    \"eic\": {\"from\": 0.5, \"to\": 5.0},\n    \"find_peaks\": {\"min_intensity\": 1000},\n    \"threads\": 4,\n})"
+          "example": "from quantion import find_targets, parse_ion\n\ntargets = [\n    {\"id\": \"compound_1\", \"mz\": 260.103, \"rt\": 2.383, \"range\": 0.05},\n    {\"id\": \"compound_2\", \"mz\": 304.155, \"rt\": 3.120, \"range\": 0.05},\n    {\"id\": \"compound_3\", \"mz\": 412.210, \"rt\": 4.050, \"range\": 0.05},\n]\noptions = {\n    \"eic\": {\"from\": 0.5, \"to\": 5.0},\n    \"find_peaks\": {\"min_intensity\": 1000},\n    \"threads\": 4,\n}\n\nfile = parse_ion(\"sample.ion\")\npeaks = find_targets(file, targets, options)\nfile.dispose()\n\nfor index in range(len(peaks)):\n    peak = peaks[index]\n    print(f\"{targets[index]['id']}: rt {peak['rt']:.3f}  intensity {peak['intensity']:.0f}  integral {peak['integral']:.0f}\")",
+          "output": "compound_1: rt 2.381  intensity 12040  integral 15230\ncompound_2: rt 3.118  intensity 6310  integral 8420\ncompound_3: rt 0.000  intensity 0  integral 0"
         },
         "js": {
           "signature": "async function findTargets(file: SampleFile, targets: Target[], options?: FindTargetsOptions): Promise<Peak[]>",
-          "example": "const targets = [\n  { id: \"Alanine\",   mz: 260.103, rt: 2.383, range: 0.05 },\n  { id: \"Sarcosine\", mz: 260.103, rt: 2.189, range: 0.05 },\n];\nconst peaks = await quantion.findTargets(file, targets, {\n  eic: { from: 0.5, to: 5 },\n  findPeaks: { minIntensity: 1000 },\n  threads: 4,\n});"
+          "example": "import { findTargets, parseIon } from \"quantion\";\n\nconst targets = [\n  { id: \"compound_1\", mz: 260.103, rt: 2.383, range: 0.05 },\n  { id: \"compound_2\", mz: 304.155, rt: 3.12, range: 0.05 },\n  { id: \"compound_3\", mz: 412.21, rt: 4.05, range: 0.05 },\n];\nconst options = {\n  eic: { from: 0.5, to: 5 },\n  findPeaks: { minIntensity: 1000 },\n  threads: 4,\n};\n\nconst file = await parseIon(\"sample.ion\");\nconst peaks = await findTargets(file, targets, options);\nfile.dispose();\n\nfor (let index = 0; index < peaks.length; index++) {\n  const peak = peaks[index];\n  console.log(`${targets[index].id}: rt ${peak.rt.toFixed(3)}  intensity ${peak.intensity.toFixed(0)}  integral ${peak.integral.toFixed(0)}`);\n}",
+          "output": "compound_1: rt 2.381  intensity 12040  integral 15230\ncompound_2: rt 3.118  intensity 6310  integral 8420\ncompound_3: rt 0.000  intensity 0  integral 0"
         },
         "r": {
           "signature": "find_targets(file, targets, options = find_targets_options())",
-          "example": "targets <- data.frame(\n  id    = c(\"Alanine\", \"Sarcosine\"),\n  mz    = c(260.103, 260.103),\n  rt    = c(2.383, 2.189),\n  range = c(0.05, 0.05)\n)\npeaks <- find_targets(sample, targets, options = find_targets_options(\n  eic        = calculate_eic_options(from = 0.5, to = 5),\n  find_peaks = find_peaks_options(min_intensity = 1000),\n  threads    = 4L\n))"
+          "example": "library(quantion)\n\ntargets <- data.frame(\n  id    = c(\"compound_1\", \"compound_2\", \"compound_3\"),\n  mz    = c(260.103, 304.155, 412.210),\n  rt    = c(2.383, 3.120, 4.050),\n  range = c(0.05, 0.05, 0.05)\n)\noptions <- find_targets_options(\n  eic        = calculate_eic_options(from = 0.5, to = 5),\n  find_peaks = find_peaks_options(min_intensity = 1000),\n  threads    = 4L\n)\n\nsample <- parse_ion(\"sample.ion\")\npeaks <- find_targets(sample, targets, options = options)\ndispose(sample)\n\nfor (index in seq_len(nrow(peaks))) {\n  peak <- peaks[index, ]\n  cat(sprintf(\"%s: rt %.3f  intensity %.0f  integral %.0f\\n\", targets$id[index], peak$rt, peak$intensity, peak$integral))\n}",
+          "output": "compound_1: rt 2.381  intensity 12040  integral 15230\ncompound_2: rt 3.118  intensity 6310  integral 8420\ncompound_3: rt 0.000  intensity 0  integral 0"
         }
-      }
+      },
+      "expect": "One peak per target, in the same order as the targets. A target with no peak in its window gets a peak with every field 0, like compound_3 here. The values above are only an illustration."
     },
     {
       "name": "find_transitions",
-      "group": "Targets",
+      "group": "Targeted",
       "kind": "function",
       "summary": "For each SRM transition, take the stored chromatogram whose precursor (Q1) and product (Q3) are both within 0.005 m/z, and find its peak near rt ± range.",
       "warning": "Needs the whole file. A sample opened from a URL gives a remote_file error; open it from a path or bytes.",
@@ -1531,25 +1580,25 @@
       "languages": {
         "rust": {
           "signature": "pub fn find_transitions(file: &mut SampleFile, targets: &[Transition], options: FindTransitionsOptions) -> Result<Vec<Peak>, QuantionError>",
-          "example": "let transitions = [Transition { id: Some(\"compound_1\".into()), precursor: 500.3, product: 184.1, rt: 3.2, range: 0.4 }];\nlet peaks = find_transitions(&mut file, &transitions, FindTransitionsOptions::default())?;"
+          "example": "use quantion::{FindTransitionsOptions, Transition, find_transitions, parse_mzml};\n\nlet mut file = parse_mzml(\"srm.mzML\")?;\nlet transitions = vec![\n    Transition { id: Some(\"compound_1\".into()), precursor: 500.3, product: 184.1, rt: 3.2, range: 0.4 },\n];\nlet peaks = find_transitions(&mut file, &transitions, FindTransitionsOptions { threads: 2, ..Default::default() })?;"
         },
         "python": {
           "signature": "def find_transitions(file, targets: Sequence[Transition], options: FindTransitionsOptions | None = None) -> list[Peak]",
-          "example": "transitions = [{\"id\": \"compound_1\", \"precursor\": 500.3, \"product\": 184.1, \"rt\": 3.2, \"range\": 0.4}]\npeaks = quantion.find_transitions(file, transitions, {\"threads\": 2})"
+          "example": "from quantion import find_transitions, parse_mzml\n\nfile = parse_mzml(\"srm.mzML\")\ntransitions = [{\"id\": \"compound_1\", \"precursor\": 500.3, \"product\": 184.1, \"rt\": 3.2, \"range\": 0.4}]\npeaks = find_transitions(file, transitions, {\"threads\": 2})"
         },
         "js": {
           "signature": "function findTransitions(file: SampleFile, targets: Transition[], options?: FindTransitionsOptions): Peak[]",
-          "example": "const peaks = quantion.findTransitions(file, [\n  { id: \"compound_1\", precursor: 500.3, product: 184.1, rt: 3.2, range: 0.4 },\n], { threads: 2 });"
+          "example": "import { findTransitions, parseMzml } from \"quantion\";\n\nconst file = await parseMzml(\"srm.mzML\");\nconst transitions = [{ id: \"compound_1\", precursor: 500.3, product: 184.1, rt: 3.2, range: 0.4 }];\nconst peaks = findTransitions(file, transitions, { threads: 2 });"
         },
         "r": {
           "signature": "find_transitions(file, targets, options = find_transitions_options())",
-          "example": "transitions <- data.frame(id = \"compound_1\", precursor = 500.3, product = 184.1, rt = 3.2, range = 0.4)\npeaks <- find_transitions(sample, transitions,\n                          options = find_transitions_options(threads = 2L))"
+          "example": "library(quantion)\n\nsample <- parse_mzml(\"srm.mzML\")\ntransitions <- data.frame(id = \"compound_1\", precursor = 500.3, product = 184.1, rt = 3.2, range = 0.4)\npeaks <- find_transitions(sample, transitions, options = find_transitions_options(threads = 2L))"
         }
       }
     },
     {
       "name": "find_features",
-      "group": "Features",
+      "group": "Untargeted",
       "kind": "function",
       "summary": "Untargeted: find every feature in one file by scanning an m/z grid.",
       "arguments": [
@@ -1616,25 +1665,30 @@
       "languages": {
         "rust": {
           "signature": "pub fn find_features(file: &mut SampleFile, options: FindFeaturesOptions) -> Result<Vec<Feature>, QuantionError>",
-          "example": "let features = find_features(&mut file, FindFeaturesOptions {\n    grid: GridOptions { start: 100.0, end: 600.0, ..Default::default() },\n    threads: 4,\n    ..Default::default()\n})?;"
+          "example": "use quantion::{FindFeaturesOptions, GridOptions, ParseIonOptions, QuantionError, find_features, parse_ion};\n\nfn main() -> Result<(), QuantionError> {\n    let mut file = parse_ion(\"sample.ion\", ParseIonOptions::default())?;\n    let options = FindFeaturesOptions {\n        grid: GridOptions { start: 100.0, end: 600.0, ..Default::default() },\n        threads: 4,\n        ..Default::default()\n    };\n    let features = find_features(&mut file, options)?;\n\n    println!(\"{} features\", features.len());\n    let mut count = 3;\n    if features.len() < count {\n        count = features.len();\n    }\n    for index in 0..count {\n        let feature = &features[index];\n        println!(\"m/z {:.4}  rt {:.3}  intensity {:.0}\", feature.mz, feature.rt, feature.intensity);\n    }\n    Ok(())\n}",
+          "output": "412 features\nm/z 205.0974  rt 0.912  intensity 25310\nm/z 301.1410  rt 1.204  intensity 18760\nm/z 455.2903  rt 2.537  intensity 9420"
         },
         "python": {
           "signature": "def find_features(file, options: FindFeaturesOptions | None = None) -> list[Feature]",
-          "example": "features = quantion.find_features(file, {\n    \"grid\": {\"start\": 100, \"end\": 600},\n    \"threads\": 4,\n})"
+          "example": "from quantion import find_features, parse_ion\n\noptions = {\n    \"grid\": {\"start\": 100, \"end\": 600},\n    \"threads\": 4,\n}\n\nfile = parse_ion(\"sample.ion\")\nfeatures = find_features(file, options)\nfile.dispose()\n\nprint(f\"{len(features)} features\")\ncount = 3\nif len(features) < count:\n    count = len(features)\nfor index in range(count):\n    feature = features[index]\n    print(f\"m/z {feature['mz']:.4f}  rt {feature['rt']:.3f}  intensity {feature['intensity']:.0f}\")",
+          "output": "412 features\nm/z 205.0974  rt 0.912  intensity 25310\nm/z 301.1410  rt 1.204  intensity 18760\nm/z 455.2903  rt 2.537  intensity 9420"
         },
         "js": {
           "signature": "async function findFeatures(file: SampleFile, options?: FindFeaturesOptions): Promise<Feature[]>",
-          "example": "const features = await quantion.findFeatures(file, {\n  grid: { start: 100, end: 600 },\n  threads: 4,\n});"
+          "example": "import { findFeatures, parseIon } from \"quantion\";\n\nconst options = {\n  grid: { start: 100, end: 600 },\n  threads: 4,\n};\n\nconst file = await parseIon(\"sample.ion\");\nconst features = await findFeatures(file, options);\nfile.dispose();\n\nconsole.log(`${features.length} features`);\nlet count = 3;\nif (features.length < count) {\n  count = features.length;\n}\nfor (let index = 0; index < count; index++) {\n  const feature = features[index];\n  console.log(`m/z ${feature.mz.toFixed(4)}  rt ${feature.rt.toFixed(3)}  intensity ${feature.intensity.toFixed(0)}`);\n}",
+          "output": "412 features\nm/z 205.0974  rt 0.912  intensity 25310\nm/z 301.1410  rt 1.204  intensity 18760\nm/z 455.2903  rt 2.537  intensity 9420"
         },
         "r": {
           "signature": "find_features(file, options = find_features_options())",
-          "example": "features <- find_features(sample, options = find_features_options(\n  grid    = grid_options(start = 100, end = 600),\n  threads = 4L\n))"
+          "example": "library(quantion)\n\noptions <- find_features_options(\n  grid    = grid_options(start = 100, end = 600),\n  threads = 4L\n)\n\nsample <- parse_ion(\"sample.ion\")\nfeatures <- find_features(sample, options = options)\ndispose(sample)\n\ncat(sprintf(\"%d features\\n\", nrow(features)))\ncount <- 3\nif (nrow(features) < count) {\n  count <- nrow(features)\n}\nfor (index in seq_len(count)) {\n  feature <- features[index, ]\n  cat(sprintf(\"m/z %.4f  rt %.3f  intensity %.0f\\n\", feature$mz, feature$rt, feature$intensity))\n}",
+          "output": "412 features\nm/z 205.0974  rt 0.912  intensity 25310\nm/z 301.1410  rt 1.204  intensity 18760\nm/z 455.2903  rt 2.537  intensity 9420"
         }
-      }
+      },
+      "expect": "One feature for every peak found on the m/z grid, with its m/z, rt, intensity and integral. How many you get depends on the sample and on the find_peaks settings. The values above are only an illustration."
     },
     {
       "name": "match_features",
-      "group": "Features",
+      "group": "Untargeted",
       "kind": "function",
       "summary": "Untargeted across samples: find features in every file of a folder and match them. Values are medians over the samples where a feature was found.",
       "arguments": [
@@ -1701,19 +1755,19 @@
       "languages": {
         "rust": {
           "signature": "pub fn match_features(directory: impl AsRef<Path>, options: MatchFeaturesOptions) -> Result<Vec<Feature>, QuantionError>",
-          "example": "let features = match_features(\"samples/\", MatchFeaturesOptions {\n    grouping: GroupingOptions { min_frequency: 0.5, ..Default::default() },\n    threads: 8,\n    ..Default::default()\n})?;"
+          "example": "use quantion::{GroupingOptions, MatchFeaturesOptions, match_features};\n\nlet features = match_features(\"samples/\", MatchFeaturesOptions {\n    grouping: GroupingOptions { min_frequency: 0.5, ..Default::default() },\n    threads: 8,\n    ..Default::default()\n})?;"
         },
         "python": {
           "signature": "def match_features(directory, options: MatchFeaturesOptions | None = None) -> list[Feature]",
-          "example": "features = quantion.match_features(\"samples/\", {\n    \"grouping\": {\"min_frequency\": 0.5},\n    \"threads\": 8,\n})"
+          "example": "from quantion import match_features\n\nfeatures = match_features(\"samples/\", {\n    \"grouping\": {\"min_frequency\": 0.5},\n    \"threads\": 8,\n})"
         },
         "js": {
           "signature": "function matchFeatures(directory: string, options?: MatchFeaturesOptions): Feature[]",
-          "example": "const features = quantion.matchFeatures(\"samples/\", {\n  grouping: { minFrequency: 0.5 },\n  threads: 8,\n});"
+          "example": "import { matchFeatures } from \"quantion\";\n\nconst features = matchFeatures(\"samples/\", {\n  grouping: { minFrequency: 0.5 },\n  threads: 8,\n});"
         },
         "r": {
           "signature": "match_features(directory, options = match_features_options())",
-          "example": "features <- match_features(\"samples/\", options = match_features_options(\n  grouping = grouping_options(min_frequency = 0.5),\n  threads  = 8L\n))"
+          "example": "library(quantion)\n\nfeatures <- match_features(\"samples/\", options = match_features_options(\n  grouping = grouping_options(min_frequency = 0.5),\n  threads  = 8L\n))"
         }
       }
     },
@@ -1761,19 +1815,19 @@
       "languages": {
         "rust": {
           "signature": "pub fn load_model(input: impl Into<ModelInput>) -> Result<Model, QuantionError>",
-          "example": "let model = load_model(\"model.onnx\")?;\nlet points = model.get_value(\"points\");"
+          "example": "use quantion::load_model;\n\nlet model = load_model(\"model.onnx\")?;\nlet points = model.get_value(\"points\");"
         },
         "python": {
           "signature": "def load_model(source) -> Model",
-          "example": "model = quantion.load_model(\"model.onnx\")\nmodel.get_value(\"points\")"
+          "example": "from quantion import load_model\n\nmodel = load_model(\"model.onnx\")\npoints = model.get_value(\"points\")"
         },
         "js": {
           "signature": "async function loadModel(source: IonInput): Promise<Model>",
-          "example": "const model = await quantion.loadModel(\"model.onnx\");\nmodel.getValue(\"points\");"
+          "example": "import { loadModel } from \"quantion\";\n\nconst model = await loadModel(\"model.onnx\");\nconst points = model.getValue(\"points\");"
         },
         "r": {
           "signature": "load_model(source)",
-          "example": "model <- load_model(\"model.onnx\")\nget_value(model, \"points\")"
+          "example": "library(quantion)\n\nmodel <- load_model(\"model.onnx\")\npoints <- get_value(model, \"points\")"
         }
       }
     },
@@ -1821,19 +1875,19 @@
       "languages": {
         "rust": {
           "signature": "pub fn load_warp(model: &Model) -> Result<WarpModel, QuantionError>",
-          "example": "let warp = load_warp(&model)?;"
+          "example": "use quantion::{load_model, load_warp};\n\nlet model = load_model(\"model.onnx\")?;\nlet warp = load_warp(&model)?;"
         },
         "python": {
           "signature": "def load_warp(model: Model) -> WarpModel",
-          "example": "warp = quantion.load_warp(model)"
+          "example": "from quantion import load_model, load_warp\n\nmodel = load_model(\"model.onnx\")\nwarp = load_warp(model)"
         },
         "js": {
           "signature": "function loadWarp(model: Model): WarpModel",
-          "example": "const warp = quantion.loadWarp(model);"
+          "example": "import { loadModel, loadWarp } from \"quantion\";\n\nconst model = await loadModel(\"model.onnx\");\nconst warp = loadWarp(model);"
         },
         "r": {
           "signature": "load_warp(model)",
-          "example": "warp <- load_warp(model)"
+          "example": "library(quantion)\n\nmodel <- load_model(\"model.onnx\")\nwarp <- load_warp(model)"
         }
       }
     },
@@ -1931,19 +1985,19 @@
       "languages": {
         "rust": {
           "signature": "impl WarpModel { pub fn predict_rts(&self, file: &mut SampleFile, targets: &[Target]) -> Result<Vec<PredictedRt>, QuantionError> }",
-          "example": "let predicted = warp.predict_rts(&mut file, &targets)?;"
+          "example": "use quantion::{ParseIonOptions, Target, load_model, load_warp, parse_ion};\n\nlet model = load_model(\"model.onnx\")?;\nlet warp = load_warp(&model)?;\nlet mut file = parse_ion(\"sample.ion\", ParseIonOptions::default())?;\nlet targets = vec![Target { id: Some(\"compound_1\".into()), mz: 260.103, rt: 2.383, range: None }];\nlet predicted = warp.predict_rts(&mut file, &targets)?;"
         },
         "python": {
           "signature": "warp.predict_rts(file: SampleFile, targets: Sequence[Target]) -> list[PredictedRt]",
-          "example": "predicted = warp.predict_rts(file, [{\"id\": \"Alanine\", \"mz\": 260.103, \"rt\": 2.383}])"
+          "example": "from quantion import load_model, load_warp, parse_ion\n\nmodel = load_model(\"model.onnx\")\nwarp = load_warp(model)\nfile = parse_ion(\"sample.ion\")\npredicted = warp.predict_rts(file, [{\"id\": \"compound_1\", \"mz\": 260.103, \"rt\": 2.383}])"
         },
         "js": {
           "signature": "warp.predictRts(file: SampleFile, targets: Target[]): Promise<PredictedRt[]>",
-          "example": "const predicted = await warp.predictRts(file, [{ id: \"Alanine\", mz: 260.103, rt: 2.383 }]);"
+          "example": "import { loadModel, loadWarp, parseIon } from \"quantion\";\n\nconst model = await loadModel(\"model.onnx\");\nconst warp = loadWarp(model);\nconst file = await parseIon(\"sample.ion\");\nconst predicted = await warp.predictRts(file, [{ id: \"compound_1\", mz: 260.103, rt: 2.383 }]);"
         },
         "r": {
           "signature": "predict_rts(warp, file, targets)",
-          "example": "predicted <- predict_rts(warp, sample, data.frame(id = \"Alanine\", mz = 260.103, rt = 2.383))"
+          "example": "library(quantion)\n\nmodel <- load_model(\"model.onnx\")\nwarp <- load_warp(model)\nsample <- parse_ion(\"sample.ion\")\npredicted <- predict_rts(warp, sample, data.frame(id = \"compound_1\", mz = 260.103, rt = 2.383))"
         }
       }
     },
@@ -2041,19 +2095,19 @@
       "languages": {
         "rust": {
           "signature": "impl WarpModel { pub fn calibrate(&self, anchor_samples: &mut [SampleFile], target_lists: &[Vec<Target>]) -> Result<Vec<Target>, QuantionError> }",
-          "example": "let calibrated = warp.calibrate(&mut anchors, &seen_in_each_anchor)?;"
+          "example": "use quantion::{ParseIonOptions, Target, load_model, load_warp, parse_ion};\n\nlet model = load_model(\"model.onnx\")?;\nlet warp = load_warp(&model)?;\nlet anchor_1 = parse_ion(\"anchor_1.ion\", ParseIonOptions::default())?;\nlet anchor_2 = parse_ion(\"anchor_2.ion\", ParseIonOptions::default())?;\nlet mut anchors = vec![anchor_1, anchor_2];\nlet seen = vec![\n    vec![Target { id: Some(\"compound_1\".into()), mz: 260.103, rt: 2.381, range: None }],\n    vec![Target { id: Some(\"compound_1\".into()), mz: 260.103, rt: 2.392, range: None }],\n];\nlet targets = warp.calibrate(&mut anchors, &seen)?;"
         },
         "python": {
           "signature": "warp.calibrate(anchor_samples: Sequence[SampleFile], target_lists: Sequence[Sequence[Target]]) -> list[Target]",
-          "example": "calibrated = warp.calibrate([ltr_1, ltr_2], [seen_in_ltr_1, seen_in_ltr_2])"
+          "example": "from quantion import load_model, load_warp, parse_ion\n\nmodel = load_model(\"model.onnx\")\nwarp = load_warp(model)\nanchor_1 = parse_ion(\"anchor_1.ion\")\nanchor_2 = parse_ion(\"anchor_2.ion\")\nanchors = [anchor_1, anchor_2]\nseen = [\n    [{\"id\": \"compound_1\", \"mz\": 260.103, \"rt\": 2.381}],\n    [{\"id\": \"compound_1\", \"mz\": 260.103, \"rt\": 2.392}],\n]\ntargets = warp.calibrate(anchors, seen)"
         },
         "js": {
           "signature": "warp.calibrate(anchorSamples: SampleFile[], targetLists: Target[][]): Promise<Target[]>",
-          "example": "const calibrated = await warp.calibrate([ltr1, ltr2], [seenInLtr1, seenInLtr2]);"
+          "example": "import { loadModel, loadWarp, parseIon } from \"quantion\";\n\nconst model = await loadModel(\"model.onnx\");\nconst warp = loadWarp(model);\nconst anchor1 = await parseIon(\"anchor_1.ion\");\nconst anchor2 = await parseIon(\"anchor_2.ion\");\nconst anchors = [anchor1, anchor2];\nconst seen = [\n  [{ id: \"compound_1\", mz: 260.103, rt: 2.381 }],\n  [{ id: \"compound_1\", mz: 260.103, rt: 2.392 }],\n];\nconst targets = await warp.calibrate(anchors, seen);"
         },
         "r": {
           "signature": "calibrate(warp, anchor_samples, target_lists)",
-          "example": "calibrated <- calibrate(warp, list(ltr_1, ltr_2), list(seen_in_ltr_1, seen_in_ltr_2))"
+          "example": "library(quantion)\n\nmodel <- load_model(\"model.onnx\")\nwarp <- load_warp(model)\nanchor_1 <- parse_ion(\"anchor_1.ion\")\nanchor_2 <- parse_ion(\"anchor_2.ion\")\nanchors <- list(anchor_1, anchor_2)\nseen <- list(\n  data.frame(id = \"compound_1\", mz = 260.103, rt = 2.381),\n  data.frame(id = \"compound_1\", mz = 260.103, rt = 2.392)\n)\ntargets <- calibrate(warp, anchors, seen)"
         }
       }
     },
@@ -2098,15 +2152,15 @@
         "rust": null,
         "python": {
           "signature": "file.dispose(); model.dispose(); warp.dispose()",
-          "example": "with quantion.parse_ion(\"sample.ion\") as file:\n    peaks = quantion.find_targets(file, targets)"
+          "example": "from quantion import parse_ion\n\nfile = parse_ion(\"sample.ion\")\nfile.dispose()"
         },
         "js": {
           "signature": "file.dispose(); model.dispose(); warp.dispose()",
-          "example": "file.dispose();"
+          "example": "import { parseIon } from \"quantion\";\n\nconst file = await parseIon(\"sample.ion\");\nfile.dispose();"
         },
         "r": {
           "signature": "dispose(object)",
-          "example": "dispose(sample)"
+          "example": "library(quantion)\n\nsample <- parse_ion(\"sample.ion\")\ndispose(sample)"
         }
       }
     },

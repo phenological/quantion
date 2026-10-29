@@ -27,9 +27,9 @@ const sample = await quantion.parseIon("sample.ion");
 const eic = await quantion.calculateEic(sample, 260.103, { from: 0.5, to: 5 });
 const peaks = quantion.findPeaks(eic.x, eic.y, { minSnr: 3 });
 
-peaks.forEach((peak) => {
+for (const peak of peaks) {
   console.log(`rt=${peak.rt.toFixed(3)}  intensity=${peak.intensity.toFixed(0)}`);
-});
+}
 ```
 
 ## Open and write files

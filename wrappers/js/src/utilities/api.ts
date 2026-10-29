@@ -684,7 +684,7 @@ export function calculateBaseline(
 }
 
 /**
- * findTargets · Targets
+ * findTargets · Targeted
  *
  * For each target, build its EIC at mz and find its peak near rt ± range.
  *
@@ -711,7 +711,7 @@ export async function findTargets(
 }
 
 /**
- * findTransitions · Targets
+ * findTransitions · Targeted
  *
  * For each SRM transition, take the stored chromatogram whose precursor (Q1) and product (Q3) are both within 0.005 m/z, and find its peak near rt ± range.
  *
@@ -737,7 +737,7 @@ export function findTransitions(
 }
 
 /**
- * findFeatures · Features
+ * findFeatures · Untargeted
  *
  * Untargeted: find every feature in one file by scanning an m/z grid.
  *
@@ -769,7 +769,7 @@ export async function findFeatures(
 }
 
 /**
- * matchFeatures · Features
+ * matchFeatures · Untargeted
  *
  * Untargeted across samples: find features in every file of a folder and match them. Values are medians over the samples where a feature was found.
  *

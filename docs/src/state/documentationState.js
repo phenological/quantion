@@ -31,8 +31,8 @@ export const documentationReducer = produce((state, action) => {
     case actions.documentLoaded:
       state.document = action.document;
       state.status = "ready";
-      if (!findEntry(action.document, state.entryName)) state.entryName = "overview";
-      if (!action.document.languages.some((language) => language.key === state.language)) state.language = initialState.language;
+      if (!isKnownPage(action.document, state.entryName)) state.entryName = "overview";
+      if (!findLanguage(action.document, state.language)) state.language = initialState.language;
       break;
     case actions.documentFailed:
       state.status = "failed";
@@ -46,10 +46,46 @@ export const documentationReducer = produce((state, action) => {
   }
 });
 
+function findByKey(items, key, value) {
+  for (const item of items) {
+    if (item[key] === value) return item;
+  }
+  return null;
+}
+
 export function findApiFile(versions, version) {
-  return versions.find((item) => item.version === version)?.api ?? null;
+  const item = findByKey(versions, "version", version);
+  if (!item) return null;
+  return item.api;
 }
 
 export function findEntry(document, entryName) {
-  return document?.entries.find((entry) => entry.name === entryName) ?? null;
+  if (!document) return null;
+  return findByKey(document.entries, "name", entryName);
+}
+
+export function findLanguage(document, languageKey) {
+  return findByKey(document.languages, "key", languageKey);
+}
+
+export function findGroup(document, groupName) {
+  if (!document) return null;
+  return findByKey(document.groups, "name", groupName);
+}
+
+export function getGroupEntries(document, groupName) {
+  const entries = [];
+  for (const entry of document.entries) {
+    if (entry.group === groupName) entries.push(entry);
+  }
+  return entries;
+}
+
+export const pages = { overview: "overview", versions: "versions" };
+
+function isKnownPage(document, name) {
+  if (Object.values(pages).includes(name)) return true;
+  if (findEntry(document, name)) return true;
+  if (findGroup(document, name)) return true;
+  return false;
 }

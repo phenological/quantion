@@ -5,7 +5,7 @@ import { actions, documentationReducer, findApiFile, initialState } from "./docu
 const DocumentationContext = createContext(null);
 
 async function readJson(path) {
-  const response = await fetch(path);
+  const response = await fetch(path, { cache: "no-cache" });
   if (!response.ok) throw new Error(`${path} answered ${response.status}`);
   return response.json();
 }

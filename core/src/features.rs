@@ -42,7 +42,7 @@ fn from_feature_error(function: &'static str, error: FeatureError) -> QuantionEr
     }
 }
 
-/// **find_features** · Features
+/// **find_features** · Untargeted
 ///
 /// Untargeted: find every feature in one file by scanning an m/z grid.
 ///
@@ -66,7 +66,7 @@ pub fn find_features(file: &mut SampleFile, options: FindFeaturesOptions) -> Res
     }
 }
 
-/// **match_features** · Features
+/// **match_features** · Untargeted
 ///
 /// Untargeted across samples: find features in every file of a folder and match them. Values are medians over the samples where a feature was found.
 ///

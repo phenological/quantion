@@ -10,7 +10,7 @@ use crate::{
     },
 };
 
-/// **find_targets** · Targets
+/// **find_targets** · Targeted
 ///
 /// For each target, build its EIC at mz and find its peak near rt ± range.
 ///
@@ -49,7 +49,7 @@ pub fn find_targets(file: &mut SampleFile, targets: &[Target], options: FindTarg
         .map_err(|error| from_fast_error(FUNCTION, error))
 }
 
-/// **find_transitions** · Targets
+/// **find_transitions** · Targeted
 ///
 /// For each SRM transition, take the stored chromatogram whose precursor (Q1) and product (Q3) are both within 0.005 m/z, and find its peak near rt ± range.
 ///

@@ -11,6 +11,8 @@ A Rust core with bindings for R, Python and JavaScript.
 
 <br clear="right">
 
+[API documentation](https://phenological.github.io/quantion/)
+
 ## Install
 
 ```bash

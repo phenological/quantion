@@ -23,11 +23,13 @@ The install downloads the native library for your platform from the GitHub relea
 ```python
 import quantion
 
-with quantion.parse_ion("sample.ion") as sample:
-    eic = quantion.calculate_eic(sample, 174.112, {"from": 1, "to": 15})
-    peaks = quantion.find_peaks(eic["x"], eic["y"], {"min_snr": 3})
-    for peak in peaks:
-        print(f"rt={peak['rt']:.3f}  intensity={peak['intensity']:.0f}")
+sample = quantion.parse_ion("sample.ion")
+eic = quantion.calculate_eic(sample, 174.112, {"from": 1, "to": 15})
+peaks = quantion.find_peaks(eic["x"], eic["y"], {"min_snr": 3})
+sample.dispose()
+
+for peak in peaks:
+    print(f"rt={peak['rt']:.3f}  intensity={peak['intensity']:.0f}")
 ```
 
 The library loads automatically on import.

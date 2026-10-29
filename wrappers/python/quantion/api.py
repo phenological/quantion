@@ -711,7 +711,7 @@ def _read_targets(function: str, targets: Sequence[Target]):
 
 
 def find_targets(file: SampleFile, targets: Sequence[Target], options: Optional[FindTargetsOptions] = None) -> List[Peak]:
-    """find_targets · Targets
+    """find_targets · Targeted
 
     For each target, build its EIC at mz and find its peak near rt ± range.
 
@@ -748,7 +748,7 @@ def find_targets(file: SampleFile, targets: Sequence[Target], options: Optional[
 def find_transitions(
     file: SampleFile, targets: Sequence[Transition], options: Optional[FindTransitionsOptions] = None
 ) -> List[Peak]:
-    """find_transitions · Targets
+    """find_transitions · Targeted
 
     For each SRM transition, take the stored chromatogram whose precursor (Q1) and product (Q3) are both within 0.005 m/z, and find its peak near rt ± range.
 
@@ -785,7 +785,7 @@ def find_transitions(
 
 
 def find_features(file: SampleFile, options: Optional[FindFeaturesOptions] = None) -> List[Feature]:
-    """find_features · Features
+    """find_features · Untargeted
 
     Untargeted: find every feature in one file by scanning an m/z grid.
 
@@ -817,7 +817,7 @@ def find_features(file: SampleFile, options: Optional[FindFeaturesOptions] = Non
 
 
 def match_features(directory, options: Optional[MatchFeaturesOptions] = None) -> List[Feature]:
-    """match_features · Features
+    """match_features · Untargeted
 
     Untargeted across samples: find features in every file of a folder and match them. Values are medians over the samples where a feature was found.
 

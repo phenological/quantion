@@ -1,25 +1,61 @@
+import { execFileSync } from "node:child_process";
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const folder = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "public", "api");
-const newVersion = process.argv[2]?.replace(/^v/, "");
-const hasNewApi = process.argv.includes("--new-api");
+const input = process.argv.slice(2);
+const newVersion = input[0]?.replace(/^v/, "");
+const hasNewApi = input.includes("--new-api");
+const messageIndex = input.indexOf("--message");
+const givenMessage = getGivenMessage();
 
-if (!newVersion || !/^\d+\.\d+\.\d+$/.test(newVersion)) {
-  console.error("usage: npm run add-version -- 0.2.1 [--new-api]");
+if (!newVersion || !/^\d+\.\d+\.\d+$/.test(newVersion) || (messageIndex >= 0 && !givenMessage)) {
+  console.error('usage: npm run add-version -- 0.2.1 [--new-api] [--message "commit message"]');
   process.exit(1);
+}
+
+function getGivenMessage() {
+  if (messageIndex < 0) return null;
+  return input[messageIndex + 1];
+}
+
+function findVersion(versions, version) {
+  for (const item of versions) {
+    if (item.version === version) return item;
+  }
+  return null;
+}
+
+function getLastCommitMessage() {
+  return execFileSync("git", ["log", "-1", "--format=%s"], { encoding: "utf8" }).trim();
+}
+
+function getToday() {
+  return new Date().toISOString().slice(0, 10);
 }
 
 const listPath = path.join(folder, "versions.json");
 const list = JSON.parse(readFileSync(listPath, "utf8"));
+const release = { date: getToday(), message: givenMessage ?? getLastCommitMessage() };
+const listed = findVersion(list.versions, newVersion);
 
-if (list.versions.some((item) => item.version === newVersion)) {
-  console.error(`${newVersion} is already listed`);
-  process.exit(1);
+function saveList(versions) {
+  writeFileSync(listPath, `${JSON.stringify({ ...list, versions }, null, 2)}\n`);
 }
 
-const latestApi = list.versions.find((item) => item.version === list.latest).api;
+if (listed) {
+  if (listed.date) {
+    console.error(`${newVersion} is already released on ${listed.date}`);
+    process.exit(1);
+  }
+  Object.assign(listed, release);
+  saveList(list.versions);
+  console.log(`released ${newVersion} on ${release.date}: ${release.message}`);
+  process.exit(0);
+}
+
+const latestApi = findVersion(list.versions, list.latest).api;
 let api = latestApi;
 
 if (hasNewApi) {
@@ -32,11 +68,12 @@ if (hasNewApi) {
   writeFileSync(newPath, readFileSync(path.join(folder, `${latestApi}.json`)));
 }
 
-const versions = [{ version: newVersion, api }, ...list.versions];
-writeFileSync(listPath, `${JSON.stringify({ latest: newVersion, versions }, null, 2)}\n`);
+list.latest = newVersion;
+saveList([{ version: newVersion, api, ...release }, ...list.versions]);
 
-console.log(
-  hasNewApi
-    ? `added ${newVersion} with its own API file public/api/${api}.json; edit it to match the new API`
-    : `added ${newVersion}, sharing public/api/${api}.json`,
-);
+if (hasNewApi) {
+  console.log(`added ${newVersion} with its own API file public/api/${api}.json; edit it to match the new API`);
+} else {
+  console.log(`added ${newVersion}, sharing public/api/${api}.json`);
+}
+console.log(`released on ${release.date}: ${release.message}`);
