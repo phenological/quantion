@@ -97,13 +97,6 @@ static uint64_t read_u64(const unsigned char *raw, uint64_t at)
   return value;
 }
 
-static double read_f64(const unsigned char *raw, uint64_t at)
-{
-  double value;
-  memcpy(&value, raw + at, sizeof(value));
-  return value;
-}
-
 static size_t size_of_element(uint32_t element_type)
 {
   if (element_type == QUANTION_ELEMENT_F64)
@@ -476,13 +469,6 @@ static SEXP records_bridge_build(void *data)
   set_data_frame(columns, names, rows);
   UNPROTECT(2);
   return columns;
-}
-
-static SEXP take_records_bridge(const char *label, Buf *out, SEXP cont)
-{
-  (void)label;
-  struct scans_bridge_data held = {out->ptr, out->len};
-  return R_UnwindProtect(records_bridge_build, &held, scans_bridge_free, &held, cont);
 }
 
 static SEXP list_get(SEXP lst, const char *name)

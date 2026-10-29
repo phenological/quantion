@@ -102,7 +102,7 @@ check_surface() {
     cat "$work/surface_$name.err"
     return 1
   fi
-  if ! diff -u "$snapshot" "$work/surface_$name.txt" > "$work/surface_$name.diff"; then
+  if ! diff -u --strip-trailing-cr "$snapshot" "$work/surface_$name.txt" > "$work/surface_$name.diff"; then
     echo "❌ the $name public API changed:"
     cat "$work/surface_$name.diff"
     return 1

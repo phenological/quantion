@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll } from "@jest/globals";
 import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
+import { NodeBackend } from "../utilities/backendNode";
 
 const fixture = path.join(
   __dirname,
@@ -18,7 +19,19 @@ function getWasm() {
   return require(bundlePath);
 }
 
-const builds: Array<[string, () => any]> = [["node", getNode]];
+function hasNativeLibrary(): boolean {
+  try {
+    new NodeBackend(process);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+const describeWithNode = hasNativeLibrary() ? describe : describe.skip;
+
+const builds: Array<[string, () => any]> = [];
+if (hasNativeLibrary()) builds.push(["node", getNode]);
 if (fs.existsSync(bundlePath)) builds.push(["wasm", getWasm]);
 
 function readFixture(): Uint8Array {
@@ -155,7 +168,7 @@ describe.each(builds)("api on %s", (_name, load) => {
   });
 });
 
-describe("node only", () => {
+describeWithNode("node only", () => {
   it("fits a drawn peak back", async () => {
     const quantion = getNode();
     const tall = quantion.drawPeaks(

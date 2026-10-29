@@ -1,6 +1,7 @@
-import { describe, test, expect } from "@jest/globals";
+import { describe, test, expect, beforeAll } from "@jest/globals";
 import * as fs from "fs";
 import * as path from "path";
+import { NodeBackend } from "../utilities/backendNode";
 
 const removedNames = [
   "mzmlToIonFile",
@@ -65,8 +66,23 @@ describe("api surface (shipped types)", () => {
   });
 });
 
-describe("enums and errors are exported from the entry point", () => {
-  const quantion = require("../../lib/index-node.js");
+function hasNativeLibrary(): boolean {
+  try {
+    new NodeBackend(process);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+const describeWithNode = hasNativeLibrary() ? describe : describe.skip;
+
+describeWithNode("enums and errors are exported from the entry point", () => {
+  let quantion: any;
+
+  beforeAll(() => {
+    quantion = require("../../lib/index-node.js");
+  });
 
   test("TimeUnit and PeakShape are uppercase", () => {
     expect(quantion.TimeUnit).toEqual({

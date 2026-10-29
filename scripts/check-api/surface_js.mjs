@@ -71,7 +71,7 @@ const output = [];
 for (const entry of entries) {
   const source = program.getSourceFile(entry);
   const module = checker.getSymbolAtLocation(source);
-  output.push(`entry ${path.relative(jsRoot, entry)}`);
+  output.push(`entry ${path.relative(jsRoot, entry).split(path.sep).join("/")}`);
   output.push("");
   const exports = checker.getExportsOfModule(module).sort((left, right) => left.getName().localeCompare(right.getName()));
   for (const symbol of exports) {
