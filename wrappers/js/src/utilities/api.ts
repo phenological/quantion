@@ -339,7 +339,7 @@ export function loadWarp(model: Model): WarpModel {
   return new WarpModel(
     model._backend.loadWarp(model._handle),
     model._backend,
-    model.getMetadata("load_warp"),
+    model._getMetadata("load_warp"),
   );
 }
 

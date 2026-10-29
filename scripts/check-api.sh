@@ -93,6 +93,49 @@ else
   missing+=("js")
 fi
 
+check_surface() {
+  local name="$1"
+  shift
+  local snapshot="$here/surface/$name.txt"
+  if ! "$@" > "$work/surface_$name.txt" 2>"$work/surface_$name.err"; then
+    echo "❌ could not read the $name public API:"
+    cat "$work/surface_$name.err"
+    return 1
+  fi
+  if ! diff -u "$snapshot" "$work/surface_$name.txt" > "$work/surface_$name.diff"; then
+    echo "❌ the $name public API changed:"
+    cat "$work/surface_$name.diff"
+    return 1
+  fi
+  echo "  $name public API unchanged"
+}
+
+api_failed=0
+echo
+echo "checking the public API of every language against scripts/check-api/surface/"
+check_surface rust python3 "$here/surface_rust.py" || api_failed=1
+check_surface python python3 "$here/surface_python.py" || api_failed=1
+if [ -d "$js_dir/node_modules/typescript" ]; then
+  check_surface js node "$here/surface_js.mjs" || api_failed=1
+else
+  missing+=("js public API")
+fi
+if [ -n "${R_LIBS:-}" ]; then
+  check_surface r Rscript "$here/surface_r.R" || api_failed=1
+else
+  missing+=("r public API")
+fi
+if [ "$api_failed" -ne 0 ]; then
+  echo
+  echo "⛔ THE PUBLIC API OF QUANTION CHANGED."
+  echo "   The API is frozen. Only the repository owner may change it"
+fi
+
+if [ "$update" = "1" ] && [ "$api_failed" -ne 0 ]; then
+  echo "❌ not writing expected.txt: the public API changed"
+  exit 1
+fi
+
 if [ "$update" = "1" ]; then
   cp "$work/rust.txt" "$expected"
   echo "✓ wrote $expected from the Rust run"
@@ -130,6 +173,10 @@ echo
 if [ ${#missing[@]} -gt 0 ]; then
   echo "⚠  NOT CHECKED: ${missing[*]} — no runner in check-api/"
   echo "   those languages are not covered by this run"
+fi
+
+if [ "$api_failed" -ne 0 ]; then
+  failed=1
 fi
 
 if [ "$failed" -ne 0 ]; then

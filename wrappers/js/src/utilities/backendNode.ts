@@ -19,13 +19,13 @@ import type {
   DataXY,
   Feature,
   IonImage,
-  ModelEntry,
   NoiseLevel,
   Peak,
   PeakParameters,
   Scan,
   Target,
 } from "../types/types";
+import type { ModelEntry } from "../types/internal";
 import { toQuantionError } from "./errors";
 import { readRecords } from "./recordBridge";
 import { readIonImage } from "./imageBridge";

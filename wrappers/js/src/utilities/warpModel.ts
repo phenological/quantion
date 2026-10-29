@@ -3,7 +3,8 @@ import { fileHandleRegistry } from "./handleRegistry";
 import { Metadata } from "./metadata";
 import { SampleFile } from "./sampleFile";
 import { invalidArgument } from "./errors";
-import type { ModelEntry, PredictedRt, Target } from "../types/types";
+import type { PredictedRt, Target } from "../types/types";
+import type { ModelEntry } from "../types/internal";
 
 type Cell = ReturnType<typeof fileHandleRegistry.register>;
 
@@ -105,7 +106,7 @@ export class WarpModel extends Metadata {
     fileHandleRegistry.release(this, cell);
   }
 
-  protected getMetadata(): ModelEntry[] {
+  protected _getMetadata(): ModelEntry[] {
     return this.metadata;
   }
 

@@ -3,13 +3,13 @@ import type {
   Feature,
   FindPeaksOptions,
   IonImage,
-  ModelEntry,
   NoiseLevel,
   Peak,
   PeakParameters,
   Scan,
   Target,
 } from "../types/types";
+import type { ModelEntry } from "../types/internal";
 import type { Complete } from "./options";
 
 export type FileHandle = unknown;

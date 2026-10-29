@@ -2,7 +2,7 @@ import type { Backend, ModelHandle } from "./backend";
 import { fileHandleRegistry } from "./handleRegistry";
 import { Metadata } from "./metadata";
 import { invalidArgument } from "./errors";
-import type { ModelEntry } from "../types/types";
+import type { ModelEntry } from "../types/internal";
 
 type Cell = ReturnType<typeof fileHandleRegistry.register>;
 
@@ -39,7 +39,7 @@ export class Model extends Metadata {
   }
 
   /** @internal */
-  getMetadata(caller: string): ModelEntry[] {
+  _getMetadata(caller: string): ModelEntry[] {
     if (this.metadata === null) {
       const handle = this._handle;
       if (handle === null) {
