@@ -10,7 +10,7 @@ import type {
 } from "./backend";
 import type {
   NoiseLevel,
-  PeakOptions,
+  FindPeaksOptions,
   WarpTarget,
   ModelEntry,
 } from "../types/types";
@@ -230,7 +230,7 @@ export class NodeBackend implements Backend {
     await prefetchRanges(source, ranges);
   }
 
-  async prefetchPeaks(
+  async prefetchTargets(
     handle: FileHandle,
     mzs: Float64Array,
     from: number,
@@ -238,18 +238,7 @@ export class NodeBackend implements Backend {
   ): Promise<void> {
     const source = this.remote_by_handle.get(handle as object);
     if (!source) return;
-    const ranges = this.native.planPeaksFromEic(handle, mzs, from, to) as ByteRangeResult[];
-    await prefetchRanges(source, ranges);
-  }
-
-  async prefetchFeature(
-    handle: FileHandle,
-    rts: Float64Array,
-    windows: Float64Array,
-  ): Promise<void> {
-    const source = this.remote_by_handle.get(handle as object);
-    if (!source) return;
-    const ranges = this.native.planFindFeature(handle, rts, windows) as ByteRangeResult[];
+    const ranges = this.native.planFindTargets(handle, mzs, from, to) as ByteRangeResult[];
     await prefetchRanges(source, ranges);
   }
 
@@ -324,8 +313,8 @@ export class NodeBackend implements Backend {
     targetMz: number,
     from: number,
     to: number,
-    ppmTol: number,
-    mzTol: number,
+    ppmTolerance: number,
+    mzTolerance: number,
   ): Promise<{ x: Float64Array; y: Float64Array }> {
     const source = this.remote_by_handle.get(handle as object);
     if (source) {
@@ -334,8 +323,8 @@ export class NodeBackend implements Backend {
         targetMz,
         from,
         to,
-        ppmTol,
-        mzTol,
+        ppmTolerance,
+        mzTolerance,
       ) as ByteRangeResult[];
       await prefetchRanges(source, ranges);
     }
@@ -344,8 +333,8 @@ export class NodeBackend implements Backend {
       targetMz,
       from,
       to,
-      ppmTol,
-      mzTol,
+      ppmTolerance,
+      mzTolerance,
     ) as { x: Float64Array; y: Float64Array };
   }
 
@@ -397,10 +386,10 @@ export class NodeBackend implements Backend {
   findPeaks(
     x: Float64Array,
     y: Float64Array,
-    opts: PeakOptions | undefined,
+    options: FindPeaksOptions | undefined,
   ): any {
     return readRecords(
-      this.native.findPeaks(x, y, opts ?? null) as ArrayBuffer,
+      this.native.findPeaks(x, y, options ?? null) as ArrayBuffer,
     );
   }
 
@@ -409,10 +398,10 @@ export class NodeBackend implements Backend {
     y: Float64Array,
     rt: number,
     range: number,
-    opts: PeakOptions | undefined,
+    options: FindPeaksOptions | undefined,
   ): any {
     return readRecords(
-      this.native.getPeak(x, y, rt, range, opts ?? null) as ArrayBuffer,
+      this.native.getPeak(x, y, rt, range, options ?? null) as ArrayBuffer,
     );
   }
 
@@ -433,7 +422,7 @@ export class NodeBackend implements Backend {
     ) as Float64Array;
   }
 
-  getPeaksFromEic(
+  findTargets(
     handle: FileHandle,
     rts: Float64Array,
     mzs: Float64Array,
@@ -445,12 +434,12 @@ export class NodeBackend implements Backend {
     count: number,
     from: number,
     to: number,
-    opts: PeakOptions | undefined,
+    options: FindPeaksOptions | undefined,
     threads: number,
   ): any {
     const ids = unpackIds(count, offsets, lengths, idBytes);
     return readRecords(
-      this.native.getPeaksFromEic(
+      this.native.findTargets(
         handle,
         rts,
         mzs,
@@ -458,13 +447,13 @@ export class NodeBackend implements Backend {
         ids,
         from,
         to,
-        opts ?? null,
+        options ?? null,
         threads,
       ) as ArrayBuffer,
     );
   }
 
-  getPeaksFromChrom(
+  findTransitions(
     handle: FileHandle,
     precursors: Float64Array,
     products: Float64Array,
@@ -475,19 +464,19 @@ export class NodeBackend implements Backend {
     idBytes: Uint8Array | null,
     _idBytesLen: number,
     count: number,
-    opts: PeakOptions | undefined,
+    options: FindPeaksOptions | undefined,
     threads: number,
   ): any {
     const ids = unpackIds(count, offsets, lengths, idBytes);
     return readRecords(
-      this.native.getPeaksFromChrom(
+      this.native.findTransitions(
         handle,
         precursors,
         products,
         rts,
         ranges,
         ids,
-        opts ?? null,
+        options ?? null,
         threads,
       ) as ArrayBuffer,
     );
@@ -502,7 +491,7 @@ export class NodeBackend implements Backend {
     gridStart: number,
     gridEnd: number,
     gridStep: number,
-    opts: PeakOptions | undefined,
+    options: FindPeaksOptions | undefined,
     threads: number,
   ): any {
     return readRecords(
@@ -515,48 +504,13 @@ export class NodeBackend implements Backend {
         gridStart,
         gridEnd,
         gridStep,
-        opts ?? null,
+        options ?? null,
         threads,
       ) as ArrayBuffer,
     );
   }
 
-  findFeature(
-    handle: FileHandle,
-    rts: Float64Array,
-    mzs: Float64Array,
-    ranges: Float64Array,
-    offsets: Uint32Array | null,
-    lengths: Uint32Array | null,
-    idBytes: Uint8Array | null,
-    _idBytesLen: number,
-    count: number,
-    threads: number,
-    scanPpm: number,
-    scanMz: number,
-    eicPpm: number,
-    eicMz: number,
-    opts: PeakOptions | undefined,
-  ): any {
-    const ids = unpackIds(count, offsets, lengths, idBytes);
-    return readRecords(
-      this.native.findFeature(
-        handle,
-        rts,
-        mzs,
-        ranges,
-        ids,
-        threads,
-        scanPpm,
-        scanMz,
-        eicPpm,
-        eicMz,
-        opts ?? null,
-      ) as ArrayBuffer,
-    );
-  }
-
-  getFeatures(
+  matchFeatures(
     dirPath: string,
     from: number,
     to: number,
@@ -569,11 +523,11 @@ export class NodeBackend implements Backend {
     groupMz: number,
     groupRt: number,
     prevalence: number,
-    opts: PeakOptions | undefined,
+    options: FindPeaksOptions | undefined,
     threads: number,
   ): any {
     return readRecords(
-      this.native.getFeatures(
+      this.native.matchFeatures(
         dirPath,
         from,
         to,
@@ -586,7 +540,7 @@ export class NodeBackend implements Backend {
         groupMz,
         groupRt,
         prevalence,
-        opts ?? null,
+        options ?? null,
         threads,
       ) as ArrayBuffer,
     );

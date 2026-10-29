@@ -27,7 +27,7 @@ from quantion._pack import (
     unpack_targets,
 )
 from quantion._shared import to_threads
-from quantion._types import ChromTarget, FromTo, GroupedFeature, Feature, Peak, Target, TargetPeak
+from quantion._types import Feature, FindPeaksOptions, FromTo, Peak, Target, Transition
 from quantion.file import SampleFile
 from quantion.model import Model
 from quantion.warp_model import WarpModel
@@ -108,15 +108,15 @@ def _get_tolerance(mapping: Optional[Dict], key: str, default: float) -> float:
     return parsed
 
 
-def _get_from_to(from_to: FromTo, caller: str, name: str = "from_to") -> tuple:
-    if not isinstance(from_to, dict) or "from" not in from_to or "to" not in from_to:
+def _get_window(window: FromTo, caller: str, name: str = "window") -> tuple:
+    if not isinstance(window, dict) or "from" not in window or "to" not in window:
         raise ValueError(f'{caller}: {name} must be a dict like {{"from": 0.5, "to": 5.0}}')
-    return float(from_to["from"]), float(from_to["to"])
+    return float(window["from"]), float(window["to"])
 
 
 def _get_scan_query(value, name: str, range_query: int, closest_query: int) -> tuple:
     if isinstance(value, dict):
-        start, end = _get_from_to(value, "get_scans", name)
+        start, end = _get_window(value, "get_scans", name)
         if not math.isfinite(start) or not math.isfinite(end):
             raise ValueError(f"get_scans: {name} from and to must be finite")
         return range_query, start, end
@@ -433,13 +433,13 @@ def _plan_open(header: bytes) -> list[tuple[int, int]]:
     return ranges
 
 
-def _plan_eic(file: SampleFile, target_mz: float, from_rt: float, to_rt: float,
-              ppm_tol: float, mz_tol: float) -> list[tuple[int, int]]:
+def _plan_eic(file: SampleFile, mz: float, from_rt: float, to_rt: float,
+              ppm_tolerance: float, mz_tolerance: float) -> list[tuple[int, int]]:
     buffer = _Buf()
     _check("plan_eic", file._abi.plan_eic(
         file.handle,
-        c_double(target_mz), c_double(from_rt), c_double(to_rt),
-        c_double(ppm_tol), c_double(mz_tol),
+        c_double(mz), c_double(from_rt), c_double(to_rt),
+        c_double(ppm_tolerance), c_double(mz_tolerance),
         ctypes.byref(buffer),
     ))
     return _unpack_ranges(buf_to_bytes(file._abi, buffer))
@@ -591,10 +591,10 @@ def mzml_to_ion_file(
 
 def calculate_eic(
     file: SampleFile,
-    target_mz: float,
-    from_to: FromTo,
-    ppm_tol: float = 20.0,
-    mz_tol: float  = 0.005,
+    mz: float,
+    window: FromTo,
+    ppm_tolerance: float = 20.0,
+    mz_tolerance: float  = 0.005,
 ) -> Dict[str, np.ndarray]:
     """Get an extracted ion chromatogram (EIC).
 
@@ -602,23 +602,23 @@ def calculate_eic(
 
     Args:
         file: SampleFile from parse_mzml() or parse_ion().
-        target_mz: Target m/z value (Da).
-        from_to: The retention-time range in minutes, {"from": start, "to": end}. Only scans inside it are read, so the EIC covers only that range.
-        ppm_tol: Mass tolerance in ppm. Default 20.
-        mz_tol: Absolute mass tolerance in Da. Default 0.005.
+        mz: The m/z to extract (Da).
+        window: The retention-time range in minutes, {"from": start, "to": end}. Only scans inside it are read, so the EIC covers only that range.
+        ppm_tolerance: Mass tolerance in ppm. Default 20.
+        mz_tolerance: Absolute mass tolerance in Da. Default 0.005.
 
     Returns: Dict with keys 'x' (retention time array) and 'y' (intensity array).
     """
-    from_rt, to_rt = _get_from_to(from_to, "calculate_eic")
+    from_rt, to_rt = _get_window(window, "calculate_eic")
     abi = _get_abi()
     source = getattr(file, "_remote_source", None)
     if source is not None:
-        source.prefetch(_plan_eic(file, target_mz, from_rt, to_rt, ppm_tol, mz_tol))
+        source.prefetch(_plan_eic(file, mz, from_rt, to_rt, ppm_tolerance, mz_tolerance))
     buf_x, buf_y = _Buf(), _Buf()
     _check("calculate_eic", abi.calculate_eic(
         file.handle,
-        c_double(target_mz), c_double(from_rt), c_double(to_rt),
-        c_double(ppm_tol), c_double(mz_tol),
+        c_double(mz), c_double(from_rt), c_double(to_rt),
+        c_double(ppm_tolerance), c_double(mz_tolerance),
         ctypes.byref(buf_x), ctypes.byref(buf_y),
     ))
     return {"x": buf_to_f64(abi, buf_x), "y": buf_to_f64(abi, buf_y)}
@@ -627,8 +627,8 @@ def calculate_eic(
 def find_peaks(
     x: Sequence,
     y: Sequence,
-    options: Optional[Dict[str, Any]] = None,
-) -> List[Dict]:
+    options: Optional[FindPeaksOptions] = None,
+) -> List[Peak]:
     """Find all peaks in a trace.
 
     Detects peaks in one numeric trace (x = time, y = intensity).
@@ -669,7 +669,7 @@ def get_peak(
     y: Sequence,
     rt: float,
     range: float,
-    options: Optional[Dict[str, Any]] = None,
+    options: Optional[FindPeaksOptions] = None,
 ) -> Peak:
     """Find one peak near a target RT.
 
@@ -888,13 +888,13 @@ def get_scans(
     return scans
 
 
-def get_peaks_from_eic(
+def find_targets(
     file: SampleFile,
     targets: Sequence[Target],
-    from_to: FromTo = {"from": 0.5, "to": 5.0},
-    options: Optional[Dict[str, Any]] = None,
+    window: FromTo = {"from": 0.5, "to": 5.0},
+    options: Optional[FindPeaksOptions] = None,
     threads: int = 1,
-) -> List[TargetPeak]:
+) -> List[Peak]:
     """Find peaks for many targets using EICs.
 
     Builds an EIC for each target and finds the best peak near the given RT.
@@ -904,20 +904,20 @@ def get_peaks_from_eic(
         file: SampleFile from parse_mzml() or parse_ion().
         targets: List of dicts, each with keys: id (str), rt (float),
             mz (float), range (float, RT half-window).
-        from_to: The retention-time range in minutes, {"from": start, "to": end}.
+        window: The retention-time range in minutes, {"from": start, "to": end}.
             Only scans inside it are read, so each
             EIC and its peak search stay inside it. Default {"from": 0.5, "to": 5.0}.
         options: Optional dict of peak filter settings (same keys as find_peaks).
         threads: Number of threads to use. Default 1.
 
     Returns:
-        List of dicts, one per target. Each dict has keys: id, mz, rt,
-        from, to, intensity, integral.
+        One Peak per target, in the same order. A target with no peak gets
+        an empty peak (all zeros).
     """
-    from_rt, to_rt = _get_from_to(from_to, "get_peaks_from_eic")
+    from_rt, to_rt = _get_window(window, "find_targets")
     abi = _get_abi()
     rts, mzs, ranges, ids = unpack_targets(targets)
-    _prefetch(file, "plan_peaks_from_eic", lambda out: abi.plan_peaks_from_eic(
+    _prefetch(file, "plan_find_targets", lambda out: abi.plan_find_targets(
         file.handle, _as_f64_ptr(mzs), c_size_t(len(mzs)), c_double(from_rt), c_double(to_rt), out))
     offsets, lengths, id_buf = encode_target_ids(ids)
     peak_options = pack_peak_options(options)
@@ -925,7 +925,7 @@ def get_peaks_from_eic(
 
     if id_buf:
         id_ptr, id_arr = _as_u8_ptr(id_buf)
-        rc = abi.get_peaks_from_eic(
+        rc = abi.find_targets(
             file.handle,
             _as_f64_ptr(rts), _as_f64_ptr(mzs), _as_f64_ptr(ranges),
             _as_u32_ptr(offsets), _as_u32_ptr(lengths),
@@ -935,7 +935,7 @@ def get_peaks_from_eic(
             ctypes.byref(buf),
         )
     else:
-        rc = abi.get_peaks_from_eic(
+        rc = abi.find_targets(
             file.handle,
             _as_f64_ptr(rts), _as_f64_ptr(mzs), _as_f64_ptr(ranges),
             None, None, None, c_size_t(0),
@@ -943,16 +943,16 @@ def get_peaks_from_eic(
             _as_opts_ptr(peak_options), c_size_t(to_threads(threads)),
             ctypes.byref(buf),
         )
-    _check("get_peaks_from_eic", rc)
+    _check("find_targets", rc)
     return buf_to_records(abi, buf)
 
 
-def get_peaks_from_chrom(
+def find_transitions(
     file: SampleFile,
-    targets: Sequence[ChromTarget],
-    options: Optional[Dict[str, Any]] = None,
+    targets: Sequence[Transition],
+    options: Optional[FindPeaksOptions] = None,
     threads: int = 1,
-) -> List[Dict]:
+) -> List[Peak]:
     """Find peaks in the chromatograms stored in a file.
 
     Each target picks the chromatogram whose precursor and product m/z are both
@@ -966,9 +966,8 @@ def get_peaks_from_chrom(
         threads: Number of threads to use. Default 1.
 
     Returns:
-        List of dicts, one per target, with keys: id, ort, rt, from, to,
-        intensity, integral, total_area, timestamp. A target with no matching
-        chromatogram gets zeros.
+        One Peak per target, in the same order. A target with no matching
+        chromatogram gets an empty peak (all zeros).
     """
     abi = _get_abi()
     n = len(targets)
@@ -980,7 +979,7 @@ def get_peaks_from_chrom(
     id_ptr, id_arr = _as_u8_ptr(id_buf) if id_buf else (None, None)
     peak_options = pack_peak_options(options)
     buf = _Buf()
-    _check("get_peaks_from_chrom", abi.get_peaks_from_chrom(
+    _check("find_transitions", abi.find_transitions(
         file.handle,
         _as_f64_ptr(precursors), _as_f64_ptr(products), _as_f64_ptr(rts), _as_f64_ptr(ranges),
         _as_u32_ptr(offsets) if id_buf else None, _as_u32_ptr(lengths) if id_buf else None,
@@ -993,7 +992,7 @@ def get_peaks_from_chrom(
 
 def find_features(
     file: SampleFile,
-    from_to: FromTo,
+    window: FromTo,
     *,
     eic: Optional[Dict[str, float]] = None,
     grid: Optional[Dict[str, float]] = None,
@@ -1007,7 +1006,7 @@ def find_features(
 
     Args:
         file: SampleFile from parse_mzml() or parse_ion().
-        from_to: The retention-time range in minutes, {"from": start, "to": end}. Only scans inside it are read.
+        window: The retention-time range in minutes, {"from": start, "to": end}. Only scans inside it are read.
         eic: Optional dict with EIC extraction settings. Keys:
             ppm_tolerance (float, default 10.0), mz_tolerance (float, default 0.005).
         grid: Optional dict with m/z grid settings. Keys:
@@ -1020,7 +1019,7 @@ def find_features(
         List of dicts, one per detected feature. Each dict has keys: mz, rt,
         from, to, intensity, integral, n_points.
     """
-    from_rt, to_rt = _get_from_to(from_to, "find_features")
+    from_rt, to_rt = _get_window(window, "find_features")
     abi = _get_abi()
 
     eic_ppm  = _get_float(eic,  "ppm_tolerance", _EicDefaults.ppm_tolerance)
@@ -1059,105 +1058,24 @@ def find_features(
     return buf_to_records(abi, buf)
 
 
-def find_feature(
-    file: SampleFile,
-    targets: Sequence[Dict[str, Any]],
-    *,
-    scan_eic: Optional[Dict[str, float]] = None,
-    eic: Optional[Dict[str, float]]      = None,
-    options: Optional[Dict[str, Any]]    = None,
-    threads: int = 1,
-) -> List[Dict]:
-    """Find targeted features by m/z and RT.
-
-    Extracts peaks for one or more targets defined by m/z and RT.
-    Use this when you already know what you are looking for.
-
-    Args:
-        file: SampleFile from parse_mzml() or parse_ion().
-        targets: List of dicts with keys: id (str, optional), rt (float),
-            mz (float), range (float, RT half-window).
-        scan_eic: Optional dict for spectrum scan tolerance. Keys:
-            ppm_tolerance (float), mz_tolerance (float).
-        eic: Optional dict for EIC extraction tolerance. Keys:
-            ppm_tolerance (float), mz_tolerance (float).
-        options: Optional dict of peak filter settings (same keys as find_peaks).
-        threads: Number of threads to use. Default 1.
-
-    Returns:
-        List of dicts, one per target. Each dict has keys: id, mz, rt,
-        from, to, intensity, integral.
-    """
-    abi = _get_abi()
-
-    scan_ppm = _get_tolerance(scan_eic, "ppm_tolerance", 10.0)
-    scan_mz  = _get_tolerance(scan_eic, "mz_tolerance",  0.003)
-    eic_ppm  = _get_tolerance(eic,      "ppm_tolerance", 20.0)
-    eic_mz   = _get_tolerance(eic,      "mz_tolerance",  0.005)
-
-    peak_defaults = {
-        "min_intensity":        _FindPeakDefaults.min_intensity,
-        "min_peak_width_points": _FindPeakDefaults.min_peak_width_points,
-        "auto_noise":           _FindPeakDefaults.auto_noise,
-        "auto_baseline":        _FindPeakDefaults.auto_baseline,
-        "min_snr":              _FindPeakDefaults.min_snr,
-        "min_r2":               _FindPeakDefaults.min_r2,
-        "shape":                _FindPeakDefaults.shape,
-    }
-    if options:
-        peak_defaults.update(options)
-    peak_options = pack_peak_options(peak_defaults)
-
-    rts, mzs, ranges, ids = unpack_targets(targets, default_range=0.5)
-    _prefetch(file, "plan_find_feature", lambda out: abi.plan_find_feature(
-        file.handle, _as_f64_ptr(rts), _as_f64_ptr(ranges), c_size_t(len(rts)), out))
-    offsets, lengths, id_buf = encode_target_ids(ids)
-    buf = _Buf()
-
-    if id_buf:
-        id_ptr, id_arr = _as_u8_ptr(id_buf)
-        rc = abi.find_feature(
-            file.handle,
-            _as_f64_ptr(rts), _as_f64_ptr(mzs), _as_f64_ptr(ranges),
-            _as_u32_ptr(offsets), _as_u32_ptr(lengths),
-            id_ptr, c_size_t(len(id_buf)),
-            c_size_t(len(targets)), c_size_t(to_threads(threads)),
-            c_double(scan_ppm), c_double(scan_mz),
-            c_double(eic_ppm),  c_double(eic_mz),
-            _as_opts_ptr(peak_options), ctypes.byref(buf),
-        )
-    else:
-        rc = abi.find_feature(
-            file.handle,
-            _as_f64_ptr(rts), _as_f64_ptr(mzs), _as_f64_ptr(ranges),
-            None, None, None, c_size_t(0),
-            c_size_t(len(targets)), c_size_t(to_threads(threads)),
-            c_double(scan_ppm), c_double(scan_mz),
-            c_double(eic_ppm),  c_double(eic_mz),
-            _as_opts_ptr(peak_options), ctypes.byref(buf),
-        )
-    _check("find_feature", rc)
-    return buf_to_records(abi, buf)
-
-
-def get_features(
-    directory_path: str,
-    from_to: FromTo,
+def match_features(
+    directory: str,
+    window: FromTo,
     *,
     eic: Optional[Dict[str, float]]      = None,
     grid: Optional[Dict[str, float]]     = None,
     grouping: Optional[Dict[str, Any]]   = None,
     options: Optional[Dict[str, Any]]    = None,
     threads: int = 1,
-) -> List[GroupedFeature]:
+) -> List[Feature]:
     """Find and align features across many files.
 
     Detects features in every file in a folder and groups them by m/z and RT.
     Returns a consensus feature table aligned across all samples.
 
     Args:
-        directory_path: Path to a folder with mzML or ion files.
-        from_to: The retention-time range in minutes, {"from": start, "to": end}.
+        directory: Path to a folder with mzML or ion files.
+        window: The retention-time range in minutes, {"from": start, "to": end}.
             Only scans inside it are read.
         eic: Optional dict for EIC extraction settings. Keys:
             ppm_tolerance (float, default 10.0), mz_tolerance (float, default 0.005).
@@ -1171,24 +1089,26 @@ def get_features(
         threads: Number of threads to use. Default 1.
 
     Returns:
-        List of dicts, one per consensus feature. Each dict has the
-        following keys:
+        One Feature per matched feature, with values that are medians across
+        the samples where it was found:
 
-        - ``mz`` (float): median m/z of the feature (Da).
-        - ``rt`` (float): median retention time (minutes).
+        - ``mz`` (float): m/z of the feature (Da).
+        - ``rt`` (float): retention time (minutes).
         - ``from`` (float): start of the retention-time window (minutes).
         - ``to`` (float): end of the retention-time window (minutes).
-        - ``intensity`` (float): median apex intensity.
-        - ``integral`` (float): median peak area.
+        - ``intensity`` (float): apex intensity.
+        - ``integral`` (float): peak area.
+        - ``n_points`` (int): points across the peak.
+        - ``noise`` (float): noise level.
         - ``frequency`` (float): fraction of input samples in which this
           feature was detected (``n_samples / total_samples``, in
           ``[0.0, 1.0]``).
     """
-    from_rt, to_rt = _get_from_to(from_to, "get_features")
+    from_rt, to_rt = _get_window(window, "match_features")
     abi = _get_abi()
 
-    if not directory_path:
-        raise ValueError("get_features: directory_path is required")
+    if not directory:
+        raise ValueError("match_features: directory is required")
 
     eic_ppm    = _get_numeric(eic,      "ppm_tolerance", _EicDefaults.ppm_tolerance)
     eic_mz     = _get_numeric(eic,      "mz_tolerance",  _EicDefaults.mz_tolerance)
@@ -1216,8 +1136,8 @@ def get_features(
     peak_options = pack_peak_options(peak_defaults)
 
     buf = _Buf()
-    _check("get_features", abi.get_features(
-        directory_path.encode("utf-8"),
+    _check("match_features", abi.match_features(
+        directory.encode("utf-8"),
         c_double(from_rt), c_double(to_rt),
         c_double(eic_ppm), c_double(eic_mz),
         c_double(grid_start), c_double(grid_end), c_double(grid_step),

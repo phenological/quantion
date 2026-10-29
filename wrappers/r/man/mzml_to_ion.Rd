@@ -6,13 +6,13 @@ Encodes a loaded file as compressed ion binary bytes.
 }
 \usage{
 mzml_to_ion(
-  bin,
+  file,
   level = 12L,
   f32_compress = FALSE
 )
 }
 \arguments{
-  \item{bin}{Sample file from \code{\link{parse_mzml}()} or \code{\link{parse_ion}()}.}
+  \item{file}{Sample file from \code{\link{parse_mzml}()} or \code{\link{parse_ion}()}.}
   \item{level}{Compression level, integer 0 (none) to 22 (max). Default 12.}
   \item{f32_compress}{If \code{TRUE}, compress intensity values to 32-bit float. Default \code{FALSE}.}
 }

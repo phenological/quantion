@@ -1,30 +1,30 @@
 .DEFAULTS <- list(
-  eic_ppm_tol          = 10.0,
-  eic_mz_tol           = 0.005,
-  grid_start           = 40,
-  grid_end             = 1000,
-  grid_step            = 0.005,
-  group_ppm_tol        = 5.0,
-  group_mz_tol         = 0.0025,
-  group_rt_tol         = 0.05,
-  frequency            = 1L,
-  min_intensity        = 500,
+  eic_ppm_tolerance     = 10.0,
+  eic_mz_tolerance      = 0.005,
+  grid_start            = 40,
+  grid_end              = 1000,
+  grid_step_size        = 0.005,
+  group_ppm_tolerance   = 5.0,
+  group_mz_tolerance    = 0.0025,
+  group_rt_tolerance    = 0.05,
+  frequency             = 1L,
+  min_intensity         = 500,
   min_peak_width_points = 3L,
-  auto_noise           = TRUE,
-  auto_baseline        = TRUE,
-  min_snr              = 2,
-  min_r2               = 0.0,
-  shape                = "emg",
-  kernel_size          = 0L
+  auto_noise            = TRUE,
+  auto_baseline         = TRUE,
+  min_snr               = 2,
+  min_r2                = 0.0,
+  shape                 = "emg",
+  kernel_size           = 0L
 )
 
-dispose <- function(bin) {
-  if (typeof(bin) != "externalptr") stop("quantion: expected an external pointer")
-  if (inherits(bin, "quantion_warp_model"))
-    return(invisible(.Call("C_dispose_warp_model", bin, PACKAGE = "quantion")))
-  if (inherits(bin, "quantion_model"))
-    return(invisible(.Call("C_dispose_model", bin, PACKAGE = "quantion")))
-  invisible(.Call("C_dispose_mzml", bin, PACKAGE = "quantion"))
+dispose <- function(object) {
+  if (typeof(object) != "externalptr") stop("quantion: expected an external pointer")
+  if (inherits(object, "quantion_warp_model"))
+    return(invisible(.Call("C_dispose_warp_model", object, PACKAGE = "quantion")))
+  if (inherits(object, "quantion_model"))
+    return(invisible(.Call("C_dispose_model", object, PACKAGE = "quantion")))
+  invisible(.Call("C_dispose_mzml", object, PACKAGE = "quantion"))
 }
 
 load_model <- function(source) {
@@ -103,24 +103,24 @@ calibrate <- function(warp, anchor_samples, target_lists) {
         as.numeric(get_column("rt", NA)), PACKAGE = "quantion")
 }
 
-prefetch_targets <- function(warp, bin, targets) {
-  source <- attr(bin, "quantion_source")
+prefetch_targets <- function(warp, file, targets) {
+  source <- attr(file, "quantion_source")
   if (is.null(source) || nrow(targets) == 0) return(invisible(NULL))
-  wanted <- .Call("C_plan_predict_rts", warp, bin, as.numeric(targets$mz), as.numeric(targets$rt),
+  wanted <- .Call("C_plan_predict_rts", warp, file, as.numeric(targets$mz), as.numeric(targets$rt),
                   PACKAGE = "quantion")
   .prefetch(source, wanted)
 }
 
-predict_rts <- function(warp, bin, targets) {
+predict_rts <- function(warp, file, targets) {
   if (!inherits(warp, "quantion_warp_model")) stop("quantion: expected a warp model from load_warp")
-  if (typeof(bin) != "externalptr") stop("quantion: expected an external pointer (MzML sample)")
+  if (typeof(file) != "externalptr") stop("quantion: expected an external pointer (MzML sample)")
   if (!is.data.frame(targets) || !all(c("mz", "rt") %in% names(targets)))
     stop("`targets` must be a data.frame with columns mz and rt")
   mzs <- as.numeric(targets$mz)
   rts <- as.numeric(targets$rt)
   if (length(mzs) == 0) return(data.frame(rt = numeric(0), uncertainty = numeric(0)))
-  prefetch_targets(warp, bin, targets)
-  values <- .Call("C_predict_rts", warp, bin, mzs, rts, PACKAGE = "quantion")
+  prefetch_targets(warp, file, targets)
+  values <- .Call("C_predict_rts", warp, file, mzs, rts, PACKAGE = "quantion")
   data.frame(rt = values[c(TRUE, FALSE)], uncertainty = values[c(FALSE, TRUE)])
 }
 
@@ -129,8 +129,8 @@ parse_mzml <- function(data) {
   .Call("C_parse_mzml", data, PACKAGE="quantion")
 }
 
-mzml_to_ion <- function(bin, level = 12L, f32_compress = FALSE) {
-  if (typeof(bin) != "externalptr") stop("quantion: expected an external pointer (MzML sample)")
+mzml_to_ion <- function(file, level = 12L, f32_compress = FALSE) {
+  if (typeof(file) != "externalptr") stop("quantion: expected an external pointer (MzML sample)")
 
   if (!is.numeric(level) || length(level) != 1 || is.na(level))
     stop("`level` must be a single number 0..22")
@@ -141,7 +141,7 @@ mzml_to_ion <- function(bin, level = 12L, f32_compress = FALSE) {
   if (!is.logical(f32_compress) || length(f32_compress) != 1 || is.na(f32_compress))
     stop("`f32_compress` must be TRUE/FALSE")
 
-  .Call("C_mzml_to_ion", bin, lvl, f32_compress, PACKAGE = "quantion")
+  .Call("C_mzml_to_ion", file, lvl, f32_compress, PACKAGE = "quantion")
 }
 
 mzml_to_ion_file <- function(input_path, output_path, level = 12L, f32_compress = FALSE) {
@@ -163,9 +163,9 @@ mzml_to_ion_file <- function(input_path, output_path, level = 12L, f32_compress 
   invisible(output_path)
 }
 
-ion_to_mzml <- function(bin) {
-  if (typeof(bin) != "externalptr") stop("quantion: expected an external pointer (MzML sample)")
-  .Call("C_ion_to_mzml", bin, PACKAGE = "quantion")
+ion_to_mzml <- function(file) {
+  if (typeof(file) != "externalptr") stop("quantion: expected an external pointer (MzML sample)")
+  .Call("C_ion_to_mzml", file, PACKAGE = "quantion")
 }
 
 get_peak <- function(
@@ -206,8 +206,8 @@ get_peak <- function(
   if (nrow(rows) == 0) NULL else as.list(rows[1, ])
 }
 
-get_peaks_from_eic <- function(
-  bin, targets, from=0.5, to=5, threads=1L,
+find_targets <- function(
+  file, targets, from=0.5, to=5, threads=1L,
   min_integral          = NaN,
   min_intensity         = .DEFAULTS$min_intensity,
   min_peak_width_points = .DEFAULTS$min_peak_width_points,
@@ -222,7 +222,7 @@ get_peaks_from_eic <- function(
   shape                 = .DEFAULTS$shape,
   kernel_size           = .DEFAULTS$kernel_size
 ) {
-  stopifnot(typeof(bin) == "externalptr")
+  stopifnot(typeof(file) == "externalptr")
   if (!is.data.frame(targets)) stop("`targets` must be a data.frame")
   req <- c("id","rt","mz","range"); miss <- setdiff(req, names(targets))
   if (length(miss)) stop(paste0("missing columns: ", paste(miss, collapse=", ")))
@@ -250,27 +250,21 @@ get_peaks_from_eic <- function(
     kernel_size=kernel_size
   ) else NULL
   threads <- .validate_threads(threads)
-  source <- attr(bin, "quantion_source")
+  source <- attr(file, "quantion_source")
   if (!is.null(source)) {
-    .prefetch(source, .Call("C_plan_peaks_from_eic", bin, as.numeric(mzs),
+    .prefetch(source, .Call("C_plan_find_targets", file, as.numeric(mzs),
                             as.numeric(from), as.numeric(to), PACKAGE = "quantion"))
   }
-  out_json <- .Call("C_get_peaks_from_eic",
-    bin, as.numeric(rts), as.numeric(mzs), as.numeric(ranges), as.character(id),
+  out_json <- .Call("C_find_targets",
+    file, as.numeric(rts), as.numeric(mzs), as.numeric(ranges), as.character(id),
     as.numeric(from), as.numeric(to), opt, as.integer(threads),
     PACKAGE="quantion"
   )
-  res <- out_json
-  if (!is.data.frame(res)) res <- as.data.frame(res)
-  want <- c("id","mz","ort","rt","from","to","intensity","integral")
-  present <- intersect(want, names(res)); extras <- setdiff(names(res), present)
-  res <- res[, c(present, extras), drop=FALSE]
-  rownames(res) <- NULL
-  res
+  .as_peak_table(out_json)
 }
 
-get_peaks_from_chrom <- function(
-  bin, targets, threads=1L,
+find_transitions <- function(
+  file, targets, threads=1L,
   min_integral          = NaN,
   min_intensity         = .DEFAULTS$min_intensity,
   min_peak_width_points = .DEFAULTS$min_peak_width_points,
@@ -284,7 +278,7 @@ get_peaks_from_chrom <- function(
   min_r2                = .DEFAULTS$min_r2,
   shape                 = .DEFAULTS$shape
 ) {
-  stopifnot(typeof(bin) == "externalptr")
+  stopifnot(typeof(file) == "externalptr")
   if (!is.data.frame(targets)) stop("`targets` must be a data.frame")
   missing_columns <- setdiff(c("id", "precursor", "product", "rt", "range"), names(targets))
   if (length(missing_columns)) stop(paste0("missing columns: ", paste(missing_columns, collapse = ", ")))
@@ -305,33 +299,33 @@ get_peaks_from_chrom <- function(
     allow_overlap=allow_overlap, min_snr=min_snr, min_r2=min_r2, shape=shape
   ) else NULL
   threads <- .validate_threads(threads)
-  out_json <- .Call("C_get_peaks_from_chrom",
-    bin, as.numeric(targets$precursor), as.numeric(targets$product),
+  out_json <- .Call("C_find_transitions",
+    file, as.numeric(targets$precursor), as.numeric(targets$product),
     as.numeric(targets$rt), as.numeric(targets$range), ids, opt, as.integer(threads),
     PACKAGE = "quantion"
   )
-  df <- out_json
-  if (!is.data.frame(df)) df <- as.data.frame(df)
-  if (!"ort" %in% names(df)) stop("internal error: 'ort' missing from result")
-  want <- c("id","ort","rt","from","to","intensity","integral","total_area")
-  present <- want[want %in% names(df)]; extras <- setdiff(names(df), present)
-  df <- df[, c(present, extras), drop=FALSE]
-  rownames(df) <- NULL
-  df
+  .as_peak_table(out_json)
 }
 
-calculate_eic <- function(bin, targets, from, to, ppm_tolerance=20, mz_tolerance=0.005) {
-  if (typeof(bin) != "externalptr") stop("quantion: expected an external pointer (MzML sample)")
-  stopifnot(is.numeric(targets), length(targets) == 1)
-  source <- attr(bin, "quantion_source")
+.as_peak_table <- function(peaks) {
+  peaks <- as.data.frame(peaks)
+  peaks <- peaks[, c("rt", "from", "to", "intensity", "integral", "n_points", "noise", "r2"), drop = FALSE]
+  rownames(peaks) <- NULL
+  peaks
+}
+
+calculate_eic <- function(file, mz, from, to, ppm_tolerance=20, mz_tolerance=0.005) {
+  if (typeof(file) != "externalptr") stop("quantion: expected an external pointer (MzML sample)")
+  stopifnot(is.numeric(mz), length(mz) == 1)
+  source <- attr(file, "quantion_source")
   if (!is.null(source)) {
-    wanted <- .Call("C_plan_eic", bin, as.numeric(targets), as.numeric(from),
+    wanted <- .Call("C_plan_eic", file, as.numeric(mz), as.numeric(from),
                     as.numeric(to), as.numeric(ppm_tolerance), as.numeric(mz_tolerance),
                     PACKAGE = "quantion")
     .prefetch(source, wanted)
   }
   .Call("C_calculate_eic",
-    bin, as.numeric(targets), as.numeric(from), as.numeric(to),
+    file, as.numeric(mz), as.numeric(from), as.numeric(to),
     as.numeric(ppm_tolerance), as.numeric(mz_tolerance),
     PACKAGE="quantion"
   )
@@ -415,95 +409,14 @@ draw_peak <- function(x, params) {
         PACKAGE="quantion")
 }
 
-find_feature <- function(
-  bin,
-  rt, mz, window, id = NULL,
-  scan_ppm = 10, scan_mz = 0.003, eic_ppm = 20, eic_mz = 0.005,
-  threads                 = 1L,
-  min_integral          = NaN,
-  min_intensity         = .DEFAULTS$min_intensity,
-  min_peak_width_points = .DEFAULTS$min_peak_width_points,
-  noise                 = NaN,
-  auto_noise            = .DEFAULTS$auto_noise,
-  auto_baseline         = .DEFAULTS$auto_baseline,
-  lambda                = 0L,
-  max_iterations        = 0L,
-  allow_overlap         = FALSE,
-  min_snr               = .DEFAULTS$min_snr,
-  min_r2                = .DEFAULTS$min_r2,
-  shape                 = .DEFAULTS$shape
-) {
-  stopifnot(typeof(bin) == "externalptr")
-  if (!is.numeric(rt)) stop("rt must be numeric")
-  if (!is.numeric(mz)) stop("mz must be numeric")
-  if (!is.numeric(window)) stop("window must be numeric")
-
-  if (!is.numeric(scan_ppm) || length(scan_ppm) != 1) stop("scan_ppm must be a single numeric")
-  if (!is.numeric(scan_mz)  || length(scan_mz)  != 1) stop("scan_mz must be a single numeric")
-  if (!is.numeric(eic_ppm)  || length(eic_ppm)  != 1) stop("eic_ppm must be a single numeric")
-  if (!is.numeric(eic_mz)   || length(eic_mz)   != 1) stop("eic_mz must be a single numeric")
-
-  if (!is.logical(auto_noise) || length(auto_noise) != 1 || is.na(auto_noise)) stop("auto_noise must be logical TRUE/FALSE")
-  if (!is.logical(allow_overlap) || length(allow_overlap) != 1 || is.na(allow_overlap)) stop("allow_overlap must be logical TRUE/FALSE")
-  if (!is.logical(auto_baseline) || length(auto_baseline) != 1 || is.na(auto_baseline)) stop("auto_baseline must be logical TRUE/FALSE")
-
-  if (is.null(id)) {
-    id <- rep("", length(rt))
-  } else {
-    id <- as.character(id)
-    if (length(id) != length(rt)) stop("id must have the same length as rt")
-  }
-  if (length(mz) != length(rt) || length(window) != length(rt))
-    stop("rt, mz and window must have the same length")
-
-  opt <- list(
-    min_integral=min_integral,
-    min_intensity=min_intensity,
-    min_peak_width_points=min_peak_width_points,
-    noise=noise,
-    auto_noise=auto_noise,
-    auto_baseline=auto_baseline,
-    lambda=lambda,
-    max_iterations=max_iterations,
-    allow_overlap=allow_overlap,
-    min_snr=min_snr, min_r2=min_r2, shape=shape
-  )
-
-  threads <- .validate_threads(threads)
-  source <- attr(bin, "quantion_source")
-  if (!is.null(source)) {
-    .prefetch(source, .Call("C_plan_find_feature", bin, as.numeric(rt), as.numeric(window),
-                            PACKAGE = "quantion"))
-  }
-
-  out_json <- .Call(
-    "C_find_feature",
-    bin,
-    as.numeric(rt), as.numeric(mz), as.numeric(window),
-    id,
-    as.numeric(scan_ppm), as.numeric(scan_mz),
-    as.numeric(eic_ppm), as.numeric(eic_mz),
-    opt, as.integer(threads),
-    PACKAGE = "quantion"
-  )
-
-  res <- out_json
-  if (!is.data.frame(res)) res <- as.data.frame(res)
-  want <- c("id","mz","ort","rt","from","to","intensity","integral")
-  present <- intersect(want, names(res)); extras <- setdiff(names(res), present)
-  res <- res[, c(present, extras), drop = FALSE]
-  rownames(res) <- NULL
-  res
-}
-
 find_features <- function(
-  data, from = 0, to = 10,
-  ppm_tolerance         = .DEFAULTS$eic_ppm_tol,
-  mz_tolerance          = .DEFAULTS$eic_mz_tol,
+  file, from, to,
+  eic_ppm_tolerance     = .DEFAULTS$eic_ppm_tolerance,
+  eic_mz_tolerance      = .DEFAULTS$eic_mz_tolerance,
   grid_start            = .DEFAULTS$grid_start,
   grid_end              = .DEFAULTS$grid_end,
-  grid_step_ppm         = .DEFAULTS$grid_step,
-  threads                 = 1L,
+  grid_step_size        = .DEFAULTS$grid_step_size,
+  threads               = 1L,
   min_integral          = NaN,
   min_intensity         = .DEFAULTS$min_intensity,
   min_peak_width_points = .DEFAULTS$min_peak_width_points,
@@ -517,7 +430,7 @@ find_features <- function(
   min_r2                = .DEFAULTS$min_r2,
   shape                 = .DEFAULTS$shape
 ) {
-  stopifnot(typeof(data) == "externalptr")
+  stopifnot(typeof(file) == "externalptr")
   threads <- .validate_threads(threads)
 
   opt <- list(
@@ -528,19 +441,19 @@ find_features <- function(
     allow_overlap=allow_overlap, min_snr=min_snr, min_r2=min_r2, shape=shape
   )
 
-  source <- attr(data, "quantion_source")
+  source <- attr(file, "quantion_source")
   if (!is.null(source)) {
-    .prefetch(source, .Call("C_plan_find_features", data,
+    .prefetch(source, .Call("C_plan_find_features", file,
                             as.numeric(from), as.numeric(to),
-                            as.numeric(ppm_tolerance), as.numeric(mz_tolerance),
-                            as.numeric(grid_start), as.numeric(grid_end), as.numeric(grid_step_ppm),
+                            as.numeric(eic_ppm_tolerance), as.numeric(eic_mz_tolerance),
+                            as.numeric(grid_start), as.numeric(grid_end), as.numeric(grid_step_size),
                             PACKAGE = "quantion"))
   }
   out_json <- .Call(
-    "C_find_features", data,
+    "C_find_features", file,
     as.numeric(from), as.numeric(to),
-    as.numeric(ppm_tolerance), as.numeric(mz_tolerance),
-    as.numeric(grid_start), as.numeric(grid_end), as.numeric(grid_step_ppm),
+    as.numeric(eic_ppm_tolerance), as.numeric(eic_mz_tolerance),
+    as.numeric(grid_start), as.numeric(grid_end), as.numeric(grid_step_size),
     opt, as.integer(threads),
     PACKAGE = "quantion"
   )
@@ -554,20 +467,20 @@ find_features <- function(
   df
 }
 
-parse_ion <- function(input, max_cache_size = 0) {
-  if (is.character(input)) {
-    looks_like_url <- length(input) == 1 && !is.na(input) && grepl("^https?://", input, ignore.case = TRUE)
-    if (looks_like_url) return(.parse_ion_remote(input, max_cache_size))
-    return(.parse_ion_path(input, max_cache_size))
+parse_ion <- function(source, max_cache_size = 0) {
+  if (is.character(source)) {
+    looks_like_url <- length(source) == 1 && !is.na(source) && grepl("^https?://", source, ignore.case = TRUE)
+    if (looks_like_url) return(.parse_ion_remote(source, max_cache_size))
+    return(.parse_ion_path(source, max_cache_size))
   }
-  .parse_ion_raw(input, max_cache_size)
+  .parse_ion_raw(source, max_cache_size)
 }
 
-.parse_ion_raw <- function(input, max_cache_size = 0) {
-  if (!is.raw(input)) stop("`input` must be a raw vector of ion bytes")
+.parse_ion_raw <- function(source, max_cache_size = 0) {
+  if (!is.raw(source)) stop("`source` must be a raw vector of ion bytes")
   if (!is.numeric(max_cache_size) || length(max_cache_size) != 1 || is.na(max_cache_size) || max_cache_size < 0)
     stop("`max_cache_size` must be a single non-negative number")
-  .Call("C_parse_ion", input, as.numeric(max_cache_size), PACKAGE = "quantion")
+  .Call("C_parse_ion", source, as.numeric(max_cache_size), PACKAGE = "quantion")
 }
 
 .parse_ion_path <- function(path, max_cache_size = 0) {
@@ -685,8 +598,8 @@ parse_ion <- function(input, max_cache_size = 0) {
   list(type = closest_query, from = value, to = NaN)
 }
 
-get_scans <- function(bin, rt = NULL, mz = NULL, level = 1L) {
-  if (typeof(bin) != "externalptr") stop("quantion: expected an external pointer (MzML sample)")
+get_scans <- function(file, rt = NULL, mz = NULL, level = 1L) {
+  if (typeof(file) != "externalptr") stop("quantion: expected an external pointer (MzML sample)")
   if (!is.numeric(level) || length(level) != 1) stop("level must be a single numeric")
   if (is.null(rt) == is.null(mz)) stop("get_scans: give exactly one of rt or mz")
 
@@ -697,15 +610,15 @@ get_scans <- function(bin, rt = NULL, mz = NULL, level = 1L) {
   }
   query_type <- query$type; a <- query$from; b <- query$to
 
-  source <- attr(bin, "quantion_source")
+  source <- attr(file, "quantion_source")
   if (!is.null(source)) {
-    wanted <- .Call("C_plan_scans", bin, as.integer(query_type), a, b,
+    wanted <- .Call("C_plan_scans", file, as.integer(query_type), a, b,
                     as.integer(level), PACKAGE = "quantion")
     .prefetch(source, wanted)
   }
 
   scans <- .Call("C_get_scans",
-    bin, as.integer(query_type), a, b, as.integer(level),
+    file, as.integer(query_type), a, b, as.integer(level),
     PACKAGE = "quantion"
   )
   if (query_type %in% c(.QUERY_CLOSEST_RT, .QUERY_CLOSEST_MZ)) {
@@ -724,18 +637,18 @@ get_scans <- function(bin, rt = NULL, mz = NULL, level = 1L) {
   }
 }
 
-get_features <- function(
-  dir_path, from = 0, to = 10,
-  eic_ppm_tol           = .DEFAULTS$eic_ppm_tol,
-  eic_mz_tol            = .DEFAULTS$eic_mz_tol,
+match_features <- function(
+  directory, from, to,
+  eic_ppm_tolerance     = .DEFAULTS$eic_ppm_tolerance,
+  eic_mz_tolerance      = .DEFAULTS$eic_mz_tolerance,
   grid_start            = .DEFAULTS$grid_start,
   grid_end              = .DEFAULTS$grid_end,
-  grid_step             = .DEFAULTS$grid_step,
-  group_ppm_tol         = .DEFAULTS$group_ppm_tol,
-  group_mz_tol          = .DEFAULTS$group_mz_tol,
-  group_rt_tol          = .DEFAULTS$group_rt_tol,
+  grid_step_size        = .DEFAULTS$grid_step_size,
+  group_ppm_tolerance   = .DEFAULTS$group_ppm_tolerance,
+  group_mz_tolerance    = .DEFAULTS$group_mz_tolerance,
+  group_rt_tolerance    = .DEFAULTS$group_rt_tolerance,
   frequency             = .DEFAULTS$frequency,
-  threads                 = 1L,
+  threads               = 1L,
   min_integral          = NaN,
   min_intensity         = .DEFAULTS$min_intensity,
   min_peak_width_points = .DEFAULTS$min_peak_width_points,
@@ -749,7 +662,7 @@ get_features <- function(
   min_r2                = .DEFAULTS$min_r2,
   shape                 = .DEFAULTS$shape
 ) {
-  if (!is.character(dir_path) || length(dir_path) != 1) stop("dir_path must be a single string")
+  if (!is.character(directory) || length(directory) != 1) stop("directory must be a single string")
   threads <- .validate_threads(threads)
 
   opt <- list(
@@ -760,12 +673,12 @@ get_features <- function(
     allow_overlap=allow_overlap, min_snr=min_snr, min_r2=min_r2, shape=shape
   )
 
-  out_json <- .Call("C_get_features",
-    dir_path,
+  out_json <- .Call("C_match_features",
+    directory,
     as.numeric(from), as.numeric(to),
-    as.numeric(eic_ppm_tol), as.numeric(eic_mz_tol),
-    as.numeric(grid_start), as.numeric(grid_end), as.numeric(grid_step),
-    as.numeric(group_ppm_tol), as.numeric(group_mz_tol), as.numeric(group_rt_tol),
+    as.numeric(eic_ppm_tolerance), as.numeric(eic_mz_tolerance),
+    as.numeric(grid_start), as.numeric(grid_end), as.numeric(grid_step_size),
+    as.numeric(group_ppm_tolerance), as.numeric(group_mz_tolerance), as.numeric(group_rt_tolerance),
     as.integer(frequency),
     opt, as.integer(threads),
     PACKAGE = "quantion"

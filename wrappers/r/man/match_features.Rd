@@ -1,23 +1,23 @@
-\name{get_features}
-\alias{get_features}
+\name{match_features}
+\alias{match_features}
 \title{Find and align features across many files}
 \description{
 Detects features in every file in a folder and groups them by m/z and RT.
 Returns a consensus feature table aligned across all samples.
 }
 \usage{
-get_features(
-  dir_path,
-  from = 0,
-  to = 10,
-  eic_ppm_tol = .DEFAULTS$eic_ppm_tol,
-  eic_mz_tol = .DEFAULTS$eic_mz_tol,
+match_features(
+  directory,
+  from,
+  to,
+  eic_ppm_tolerance = .DEFAULTS$eic_ppm_tolerance,
+  eic_mz_tolerance = .DEFAULTS$eic_mz_tolerance,
   grid_start = .DEFAULTS$grid_start,
   grid_end = .DEFAULTS$grid_end,
-  grid_step = .DEFAULTS$grid_step,
-  group_ppm_tol = .DEFAULTS$group_ppm_tol,
-  group_mz_tol = .DEFAULTS$group_mz_tol,
-  group_rt_tol = .DEFAULTS$group_rt_tol,
+  grid_step_size = .DEFAULTS$grid_step_size,
+  group_ppm_tolerance = .DEFAULTS$group_ppm_tolerance,
+  group_mz_tolerance = .DEFAULTS$group_mz_tolerance,
+  group_rt_tolerance = .DEFAULTS$group_rt_tolerance,
   frequency = .DEFAULTS$frequency,
   threads = 1L,
   min_integral = NaN,
@@ -35,17 +35,17 @@ get_features(
 )
 }
 \arguments{
-  \item{dir_path}{Path to a folder with mzML or ion files.}
-  \item{from}{Start retention time (minutes). Default 0.}
-  \item{to}{End retention time (minutes). Default 10.}
-  \item{eic_ppm_tol}{PPM tolerance for EIC extraction. Default 10.}
-  \item{eic_mz_tol}{Absolute m/z tolerance (Da) for EIC extraction. Default 0.005.}
+  \item{directory}{Path to a folder with mzML or ion files.}
+  \item{from}{Start retention time (minutes).}
+  \item{to}{End retention time (minutes).}
+  \item{eic_ppm_tolerance}{PPM tolerance for EIC extraction. Default 10.}
+  \item{eic_mz_tolerance}{Absolute m/z tolerance (Da) for EIC extraction. Default 0.005.}
   \item{grid_start}{Lower m/z bound of the search grid (Da). Default 40.}
   \item{grid_end}{Upper m/z bound of the search grid (Da). Default 1000.}
-  \item{grid_step}{Grid step size (ppm). Default 0.005.}
-  \item{group_ppm_tol}{PPM tolerance used when grouping features across samples. Default 5.}
-  \item{group_mz_tol}{Absolute m/z tolerance (Da) used when grouping features. Default 0.0025.}
-  \item{group_rt_tol}{RT tolerance (minutes) used when grouping features. Default 0.05.}
+  \item{grid_step_size}{Grid step size (ppm). Default 0.005.}
+  \item{group_ppm_tolerance}{PPM tolerance used when grouping features across samples. Default 5.}
+  \item{group_mz_tolerance}{Absolute m/z tolerance (Da) used when grouping features. Default 0.0025.}
+  \item{group_rt_tolerance}{RT tolerance (minutes) used when grouping features. Default 0.05.}
   \item{frequency}{Minimum number of samples in which a feature must appear to be kept. Default 1.}
   \item{threads}{Number of threads to use. Default 1.}
   \item{min_integral}{Minimum peak area. \code{NaN} disables.}
@@ -63,7 +63,8 @@ get_features(
 
 }
 \value{
-A data frame with one row per consensus feature and the following columns:
+A data frame with one row per feature, with values that are medians across the
+samples where it was found:
 \describe{
   \item{mz}{Median m/z of the feature (Da).}
   \item{rt}{Median retention time of the feature (minutes).}
@@ -71,13 +72,15 @@ A data frame with one row per consensus feature and the following columns:
   \item{to}{End of the retention-time window (minutes).}
   \item{intensity}{Median apex intensity.}
   \item{integral}{Median peak area.}
+  \item{n_points}{Median number of points across the peak.}
+  \item{noise}{Median noise level.}
   \item{frequency}{Fraction of input samples in which this feature was
     detected (\code{n_samples / total_samples}, in \code{[0, 1]}).}
 }
 }
 \examples{
 \dontrun{
-features <- get_features(
+features <- match_features(
   "/path/to/samples",
   from = 0, to = 10,
   threads = 4L,

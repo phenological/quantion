@@ -39,15 +39,14 @@ A \emph{sample file} is a pointer to a parsed mzML held in memory, or to an ion 
 
 \code{\link{get_peak}()} — find one peak near a target RT in XY data.
 
-\code{\link{get_peaks_from_eic}()} — find peaks for many targets from a sample file.
+\code{\link{find_targets}()} — find peaks for many targets from a sample file.
 
-\code{\link{get_peaks_from_chrom}()} — find peaks from stored chromatograms in a sample file.
+\code{\link{find_transitions}()} — find peaks from stored chromatograms in a sample file.
 }
 \section{Find features}{
-\code{\link{find_feature}()} — find targeted features by m/z and RT from a sample file.
 
 \code{\link{find_features}()} — find all features in a sample file.
 
-\code{\link{get_features}()} — find and align features across many sample files.
+\code{\link{match_features}()} — find and align features across many sample files.
 }
 \keyword{package}

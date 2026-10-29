@@ -1,9 +1,25 @@
-from typing import TypedDict
+from typing import Literal, TypedDict
 
 FromTo = TypedDict("FromTo", {"from": float, "to": float})
 
 
-class ChromTarget(TypedDict):
+class FindPeaksOptions(TypedDict, total=False):
+    min_integral: float
+    min_intensity: float
+    min_peak_width_points: int
+    noise: float
+    auto_noise: bool
+    auto_baseline: bool
+    lambda_: int
+    max_iterations: int
+    allow_overlap: bool
+    min_snr: float
+    min_r2: float
+    shape: Literal["gaussian", "emg"]
+    kernel_size: int
+
+
+class Transition(TypedDict):
     id: str
     precursor: float
     product: float
@@ -29,19 +45,7 @@ Peak = TypedDict("Peak", {
     "r2": float,
 })
 
-TargetPeak = TypedDict("TargetPeak", {
-    "id": str,
-    "mz": float,
-    "ort": float,
-    "rt": float,
-    "from": float,
-    "to": float,
-    "intensity": float,
-    "integral": float,
-    "noise": float,
-})
-
-Feature = TypedDict("Feature", {
+_FeatureFields = TypedDict("_FeatureFields", {
     "mz": float,
     "rt": float,
     "from": float,
@@ -52,12 +56,6 @@ Feature = TypedDict("Feature", {
     "noise": float,
 })
 
-GroupedFeature = TypedDict("GroupedFeature", {
-    "mz": float,
-    "rt": float,
-    "from": float,
-    "to": float,
-    "intensity": float,
-    "integral": float,
-    "frequency": float,
-})
+
+class Feature(_FeatureFields, total=False):
+    frequency: float

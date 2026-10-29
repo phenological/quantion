@@ -6,14 +6,14 @@ Fetches scans from a loaded file. Give exactly one of \code{rt} or \code{mz} per
 }
 \usage{
 get_scans(
-  bin,
+  file,
   rt = NULL,
   mz = NULL,
   level = 1L
 )
 }
 \arguments{
-  \item{bin}{Sample file from \code{\link{parse_mzml}()} or \code{\link{parse_ion}()}.}
+  \item{file}{Sample file from \code{\link{parse_mzml}()} or \code{\link{parse_ion}()}.}
   \item{rt}{\code{c(from, to)} in minutes for every scan in that range, or one RT in
     minutes for the single closest scan.}
   \item{mz}{\code{c(from, to)} in Da for every scan whose precursor m/z is in that range,

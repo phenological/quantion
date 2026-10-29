@@ -64,7 +64,7 @@ mzml <- quantion::ion_to_mzml(sample)
 Get an extracted ion chromatogram for one m/z from a sample.
 
 ```r
-eic <- quantion::calculate_eic(sample, targets = 288.1326, from = 2.5, to = 4.0, ppm_tolerance = 10, mz_tolerance = 0.005)
+eic <- quantion::calculate_eic(sample, mz = 288.1326, from = 2.5, to = 4.0, ppm_tolerance = 10, mz_tolerance = 0.005)
 eic_df <- data.frame(x = eic$x, y = eic$y)
 ```
 
@@ -158,7 +158,7 @@ targets <- data.frame(
   rt        = c(3.20, 3.65),
   range     = c(0.4, 0.4)
 )
-peaks <- quantion::get_peaks_from_chrom(sample, targets, threads = 2L)
+peaks <- quantion::find_transitions(sample, targets, threads = 2L)
 ```
 
 ### From EICs
@@ -172,26 +172,10 @@ targets <- data.frame(
   mz     = c(340.1404, 302.1499, 317.1244, 260.1030, 345.1670, 303.1088),
   range  = c(0.2, 0.2, 0.2, 0.2, 0.2, 0.2)
 )
-peaks <- quantion::get_peaks_from_eic(sample, targets, auto_noise = TRUE, auto_baseline = TRUE, threads = 2L)
+peaks <- quantion::find_targets(sample, targets, auto_noise = TRUE, auto_baseline = TRUE, threads = 2L)
 ```
 
 ## Untargeted
-
-### Feature detection
-
-Find features by m/z and retention time from a sample.
-
-```r
-features <- quantion::find_feature(
-  sample,
-  rt     = c(2.61, 4.15),
-  mz     = c(340.1404, 302.1499),
-  window = c(0.2, 0.2),
-  id     = c("compound1", "compound2"),
-  auto_noise = TRUE,
-  auto_baseline = TRUE
-)
-```
 
 ### From single sample
 
@@ -214,7 +198,7 @@ features <- quantion::find_features(
 Find and align features across many samples.
 
 ```r
-features <- quantion::get_features(
+features <- quantion::match_features(
   "/path/to/sample/directory",
   from = 0,
   to = 10,

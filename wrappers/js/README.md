@@ -205,7 +205,7 @@ const targets = [
   { rt: 7.1, mz: 203.156, range: 0.5, id: "compound_B" },
 ];
 
-const peaks = await quantion.getPeaksFromEic(
+const peaks = await quantion.findTargets(
   sample,
   targets,
   { from: 0.5, to: 10.0 },
@@ -224,28 +224,10 @@ const targets = [
   { id: "compound_2", precursor: 520.4, product: 184.1, rt: 3.65, range: 0.4 },
 ];
 
-const peaks = quantion.getPeaksFromChrom(sample, targets, { autoNoise: true, threads: 2 });
+const peaks = quantion.findTransitions(sample, targets, { autoNoise: true, threads: 2 });
 ```
 
 ## Untargeted
-
-### Feature detection
-
-Find targeted features by m/z and retention time from a sample
-
-```js
-const targets = [
-  { rt: 5.3, mz: 174.112, range: 0.5, id: "A" },
-  { rt: 7.1, mz: 203.156, range: 0.5, id: "B" },
-];
-
-const features = await quantion.findFeature(sample, targets, {
-  scanEic: { ppmTolerance: 10, mzTolerance: 0.003 },
-  eic: { ppmTolerance: 20, mzTolerance: 0.005 },
-  findPeak: { autoNoise: true },
-  threads: 2,
-});
-```
 
 ### From single sample
 
@@ -269,7 +251,7 @@ const features = await quantion.findFeatures(
 Find and align features across many samples (Node.js only).
 
 ```js
-const features = quantion.getFeatures(
+const features = quantion.matchFeatures(
   "/path/to/ion/dir",
   { from: 0, to: 20 },
   {

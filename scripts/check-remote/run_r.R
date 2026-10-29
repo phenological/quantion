@@ -55,10 +55,9 @@ main <- function() {
   calls <- list(
     calculate_eic = function(file) calculate_eic(file, MASS, FROM_RT, TO_RT),
     get_scans = function(file) get_scans(file, rt = c(2.3, 2.5)),
-    get_peaks_from_eic = function(file) get_peaks_from_eic(file, target, from = FROM_RT, to = TO_RT),
-    get_peaks_from_chrom = function(file) get_peaks_from_chrom(file, data.frame(id = "a", precursor = 89.04768, product = 89.04768, rt = 2.385, range = 0.1)),
+    find_targets = function(file) find_targets(file, target, from = FROM_RT, to = TO_RT),
+    find_transitions = function(file) find_transitions(file, data.frame(id = "a", precursor = 89.04768, product = 89.04768, rt = 2.385, range = 0.1)),
     find_features = function(file) find_features(file, from = FROM_RT, to = TO_RT),
-    find_feature = function(file) find_feature(file, rt = 2.385, mz = 89.04768, window = 0.1, id = "a"),
     ion_to_mzml = function(file) ion_to_mzml(file),
     mzml_to_ion = function(file) mzml_to_ion(file),
     predict_rts = function(file) predict_rts(warp, file, data.frame(mz = 250.1, rt = 1.2))

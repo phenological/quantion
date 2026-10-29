@@ -1,7 +1,7 @@
 export type BinaryInput = Uint8Array | ArrayBuffer;
 export type IonInput = BinaryInput | URL | string;
 
-export type PeakOptions = Partial<{
+export type FindPeaksOptions = Partial<{
   minIntegral: number;
   minIntensity: number;
   minPeakWidthPoints: number;
@@ -60,24 +60,12 @@ export type Target = {
   range: number;
 };
 
-export type ChromTarget = {
+export type Transition = {
   id?: string;
   precursor: number;
   product: number;
   rt: number;
   range: number;
-};
-
-export type ChromPeak = {
-  id?: string;
-  ort: number;
-  rt: number;
-  from: number;
-  to: number;
-  intensity: number;
-  integral: number;
-  totalArea: number;
-  timestamp: string;
 };
 
 export type Feature = {
@@ -88,38 +76,18 @@ export type Feature = {
   intensity: number;
   integral: number;
   nPoints: number;
-};
-
-export type FoundFeature = {
-  id: string;
-  mz: number;
-  rt: number;
-  from: number;
-  to: number;
-  intensity: number;
-  integral: number;
-  nPoints: number;
   noise: number;
+  frequency?: number;
 };
 
 export type FindFeaturesOptions = {
   eic?: { ppmTolerance?: number; mzTolerance?: number };
   grid?: { start?: number; end?: number; stepSize?: number };
-  findPeak?: PeakOptions;
+  findPeak?: FindPeaksOptions;
   threads?: number;
 };
 
-export type ConsensusFeature = {
-  mz: number;
-  rt: number;
-  from: number;
-  to: number;
-  intensity: number;
-  integral: number;
-  frequency: number;
-};
-
-export type GetFeaturesOptions = FindFeaturesOptions & {
+export type MatchFeaturesOptions = FindFeaturesOptions & {
   grouping?: {
     ppmTolerance?: number;
     mzTolerance?: number;
@@ -127,6 +95,10 @@ export type GetFeaturesOptions = FindFeaturesOptions & {
     frequency?: number;
   };
 };
+
+export type FindTargetsOptions = FindPeaksOptions & { threads?: number };
+
+export type FindTransitionsOptions = FindPeaksOptions & { threads?: number };
 
 export type FromTo = {
   from: number;

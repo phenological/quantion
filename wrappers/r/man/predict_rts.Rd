@@ -9,13 +9,13 @@ model, or this stops with an error.
 \usage{
 predict_rts(
   warp,
-  bin,
+  file,
   targets
 )
 }
 \arguments{
   \item{warp}{A warp model from \code{\link{load_warp}()}.}
-  \item{bin}{Sample file from \code{\link{parse_ion}()}.}
+  \item{file}{Sample file from \code{\link{parse_ion}()}.}
   \item{targets}{A data frame with columns \code{mz} and \code{rt}.}
 }
 \value{
@@ -33,5 +33,5 @@ rts <- predict_rts(warp, sample, targets)
 }
 }
 \seealso{
-\code{\link{load_warp}()}, \code{\link{calibrate}()}, \code{\link{get_peaks_from_eic}()}
+\code{\link{load_warp}()}, \code{\link{calibrate}()}, \code{\link{find_targets}()}
 }

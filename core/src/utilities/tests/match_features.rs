@@ -8,13 +8,13 @@ mod tests {
         calculate_eic::{CentroidScan, EicOptions, SpectrumKind, SpectrumSummary},
         find_features::{Feature, FindFeaturesOptions, MzScanGrid, MzTolerance},
         find_peaks::FindPeaksOptions,
-        get_features::{
-            AlignmentOptions, ConsensusFeature, FeatureClusterer, SearchBounds, TaggedFeature,
-            aggregate_into_consensus, assign_best_per_sample, collect_filled_slots,
-            compute_search_bounds, dedup, get_features, require_minimum_frequency, resolve_cluster,
-            weighted_centroid_mz,
-        },
         ion::write_mzml_to_ion,
+        match_features::{
+            FeatureClusterer, MatchFeaturesOptions, SearchBounds, TaggedFeature,
+            aggregate_into_consensus, assign_best_per_sample, collect_filled_slots,
+            compute_search_bounds, dedup, match_features, require_minimum_frequency,
+            resolve_cluster, weighted_centroid_mz,
+        },
         math::median,
         mz_estimator::MzEstimatorKind,
         structs::FromTo,
@@ -37,16 +37,23 @@ mod tests {
         }
     }
 
-    fn make_consensus(mz: f64, rt: f64, intensity: f64, n_samples: usize) -> ConsensusFeature {
-        ConsensusFeature {
+    const TOTAL_SAMPLES: usize = 10;
+
+    fn sample_count(feature: &Feature, total_samples: usize) -> usize {
+        (feature.frequency.unwrap_or(0.0) * total_samples as f64).round() as usize
+    }
+
+    fn make_consensus(mz: f64, rt: f64, intensity: f64, n_samples: usize) -> Feature {
+        Feature {
             mz,
             rt,
             from: rt - 0.05,
             to: rt + 0.05,
             intensity,
             integral: intensity * 0.1,
-            frequency: 0.0,
-            n_samples,
+            n_points: 0,
+            noise: 0.0,
+            frequency: Some(n_samples as f64 / TOTAL_SAMPLES as f64),
         }
     }
 
@@ -384,7 +391,7 @@ mod tests {
             make_feature(100.0, 1.0, 300.0),
         ];
         let result = aggregate_into_consensus(hits, &default_bounds(), 3);
-        assert_eq!(result.n_samples, 3);
+        assert_eq!(sample_count(&result, 3), 3);
     }
 
     #[test]
@@ -431,7 +438,7 @@ mod tests {
             make_feature_full(100.0, 1.0, 300.0, 6, 30.0),
         ];
         let result = aggregate_into_consensus(hits, &default_bounds(), 6);
-        assert!((result.frequency - 0.5).abs() < 1e-10);
+        assert!((result.frequency.unwrap() - 0.5).abs() < 1e-10);
     }
 
     #[test]
@@ -453,7 +460,7 @@ mod tests {
             make_feature(99.99, 0.95, 600.0),
         ];
         let result = aggregate_into_consensus(hits, &default_bounds(), 3);
-        assert_eq!(result.n_samples, 3);
+        assert_eq!(sample_count(&result, 3), 3);
         assert!((result.mz - 100.0).abs() < 0.01);
     }
 
@@ -562,7 +569,7 @@ mod tests {
         let input = vec![make_consensus(100.0, 5.0, 1000.0, 5)];
         let result = dedup(input, &abs_tol(0.005), 0.05);
         assert_eq!(result.len(), 1);
-        assert_eq!(result[0].n_samples, 5);
+        assert_eq!(sample_count(&result[0], TOTAL_SAMPLES), 5);
     }
 
     #[test]
@@ -572,7 +579,7 @@ mod tests {
         let low = make_consensus(100.002, 5.0, 7100.0, 6);
         let result = dedup(vec![high, low], &abs_tol(0.005), 0.05);
         assert_eq!(result.len(), 1);
-        assert_eq!(result[0].n_samples, 9);
+        assert_eq!(sample_count(&result[0], TOTAL_SAMPLES), 9);
     }
 
     #[test]
@@ -582,7 +589,7 @@ mod tests {
         let low = make_consensus(200.001, 3.0, 600.0, 1);
         let result = dedup(vec![high, low], &abs_tol(0.005), 0.05);
         assert_eq!(result.len(), 1);
-        assert_eq!(result[0].n_samples, 2);
+        assert_eq!(sample_count(&result[0], TOTAL_SAMPLES), 2);
     }
 
     #[test]
@@ -612,7 +619,7 @@ mod tests {
         let c = make_consensus(100.004, 5.0, 3000.0, 3);
         let result = dedup(vec![a, b, c], &abs_tol(0.005), 0.05);
         assert_eq!(result.len(), 1);
-        assert_eq!(result[0].n_samples, 8);
+        assert_eq!(sample_count(&result[0], TOTAL_SAMPLES), 8);
     }
 
     #[test]
@@ -639,7 +646,7 @@ mod tests {
         let b = make_consensus(100.004, 5.0, 6000.0, 3);
         let result = dedup(vec![a, b], &abs_tol(0.005), 0.05);
         assert_eq!(result.len(), 1);
-        assert_eq!(result[0].n_samples, 7);
+        assert_eq!(sample_count(&result[0], TOTAL_SAMPLES), 7);
     }
 
     #[test]
@@ -648,7 +655,7 @@ mod tests {
         let b = make_consensus(100.001, 5.049, 6000.0, 2); // rt diff = 0.049 < 0.05
         let result = dedup(vec![a, b], &abs_tol(0.005), 0.05);
         assert_eq!(result.len(), 1);
-        assert_eq!(result[0].n_samples, 6);
+        assert_eq!(sample_count(&result[0], TOTAL_SAMPLES), 6);
     }
 
     fn gaussian(rt: f64, mu: f64, sigma: f64, amp: f64) -> f64 {
@@ -916,8 +923,8 @@ mod tests {
         dir
     }
 
-    fn alignment_cfg() -> AlignmentOptions {
-        AlignmentOptions {
+    fn alignment_cfg() -> MatchFeaturesOptions {
+        MatchFeaturesOptions {
             mz_tolerance: MzTolerance {
                 mz_absolute: 0.005,
                 ppm: 20.0,
@@ -945,6 +952,7 @@ mod tests {
             integral: 0.0,
             n_points: 0,
             noise: 0.0,
+            frequency: None,
         }
     }
 
@@ -1101,13 +1109,15 @@ mod tests {
             .collect();
 
         let dir = write_ion_dir("full_cluster", &samples);
-        let features = get_features(
+        let features = match_features(
             dir.to_str().unwrap(),
             FromTo { from: 3.0, to: 7.0 },
-            feature_cfg_for_mz(peak_mz),
-            alignment_cfg(),
+            MatchFeaturesOptions {
+                features: feature_cfg_for_mz(peak_mz),
+                ..alignment_cfg()
+            },
         )
-        .expect("get_features should succeed");
+        .expect("match_features should succeed");
 
         let _ = fs::remove_dir_all(&dir);
 
@@ -1115,7 +1125,14 @@ mod tests {
             !features.is_empty(),
             "should detect at least one feature, got none"
         );
-        let best = features.iter().max_by_key(|f| f.n_samples).unwrap();
+        let best = features
+            .iter()
+            .max_by(|a, b| {
+                a.frequency
+                    .unwrap_or(0.0)
+                    .total_cmp(&b.frequency.unwrap_or(0.0))
+            })
+            .unwrap();
         assert!(
             (best.mz - peak_mz).abs() < 0.01,
             "consensus mz {:.4} should be near {peak_mz}",
@@ -1127,7 +1144,8 @@ mod tests {
             best.rt
         );
         assert_eq!(
-            best.n_samples, n_samples,
+            sample_count(best, n_samples),
+            n_samples,
             "all {n_samples} samples should be in the cluster"
         );
     }
@@ -1146,21 +1164,30 @@ mod tests {
             .collect();
 
         let dir = write_ion_dir("full_cluster_high_mz", &samples);
-        let features = get_features(
+        let features = match_features(
             dir.to_str().unwrap(),
             FromTo {
                 from: 7.0,
                 to: 11.0,
             },
-            feature_cfg_for_mz(peak_mz),
-            alignment_cfg(),
+            MatchFeaturesOptions {
+                features: feature_cfg_for_mz(peak_mz),
+                ..alignment_cfg()
+            },
         )
-        .expect("get_features should succeed");
+        .expect("match_features should succeed");
 
         let _ = fs::remove_dir_all(&dir);
 
         assert!(!features.is_empty(), "should detect at least one feature");
-        let best = features.iter().max_by_key(|f| f.n_samples).unwrap();
+        let best = features
+            .iter()
+            .max_by(|a, b| {
+                a.frequency
+                    .unwrap_or(0.0)
+                    .total_cmp(&b.frequency.unwrap_or(0.0))
+            })
+            .unwrap();
         assert!(
             (best.mz - peak_mz).abs() < 0.02,
             "consensus mz {:.4} should be near {peak_mz:.4}",
@@ -1182,18 +1209,27 @@ mod tests {
             .collect();
 
         let dir = write_ion_dir("fill_centroid", &samples);
-        let features = get_features(
+        let features = match_features(
             dir.to_str().unwrap(),
             FromTo { from: 3.5, to: 6.5 },
-            feature_cfg_for_mz(peak_mz),
-            alignment_cfg(),
+            MatchFeaturesOptions {
+                features: feature_cfg_for_mz(peak_mz),
+                ..alignment_cfg()
+            },
         )
-        .expect("get_features should succeed");
+        .expect("match_features should succeed");
 
         let _ = fs::remove_dir_all(&dir);
 
         assert!(!features.is_empty());
-        let best = features.iter().max_by_key(|f| f.n_samples).unwrap();
+        let best = features
+            .iter()
+            .max_by(|a, b| {
+                a.frequency
+                    .unwrap_or(0.0)
+                    .total_cmp(&b.frequency.unwrap_or(0.0))
+            })
+            .unwrap();
         assert!(
             (best.mz - peak_mz).abs() < 0.01,
             "filled consensus mz {:.4} should be near the real peak mz {peak_mz:.4}",
@@ -1214,18 +1250,27 @@ mod tests {
             .collect();
 
         let dir = write_ion_dir("fill_centroid_high_mz", &samples);
-        let features = get_features(
+        let features = match_features(
             dir.to_str().unwrap(),
             FromTo { from: 6.0, to: 9.0 },
-            feature_cfg_for_mz(peak_mz),
-            alignment_cfg(),
+            MatchFeaturesOptions {
+                features: feature_cfg_for_mz(peak_mz),
+                ..alignment_cfg()
+            },
         )
-        .expect("get_features should succeed");
+        .expect("match_features should succeed");
 
         let _ = fs::remove_dir_all(&dir);
 
         assert!(!features.is_empty());
-        let best = features.iter().max_by_key(|f| f.n_samples).unwrap();
+        let best = features
+            .iter()
+            .max_by(|a, b| {
+                a.frequency
+                    .unwrap_or(0.0)
+                    .total_cmp(&b.frequency.unwrap_or(0.0))
+            })
+            .unwrap();
         assert!(
             (best.mz - peak_mz).abs() < 0.02,
             "consensus mz {:.4} should be near {peak_mz:.4}",
@@ -1258,13 +1303,15 @@ mod tests {
         let mut cfg = alignment_cfg();
         cfg.min_samples = 3; // require presence in at least 3 samples
 
-        let features = get_features(
+        let features = match_features(
             dir.to_str().unwrap(),
             FromTo { from: 3.0, to: 7.0 },
-            feature_cfg_for_mz_range(common_mz, rare_mz),
-            cfg,
+            MatchFeaturesOptions {
+                features: feature_cfg_for_mz_range(common_mz, rare_mz),
+                ..cfg
+            },
         )
-        .expect("get_features should succeed");
+        .expect("match_features should succeed");
 
         let _ = fs::remove_dir_all(&dir);
 
@@ -1275,7 +1322,7 @@ mod tests {
         assert!(
             !features
                 .iter()
-                .any(|f| (f.mz - rare_mz).abs() < 0.01 && f.n_samples < 3),
+                .any(|f| (f.mz - rare_mz).abs() < 0.01 && sample_count(f, n_samples) < 3),
             "rare feature at mz≈{rare_mz} below threshold should be filtered out"
         );
     }
@@ -1297,13 +1344,15 @@ mod tests {
         let mut cfg = alignment_cfg();
         cfg.min_samples = n_samples; // threshold = exact count
 
-        let features = get_features(
+        let features = match_features(
             dir.to_str().unwrap(),
             FromTo { from: 2.5, to: 5.5 },
-            feature_cfg_for_mz(peak_mz),
-            cfg,
+            MatchFeaturesOptions {
+                features: feature_cfg_for_mz(peak_mz),
+                ..cfg
+            },
         )
-        .expect("get_features should succeed");
+        .expect("match_features should succeed");
 
         let _ = fs::remove_dir_all(&dir);
 
@@ -1328,13 +1377,15 @@ mod tests {
             .collect();
 
         let dir = write_ion_dir("two_disjoint", &samples);
-        let features = get_features(
+        let features = match_features(
             dir.to_str().unwrap(),
             FromTo { from: 3.0, to: 7.0 },
-            feature_cfg_for_mz_range(mz_a, mz_b),
-            alignment_cfg(),
+            MatchFeaturesOptions {
+                features: feature_cfg_for_mz_range(mz_a, mz_b),
+                ..alignment_cfg()
+            },
         )
-        .expect("get_features should succeed");
+        .expect("match_features should succeed");
 
         let _ = fs::remove_dir_all(&dir);
 
@@ -1359,13 +1410,15 @@ mod tests {
             .collect();
 
         let dir = write_ion_dir("two_close", &samples);
-        let features = get_features(
+        let features = match_features(
             dir.to_str().unwrap(),
             FromTo { from: 4.0, to: 8.0 },
-            feature_cfg_for_mz_range(mz_a, mz_b),
-            alignment_cfg(),
+            MatchFeaturesOptions {
+                features: feature_cfg_for_mz_range(mz_a, mz_b),
+                ..alignment_cfg()
+            },
         )
-        .expect("get_features should succeed");
+        .expect("match_features should succeed");
 
         let _ = fs::remove_dir_all(&dir);
 
@@ -1377,15 +1430,16 @@ mod tests {
 
     #[test]
     fn test_consensus_feature_keeps_exact_values() {
-        let f = ConsensusFeature {
+        let f = Feature {
             mz: f64::NAN,
             rt: f64::INFINITY,
             from: f64::NEG_INFINITY,
             to: 1.0,
             intensity: 0.0,
             integral: 0.0,
-            frequency: 0.5,
-            n_samples: 1,
+            n_points: 0,
+            noise: 0.0,
+            frequency: Some(0.5),
         };
         assert!(f.mz.is_nan(), "NaN mz stays NaN");
         assert!(
@@ -1411,6 +1465,7 @@ mod tests {
             integral: 0.0,
             n_points: 0,
             noise: 0.0,
+            frequency: None,
         };
         assert!(f.mz.is_nan(), "NaN mz stays NaN");
         assert!(f.rt.is_infinite(), "infinity survives");
@@ -1478,17 +1533,30 @@ mod tests {
             .collect();
 
         let dir = write_ion_dir("rt_shifted_apex", &samples);
-        let features = get_features(
+        let features = match_features(
             dir.to_str().unwrap(),
             FromTo { from: 3.0, to: 7.0 },
-            feature_cfg_for_mz(peak_mz),
-            alignment_cfg(),
+            MatchFeaturesOptions {
+                features: feature_cfg_for_mz(peak_mz),
+                ..alignment_cfg()
+            },
         )
-        .expect("get_features should succeed");
+        .expect("match_features should succeed");
         let _ = fs::remove_dir_all(&dir);
 
-        let best = features.iter().max_by_key(|f| f.n_samples).unwrap();
-        assert_eq!(best.n_samples, shifts.len(), "all shifted samples cluster");
+        let best = features
+            .iter()
+            .max_by(|a, b| {
+                a.frequency
+                    .unwrap_or(0.0)
+                    .total_cmp(&b.frequency.unwrap_or(0.0))
+            })
+            .unwrap();
+        assert_eq!(
+            sample_count(best, shifts.len()),
+            shifts.len(),
+            "all shifted samples cluster"
+        );
         assert!(
             (best.mz - peak_mz).abs() < 0.001,
             "apex mz {:.5} should equal {peak_mz}",
@@ -1512,19 +1580,21 @@ mod tests {
 
         let run = |threads: usize| {
             let dir = write_ion_dir(&format!("determinism_{threads}"), &samples);
-            let mut features = get_features(
+            let mut features = match_features(
                 dir.to_str().unwrap(),
                 FromTo { from: 5.0, to: 9.0 },
-                FindFeaturesOptions {
-                    threads: threads,
-                    ..feature_cfg_for_mz(peak_mz)
-                },
-                AlignmentOptions {
-                    threads: threads,
-                    ..alignment_cfg()
+                MatchFeaturesOptions {
+                    features: FindFeaturesOptions {
+                        threads: threads,
+                        ..feature_cfg_for_mz(peak_mz)
+                    },
+                    ..MatchFeaturesOptions {
+                        threads: threads,
+                        ..alignment_cfg()
+                    }
                 },
             )
-            .expect("get_features should succeed");
+            .expect("match_features should succeed");
             let _ = fs::remove_dir_all(&dir);
             features.sort_by(|a, b| a.mz.partial_cmp(&b.mz).unwrap());
             features.into_iter().map(|f| f.mz).collect::<Vec<f64>>()
@@ -1557,16 +1627,25 @@ mod tests {
         let dir = write_ion_dir("weighted_median_select", &samples);
         let mut cfg = alignment_cfg();
         cfg.mz_estimator = MzEstimatorKind::WeightedIntensityMedian;
-        let features = get_features(
+        let features = match_features(
             dir.to_str().unwrap(),
             FromTo { from: 3.0, to: 7.0 },
-            feature_cfg_for_mz(peak_mz),
-            cfg,
+            MatchFeaturesOptions {
+                features: feature_cfg_for_mz(peak_mz),
+                ..cfg
+            },
         )
-        .expect("get_features should succeed");
+        .expect("match_features should succeed");
         let _ = fs::remove_dir_all(&dir);
 
-        let best = features.iter().max_by_key(|f| f.n_samples).unwrap();
+        let best = features
+            .iter()
+            .max_by(|a, b| {
+                a.frequency
+                    .unwrap_or(0.0)
+                    .total_cmp(&b.frequency.unwrap_or(0.0))
+            })
+            .unwrap();
         assert!(
             (best.mz - peak_mz).abs() < 0.001,
             "weighted-median mz {:.5} should equal {peak_mz}",
@@ -1590,13 +1669,15 @@ mod tests {
             .collect();
 
         let dir = write_ion_dir("co_eluting_split", &samples);
-        let features = get_features(
+        let features = match_features(
             dir.to_str().unwrap(),
             FromTo { from: 3.0, to: 7.0 },
-            feature_cfg_for_mz_range(mz_a, mz_b),
-            alignment_cfg(),
+            MatchFeaturesOptions {
+                features: feature_cfg_for_mz_range(mz_a, mz_b),
+                ..alignment_cfg()
+            },
         )
-        .expect("get_features should succeed");
+        .expect("match_features should succeed");
         let _ = fs::remove_dir_all(&dir);
 
         let reported: Vec<f64> = features.iter().map(|f| f.mz).collect();
@@ -1610,7 +1691,7 @@ mod tests {
         assert_eq!(near(mz_b), 1, "mass B reported once, got {reported:?}");
     }
 
-    fn count_near(features: &[ConsensusFeature], mz: f64, rt: f64) -> usize {
+    fn count_near(features: &[Feature], mz: f64, rt: f64) -> usize {
         features
             .iter()
             .filter(|f| (f.mz - mz).abs() < 0.0008 && (f.rt - rt).abs() < 0.2)
@@ -1635,13 +1716,15 @@ mod tests {
             })
             .collect();
         let dir = write_ion_dir("within_cutoff", &samples);
-        let features = get_features(
+        let features = match_features(
             dir.to_str().unwrap(),
             FromTo { from: 3.0, to: 7.0 },
-            feature_cfg_for_mz_range(mz_a, mz_b),
-            alignment_cfg(),
+            MatchFeaturesOptions {
+                features: feature_cfg_for_mz_range(mz_a, mz_b),
+                ..alignment_cfg()
+            },
         )
-        .expect("get_features should succeed");
+        .expect("match_features should succeed");
         let _ = fs::remove_dir_all(&dir);
 
         let near = features
@@ -1717,13 +1800,15 @@ mod tests {
             })
             .collect();
         let dir = write_ion_dir("profile_single_mass", &samples);
-        let features = get_features(
+        let features = match_features(
             dir.to_str().unwrap(),
             FromTo { from: 3.0, to: 7.0 },
-            feature_cfg_for_mz(center),
-            alignment_cfg(),
+            MatchFeaturesOptions {
+                features: feature_cfg_for_mz(center),
+                ..alignment_cfg()
+            },
         )
-        .expect("get_features should succeed");
+        .expect("match_features should succeed");
         let _ = fs::remove_dir_all(&dir);
 
         let near: Vec<_> = features
@@ -1748,13 +1833,15 @@ mod tests {
             .map(|_| to_ion_bytes(&build_mzml_masses(&mzs, peak_rt, 10_000.0, 4.0, 6.0, 60)))
             .collect();
         let dir = write_ion_dir("three_masses", &samples);
-        let features = get_features(
+        let features = match_features(
             dir.to_str().unwrap(),
             FromTo { from: 3.0, to: 7.0 },
-            feature_cfg_for_mz_range(mzs[0], mzs[2]),
-            alignment_cfg(),
+            MatchFeaturesOptions {
+                features: feature_cfg_for_mz_range(mzs[0], mzs[2]),
+                ..alignment_cfg()
+            },
         )
-        .expect("get_features should succeed");
+        .expect("match_features should succeed");
         let _ = fs::remove_dir_all(&dir);
 
         let reported: Vec<f64> = features.iter().map(|f| f.mz).collect();
@@ -1787,13 +1874,15 @@ mod tests {
         let dir = write_ion_dir("wide_tolerance", &samples);
         let mut cfg = alignment_cfg();
         cfg.eic_options.ppm_tolerance = 60.0;
-        let features = get_features(
+        let features = match_features(
             dir.to_str().unwrap(),
             FromTo { from: 3.0, to: 7.0 },
-            feature_cfg_for_mz_range(mz_a, mz_b),
-            cfg,
+            MatchFeaturesOptions {
+                features: feature_cfg_for_mz_range(mz_a, mz_b),
+                ..cfg
+            },
         )
-        .expect("get_features should succeed");
+        .expect("match_features should succeed");
         let _ = fs::remove_dir_all(&dir);
 
         let near = features
@@ -1821,13 +1910,15 @@ mod tests {
             })
             .collect();
         let dir = write_ion_dir("contaminant", &samples);
-        let features = get_features(
+        let features = match_features(
             dir.to_str().unwrap(),
             FromTo { from: 3.0, to: 7.0 },
-            feature_cfg_for_mz_range(peak_mz, flat_mz),
-            alignment_cfg(),
+            MatchFeaturesOptions {
+                features: feature_cfg_for_mz_range(peak_mz, flat_mz),
+                ..alignment_cfg()
+            },
         )
-        .expect("get_features should succeed");
+        .expect("match_features should succeed");
         let _ = fs::remove_dir_all(&dir);
 
         let reported: Vec<f64> = features.iter().map(|f| f.mz).collect();
@@ -1991,7 +2082,7 @@ mod tests {
         apart
     }
 
-    fn get_features_at_278_12() -> Vec<TaggedFeature> {
+    fn features_at_278_12() -> Vec<TaggedFeature> {
         tag_rows(&[
             (2, 278.1247092, 1.507316, 1.306651, 1.623667, 6902308.1),
             (1, 278.1247344, 1.376137, 1.268542, 1.384857, 5148468.9),
@@ -2247,7 +2338,7 @@ mod tests {
 
     #[test]
     fn grouping_keeps_every_feature_it_is_given() {
-        let features = get_features_at_278_12();
+        let features = features_at_278_12();
         let given = features.len();
         let clusters = benchmark_clusterer().cluster(features);
         let kept = count_features(&clusters);
@@ -2259,7 +2350,7 @@ mod tests {
 
     #[test]
     fn grouping_keeps_a_cluster_where_the_features_are() {
-        let features = get_features_at_278_12();
+        let features = features_at_278_12();
         let detected = count_features_near(&features, 0.58, 0.3);
         let clusters = benchmark_clusterer().cluster(features);
         let found = count_clusters_near(&clusters, 0.58, 0.3);
@@ -2271,7 +2362,7 @@ mod tests {
 
     #[test]
     fn grouping_keeps_the_most_intense_features() {
-        let features = get_features_at_278_12();
+        let features = features_at_278_12();
         let strongest = rts_of_the_strongest(&features, 10);
         let clusters = benchmark_clusterer().cluster(features);
         let lost: Vec<f64> = strongest
@@ -2503,6 +2594,7 @@ mod tests {
                         integral: value(5),
                         n_points: cells[6].parse::<usize>().unwrap_or(0),
                         noise: 0.0,
+                        frequency: None,
                     },
                 });
             }

@@ -13,7 +13,7 @@ import type {
 } from "./backend";
 import type {
   NoiseLevel,
-  PeakOptions,
+  FindPeaksOptions,
   WarpTarget,
   ModelEntry,
 } from "../types/types";
@@ -114,22 +114,22 @@ function shapeCode(value: unknown): number {
   return DEFAULT_SHAPE_CODE;
 }
 
-function packPeakOptions(opts: PeakOptions): Uint8Array {
+function packPeakOptions(options: FindPeaksOptions): Uint8Array {
   const view = new DataView(new ArrayBuffer(PEAK_OPTIONS_STRUCT_BYTES));
-  writeF64(view, 0, opts.minIntegral);
-  writeF64(view, 8, opts.minIntensity);
-  writeI32(view, 16, opts.minPeakWidthPoints);
-  view.setInt32(20, shapeCode(opts.shape), true);
-  writeF64(view, 24, opts.noise);
-  writeI32(view, 32, opts.autoNoise);
-  writeI32(view, 36, opts.autoBaseline);
-  writeI32(view, 40, opts.lambda);
-  writeI32(view, 44, opts.maxIterations);
-  writeI32(view, 48, opts.allowOverlap);
+  writeF64(view, 0, options.minIntegral);
+  writeF64(view, 8, options.minIntensity);
+  writeI32(view, 16, options.minPeakWidthPoints);
+  view.setInt32(20, shapeCode(options.shape), true);
+  writeF64(view, 24, options.noise);
+  writeI32(view, 32, options.autoNoise);
+  writeI32(view, 36, options.autoBaseline);
+  writeI32(view, 40, options.lambda);
+  writeI32(view, 44, options.maxIterations);
+  writeI32(view, 48, options.allowOverlap);
   view.setInt32(52, 0, true);
-  writeF64(view, 56, opts.minSnr);
-  writeF64(view, 64, opts.minR2);
-  writeI32(view, 72, opts.kernelSize);
+  writeF64(view, 56, options.minSnr);
+  writeF64(view, 64, options.minR2);
+  writeI32(view, 72, options.kernelSize);
   return new Uint8Array(view.buffer);
 }
 
@@ -310,7 +310,7 @@ class WasmExports {
     optsPtr: number,
     outBuf: number,
   ) => number;
-  readonly getPeaksFromChrom: (
+  readonly findTransitions: (
     handle: number,
     precursorPtr: number,
     productPtr: number,
@@ -325,7 +325,7 @@ class WasmExports {
     threads: number,
     outBuf: number,
   ) => number;
-  readonly getPeaksFromEic: (
+  readonly findTargets: (
     handle: number,
     rtPtr: number,
     mzPtr: number,
@@ -352,24 +352,6 @@ class WasmExports {
     len: number,
     lambda: number,
     maxIterations: number,
-    outBuf: number,
-  ) => number;
-  readonly findFeature: (
-    handle: number,
-    rtPtr: number,
-    mzPtr: number,
-    rangePtr: number,
-    offPtr: number,
-    lenPtr: number,
-    idBytesPtr: number,
-    idBytesLen: number,
-    count: number,
-    threads: number,
-    scanPpm: number,
-    scanMz: number,
-    eicPpm: number,
-    eicMz: number,
-    optsPtr: number,
     outBuf: number,
   ) => number;
   readonly getScans: (
@@ -424,19 +406,12 @@ class WasmExports {
     count: number,
     outBuf: number,
   ) => number;
-  readonly planPeaksFromEic: (
+  readonly planFindTargets: (
     handle: number,
     mzPtr: number,
     count: number,
     from: number,
     to: number,
-    outBuf: number,
-  ) => number;
-  readonly planFindFeature: (
-    handle: number,
-    rtPtr: number,
-    windowPtr: number,
-    count: number,
     outBuf: number,
   ) => number;
   readonly getIonImage: (
@@ -458,7 +433,7 @@ class WasmExports {
         from: number,
         to: number,
         ppm: number,
-        mzTol: number,
+        mzTolerance: number,
         outBuf: number,
       ) => number)
     | null;
@@ -517,11 +492,10 @@ class WasmExports {
     this.calculateEic = this.resolve(ex, ["calculate_eic"]);
     this.findPeaks = this.resolve(ex, ["find_peaks"]);
     this.getPeak = this.resolve(ex, ["get_peak"]);
-    this.getPeaksFromChrom = this.resolve(ex, ["get_peaks_from_chrom"]);
-    this.getPeaksFromEic = this.resolve(ex, ["get_peaks_from_eic"]);
+    this.findTransitions = this.resolve(ex, ["find_transitions"]);
+    this.findTargets = this.resolve(ex, ["find_targets"]);
     this.findNoiseLevel = this.resolve(ex, ["find_noise_level"]);
     this.calculateBaseline = this.resolve(ex, ["calculate_baseline"]);
-    this.findFeature = this.resolve(ex, ["find_feature"]);
     this.getScans = this.resolve(ex, ["get_scans"]);
     this.getIonImage = this.resolve(ex, ["get_ion_image"]);
     this.modelLoadBytes = this.resolve(ex, ["model_load_bytes"]);
@@ -532,8 +506,7 @@ class WasmExports {
     this.calibrateRts = this.resolve(ex, ["calibrate_rts"]);
     this.predictRtsFromFile = this.resolve(ex, ["predict_rts_from_file"]);
     this.planPredictRts = this.resolve(ex, ["plan_predict_rts"]);
-    this.planPeaksFromEic = this.resolve(ex, ["plan_peaks_from_eic"]);
-    this.planFindFeature = this.resolve(ex, ["plan_find_feature"]);
+    this.planFindTargets = this.resolve(ex, ["plan_find_targets"]);
     this.parseIonUrl =
       typeof ex["parse_ion_url"] === "function"
         ? this.guard.watch(
@@ -563,7 +536,7 @@ class WasmExports {
               from: number,
               to: number,
               ppm: number,
-              mzTol: number,
+              mzTolerance: number,
               outBuf: number,
             ) => number,
           )
@@ -691,7 +664,7 @@ class WasmApi {
     const size = this.fn.quantionSizeofPeakOptions();
     if (size !== PEAK_OPTIONS_STRUCT_BYTES) {
       throw new Error(
-        `quantion WASM PeakOptions size mismatch: binary=${size} bytes, ` +
+        `quantion WASM FindPeaksOptions size mismatch: binary=${size} bytes, ` +
           `wrapper=${PEAK_OPTIONS_STRUCT_BYTES} bytes. ` +
           `Native binary and JS wrapper are out of sync — rebuild.`,
       );
@@ -781,8 +754,8 @@ class WasmApi {
     targetMz: number,
     from: number,
     to: number,
-    ppmTol: number,
-    mzTol: number,
+    ppmTolerance: number,
+    mzTolerance: number,
   ): ByteRangeResult[] {
     if (!this.fn.planEic) {
       throw new Error("planEic not in WASM exports");
@@ -793,8 +766,8 @@ class WasmApi {
       targetMz,
       from,
       to,
-      ppmTol,
-      mzTol,
+      ppmTolerance,
+      mzTolerance,
       this.blobScratchSlot,
     );
     if (rc !== 0) throw new Error(`plan_eic failed with code ${rc}`);
@@ -1087,7 +1060,7 @@ class WasmApi {
     return source;
   }
 
-  async prefetchPeaks(
+  async prefetchTargets(
     handle: number,
     mzs: Float64Array,
     from: number,
@@ -1097,34 +1070,10 @@ class WasmApi {
     if (!source) return;
     const mzAllocation = this.heap.allocAndWrite(toUint8View(mzs));
     try {
-      const rc = this.fn.planPeaksFromEic(handle, mzAllocation[0], mzs.length, from, to, this.blobScratchSlot);
-      if (rc !== 0) throw rcError("plan_peaks_from_eic", rc);
+      const rc = this.fn.planFindTargets(handle, mzAllocation[0], mzs.length, from, to, this.blobScratchSlot);
+      if (rc !== 0) throw rcError("plan_find_targets", rc);
     } finally {
       this.heap.freeMany([mzAllocation]);
-    }
-    await prefetchRangesForSource(source, this.readRangesFromSlot(this.blobScratchSlot));
-  }
-
-  async prefetchFeature(
-    handle: number,
-    rts: Float64Array,
-    windows: Float64Array,
-  ): Promise<void> {
-    const source = this.remoteSource(handle);
-    if (!source) return;
-    const rtAllocation = this.heap.allocAndWrite(toUint8View(rts));
-    const windowAllocation = this.heap.allocAndWrite(toUint8View(windows));
-    try {
-      const rc = this.fn.planFindFeature(
-        handle,
-        rtAllocation[0],
-        windowAllocation[0],
-        rts.length,
-        this.blobScratchSlot,
-      );
-      if (rc !== 0) throw rcError("plan_find_feature", rc);
-    } finally {
-      this.heap.freeMany([rtAllocation, windowAllocation]);
     }
     await prefetchRangesForSource(source, this.readRangesFromSlot(this.blobScratchSlot));
   }
@@ -1349,7 +1298,7 @@ class WasmApi {
   findPeaks(
     x: Float64Array,
     y: Float64Array,
-    opts: PeakOptions | undefined,
+    options: FindPeaksOptions | undefined,
   ): any {
     const [xPtr, xLen] = this.heap.allocAndWrite(toUint8View(x));
     const [yPtr, yLen] = this.heap.allocAndWrite(toUint8View(y));
@@ -1359,7 +1308,7 @@ class WasmApi {
         xPtr,
         yPtr,
         x.length,
-        this.peakOptsPtr(opts),
+        this.peakOptsPtr(options),
         this.bridgeOutputSlot,
       );
     } finally {
@@ -1377,7 +1326,7 @@ class WasmApi {
     y: Float64Array,
     rt: number,
     range: number,
-    opts: PeakOptions | undefined,
+    options: FindPeaksOptions | undefined,
   ): any {
     const [xPtr, xLen] = this.heap.allocAndWrite(toUint8View(x));
     const [yPtr, yLen] = this.heap.allocAndWrite(toUint8View(y));
@@ -1389,7 +1338,7 @@ class WasmApi {
         x.length,
         rt,
         range,
-        this.peakOptsPtr(opts),
+        this.peakOptsPtr(options),
         this.bridgeOutputSlot,
       );
     } finally {
@@ -1447,7 +1396,7 @@ class WasmApi {
     return new Float64Array(this.heap.copyOutAndFree(ptr, len).buffer);
   }
 
-  getPeaksFromEic(
+  findTargets(
     handle: number,
     rts: Float64Array,
     mzs: Float64Array,
@@ -1459,7 +1408,7 @@ class WasmApi {
     count: number,
     from: number,
     to: number,
-    opts: PeakOptions | undefined,
+    options: FindPeaksOptions | undefined,
     threads: number,
   ): any {
     const emptyU32 = new Uint32Array(count);
@@ -1476,7 +1425,7 @@ class WasmApi {
     const [idPtr, idLen] = this.heap.allocAndWrite(idBytes ?? emptyBytes);
     let rc: number;
     try {
-      rc = this.fn.getPeaksFromEic(
+      rc = this.fn.findTargets(
         handle,
         rtPtr,
         mzPtr,
@@ -1488,7 +1437,7 @@ class WasmApi {
         count,
         from,
         to,
-        this.peakOptsPtr(opts),
+        this.peakOptsPtr(options),
         threads,
         this.bridgeOutputSlot,
       );
@@ -1502,11 +1451,11 @@ class WasmApi {
         [idPtr, idLen],
       ]);
     }
-    if (rc !== 0) throw rcError("get_peaks_from_eic", rc);
+    if (rc !== 0) throw rcError("find_targets", rc);
     return readRecords(this.heap.readBridgeFromSlot(this.bridgeOutputSlot));
   }
 
-  getPeaksFromChrom(
+  findTransitions(
     handle: number,
     precursors: Float64Array,
     products: Float64Array,
@@ -1517,7 +1466,7 @@ class WasmApi {
     idBytes: Uint8Array | null,
     idBytesLen: number,
     count: number,
-    opts: PeakOptions | undefined,
+    options: FindPeaksOptions | undefined,
     threads: number,
   ): any {
     const emptyU32 = new Uint32Array(count);
@@ -1534,7 +1483,7 @@ class WasmApi {
       allocations.map(([pointer]) => pointer);
     let rc: number;
     try {
-      rc = this.fn.getPeaksFromChrom(
+      rc = this.fn.findTransitions(
         handle,
         precursorPtr,
         productPtr,
@@ -1545,7 +1494,7 @@ class WasmApi {
         idPtr,
         idBytesLen,
         count,
-        this.peakOptsPtr(opts),
+        this.peakOptsPtr(options),
         threads,
         this.bridgeOutputSlot,
       );
@@ -1553,76 +1502,13 @@ class WasmApi {
       this.heap.freeMany(allocations);
     }
     if (rc !== 0)
-      throw rcError("get_peaks_from_chrom", rc);
+      throw rcError("find_transitions", rc);
     return readRecords(this.heap.readBridgeFromSlot(this.bridgeOutputSlot));
   }
 
-  findFeature(
-    handle: number,
-    rts: Float64Array,
-    mzs: Float64Array,
-    ranges: Float64Array,
-    offsets: Uint32Array | null,
-    lengths: Uint32Array | null,
-    idBytes: Uint8Array | null,
-    idBytesLen: number,
-    count: number,
-    threads: number,
-    scanPpm: number,
-    scanMz: number,
-    eicPpm: number,
-    eicMz: number,
-    opts: PeakOptions | undefined,
-  ): any {
-    const emptyU32 = new Uint32Array(count);
-    const emptyBytes = new Uint8Array(0);
-    const [rtPtr, rtLen] = this.heap.allocAndWrite(toUint8View(rts));
-    const [mzPtr, mzLen] = this.heap.allocAndWrite(toUint8View(mzs));
-    const [rangePtr, rangeLen] = this.heap.allocAndWrite(toUint8View(ranges));
-    const [offPtr, offLen] = this.heap.allocAndWrite(
-      toUint8View(offsets ?? emptyU32),
-    );
-    const [lenPtr, lenLen] = this.heap.allocAndWrite(
-      toUint8View(lengths ?? emptyU32),
-    );
-    const [idPtr, idLen] = this.heap.allocAndWrite(idBytes ?? emptyBytes);
-    let rc: number;
-    try {
-      rc = this.fn.findFeature(
-        handle,
-        rtPtr,
-        mzPtr,
-        rangePtr,
-        offPtr,
-        lenPtr,
-        idPtr,
-        idBytesLen,
-        count,
-        threads,
-        scanPpm,
-        scanMz,
-        eicPpm,
-        eicMz,
-        this.peakOptsPtr(opts),
-        this.bridgeOutputSlot,
-      );
-    } finally {
-      this.heap.freeMany([
-        [rtPtr, rtLen],
-        [mzPtr, mzLen],
-        [rangePtr, rangeLen],
-        [offPtr, offLen],
-        [lenPtr, lenLen],
-        [idPtr, idLen],
-      ]);
-    }
-    if (rc !== 0) throw new Error("find_feature failed with code " + rc);
-    return readRecords(this.heap.readBridgeFromSlot(this.bridgeOutputSlot));
-  }
-
-  private peakOptsPtr(opts: PeakOptions | undefined): number {
-    if (!opts) return 0;
-    const packed = packPeakOptions(opts);
+  private peakOptsPtr(options: FindPeaksOptions | undefined): number {
+    if (!options) return 0;
+    const packed = packPeakOptions(options);
     this.heap.writeBytesAt(this.peakOptionsSlot, packed);
     return this.peakOptionsSlot;
   }
@@ -1776,21 +1662,13 @@ export class WasmBackend implements Backend {
     return this.getApi().prefetchRts(warp as number, handle as number, mzs, rts);
   }
 
-  prefetchPeaks(
+  prefetchTargets(
     handle: FileHandle,
     mzs: Float64Array,
     from: number,
     to: number,
   ): Promise<void> {
-    return this.getApi().prefetchPeaks(handle as number, mzs, from, to);
-  }
-
-  prefetchFeature(
-    handle: FileHandle,
-    rts: Float64Array,
-    windows: Float64Array,
-  ): Promise<void> {
-    return this.getApi().prefetchFeature(handle as number, rts, windows);
+    return this.getApi().prefetchTargets(handle as number, mzs, from, to);
   }
 
   predictRts(
@@ -1842,16 +1720,16 @@ export class WasmBackend implements Backend {
     targetMz: number,
     from: number,
     to: number,
-    ppmTol: number,
-    mzTol: number,
+    ppmTolerance: number,
+    mzTolerance: number,
   ): Promise<{ x: Float64Array; y: Float64Array }> {
     return this.getApi().calculateEic(
       handle as number,
       targetMz,
       from,
       to,
-      ppmTol,
-      mzTol,
+      ppmTolerance,
+      mzTolerance,
     );
   }
 
@@ -1884,9 +1762,9 @@ export class WasmBackend implements Backend {
   findPeaks(
     x: Float64Array,
     y: Float64Array,
-    opts: PeakOptions | undefined,
+    options: FindPeaksOptions | undefined,
   ): any {
-    return this.getApi().findPeaks(x, y, opts);
+    return this.getApi().findPeaks(x, y, options);
   }
 
   getPeak(
@@ -1894,9 +1772,9 @@ export class WasmBackend implements Backend {
     y: Float64Array,
     rt: number,
     range: number,
-    opts: PeakOptions | undefined,
+    options: FindPeaksOptions | undefined,
   ): any {
-    return this.getApi().getPeak(x, y, rt, range, opts);
+    return this.getApi().getPeak(x, y, rt, range, options);
   }
 
   findNoiseLevel(y: Float32Array): NoiseLevel {
@@ -1912,7 +1790,7 @@ export class WasmBackend implements Backend {
     return this.getApi().calculateBaseline(y, lambda, maxIterations);
   }
 
-  getPeaksFromEic(
+  findTargets(
     handle: FileHandle,
     rts: Float64Array,
     mzs: Float64Array,
@@ -1924,10 +1802,10 @@ export class WasmBackend implements Backend {
     count: number,
     from: number,
     to: number,
-    opts: PeakOptions | undefined,
+    options: FindPeaksOptions | undefined,
     threads: number,
   ): any {
-    return this.getApi().getPeaksFromEic(
+    return this.getApi().findTargets(
       handle as number,
       rts,
       mzs,
@@ -1939,12 +1817,12 @@ export class WasmBackend implements Backend {
       count,
       from,
       to,
-      opts,
+      options,
       threads,
     );
   }
 
-  getPeaksFromChrom(
+  findTransitions(
     handle: FileHandle,
     precursors: Float64Array,
     products: Float64Array,
@@ -1955,10 +1833,10 @@ export class WasmBackend implements Backend {
     idBytes: Uint8Array | null,
     idBytesLen: number,
     count: number,
-    opts: PeakOptions | undefined,
+    options: FindPeaksOptions | undefined,
     threads: number,
   ): any {
-    return this.getApi().getPeaksFromChrom(
+    return this.getApi().findTransitions(
       handle as number,
       precursors,
       products,
@@ -1969,44 +1847,9 @@ export class WasmBackend implements Backend {
       idBytes,
       idBytesLen,
       count,
-      opts,
+      options,
       threads,
     );
   }
 
-  findFeature(
-    handle: FileHandle,
-    rts: Float64Array,
-    mzs: Float64Array,
-    ranges: Float64Array,
-    offsets: Uint32Array | null,
-    lengths: Uint32Array | null,
-    idBytes: Uint8Array | null,
-    idBytesLen: number,
-    count: number,
-    threads: number,
-    scanPpm: number,
-    scanMz: number,
-    eicPpm: number,
-    eicMz: number,
-    opts: PeakOptions | undefined,
-  ): any {
-    return this.getApi().findFeature(
-      handle as number,
-      rts,
-      mzs,
-      ranges,
-      offsets,
-      lengths,
-      idBytes,
-      idBytesLen,
-      count,
-      threads,
-      scanPpm,
-      scanMz,
-      eicPpm,
-      eicMz,
-      opts,
-    );
-  }
 }

@@ -37,9 +37,9 @@ pub mod get_boundaries;
 
 pub mod get_peak;
 
-pub mod get_peaks_from_chrom;
+pub mod find_transitions;
 
-pub mod get_peaks_from_eic;
+pub mod find_targets;
 
 pub mod load_model;
 
@@ -54,11 +54,8 @@ pub mod cheminfo;
 pub mod math;
 pub use math::closest_index;
 
-pub mod find_feature;
-pub use find_feature::find_feature;
-
 #[cfg(not(all(target_arch = "wasm32", not(target_os = "wasi"))))]
-pub mod get_features;
+pub mod match_features;
 pub mod mz_estimator;
 #[cfg(test)]
 mod tests;

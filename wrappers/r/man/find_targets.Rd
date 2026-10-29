@@ -1,13 +1,13 @@
-\name{get_peaks_from_eic}
-\alias{get_peaks_from_eic}
+\name{find_targets}
+\alias{find_targets}
 \title{Find peaks for many targets using EICs}
 \description{
 Builds an EIC for each target and finds the best peak near the given RT.
 Use this for batch targeted peak extraction from one file.
 }
 \usage{
-get_peaks_from_eic(
-  bin,
+find_targets(
+  file,
   targets,
   from = 0.5,
   to = 5,
@@ -28,7 +28,7 @@ get_peaks_from_eic(
 )
 }
 \arguments{
-  \item{bin}{Sample file from \code{\link{parse_mzml}()} or \code{\link{parse_ion}()}.}
+  \item{file}{Sample file from \code{\link{parse_mzml}()} or \code{\link{parse_ion}()}.}
   \item{targets}{Data frame with columns \code{id} (character), \code{rt} (numeric),
     \code{mz} (numeric), \code{range} (numeric RT half-window).}
   \item{from}{EIC extraction start time (minutes). Default 0.5.}
@@ -51,9 +51,9 @@ get_peaks_from_eic(
 
 }
 \value{
-A data frame with one row per target. Columns include \code{id}, \code{mz},
+A data frame with one row per target, in the same order, with the peak columns
 \code{rt}, \code{from}, \code{to}, \code{intensity}, \code{integral},
-\code{noise}.
+\code{n_points}, \code{noise} and \code{r2}. A target with no peak gets zeros.
 }
 \examples{
 \donttest{
@@ -65,9 +65,9 @@ targets <- data.frame(
   mz     = c(260.103, 260.103),
   range  = c(0.05, 0.05)
 )
-get_peaks_from_eic(sample, targets)
+find_targets(sample, targets)
 }
 }
 \seealso{
-\code{\link{calculate_eic}()}, \code{\link{get_peak}()}, \code{\link{get_peaks_from_chrom}()}
+\code{\link{calculate_eic}()}, \code{\link{get_peak}()}, \code{\link{find_transitions}()}
 }

@@ -63,10 +63,9 @@ def main() -> int:
     calls = {
         "calculate_eic": lambda file: quantion.calculate_eic(file, MASS, {"from": FROM_RT, "to": TO_RT}),
         "get_scans": lambda file: quantion.get_scans(file, rt={"from": 2.3, "to": 2.5}),
-        "get_peaks_from_eic": lambda file: quantion.get_peaks_from_eic(file, [target], {"from": FROM_RT, "to": TO_RT}),
-        "get_peaks_from_chrom": lambda file: quantion.get_peaks_from_chrom(file, [{"id": "a", "precursor": 89.04768, "product": 89.04768, "rt": 2.385, "range": 0.1}]),
+        "find_targets": lambda file: quantion.find_targets(file, [target], {"from": FROM_RT, "to": TO_RT}),
+        "find_transitions": lambda file: quantion.find_transitions(file, [{"id": "a", "precursor": 89.04768, "product": 89.04768, "rt": 2.385, "range": 0.1}]),
         "find_features": lambda file: quantion.find_features(file, {"from": FROM_RT, "to": TO_RT}),
-        "find_feature": lambda file: quantion.find_feature(file, [target]),
         "ion_to_mzml": lambda file: quantion.ion_to_mzml(file),
         "mzml_to_ion": lambda file: quantion.mzml_to_ion(file),
         "predict_rts": lambda file: warp.predict_rts(file, [{"mz": 250.1, "rt": 1.2}]),

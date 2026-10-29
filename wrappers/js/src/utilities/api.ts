@@ -8,7 +8,9 @@ import { getIonSource, type IonSource } from "./ionSource";
 import type {
   BinaryInput,
   IonInput,
-  PeakOptions,
+  FindPeaksOptions,
+  FindTargetsOptions,
+  FindTransitionsOptions,
   BaselineOptions,
   NoiseLevel,
   Peak,
@@ -16,13 +18,10 @@ import type {
   PredictedRt,
   WarpTarget,
   ModelEntry,
-  ChromTarget,
-  ChromPeak,
+  Transition,
   Feature,
-  FoundFeature,
   FindFeaturesOptions,
-  GetFeaturesOptions,
-  ConsensusFeature,
+  MatchFeaturesOptions,
   FromTo,
   CentroidScan,
   SpectrumSummary,
@@ -34,7 +33,7 @@ import type {
 export type {
   BinaryInput,
   IonInput,
-  PeakOptions,
+  FindPeaksOptions,
   BaselineOptions,
   NoiseLevel,
   Peak,
@@ -42,13 +41,10 @@ export type {
   PredictedRt,
   WarpTarget,
   ModelEntry,
-  ChromTarget,
-  ChromPeak,
+  Transition,
   Feature,
-  FoundFeature,
   FindFeaturesOptions,
-  GetFeaturesOptions,
-  ConsensusFeature,
+  MatchFeaturesOptions,
   FromTo,
   CentroidScan,
   SpectrumSummary,
@@ -262,17 +258,17 @@ export function mzmlToIon(
  *
  * @param file - Loaded sample file.
  * @param mz - Target m/z value.
- * @param fromTo - Retention time range `{ from, to }` in minutes.
- * @param ppmTol - PPM tolerance. Default 20.
- * @param mzTol - Absolute m/z tolerance in Da. Default 0.005.
+ * @param window - Retention time range `{ from, to }` in minutes.
+ * @param ppmTolerance - PPM tolerance. Default 20.
+ * @param mzTolerance - Absolute m/z tolerance in Da. Default 0.005.
  * @returns Object with `x` (retention times) and `y` (intensities) arrays.
  */
 export async function calculateEic(
   file: SampleFile,
   mz: number,
-  fromTo: FromTo,
-  ppmTol = 20,
-  mzTol = 0.005,
+  window: FromTo,
+  ppmTolerance = 20,
+  mzTolerance = 0.005,
 ): Promise<{ x: Float64Array; y: Float64Array }> {
   assertFile(file, "calculateEic");
   if (typeof mz !== "number" || !Number.isFinite(mz) || mz <= 0) {
@@ -280,7 +276,7 @@ export async function calculateEic(
       "calculateEic: targetMz must be a positive finite number",
     );
   }
-  const { from, to } = fromTo;
+  const { from, to } = window;
   if (!Number.isFinite(from) || !Number.isFinite(to)) {
     throw new RangeError("calculateEic: from and to must be finite numbers");
   }
@@ -290,8 +286,8 @@ export async function calculateEic(
     mz,
     from,
     to,
-    ppmTol,
-    mzTol,
+    ppmTolerance,
+    mzTolerance,
   );
 }
 
@@ -300,13 +296,13 @@ export async function calculateEic(
  *
  * @param x - Retention time array.
  * @param y - Intensity array.
- * @param opts - Peak detection options.
+ * @param options - Peak detection options.
  * @returns Array of detected peaks.
  */
 export function findPeaks(
   x: Float64Array,
   y: Float64Array,
-  opts?: PeakOptions,
+  options?: FindPeaksOptions,
 ): Peak[] {
   if (!(x instanceof Float64Array) || !(y instanceof Float64Array)) {
     throw new TypeError("findPeaks: x and y must be Float64Array");
@@ -314,7 +310,7 @@ export function findPeaks(
   if (x.length !== y.length) {
     throw new RangeError("findPeaks: x and y must have equal length");
   }
-  return backend().findPeaks(x, y, opts);
+  return backend().findPeaks(x, y, options);
 }
 
 /**
@@ -324,7 +320,7 @@ export function findPeaks(
  * @param y - Intensity array.
  * @param rt - Target retention time in minutes.
  * @param range - Search window half-width in minutes.
- * @param opts - Peak detection options.
+ * @param options - Peak detection options.
  * @returns The best matching peak.
  */
 export function getPeak(
@@ -332,7 +328,7 @@ export function getPeak(
   y: Float64Array,
   rt: number,
   range: number,
-  opts?: PeakOptions,
+  options?: FindPeaksOptions,
 ): Peak {
   if (!(x instanceof Float64Array) || !(y instanceof Float64Array)) {
     throw new TypeError("getPeak: x and y must be Float64Array");
@@ -346,7 +342,7 @@ export function getPeak(
   if (!Number.isFinite(range) || range <= 0) {
     throw new RangeError("getPeak: range must be a positive finite number");
   }
-  const rows = backend().getPeak(x, y, rt, range, opts);
+  const rows = backend().getPeak(x, y, rt, range, options);
   return rows.length ? rows[0] : null;
 }
 
@@ -531,22 +527,22 @@ export async function getIonImage(
  *
  * @param file - Loaded sample file.
  * @param targets - List of targets with `id`, `rt`, `mz`, and `range`.
- * @param fromTo - Retention time range `{ from, to }` in minutes.
+ * @param window - Retention time range `{ from, to }` in minutes.
  * @param options - Peak detection options, plus `threads`: the number of threads to use, default 1.
  * @returns Array of found features, one per target.
  */
-export async function getPeaksFromEic(
+export async function findTargets(
   file: SampleFile,
   targets: Target[],
-  fromTo: FromTo,
-  options: PeakOptions & { threads?: number } = {},
-): Promise<FoundFeature[]> {
-  assertFile(file, "getPeaksFromEic");
-  const { from = 0.5, to = 5 } = fromTo;
+  window: FromTo = { from: 0.5, to: 5 },
+  options: FindTargetsOptions = {},
+): Promise<Peak[]> {
+  assertFile(file, "findTargets");
+  const { from, to } = window;
   const { rts, mzs, ranges, ids } = unpackTargets(targets);
   const { packedBytes, offsets, lengths } = encodeTargetIds(ids);
-  await backend().prefetchPeaks(file._handle!, mzs, from, to);
-  return backend().getPeaksFromEic(
+  await backend().prefetchTargets(file._handle!, mzs, from, to);
+  return backend().findTargets(
     file._handle!,
     rts,
     mzs,
@@ -572,12 +568,12 @@ export async function getPeaksFromEic(
  * @param options - Peak detection options, plus `threads`: the number of threads to use, default 1.
  * @returns Array of chromatogram peaks.
  */
-export function getPeaksFromChrom(
+export function findTransitions(
   file: SampleFile,
-  targets: ChromTarget[],
-  options: PeakOptions & { threads?: number } = {},
-): ChromPeak[] {
-  assertFile(file, "getPeaksFromChrom");
+  targets: Transition[],
+  options: FindTransitionsOptions = {},
+): Peak[] {
+  assertFile(file, "findTransitions");
   const precursors = Float64Array.from(targets, (target) => target.precursor);
   const products = Float64Array.from(targets, (target) => target.product);
   const rts = Float64Array.from(targets, (target) => target.rt);
@@ -585,7 +581,7 @@ export function getPeaksFromChrom(
   const { packedBytes, offsets, lengths } = encodeTargetIds(
     targets.map((target) => target.id ?? ""),
   );
-  return backend().getPeaksFromChrom(
+  return backend().findTransitions(
     file._handle!,
     precursors,
     products,
@@ -606,13 +602,13 @@ export function getPeaksFromChrom(
  * Node.js only — not available in the WASM build.
  *
  * @param file - Loaded sample file.
- * @param fromTo - Retention time range `{ from, to }` in minutes.
+ * @param window - Retention time range `{ from, to }` in minutes.
  * @param options - Feature detection options (eic, grid, findPeak, threads).
  * @returns Array of detected features.
  */
 export async function findFeatures(
   file: SampleFile,
-  fromTo: FromTo,
+  window: FromTo,
   options: FindFeaturesOptions = {},
 ): Promise<Feature[]> {
   const back = backend();
@@ -626,7 +622,7 @@ export async function findFeatures(
     findPeak = DEFAULTS.findPeak,
     threads = 1,
   } = options;
-  const { from, to } = fromTo;
+  const { from, to } = window;
   const eicPpm =
     typeof eic.ppmTolerance === "number" &&
     Number.isFinite(eic.ppmTolerance) &&
@@ -676,84 +672,25 @@ export async function findFeatures(
 }
 
 /**
- * Find a feature for each target using its EIC and scan data.
- *
- * @param file - Loaded sample file.
- * @param targets - List of targets with `id`, `rt`, `mz`, and `ranges`.
- * @param options - Detection options including `scanEic`, `eic`, `findPeak`, and `threads`.
- * @returns Array of found features, one per target.
- */
-export async function findFeature(
-  file: SampleFile,
-  targets: Target[],
-  options: FindFeaturesOptions & {
-    scanEic?: { ppmTolerance?: number; mzTolerance?: number };
-    threads?: number;
-  } = {},
-): Promise<FoundFeature[]> {
-  assertFile(file, "findFeature");
-
-  const {
-    scanEic: { ppmTolerance: scanPpm = 10, mzTolerance: scanMz = 0.003 } = {},
-    eic: { ppmTolerance: eicPpm = 20, mzTolerance: eicMz = 0.005 } = {},
-  } = options;
-
-  const check = (raw: unknown, label: string): void => {
-    if (
-      raw !== undefined &&
-      (typeof raw !== "number" || !Number.isFinite(raw) || raw < 0)
-    ) {
-      throw new TypeError(`${label} must be a finite, non-negative number`);
-    }
-  };
-  check(scanPpm, "scanEic.ppmTolerance");
-  check(scanMz, "scanEic.mzTolerance");
-  check(eicPpm, "eic.ppmTolerance");
-  check(eicMz, "eic.mzTolerance");
-
-  const { rts, mzs, ranges, ids } = unpackTargets(targets, 0.5);
-  const { packedBytes, offsets, lengths } = encodeTargetIds(ids);
-
-  await backend().prefetchFeature(file._handle!, rts, ranges);
-  return backend().findFeature(
-    file._handle!,
-    rts,
-    mzs,
-    ranges,
-    offsets,
-    lengths,
-    packedBytes,
-    packedBytes.length,
-    targets.length,
-    toThreads(options.threads),
-    +scanPpm,
-    +scanMz,
-    +eicPpm,
-    +eicMz,
-    options.findPeak ?? DEFAULTS.findPeak,
-  );
-}
-
-/**
  * Detect and group consensus features across multiple samples in a directory.
  * Node.js only — not available in the WASM build.
  *
- * @param directoryPath - Path to a directory containing ion files.
- * @param fromTo - Retention time range `{ from, to }` in minutes.
+ * @param directory - Path to a folder with ion files.
+ * @param window - Retention time range `{ from, to }` in minutes.
  * @param options - Feature detection and grouping options.
  * @returns Array of consensus features aligned across samples.
  */
-export function getFeatures(
-  directoryPath: string,
-  fromTo: FromTo,
-  options: GetFeaturesOptions = {},
-): ConsensusFeature[] {
+export function matchFeatures(
+  directory: string,
+  window: FromTo,
+  options: MatchFeaturesOptions = {},
+): Feature[] {
   const back = backend();
-  if (!back.getFeatures) {
-    throw new Error("getFeatures is not supported in the WASM build");
+  if (!back.matchFeatures) {
+    throw new Error("matchFeatures is not supported in the WASM build");
   }
-  if (typeof directoryPath !== "string" || directoryPath.length === 0) {
-    throw new Error("getFeatures: Valid directory path is required");
+  if (typeof directory !== "string" || directory.length === 0) {
+    throw new Error("matchFeatures: Valid directory path is required");
   }
   const {
     eic = DEFAULTS.eic,
@@ -762,7 +699,7 @@ export function getFeatures(
     findPeak = DEFAULTS.findPeak,
     threads = 1,
   } = options;
-  const { from, to } = fromTo;
+  const { from, to } = window;
   const eicPpm = Number.isFinite(eic.ppmTolerance)
     ? (eic.ppmTolerance as number)
     : NaN;
@@ -778,8 +715,8 @@ export function getFeatures(
   const groupMz = grouping.mzTolerance ?? DEFAULTS.grouping.mzTolerance;
   const groupRt = grouping.rtTolerance ?? DEFAULTS.grouping.rtTolerance;
   const prevalence = grouping.frequency ?? DEFAULTS.grouping.frequency;
-  return back.getFeatures!(
-    directoryPath,
+  return back.matchFeatures!(
+    directory,
     +from,
     +to,
     +eicPpm,

@@ -84,10 +84,9 @@ async function main() {
   const calls = {
     calculate_eic: (file) => quantion.calculateEic(file, MASS, fromTo),
     get_scans: (file) => quantion.getScans(file, { rt: { from: 2.3, to: 2.5 } }),
-    get_peaks_from_eic: (file) => quantion.getPeaksFromEic(file, [target], fromTo),
-    get_peaks_from_chrom: (file) => quantion.getPeaksFromChrom(file, [{ id: "a", precursor: 89.04768, product: 89.04768, rt: 2.385, range: 0.1 }]),
+    find_targets: (file) => quantion.findTargets(file, [target], fromTo),
+    find_transitions: (file) => quantion.findTransitions(file, [{ id: "a", precursor: 89.04768, product: 89.04768, rt: 2.385, range: 0.1 }]),
     find_features: (file) => quantion.findFeatures(file, fromTo),
-    find_feature: (file) => quantion.findFeature(file, [target]),
     ion_to_mzml: (file) => quantion.ionToMzml(file),
     mzml_to_ion: (file) => quantion.mzmlToIon(file),
     predict_rts: (file) => warp.predictRts(file, [{ mz: 250.1, rt: 1.2 }]),

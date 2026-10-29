@@ -112,7 +112,6 @@ pub struct FindPeaksOptions {
     pub filter: Option<PeakFilter>,
     pub baseline: Option<BaselineOptions>,
     pub artifact_filter: Option<ArtifactFilter>,
-    pub threads: usize,
 }
 
 impl Default for FindPeaksOptions {
@@ -122,7 +121,6 @@ impl Default for FindPeaksOptions {
             filter: Some(PeakFilter::default()),
             baseline: Some(BaselineOptions::default()),
             artifact_filter: Some(ArtifactFilter::default()),
-            threads: 1,
         }
     }
 }

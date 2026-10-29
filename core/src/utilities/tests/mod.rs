@@ -4,7 +4,7 @@ pub(crate) mod dedup_points;
 pub(crate) mod find_features;
 
 #[cfg(test)]
-pub(crate) mod get_features;
+pub(crate) mod match_features;
 
 #[cfg(test)]
 pub(crate) mod mz_estimator;

@@ -20,12 +20,11 @@ typedef int32_t (*fn_fit_peak)(const double *, const double *, size_t, double, d
 typedef int32_t (*fn_draw_peak)(const double *, size_t, int32_t, double, double, double, double, Buf *);
 typedef int32_t (*fn_calculate_eic)(const MzML *, double, double, double, double, double, Buf *, Buf *);
 typedef int32_t (*fn_find_noise_level)(const float *, size_t, size_t *, double *);
-typedef int32_t (*fn_get_peaks_from_eic)(const MzML *, const double *, const double *, const double *, const uint32_t *, const uint32_t *, const unsigned char *, size_t, size_t, double, double, const CPeakOptions *, size_t, Buf *);
-typedef int32_t (*fn_get_peaks_from_chrom)(const MzML *, const double *, const double *, const double *, const double *, const uint32_t *, const uint32_t *, const unsigned char *, size_t, size_t, const CPeakOptions *, size_t, Buf *);
+typedef int32_t (*fn_find_targets)(const MzML *, const double *, const double *, const double *, const uint32_t *, const uint32_t *, const unsigned char *, size_t, size_t, double, double, const CPeakOptions *, size_t, Buf *);
+typedef int32_t (*fn_find_transitions)(const MzML *, const double *, const double *, const double *, const double *, const uint32_t *, const uint32_t *, const unsigned char *, size_t, size_t, const CPeakOptions *, size_t, Buf *);
 typedef int32_t (*fn_find_peaks)(const double *, const double *, size_t, const CPeakOptions *, Buf *);
 typedef int32_t (*fn_calculate_baseline)(const double *, size_t, int32_t, int32_t, Buf *);
 typedef int32_t (*fn_find_features)(const MzML *, double, double, double, double, double, double, double, const CPeakOptions *, int32_t, Buf *);
-typedef int32_t (*fn_find_feature)(const MzML *, const double *, const double *, const double *, const uint32_t *, const uint32_t *, const unsigned char *, size_t, size_t, size_t, double, double, double, double, const CPeakOptions *, Buf *);
 typedef int32_t (*fn_mzml_to_bin)(const MzML *, Buf *, uint8_t, uint8_t);
 typedef int32_t (*fn_convert_mzml_file_to_ion_file)(const char *, const char *, uint8_t, uint8_t);
 typedef int32_t (*fn_parse_bin)(const unsigned char *, size_t, size_t, MzML **);
@@ -33,12 +32,11 @@ typedef int32_t (*fn_read_range)(void *, uint64_t, uint64_t, uint8_t *);
 typedef int32_t (*fn_parse_ion_source)(fn_read_range, void *, size_t, MzML **);
 typedef int32_t (*fn_plan_open)(const uint8_t *, size_t, Buf *);
 typedef int32_t (*fn_plan_eic)(MzML *, double, double, double, double, double, Buf *);
-typedef int32_t (*fn_plan_peaks_from_eic)(MzML *, const double *, size_t, double, double, Buf *);
+typedef int32_t (*fn_plan_find_targets)(MzML *, const double *, size_t, double, double, Buf *);
 typedef int32_t (*fn_plan_find_features)(MzML *, double, double, double, double, double, double, double, Buf *);
-typedef int32_t (*fn_plan_find_feature)(MzML *, const double *, const double *, size_t, Buf *);
 typedef int32_t (*fn_plan_scans)(MzML *, uint8_t, double, double, uint8_t, Buf *);
 typedef int32_t (*fn_parse_ion_path)(const char *, size_t, MzML **);
-typedef int32_t (*fn_get_features)(const char *, double, double, double, double, double, double, double, double, double, double, int32_t, const CPeakOptions *, int32_t, Buf *);
+typedef int32_t (*fn_match_features)(const char *, double, double, double, double, double, double, double, double, double, double, int32_t, const CPeakOptions *, int32_t, Buf *);
 typedef int32_t (*fn_get_scans)(const MzML *, uint8_t, double, double, uint8_t, Buf *);
 typedef void (*fn_free_)(unsigned char *, size_t);
 typedef void (*fn_free_mzml)(MzML *);
@@ -66,26 +64,24 @@ typedef struct
   fn_draw_peak draw_peak;
   fn_calculate_eic calculate_eic;
   fn_find_noise_level find_noise_level;
-  fn_get_peaks_from_eic get_peaks_from_eic;
-  fn_get_peaks_from_chrom get_peaks_from_chrom;
+  fn_find_targets find_targets;
+  fn_find_transitions find_transitions;
   fn_find_peaks find_peaks;
   fn_calculate_baseline calculate_baseline;
   fn_find_features find_features;
   fn_free_ free_;
-  fn_find_feature find_feature;
   fn_mzml_to_bin mzml_to_bin;
   fn_convert_mzml_file_to_ion_file convert_mzml_file_to_ion_file;
   fn_parse_bin parse_bin;
   fn_parse_ion_source parse_ion_source;
   fn_plan_open plan_open;
   fn_plan_eic plan_eic;
-  fn_plan_peaks_from_eic plan_peaks_from_eic;
+  fn_plan_find_targets plan_find_targets;
   fn_plan_find_features plan_find_features;
-  fn_plan_find_feature plan_find_feature;
   fn_plan_scans plan_scans;
   fn_parse_ion_path parse_ion_path;
   fn_free_mzml free_mzml;
-  fn_get_features get_features;
+  fn_match_features match_features;
   fn_get_scans get_scans;
   fn_model_load model_load_path;
   fn_model_load model_load_bytes;
@@ -112,26 +108,24 @@ int abi_load(const char **err)
       .draw_peak = (fn_draw_peak)draw_peak,
       .calculate_eic = (fn_calculate_eic)calculate_eic,
       .find_noise_level = (fn_find_noise_level)find_noise_level,
-      .get_peaks_from_eic = (fn_get_peaks_from_eic)get_peaks_from_eic,
-      .get_peaks_from_chrom = (fn_get_peaks_from_chrom)get_peaks_from_chrom,
+      .find_targets = (fn_find_targets)find_targets,
+      .find_transitions = (fn_find_transitions)find_transitions,
       .find_peaks = (fn_find_peaks)find_peaks,
       .calculate_baseline = (fn_calculate_baseline)calculate_baseline,
       .find_features = (fn_find_features)find_features,
       .free_ = (fn_free_)free_,
-      .find_feature = (fn_find_feature)find_feature,
       .mzml_to_bin = (fn_mzml_to_bin)mzml_to_bin,
       .convert_mzml_file_to_ion_file = (fn_convert_mzml_file_to_ion_file)convert_mzml_file_to_ion_file,
       .parse_bin = (fn_parse_bin)parse_bin,
       .parse_ion_source = (fn_parse_ion_source)parse_ion_source,
       .plan_open = (fn_plan_open)plan_open,
       .plan_eic = (fn_plan_eic)plan_eic,
-      .plan_peaks_from_eic = (fn_plan_peaks_from_eic)plan_peaks_from_eic,
+      .plan_find_targets = (fn_plan_find_targets)plan_find_targets,
       .plan_find_features = (fn_plan_find_features)plan_find_features,
-      .plan_find_feature = (fn_plan_find_feature)plan_find_feature,
       .plan_scans = (fn_plan_scans)plan_scans,
       .parse_ion_path = (fn_parse_ion_path)parse_ion_path,
       .free_mzml = (fn_free_mzml)free_mzml,
-      .get_features = (fn_get_features)get_features,
+      .match_features = (fn_match_features)match_features,
       .get_scans = (fn_get_scans)get_scans,
       .model_load_path = (fn_model_load)model_load_path,
       .model_load_bytes = (fn_model_load)model_load_bytes,
@@ -602,37 +596,17 @@ static const record_column FEATURE_COLUMNS[] = {
     {"intensity", 30, 0, COLUMN_NUMBER}, {"integral", 31, 0, COLUMN_NUMBER},
     {"n_points", 32, 0, COLUMN_COUNT}, {"noise", 33, 0, COLUMN_NUMBER}};
 
-static const record_column CHROM_COLUMNS[] = {
-    {"id", 42, 43, COLUMN_TEXT},
-    {"ort", 35, 0, COLUMN_NUMBER}, {"rt", 36, 0, COLUMN_NUMBER},
-    {"from", 37, 0, COLUMN_NUMBER}, {"to", 38, 0, COLUMN_NUMBER},
-    {"intensity", 39, 0, COLUMN_NUMBER}, {"integral", 40, 0, COLUMN_NUMBER},
-    {"total_area", 41, 0, COLUMN_NUMBER}, {"timestamp", 44, 45, COLUMN_TEXT}};
-
 static const record_column FIT_COLUMNS[] = {
     {"shape", 46, 0, COLUMN_NUMBER}, {"height", 47, 0, COLUMN_NUMBER},
     {"center", 48, 0, COLUMN_NUMBER}, {"fwhm", 49, 0, COLUMN_NUMBER},
     {"tail", 50, 0, COLUMN_NUMBER}, {"r2", 51, 0, COLUMN_NUMBER}};
 
-static const record_column EIC_PEAK_COLUMNS[] = {
-    {"id", 52, 53, COLUMN_TEXT}, {"mz", 54, 0, COLUMN_NUMBER},
-    {"ort", 55, 0, COLUMN_NUMBER}, {"rt", 56, 0, COLUMN_NUMBER},
-    {"from", 57, 0, COLUMN_NUMBER}, {"to", 58, 0, COLUMN_NUMBER},
-    {"intensity", 59, 0, COLUMN_NUMBER}, {"integral", 60, 0, COLUMN_NUMBER},
-    {"noise", 61, 0, COLUMN_NUMBER}};
-
 static const record_column CONSENSUS_COLUMNS[] = {
     {"mz", 62, 0, COLUMN_NUMBER}, {"rt", 63, 0, COLUMN_NUMBER},
     {"from", 64, 0, COLUMN_NUMBER}, {"to", 65, 0, COLUMN_NUMBER},
     {"intensity", 66, 0, COLUMN_NUMBER}, {"integral", 67, 0, COLUMN_NUMBER},
+    {"n_points", 87, 0, COLUMN_COUNT}, {"noise", 88, 0, COLUMN_NUMBER},
     {"frequency", 68, 0, COLUMN_NUMBER}};
-
-static const record_column FOUND_COLUMNS[] = {
-    {"id", 69, 70, COLUMN_TEXT}, {"mz", 71, 0, COLUMN_NUMBER},
-    {"rt", 72, 0, COLUMN_NUMBER}, {"from", 73, 0, COLUMN_NUMBER},
-    {"to", 74, 0, COLUMN_NUMBER}, {"intensity", 75, 0, COLUMN_NUMBER},
-    {"integral", 76, 0, COLUMN_NUMBER}, {"n_points", 77, 0, COLUMN_COUNT},
-    {"noise", 78, 0, COLUMN_NUMBER}};
 
 static const record_column WARP_TARGET_COLUMNS[] = {
     {"id", 79, 80, COLUMN_TEXT}, {"mz", 81, 0, COLUMN_NUMBER},
@@ -651,21 +625,12 @@ static const record_column *columns_for_kind(uint16_t kind, int *count)
   case QUANTION_PAYLOAD_FEATURES:
     *count = sizeof(FEATURE_COLUMNS) / sizeof(FEATURE_COLUMNS[0]);
     return FEATURE_COLUMNS;
-  case QUANTION_PAYLOAD_CHROM_PEAKS:
-    *count = sizeof(CHROM_COLUMNS) / sizeof(CHROM_COLUMNS[0]);
-    return CHROM_COLUMNS;
   case QUANTION_PAYLOAD_FIT_RESULT:
     *count = sizeof(FIT_COLUMNS) / sizeof(FIT_COLUMNS[0]);
     return FIT_COLUMNS;
-  case QUANTION_PAYLOAD_EIC_PEAKS:
-    *count = sizeof(EIC_PEAK_COLUMNS) / sizeof(EIC_PEAK_COLUMNS[0]);
-    return EIC_PEAK_COLUMNS;
   case QUANTION_PAYLOAD_CONSENSUS_FEATURES:
     *count = sizeof(CONSENSUS_COLUMNS) / sizeof(CONSENSUS_COLUMNS[0]);
     return CONSENSUS_COLUMNS;
-  case QUANTION_PAYLOAD_FOUND_FEATURES:
-    *count = sizeof(FOUND_COLUMNS) / sizeof(FOUND_COLUMNS[0]);
-    return FOUND_COLUMNS;
   case QUANTION_PAYLOAD_WARP_TARGETS:
     *count = sizeof(WARP_TARGET_COLUMNS) / sizeof(WARP_TARGET_COLUMNS[0]);
     return WARP_TARGET_COLUMNS;
@@ -1188,10 +1153,10 @@ static packed_ids pack_ids(SEXP ids, R_xlen_t n)
   return packed;
 }
 
-SEXP C_get_peaks_from_eic(SEXP bin, SEXP rts, SEXP mzs, SEXP ranges, SEXP ids, SEXP from_left, SEXP to_right, SEXP options, SEXP threads)
+SEXP C_find_targets(SEXP bin, SEXP rts, SEXP mzs, SEXP ranges, SEXP ids, SEXP from_left, SEXP to_right, SEXP options, SEXP threads)
 {
   MzML *handle = GetHandle(bin);
-  REQUIRE_BOUND(ABI.get_peaks_from_eic, "get_peaks_from_eic");
+  REQUIRE_BOUND(ABI.find_targets, "find_targets");
   REQUIRE_BOUND(ABI.free_, "free_");
 
   if (TYPEOF(rts) != REALSXP || TYPEOF(mzs) != REALSXP || TYPEOF(ranges) != REALSXP)
@@ -1210,7 +1175,7 @@ SEXP C_get_peaks_from_eic(SEXP bin, SEXP rts, SEXP mzs, SEXP ranges, SEXP ids, S
 
   SEXP cont = PROTECT(R_MakeUnwindCont());
   Buf out = (Buf){0};
-  int code = ABI.get_peaks_from_eic(
+  int code = ABI.find_targets(
       handle, REAL(rts), REAL(mzs), REAL(ranges),
       packed.offsets, packed.lengths, packed.bytes, packed.size,
       (size_t)n, asReal(from_left), asReal(to_right), opt_ptr, thread_count, &out);
@@ -1218,17 +1183,17 @@ SEXP C_get_peaks_from_eic(SEXP bin, SEXP rts, SEXP mzs, SEXP ranges, SEXP ids, S
   if (code != 0)
   {
     UNPROTECT(1);
-    die_code("get_peaks_from_eic", code);
+    die_code("find_targets", code);
   }
-  SEXP res = take_records_bridge("get_peaks_from_eic", &out, cont);
+  SEXP res = take_records_bridge("find_targets", &out, cont);
   UNPROTECT(1);
   return res;
 }
 
-SEXP C_get_peaks_from_chrom(SEXP bin, SEXP precursors, SEXP products, SEXP rts, SEXP ranges, SEXP ids, SEXP options, SEXP threads)
+SEXP C_find_transitions(SEXP bin, SEXP precursors, SEXP products, SEXP rts, SEXP ranges, SEXP ids, SEXP options, SEXP threads)
 {
   MzML *handle = GetHandle(bin);
-  REQUIRE_BOUND(ABI.get_peaks_from_chrom, "get_peaks_from_chrom");
+  REQUIRE_BOUND(ABI.find_transitions, "find_transitions");
   REQUIRE_BOUND(ABI.free_, "free_");
 
   if (TYPEOF(precursors) != REALSXP || TYPEOF(products) != REALSXP || TYPEOF(rts) != REALSXP || TYPEOF(ranges) != REALSXP)
@@ -1247,7 +1212,7 @@ SEXP C_get_peaks_from_chrom(SEXP bin, SEXP precursors, SEXP products, SEXP rts, 
 
   SEXP cont = PROTECT(R_MakeUnwindCont());
   Buf out = (Buf){0};
-  int code = ABI.get_peaks_from_chrom(
+  int code = ABI.find_transitions(
       handle, REAL(precursors), REAL(products), REAL(rts), REAL(ranges),
       packed.offsets, packed.lengths, packed.bytes, packed.size,
       (size_t)n, opt_ptr, thread_count, &out);
@@ -1255,9 +1220,9 @@ SEXP C_get_peaks_from_chrom(SEXP bin, SEXP precursors, SEXP products, SEXP rts, 
   if (code != 0)
   {
     UNPROTECT(1);
-    die_code("get_peaks_from_chrom", code);
+    die_code("find_transitions", code);
   }
-  SEXP res = take_records_bridge("get_peaks_from_chrom", &out, cont);
+  SEXP res = take_records_bridge("find_transitions", &out, cont);
   UNPROTECT(1);
   return res;
 }
@@ -1392,85 +1357,6 @@ SEXP C_find_features(SEXP data, SEXP from_time, SEXP to_time, SEXP eic_ppm_tol, 
   return res;
 }
 
-SEXP C_find_feature(SEXP bin, SEXP rts, SEXP mzs, SEXP wins, SEXP ids, SEXP scan_ppm, SEXP scan_mz, SEXP eic_ppm, SEXP eic_mz, SEXP options, SEXP threads)
-{
-  MzML *handle = GetHandle(bin);
-  REQUIRE_BOUND(ABI.find_feature, "find_feature");
-  REQUIRE_BOUND(ABI.free_, "free_");
-
-  if (TYPEOF(rts) != REALSXP || TYPEOF(mzs) != REALSXP || TYPEOF(wins) != REALSXP)
-    error("quantion: numeric (double) required for rts/mzs/wins");
-
-  R_xlen_t n = XLENGTH(rts);
-  if (XLENGTH(mzs) != n || XLENGTH(wins) != n)
-    error("quantion: length mismatch for rts/mzs/wins");
-
-  uint32_t *offs = (uint32_t *)R_alloc((size_t)n, sizeof(uint32_t));
-  uint32_t *lens = (uint32_t *)R_alloc((size_t)n, sizeof(uint32_t));
-  unsigned char *ids_buf = NULL;
-  size_t ids_len = 0;
-
-  if (ids != R_NilValue)
-  {
-    if (TYPEOF(ids) != STRSXP)
-      error("quantion: ids must be character");
-    if (XLENGTH(ids) != n)
-      error("quantion: ids must have the same length as rt");
-    size_t total = 0;
-    for (R_xlen_t i = 0; i < n; i++)
-    {
-      SEXP s = STRING_ELT(ids, i);
-      if (s != R_NilValue)
-        total += (size_t)LENGTH(s);
-    }
-    ids_buf = (unsigned char *)R_alloc(total, 1);
-    ids_len = total;
-    size_t cur = 0;
-    for (R_xlen_t i = 0; i < n; i++)
-    {
-      SEXP s = STRING_ELT(ids, i);
-      if (s == R_NilValue)
-      {
-        offs[i] = 0;
-        lens[i] = 0;
-      }
-      else
-      {
-        size_t L = (size_t)LENGTH(s);
-        offs[i] = (uint32_t)cur;
-        lens[i] = (uint32_t)L;
-        memcpy(ids_buf + cur, CHAR(s), L);
-        cur += L;
-      }
-    }
-  }
-
-  size_t thread_count = (threads == R_NilValue) ? 1 : (size_t)asInteger(threads);
-  if (thread_count < 1)
-    thread_count = 1;
-  CPeakOptions opts;
-  const CPeakOptions *opt_ptr = NULL;
-  as_opts_ptr(options, &opts, &opt_ptr);
-
-  SEXP cont = PROTECT(R_MakeUnwindCont());
-  Buf out = (Buf){0};
-  int32_t code = ABI.find_feature(
-      handle, REAL(rts), REAL(mzs), REAL(wins),
-      offs, lens, ids_buf, ids_len,
-      (size_t)n, thread_count,
-      asReal(scan_ppm), asReal(scan_mz), asReal(eic_ppm), asReal(eic_mz),
-      opt_ptr, &out);
-
-  if (code != 0)
-  {
-    UNPROTECT(1);
-    die_code("find_feature", code);
-  }
-  SEXP res = take_records_bridge("find_feature", &out, cont);
-  UNPROTECT(1);
-  return res;
-}
-
 static SEXP ranges_to_matrix(Buf *out)
 {
   SEXP cont = PROTECT(R_MakeUnwindCont());
@@ -1508,18 +1394,18 @@ SEXP C_plan_eic(SEXP ptr, SEXP target, SEXP from, SEXP to, SEXP ppm, SEXP mz_tol
   return ranges_to_matrix(&out);
 }
 
-SEXP C_plan_peaks_from_eic(SEXP ptr, SEXP mzs, SEXP from, SEXP to)
+SEXP C_plan_find_targets(SEXP ptr, SEXP mzs, SEXP from, SEXP to)
 {
-  REQUIRE_BOUND(ABI.plan_peaks_from_eic, "plan_peaks_from_eic");
+  REQUIRE_BOUND(ABI.plan_find_targets, "plan_find_targets");
   MzML *handle = (MzML *)R_ExternalPtrAddr(ptr);
   if (handle == NULL)
     error("quantion: the file handle is not valid");
 
   Buf out;
   memset(&out, 0, sizeof(out));
-  int code = ABI.plan_peaks_from_eic(handle, REAL(mzs), (size_t)XLENGTH(mzs),
+  int code = ABI.plan_find_targets(handle, REAL(mzs), (size_t)XLENGTH(mzs),
                                      asReal(from), asReal(to), &out);
-  die_code("plan_peaks_from_eic", code);
+  die_code("plan_find_targets", code);
   return ranges_to_matrix(&out);
 }
 
@@ -1537,22 +1423,6 @@ SEXP C_plan_find_features(SEXP ptr, SEXP from, SEXP to, SEXP eic_ppm, SEXP eic_m
                                     asReal(eic_mz), asReal(grid_start), asReal(grid_end),
                                     asReal(grid_step), &out);
   die_code("plan_find_features", code);
-  return ranges_to_matrix(&out);
-}
-
-SEXP C_plan_find_feature(SEXP ptr, SEXP rts, SEXP windows)
-{
-  REQUIRE_BOUND(ABI.plan_find_feature, "plan_find_feature");
-  MzML *handle = (MzML *)R_ExternalPtrAddr(ptr);
-  if (handle == NULL)
-    error("quantion: the file handle is not valid");
-  if (XLENGTH(rts) != XLENGTH(windows))
-    error("quantion: rt and window must have the same length");
-
-  Buf out;
-  memset(&out, 0, sizeof(out));
-  int code = ABI.plan_find_feature(handle, REAL(rts), REAL(windows), (size_t)XLENGTH(rts), &out);
-  die_code("plan_find_feature", code);
   return ranges_to_matrix(&out);
 }
 
@@ -1678,7 +1548,7 @@ SEXP C_get_scans(SEXP bin, SEXP query_type, SEXP a, SEXP b, SEXP level)
   return result;
 }
 
-SEXP C_get_features(SEXP dir_path, SEXP from_time, SEXP to_time,
+SEXP C_match_features(SEXP dir_path, SEXP from_time, SEXP to_time,
                     SEXP eic_ppm_tol, SEXP eic_mz_tol,
                     SEXP grid_start, SEXP grid_end, SEXP grid_step,
                     SEXP group_ppm_tol, SEXP group_mz_tol, SEXP group_rt_tol,
@@ -1686,7 +1556,7 @@ SEXP C_get_features(SEXP dir_path, SEXP from_time, SEXP to_time,
 {
   if (TYPEOF(dir_path) != STRSXP || LENGTH(dir_path) != 1)
     error("dir_path must be a length-1 character string");
-  REQUIRE_BOUND(ABI.get_features, "get_features");
+  REQUIRE_BOUND(ABI.match_features, "match_features");
   REQUIRE_BOUND(ABI.free_, "free_");
 
   const char *path = CHAR(STRING_ELT(dir_path, 0));
@@ -1701,7 +1571,7 @@ SEXP C_get_features(SEXP dir_path, SEXP from_time, SEXP to_time,
 
   SEXP cont = PROTECT(R_MakeUnwindCont());
   Buf out = (Buf){0};
-  int code = ABI.get_features(
+  int code = ABI.match_features(
       path,
       asReal(from_time), asReal(to_time),
       asReal(eic_ppm_tol), asReal(eic_mz_tol),
@@ -1714,9 +1584,9 @@ SEXP C_get_features(SEXP dir_path, SEXP from_time, SEXP to_time,
   if (code != 0)
   {
     UNPROTECT(1);
-    die_code("get_features", code);
+    die_code("match_features", code);
   }
-  SEXP res = take_records_bridge("get_features", &out, cont);
+  SEXP res = take_records_bridge("match_features", &out, cont);
   UNPROTECT(1);
   return res;
 }

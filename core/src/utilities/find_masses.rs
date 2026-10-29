@@ -90,6 +90,5 @@ fn mz_peak_options() -> FindPeaksOptions {
         }),
         baseline: None,
         artifact_filter: None,
-        threads: 1,
     }
 }

@@ -3,7 +3,7 @@ import sys
 MOST_REQUESTS_TO_OPEN = 12
 MOST_REQUESTS_FOR_ONE_QUERY = 4
 MOST_OF_THE_FILE_ONE_QUERY_MAY_TAKE = 0.1
-WHOLE_FILE = {"get_peaks_from_chrom", "ion_to_mzml", "mzml_to_ion"}
+WHOLE_FILE = {"find_transitions", "ion_to_mzml", "mzml_to_ion"}
 
 
 def read(path):

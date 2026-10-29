@@ -89,12 +89,10 @@ class _ABI:
         "plan_open": ([POINTER(c_uint8), c_size_t, POINTER(_Buf)], c_int32),
         "plan_eic": ([c_void_p, c_double, c_double, c_double, c_double, c_double,
              POINTER(_Buf)], c_int32),
-        "plan_peaks_from_eic": ([c_void_p, POINTER(c_double), c_size_t, c_double, c_double,
+        "plan_find_targets": ([c_void_p, POINTER(c_double), c_size_t, c_double, c_double,
              POINTER(_Buf)], c_int32),
         "plan_find_features": ([c_void_p, c_double, c_double, c_double, c_double, c_double,
              c_double, c_double, POINTER(_Buf)], c_int32),
-        "plan_find_feature": ([c_void_p, POINTER(c_double), POINTER(c_double), c_size_t,
-             POINTER(_Buf)], c_int32),
         "free_mzml": ([c_void_p], None),
         "free_": ([POINTER(c_uint8), c_size_t], None),
         "bin_to_mzml": ([c_void_p, POINTER(_Buf)], c_int32),
@@ -106,13 +104,13 @@ class _ABI:
         "calculate_eic": ([c_void_p, c_double, c_double, c_double,
              c_double, c_double, POINTER(_Buf), POINTER(_Buf)], c_int32),
         "get_scans": ([c_void_p, c_uint8, c_double, c_double, c_uint8, POINTER(_Buf)], c_int32),
-        "get_peaks_from_eic": ([c_void_p,
+        "find_targets": ([c_void_p,
              POINTER(c_double), POINTER(c_double), POINTER(c_double),
              POINTER(c_uint32), POINTER(c_uint32),
              POINTER(c_uint8), c_size_t,
              c_size_t, c_double, c_double,
              POINTER(PeakOptions), c_size_t, POINTER(_Buf)], c_int32),
-        "get_peaks_from_chrom": ([c_void_p,
+        "find_transitions": ([c_void_p,
              POINTER(c_double), POINTER(c_double), POINTER(c_double), POINTER(c_double),
              POINTER(c_uint32), POINTER(c_uint32), POINTER(c_uint8), c_size_t,
              c_size_t, POINTER(PeakOptions), c_size_t, POINTER(_Buf)], c_int32),
@@ -124,18 +122,11 @@ class _ABI:
              c_double, c_double, c_double, c_double, POINTER(_Buf)], c_int32),
         "calculate_baseline": ([POINTER(c_double), c_size_t, c_int32, c_int32,
              POINTER(_Buf)], c_int32),
-        "find_feature": ([c_void_p,
-             POINTER(c_double), POINTER(c_double), POINTER(c_double),
-             POINTER(c_uint32), POINTER(c_uint32),
-             POINTER(c_uint8), c_size_t,
-             c_size_t, c_size_t,
-             c_double, c_double, c_double, c_double,
-             POINTER(PeakOptions), POINTER(_Buf)], c_int32),
         "find_features": ([c_void_p,
             c_double, c_double, c_double, c_double,
             c_double, c_double, c_double,
             POINTER(PeakOptions), c_int32, POINTER(_Buf)], c_int32),
-        "get_features": ([ctypes.c_char_p,
+        "match_features": ([ctypes.c_char_p,
             c_double, c_double, c_double, c_double,
             c_double, c_double, c_double,
             c_double, c_double, c_double,
@@ -392,11 +383,8 @@ def buf_to_scans(abi: _ABI, buf: _Buf) -> list:
 
 PAYLOAD_PEAKS = 3
 PAYLOAD_FEATURES = 4
-PAYLOAD_CHROM_PEAKS = 5
 PAYLOAD_FIT_RESULT = 6
-PAYLOAD_EIC_PEAKS = 7
 PAYLOAD_CONSENSUS_FEATURES = 8
-PAYLOAD_FOUND_FEATURES = 9
 PAYLOAD_WARP_TARGETS = 10
 PAYLOAD_MODEL_METADATA = 11
 
@@ -413,30 +401,14 @@ _RECORD_COLUMNS = {
         ("to", 29, _NUMBER), ("intensity", 30, _NUMBER), ("integral", 31, _NUMBER),
         ("n_points", 32, _COUNT), ("noise", 33, _NUMBER),
     ],
-    PAYLOAD_CHROM_PEAKS: [
-        ("id", (42, 43), _TEXT), ("ort", 35, _NUMBER),
-        ("rt", 36, _NUMBER), ("from", 37, _NUMBER), ("to", 38, _NUMBER),
-        ("intensity", 39, _NUMBER), ("integral", 40, _NUMBER),
-        ("total_area", 41, _NUMBER), ("timestamp", (44, 45), _TEXT),
-    ],
     PAYLOAD_FIT_RESULT: [
         ("shape", 46, _NUMBER), ("height", 47, _NUMBER), ("center", 48, _NUMBER),
         ("fwhm", 49, _NUMBER), ("tail", 50, _NUMBER), ("r2", 51, _NUMBER),
     ],
-    PAYLOAD_EIC_PEAKS: [
-        ("id", (52, 53), _TEXT), ("mz", 54, _NUMBER), ("ort", 55, _NUMBER),
-        ("rt", 56, _NUMBER), ("from", 57, _NUMBER), ("to", 58, _NUMBER),
-        ("intensity", 59, _NUMBER), ("integral", 60, _NUMBER), ("noise", 61, _NUMBER),
-    ],
     PAYLOAD_CONSENSUS_FEATURES: [
         ("mz", 62, _NUMBER), ("rt", 63, _NUMBER), ("from", 64, _NUMBER),
         ("to", 65, _NUMBER), ("intensity", 66, _NUMBER), ("integral", 67, _NUMBER),
-        ("frequency", 68, _NUMBER),
-    ],
-    PAYLOAD_FOUND_FEATURES: [
-        ("id", (69, 70), _TEXT), ("mz", 71, _NUMBER), ("rt", 72, _NUMBER),
-        ("from", 73, _NUMBER), ("to", 74, _NUMBER), ("intensity", 75, _NUMBER),
-        ("integral", 76, _NUMBER), ("n_points", 77, _COUNT), ("noise", 78, _NUMBER),
+        ("n_points", 87, _COUNT), ("noise", 88, _NUMBER), ("frequency", 68, _NUMBER),
     ],
     PAYLOAD_WARP_TARGETS: [
         ("id", (79, 80), _TEXT), ("mz", 81, _NUMBER), ("rt", 82, _NUMBER),

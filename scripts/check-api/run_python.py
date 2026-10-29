@@ -126,21 +126,21 @@ def report_channel(file, transitions, channel, out):
         {"id": id_, "rt": rt, "mz": channel["mass"], "range": ROI_RANGE}
         for id_, rt in channel["targets"]
     ]
-    rows = quantion.get_peaks_from_eic(
+    rows = quantion.find_targets(
         file, targets, FROM_TO, peak_options(channel), THREADS
     )
-    for row in rows:
-        shared_peak_lines(f"{name}.get_peaks_from_eic.{row['id']}", row, out)
+    for target, row in zip(targets, rows):
+        shared_peak_lines(f"{name}.find_targets.{target['id']}", row, out)
 
     chrom_targets = [
         {"id": id_, "precursor": channel["mass"], "product": channel["mass"], "rt": rt, "range": ROI_RANGE}
         for id_, rt in channel["targets"]
     ]
-    chrom_rows = quantion.get_peaks_from_chrom(
+    chrom_rows = quantion.find_transitions(
         transitions, chrom_targets, chrom_peak_options(channel), THREADS
     )
     for (id_, _), row in zip(channel["targets"], chrom_rows):
-        prefix = f"{name}.get_peaks_from_chrom.{id_}"
+        prefix = f"{name}.find_transitions.{id_}"
         out.append(f"{prefix}.rt = {number(row['rt'])}")
         out.append(f"{prefix}.from = {number(row['from'])}")
         out.append(f"{prefix}.to = {number(row['to'])}")
@@ -185,7 +185,7 @@ def main():
         out.append(f"{name}.intensity = {number(feature['intensity'])}")
         out.append(f"{name}.n_points = {int(feature['n_points'])}")
 
-    consensus = quantion.get_features(
+    consensus = quantion.match_features(
         directory,
         FROM_TO,
         eic=eic,
@@ -193,9 +193,9 @@ def main():
         options=feature_peak_options(),
         threads=THREADS,
     )
-    out.append(f"get_features.count = {len(consensus)}")
+    out.append(f"match_features.count = {len(consensus)}")
     for index, feature in enumerate(consensus):
-        name = f"get_features[{index}]"
+        name = f"match_features[{index}]"
         out.append(f"{name}.mz = {number(feature['mz'])}")
         out.append(f"{name}.rt = {number(feature['rt'])}")
         out.append(f"{name}.from = {number(feature['from'])}")

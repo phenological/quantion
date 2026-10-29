@@ -201,7 +201,6 @@ fn find_peaks_options(min_r2: f64) -> FindPeaksOptions {
             min_r2,
             shape: PeakShape::EMG,
         }),
-        threads: 1,
     }
 }
 

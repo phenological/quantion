@@ -1,7 +1,7 @@
 use ionic::{IonReader, ReadOptions, mzml::structs::MzML};
 use quantion::{
-    ChromTarget,
-    utilities::{find_peaks::FindPeaksOptions, get_peaks_from_chrom::get_peaks_from_chrom},
+    Transition,
+    utilities::find_transitions::{FindTransitionsOptions, find_transitions},
 };
 
 fn read_transitions() -> MzML {
@@ -12,8 +12,8 @@ fn read_transitions() -> MzML {
         .expect("decode srm.ion")
 }
 
-fn get_target(id: &str, precursor: f64, product: f64) -> ChromTarget {
-    ChromTarget {
+fn get_target(id: &str, precursor: f64, product: f64) -> Transition {
+    Transition {
         id: id.to_string(),
         precursor,
         product,
@@ -25,26 +25,36 @@ fn get_target(id: &str, precursor: f64, product: f64) -> ChromTarget {
 #[test]
 fn a_target_finds_the_chromatogram_with_its_precursor_and_product() {
     let targets = [get_target("alanine", 89.04768, 89.04768)];
-    let rows = get_peaks_from_chrom(&read_transitions(), &targets, FindPeaksOptions::default())
-        .expect("chromatograms");
-    assert_eq!(rows[0].id, "alanine");
+    let rows = find_transitions(
+        &read_transitions(),
+        &targets,
+        FindTransitionsOptions::default(),
+    )
+    .expect("chromatograms");
     assert!(rows[0].intensity > 0.0);
-    assert!((rows[0].peak_rt - 2.385).abs() < 0.05);
+    assert!((rows[0].rt - 2.385).abs() < 0.05);
 }
 
 #[test]
 fn a_target_matches_within_the_tolerance() {
     let targets = [get_target("alanine", 89.0526, 89.0436)];
-    let rows = get_peaks_from_chrom(&read_transitions(), &targets, FindPeaksOptions::default())
-        .expect("chromatograms");
+    let rows = find_transitions(
+        &read_transitions(),
+        &targets,
+        FindTransitionsOptions::default(),
+    )
+    .expect("chromatograms");
     assert!(rows[0].intensity > 0.0);
 }
 
 #[test]
 fn a_wrong_product_finds_nothing() {
     let targets = [get_target("alanine", 89.04768, 90.0555)];
-    let rows = get_peaks_from_chrom(&read_transitions(), &targets, FindPeaksOptions::default())
-        .expect("chromatograms");
-    assert_eq!(rows[0].id, "alanine");
+    let rows = find_transitions(
+        &read_transitions(),
+        &targets,
+        FindTransitionsOptions::default(),
+    )
+    .expect("chromatograms");
     assert_eq!(rows[0].intensity, 0.0);
 }

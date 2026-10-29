@@ -1,13 +1,13 @@
-\name{get_peaks_from_chrom}
-\alias{get_peaks_from_chrom}
+\name{find_transitions}
+\alias{find_transitions}
 \title{Find peaks from stored chromatograms}
 \description{
 Finds a peak in the stored chromatogram of each target. A target picks the
 chromatogram whose precursor (Q1) and product (Q3) m/z are both within 0.005.
 }
 \usage{
-get_peaks_from_chrom(
-  bin,
+find_transitions(
+  file,
   targets,
   threads = 1L,
   min_integral = NaN,
@@ -25,7 +25,7 @@ get_peaks_from_chrom(
 )
 }
 \arguments{
-  \item{bin}{Sample file from \code{\link{parse_mzml}()} or \code{\link{parse_ion}()}.}
+  \item{file}{Sample file from \code{\link{parse_mzml}()} or \code{\link{parse_ion}()}.}
   \item{targets}{Data frame with columns \code{id}, \code{precursor} (Q1 m/z),
     \code{product} (Q3 m/z), \code{rt} and \code{range} (RT half-window).}
   \item{threads}{Number of threads to use. Default 1.}
@@ -44,10 +44,9 @@ get_peaks_from_chrom(
 
 }
 \value{
-A data frame with one row per target. A target with no matching chromatogram gets
-zeros. Columns include \code{id},
-\code{ort}, \code{rt}, \code{from}, \code{to}, \code{intensity}, \code{integral},
-\code{total_area}, \code{timestamp}.
+A data frame with one row per target, in the same order, with the peak columns
+\code{rt}, \code{from}, \code{to}, \code{intensity}, \code{integral},
+\code{n_points}, \code{noise} and \code{r2}. A target with no matching chromatogram gets zeros.
 }
 \examples{
 \dontrun{
@@ -58,9 +57,9 @@ targets <- data.frame(
   rt        = c(3.20, 3.65),
   range     = c(0.4, 0.4)
 )
-get_peaks_from_chrom(sample, targets, threads = 2L)
+find_transitions(sample, targets, threads = 2L)
 }
 }
 \seealso{
-\code{\link{get_peaks_from_eic}()}, \code{\link{get_peak}()}
+\code{\link{find_targets}()}, \code{\link{get_peak}()}
 }

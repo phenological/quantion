@@ -88,19 +88,8 @@ impl From<Error> for AlignmentError {
 }
 
 #[derive(Clone, Debug)]
-pub struct ConsensusFeature {
-    pub mz: f64,
-    pub rt: f64,
-    pub from: f64,
-    pub to: f64,
-    pub intensity: f64,
-    pub integral: f64,
-    pub frequency: f64,
-    pub n_samples: usize,
-}
-
-#[derive(Clone, Debug)]
-pub struct AlignmentOptions {
+pub struct MatchFeaturesOptions {
+    pub features: FindFeaturesOptions,
     pub mz_tolerance: MzTolerance,
     pub rt_tolerance: f64,
     pub min_samples: usize,
@@ -112,9 +101,10 @@ pub struct AlignmentOptions {
     pub threads: usize,
 }
 
-impl Default for AlignmentOptions {
+impl Default for MatchFeaturesOptions {
     fn default() -> Self {
         Self {
+            features: FindFeaturesOptions::default(),
             mz_tolerance: MzTolerance {
                 mz_absolute: 0.0025,
                 ppm: 5.0,
@@ -421,6 +411,8 @@ pub(crate) struct MassPeak {
     pub(crate) intensity: f64,
     pub(crate) integral: f64,
     pub(crate) rt: f64,
+    pub(crate) n_points: usize,
+    pub(crate) noise: f64,
 }
 
 struct ClusterSlot {
@@ -431,24 +423,27 @@ struct ClusterSlot {
 }
 
 #[cfg(not(all(target_arch = "wasm32", not(target_os = "wasi"))))]
-pub fn get_features(
-    directory_path: &str,
-    time_window: FromTo,
-    feature_config: FindFeaturesOptions,
-    alignment_config: AlignmentOptions,
-) -> Result<Vec<ConsensusFeature>, AlignmentError> {
-    let datasets = load_sample_files(directory_path)?;
-    let datasets = detect_features_per_sample(datasets, time_window, &feature_config)?;
-    align_samples(datasets, alignment_config)
+pub fn match_features(
+    directory: &str,
+    window: FromTo,
+    options: MatchFeaturesOptions,
+) -> Result<Vec<Feature>, AlignmentError> {
+    let features = FindFeaturesOptions {
+        threads: options.threads,
+        ..options.features.clone()
+    };
+    let datasets = load_sample_files(directory)?;
+    let datasets = detect_features_per_sample(datasets, window, &features)?;
+    align_samples(datasets, options)
 }
 
 #[cfg(not(all(target_arch = "wasm32", not(target_os = "wasi"))))]
-pub fn get_features_from_detected(
-    directory_path: &str,
+pub fn match_detected_features(
+    directory: &str,
     mut detected: Vec<(String, Vec<Feature>)>,
-    alignment_config: AlignmentOptions,
-) -> Result<Vec<ConsensusFeature>, AlignmentError> {
-    let sources = load_sample_files(directory_path)?;
+    options: MatchFeaturesOptions,
+) -> Result<Vec<Feature>, AlignmentError> {
+    let sources = load_sample_files(directory)?;
     let mut datasets = Vec::with_capacity(sources.len());
     for (name, source) in sources {
         let position = match detected.iter().position(|(given, _)| *given == name) {
@@ -463,18 +458,18 @@ pub fn get_features_from_detected(
         let (_, features) = detected.swap_remove(position);
         datasets.push((name, source, features));
     }
-    align_samples(datasets, alignment_config)
+    align_samples(datasets, options)
 }
 
 #[cfg(not(all(target_arch = "wasm32", not(target_os = "wasi"))))]
 fn align_samples(
     mut datasets: Vec<SampleDataset>,
-    alignment_config: AlignmentOptions,
-) -> Result<Vec<ConsensusFeature>, AlignmentError> {
-    let threads = alignment_config.threads;
+    options: MatchFeaturesOptions,
+) -> Result<Vec<Feature>, AlignmentError> {
+    let threads = options.threads;
     let clusterer = FeatureClusterer {
-        tolerance: alignment_config.mz_tolerance.clone(),
-        rt_tolerance: alignment_config.rt_tolerance,
+        tolerance: options.mz_tolerance.clone(),
+        rt_tolerance: options.rt_tolerance,
     };
 
     let tagged = collect_tagged(&mut datasets);
@@ -482,38 +477,38 @@ fn align_samples(
     let mut slots = prepare_slots(
         clusters,
         datasets.len(),
-        alignment_config.rt_tolerance,
-        alignment_config.min_real_support,
+        options.rt_tolerance,
+        options.min_real_support,
     );
 
-    let estimator = make_estimator(&alignment_config.mz_estimator);
+    let estimator = make_estimator(&options.mz_estimator);
 
     resolve_samples(
         &mut slots,
         &datasets,
-        alignment_config.eic_options,
-        alignment_config.peak_options,
-        alignment_config.fill_window_minutes,
+        options.eic_options,
+        options.peak_options,
+        options.fill_window_minutes,
         threads,
     )?;
 
     let (single, split) = build_results(
         slots,
-        alignment_config.min_samples,
+        options.min_samples,
         datasets.len(),
         estimator.as_ref(),
-        &alignment_config.mz_tolerance,
-        alignment_config.eic_options.ppm_tolerance,
+        &options.mz_tolerance,
+        options.eic_options.ppm_tolerance,
     );
 
     let same_mass = MzTolerance {
         mz_absolute: 0.0,
-        ppm: 0.5 * alignment_config.eic_options.ppm_tolerance,
+        ppm: 0.5 * options.eic_options.ppm_tolerance,
     };
     let mut features = single;
     features.extend(split);
     let results = run_with_threads(threads, || {
-        dedup(features, &same_mass, alignment_config.rt_tolerance)
+        dedup(features, &same_mass, options.rt_tolerance)
     });
     Ok(results)
 }
@@ -869,6 +864,8 @@ pub(crate) fn resolve_cluster(
                 intensity: feature.intensity,
                 integral: feature.integral,
                 rt: feature.rt,
+                n_points: feature.n_points,
+                noise: feature.noise,
             }],
             _ => Vec::new(),
         }
@@ -883,6 +880,8 @@ pub(crate) fn resolve_cluster(
                         intensity: peak.intensity,
                         integral: peak.integral,
                         rt: peak.rt,
+                        n_points: peak.n_points,
+                        noise: peak.noise,
                     }
                 })
             })
@@ -980,6 +979,7 @@ fn detect_peak(
         n_points: p.n_points,
         integral: p.integral,
         noise: p.noise,
+        frequency: None,
     })
 }
 
@@ -1160,14 +1160,14 @@ fn build_results(
     estimator: &(dyn MzEstimator + Send + Sync),
     tolerance: &MzTolerance,
     ppm: f64,
-) -> (Vec<ConsensusFeature>, Vec<ConsensusFeature>) {
+) -> (Vec<Feature>, Vec<Feature>) {
     let context = BuildContext {
         estimator,
         tolerance,
         total_samples,
     };
-    let mut single: Vec<ConsensusFeature> = Vec::new();
-    let mut split: Vec<ConsensusFeature> = Vec::new();
+    let mut single: Vec<Feature> = Vec::new();
+    let mut split: Vec<Feature> = Vec::new();
     for slot in slots {
         let ClusterSlot {
             features,
@@ -1204,11 +1204,9 @@ fn build_results(
             continue;
         }
 
-        let mut group_features: Vec<ConsensusFeature> = Vec::new();
+        let mut group_features: Vec<Feature> = Vec::new();
         for group in &masses {
-            if let Some(feature) = build_mass_feature(group, &bounds, &context)
-                && feature.n_samples >= min_samples
-            {
+            if let Some(feature) = build_mass_feature(group, &bounds, &context, min_samples) {
                 group_features.push(feature);
             }
         }
@@ -1221,49 +1219,46 @@ fn build_mass_feature(
     entries: &[(usize, MassPeak)],
     bounds: &SearchBounds,
     context: &BuildContext,
-) -> Option<ConsensusFeature> {
-    if entries.is_empty() {
-        return None;
-    }
-
+    min_samples: usize,
+) -> Option<Feature> {
     let mut samples: Vec<usize> = entries.iter().map(|(sample_idx, _)| *sample_idx).collect();
     samples.sort_unstable();
     samples.dedup();
+    if samples.is_empty() || samples.len() < min_samples {
+        return None;
+    }
 
     let mut mzs: Vec<f64> = entries.iter().map(|(_, o)| o.mz).collect();
     let mut intensities: Vec<f64> = entries.iter().map(|(_, o)| o.intensity).collect();
     let mut integrals: Vec<f64> = entries.iter().map(|(_, o)| o.integral).collect();
     let mut rts: Vec<f64> = entries.iter().map(|(_, o)| o.rt).collect();
+    let mut points: Vec<f64> = entries.iter().map(|(_, o)| o.n_points as f64).collect();
+    let mut noises: Vec<f64> = entries.iter().map(|(_, o)| o.noise).collect();
 
-    Some(ConsensusFeature {
+    Some(Feature {
         mz: median(&mut mzs),
         rt: median(&mut rts),
         from: bounds.rt_from,
         to: bounds.rt_to,
         intensity: median(&mut intensities),
         integral: median(&mut integrals),
-        frequency: if context.total_samples > 0 {
+        n_points: median(&mut points).round() as usize,
+        noise: median(&mut noises),
+        frequency: Some(if context.total_samples > 0 {
             samples.len() as f64 / context.total_samples as f64
         } else {
             0.0
-        },
-        n_samples: samples.len(),
+        }),
     })
 }
 
-pub(crate) fn dedup(
-    results: Vec<ConsensusFeature>,
-    tolerance: &MzTolerance,
-    rt_tol: f64,
-) -> Vec<ConsensusFeature> {
+pub(crate) fn dedup(results: Vec<Feature>, tolerance: &MzTolerance, rt_tol: f64) -> Vec<Feature> {
     if results.is_empty() {
         return results;
     }
 
     let mut by_mz = results;
-    let by_mz_cmp = |a: &ConsensusFeature, b: &ConsensusFeature| {
-        a.mz.partial_cmp(&b.mz).unwrap_or(Ordering::Equal)
-    };
+    let by_mz_cmp = |a: &Feature, b: &Feature| a.mz.partial_cmp(&b.mz).unwrap_or(Ordering::Equal);
     #[cfg(not(all(target_arch = "wasm32", not(target_os = "wasi"))))]
     by_mz.par_sort_unstable_by(by_mz_cmp);
     #[cfg(all(target_arch = "wasm32", not(target_os = "wasi")))]
@@ -1272,12 +1267,12 @@ pub(crate) fn dedup(
     let bands = split_dedup_bands(by_mz, tolerance);
 
     #[cfg(not(all(target_arch = "wasm32", not(target_os = "wasi"))))]
-    let mut kept: Vec<ConsensusFeature> = bands
+    let mut kept: Vec<Feature> = bands
         .into_par_iter()
         .flat_map_iter(|band| dedup_band(band, tolerance, rt_tol))
         .collect();
     #[cfg(all(target_arch = "wasm32", not(target_os = "wasi")))]
-    let mut kept: Vec<ConsensusFeature> = bands
+    let mut kept: Vec<Feature> = bands
         .into_iter()
         .flat_map(|band| dedup_band(band, tolerance, rt_tol))
         .collect();
@@ -1289,20 +1284,18 @@ pub(crate) fn dedup(
     kept
 }
 
-fn dedup_priority(a: &ConsensusFeature, b: &ConsensusFeature) -> Ordering {
-    b.n_samples.cmp(&a.n_samples).then_with(|| {
+fn dedup_priority(a: &Feature, b: &Feature) -> Ordering {
+    let frequency = |feature: &Feature| feature.frequency.unwrap_or(0.0);
+    frequency(b).total_cmp(&frequency(a)).then_with(|| {
         b.intensity
             .partial_cmp(&a.intensity)
             .unwrap_or(Ordering::Equal)
     })
 }
 
-fn split_dedup_bands(
-    sorted_by_mz: Vec<ConsensusFeature>,
-    tolerance: &MzTolerance,
-) -> Vec<Vec<ConsensusFeature>> {
-    let mut bands: Vec<Vec<ConsensusFeature>> = Vec::new();
-    let mut current: Vec<ConsensusFeature> = Vec::new();
+fn split_dedup_bands(sorted_by_mz: Vec<Feature>, tolerance: &MzTolerance) -> Vec<Vec<Feature>> {
+    let mut bands: Vec<Vec<Feature>> = Vec::new();
+    let mut current: Vec<Feature> = Vec::new();
     for feature in sorted_by_mz {
         if let Some(previous) = current.last() {
             let independent = !tolerance.are_close_to_ref(feature.mz, previous.mz)
@@ -1319,13 +1312,9 @@ fn split_dedup_bands(
     bands
 }
 
-fn dedup_band(
-    mut band: Vec<ConsensusFeature>,
-    tolerance: &MzTolerance,
-    rt_tol: f64,
-) -> Vec<ConsensusFeature> {
+fn dedup_band(mut band: Vec<Feature>, tolerance: &MzTolerance, rt_tol: f64) -> Vec<Feature> {
     band.sort_unstable_by(dedup_priority);
-    let mut kept: Vec<ConsensusFeature> = Vec::new();
+    let mut kept: Vec<Feature> = Vec::new();
     'outer: for feature in band {
         for existing in &kept {
             if tolerance.are_close_to_ref(feature.mz, existing.mz)
@@ -1374,7 +1363,7 @@ fn load_sample_files(directory: &str) -> Result<Vec<(String, SampleSourceKind)>,
 #[cfg(not(all(target_arch = "wasm32", not(target_os = "wasi"))))]
 fn detect_features_per_sample(
     samples: Vec<(String, SampleSourceKind)>,
-    time_window: FromTo,
+    window: FromTo,
     config: &FindFeaturesOptions,
 ) -> Result<Vec<SampleDataset>, AlignmentError> {
     let mut results = Vec::new();
@@ -1388,7 +1377,7 @@ fn detect_features_per_sample(
                     source: e.to_string(),
                 })?;
                 let mut reader = EicReader::Mzml(&mut mzml);
-                find_features(&mut reader, time_window, config.clone()).map_err(|e| {
+                find_features(&mut reader, window, config.clone()).map_err(|e| {
                     AlignmentError::FeatureDetection {
                         path: path.to_string_lossy().to_string(),
                         source: e,
@@ -1401,7 +1390,7 @@ fn detect_features_per_sample(
                     source: e.to_string(),
                 })?;
                 let mut reader = EicReader::Ion(&mut owned);
-                find_features(&mut reader, time_window, config.clone()).map_err(|e| {
+                find_features(&mut reader, window, config.clone()).map_err(|e| {
                     AlignmentError::FeatureDetection {
                         path: path.to_string_lossy().to_string(),
                         source: e,
@@ -1476,27 +1465,30 @@ pub(crate) fn aggregate_into_consensus(
     hits: Vec<Feature>,
     bounds: &SearchBounds,
     total_samples: usize,
-) -> ConsensusFeature {
+) -> Feature {
     let n = hits.len();
 
     let mut mz_values: Vec<f64> = hits.iter().map(|f| f.mz).collect();
     let mut rt_values: Vec<f64> = hits.iter().map(|f| f.rt).collect();
     let mut intensity_values: Vec<f64> = hits.iter().map(|f| f.intensity).collect();
     let mut integral_values: Vec<f64> = hits.iter().map(|f| f.integral).collect();
+    let mut point_values: Vec<f64> = hits.iter().map(|f| f.n_points as f64).collect();
+    let mut noise_values: Vec<f64> = hits.iter().map(|f| f.noise).collect();
 
-    ConsensusFeature {
+    Feature {
         mz: median(&mut mz_values),
         rt: median(&mut rt_values),
         from: bounds.rt_from,
         to: bounds.rt_to,
         intensity: median(&mut intensity_values),
         integral: median(&mut integral_values),
-        frequency: if total_samples > 0 {
+        n_points: median(&mut point_values).round() as usize,
+        noise: median(&mut noise_values),
+        frequency: Some(if total_samples > 0 {
             n as f64 / total_samples as f64
         } else {
             0.0
-        },
-        n_samples: n,
+        }),
     }
 }
 

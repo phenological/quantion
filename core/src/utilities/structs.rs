@@ -63,7 +63,7 @@ pub struct Target {
 }
 
 #[derive(Clone, Debug, Default, PartialEq)]
-pub struct ChromTarget {
+pub struct Transition {
     pub id: String,
     pub precursor: f64,
     pub product: f64,

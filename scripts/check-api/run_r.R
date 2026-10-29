@@ -101,23 +101,23 @@ report_channel <- function(file, transitions, channel, out) {
   rts <- vapply(channel$targets, function(t) as.numeric(t[2]), numeric(1))
   targets <- data.frame(id = ids, rt = rts, mz = channel$mass, range = ROI_RANGE,
                         stringsAsFactors = FALSE)
-  rows <- get_peaks_from_eic(file, targets, from = FROM_RT, to = TO_RT, threads = THREADS,
+  rows <- find_targets(file, targets, from = FROM_RT, to = TO_RT, threads = THREADS,
                              min_intensity = channel$min_intensity,
                              min_peak_width_points = channel$min_peak_width_points,
                              auto_noise = TRUE, auto_baseline = TRUE)
   for (index in seq_len(nrow(rows))) {
     out <- shared_peak_lines(
-      sprintf("%s.get_peaks_from_eic.%s", name, rows$id[index]), rows[index, ], out)
+      sprintf("%s.find_targets.%s", name, targets$id[index]), rows[index, ], out)
   }
 
   chrom_targets <- data.frame(id = ids, precursor = channel$mass, product = channel$mass,
                               rt = rts, range = ROI_RANGE, stringsAsFactors = FALSE)
-  chrom_rows <- get_peaks_from_chrom(transitions, chrom_targets, threads = THREADS,
+  chrom_rows <- find_transitions(transitions, chrom_targets, threads = THREADS,
                                      min_intensity = channel$min_intensity,
                                      min_peak_width_points = channel$min_peak_width_points,
                                      auto_noise = FALSE, auto_baseline = FALSE)
   for (index in seq_len(nrow(chrom_rows))) {
-    prefix <- sprintf("%s.get_peaks_from_chrom.%s", name, ids[index])
+    prefix <- sprintf("%s.find_transitions.%s", name, ids[index])
     row <- chrom_rows[index, ]
     out <- c(out,
       sprintf("%s.rt = %s", prefix, number(row$rt)),
@@ -166,22 +166,22 @@ main <- function() {
   }
 
   found <- find_features(file, from = FROM_RT, to = TO_RT,
-                         ppm_tolerance = EIC_PPM, mz_tolerance = EIC_MZ,
+                         eic_ppm_tolerance = EIC_PPM, eic_mz_tolerance = EIC_MZ,
                          grid_start = GRID_START, grid_end = GRID_END,
-                         grid_step_ppm = GRID_STEP, threads = THREADS,
+                         grid_step_size = GRID_STEP, threads = THREADS,
                          min_intensity = FEATURE_MIN_INTENSITY,
                          min_peak_width_points = FEATURE_MIN_PEAK_WIDTH_POINTS,
                          auto_noise = TRUE, auto_baseline = TRUE)
   out <- feature_lines("find_features", found, out, TRUE)
 
-  consensus <- get_features(directory, from = FROM_RT, to = TO_RT,
-                            eic_ppm_tol = EIC_PPM, eic_mz_tol = EIC_MZ,
+  consensus <- match_features(directory, from = FROM_RT, to = TO_RT,
+                            eic_ppm_tolerance = EIC_PPM, eic_mz_tolerance = EIC_MZ,
                             grid_start = GRID_START, grid_end = GRID_END,
-                            grid_step = GRID_STEP, threads = THREADS,
+                            grid_step_size = GRID_STEP, threads = THREADS,
                             min_intensity = FEATURE_MIN_INTENSITY,
                             min_peak_width_points = FEATURE_MIN_PEAK_WIDTH_POINTS,
                             auto_noise = TRUE, auto_baseline = TRUE)
-  out <- feature_lines("get_features", consensus, out, FALSE)
+  out <- feature_lines("match_features", consensus, out, FALSE)
 
   warp <- load_warp(load_model(file.path(directory, "..", "shift_model.onnx")))
   ids <- unlist(lapply(CHANNELS, function(channel)

@@ -8,7 +8,7 @@ use crate::utilities::{
         EicOptions, EicReader, FastError, MS1_LEVEL, ScanTime, get_scan_times, mz_tolerance_for,
         plan_window_ranges,
     },
-    get_peaks_from_eic::{MzWindow, read_eics_one_pass},
+    find_targets::{MzWindow, read_eics_one_pass},
     load_model::Model,
     structs::{FromTo, Target},
 };

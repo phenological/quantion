@@ -111,44 +111,6 @@ mod tests {
         assert!(abs_tol(0.01).are_close_to_ref(100.0, 100.0));
     }
 
-    #[test]
-    fn test_mz_tolerance_window_at_symmetric() {
-        let (lo, hi) = abs_tol(0.5).window_at(100.0);
-        assert_eq!(lo, 99.5);
-        assert_eq!(hi, 100.5);
-    }
-
-    #[test]
-    fn test_mz_tolerance_ppm_dominates_abs_at_high_mz() {
-        let tol = MzTolerance {
-            mz_absolute: 0.001,
-            ppm: 10.0,
-        };
-        let (lo, hi) = tol.window_at(1000.0);
-        assert!((hi - lo) > 0.005);
-    }
-
-    #[test]
-    fn test_mz_tolerance_abs_dominates_ppm_at_low_mz() {
-        let tol = MzTolerance {
-            mz_absolute: 0.01,
-            ppm: 1.0,
-        };
-        let (lo, hi) = tol.window_at(1.0);
-        assert!((hi - lo - 0.02).abs() < 1e-10);
-    }
-
-    #[test]
-    fn test_mz_tolerance_zero_ppm_uses_abs_only() {
-        let tol = MzTolerance {
-            mz_absolute: 0.5,
-            ppm: 0.0,
-        };
-        let (lo, hi) = tol.window_at(100.0);
-        assert_eq!(lo, 99.5);
-        assert_eq!(hi, 100.5);
-    }
-
     // --- deduplicate_masses ---
 
     #[test]

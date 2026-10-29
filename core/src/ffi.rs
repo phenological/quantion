@@ -19,7 +19,7 @@ use ionic::{IonWriter, SectionStorage, format::DEFAULT_MZ_WINDOW, mzml::MzmlRead
 #[cfg(not(all(target_arch = "wasm32", not(target_os = "wasi"))))]
 use crate::utilities::find_features::MzTolerance;
 #[cfg(not(all(target_arch = "wasm32", not(target_os = "wasi"))))]
-use crate::utilities::get_features::{AlignmentOptions, get_features as get_features_rs};
+use crate::utilities::match_features::{MatchFeaturesOptions, match_features as match_features_rs};
 use crate::utilities::{
     bridge::*,
     calculate_baseline::{BaselineOptions, calculate_baseline as calculate_baseline_rs},
@@ -28,44 +28,19 @@ use crate::utilities::{
         calculate_eic as calculate_eic_dispatcher, get_scans as get_scans_rs, plan_eic_ranges,
         plan_scan_ranges,
     },
-    find_feature::{FindFeatureOptions, find_feature as find_feature_rs, plan_feature_ranges},
     find_features::{FindFeaturesOptions, find_features as find_features_rs, plan_features_ranges},
     find_noise_level::find_noise_level as find_noise_level_rs,
     find_peaks::{ArtifactFilter, FindPeaksOptions, PeakFilter, find_peaks as find_peaks_rs},
+    find_targets::{FindTargetsOptions, find_targets as find_targets_rs, plan_targets_ranges},
+    find_transitions::{FindTransitionsOptions, find_transitions as find_transitions_rs},
     fit_peak::{
         PeakParameters, PeakSeed, PeakShape, draw_peak as draw_peak_rs, fit_peak as fit_peak_rs,
     },
     get_peak::get_peak as get_peak_rs,
-    get_peaks_from_chrom::get_peaks_from_chrom as get_peaks_from_chrom_rs,
-    get_peaks_from_eic::{get_peaks_from_eic as get_peaks_from_eic_rs, plan_peaks_ranges},
     ion::{ScanSource, ScanSummary, write_mzml_to_ion},
     mz_estimator::MzEstimatorKind,
-    structs::{ChromTarget, DataXY, FromTo, Roi, Target},
+    structs::{DataXY, FromTo, Roi, Target, Transition},
 };
-
-struct ChromPeakRowOut<'a> {
-    id: &'a str,
-    ort: f64,
-    rt: f64,
-    from: f64,
-    to: f64,
-    intensity: f64,
-    integral: f64,
-    total_area: f64,
-    timestamp: &'a str,
-}
-
-struct FoundFeatureOut<'a> {
-    id: &'a str,
-    mz: f64,
-    rt: f64,
-    from: f64,
-    to: f64,
-    intensity: f64,
-    integral: f64,
-    n_points: usize,
-    noise: f64,
-}
 
 pub const QUANTION_ABI_VERSION: u32 = 1;
 
@@ -826,7 +801,7 @@ pub unsafe extern "C" fn draw_peak(
 /// `opts` must be null or point to a valid `CPeakOptions`.
 /// `out` must be a valid writable `Buf` pointer.
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn get_peaks_from_eic(
+pub unsafe extern "C" fn find_targets(
     h: *const ParsedFile,
     rts_ptr: *const f64,
     mzs_ptr: *const f64,
@@ -869,17 +844,17 @@ pub unsafe extern "C" fn get_peaks_from_eic(
             FileSource::Remote(ion) => EicReader::Ion(ion.as_mut()),
         };
 
-        let peaks = get_peaks_from_eic_rs(
+        let peaks = find_targets_rs(
             &mut reader,
-            FromTo { from, to },
             &items,
-            FindPeaksOptions {
+            FromTo { from, to },
+            FindTargetsOptions {
+                peaks: build_peak_options(opts),
                 threads,
-                ..build_peak_options(opts)
             },
         )
         .map_err(fast_error_to_code)?;
-        let bytes = build_eic_peaks_bridge(&peaks).ok_or(ERR_ENCODE)?;
+        let bytes = build_peaks_bridge(&peaks).ok_or(ERR_ENCODE)?;
         write_buf(out, bytes);
         Ok(())
     })) {
@@ -904,7 +879,7 @@ pub unsafe extern "C" fn get_peaks_from_eic(
 /// `opts` must be null or point to a valid `CPeakOptions`.
 /// `out` must be a valid writable `Buf` pointer.
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn get_peaks_from_chrom(
+pub unsafe extern "C" fn find_transitions(
     h: *mut ParsedFile,
     precursors: *const f64,
     products: *const f64,
@@ -939,10 +914,10 @@ pub unsafe extern "C" fn get_peaks_from_chrom(
         let products = unsafe { slice::from_raw_parts(products, n) };
         let target_rts = unsafe { slice::from_raw_parts(target_rts, n) };
         let ranges = unsafe { slice::from_raw_parts(ranges, n) };
-        let targets: Vec<ChromTarget> = read_ids(n, ids_off, ids_len, ids_buf, ids_buf_len)
+        let targets: Vec<Transition> = read_ids(n, ids_off, ids_len, ids_buf, ids_buf_len)
             .into_iter()
             .enumerate()
-            .map(|(index, id)| ChromTarget {
+            .map(|(index, id)| Transition {
                 id,
                 precursor: precursors[index],
                 product: products[index],
@@ -951,30 +926,16 @@ pub unsafe extern "C" fn get_peaks_from_chrom(
             })
             .collect();
         file.with_mzml(|mzml| {
-            let rows = get_peaks_from_chrom_rs(
+            let rows = find_transitions_rs(
                 mzml,
                 &targets,
-                FindPeaksOptions {
+                FindTransitionsOptions {
+                    peaks: build_peak_options(opts),
                     threads,
-                    ..build_peak_options(opts)
                 },
             )
             .ok_or(ERR_PARSE)?;
-            let out_rows: Vec<_> = rows
-                .iter()
-                .map(|row| ChromPeakRowOut {
-                    id: &row.id,
-                    ort: row.target_rt,
-                    rt: row.peak_rt,
-                    from: row.from_rt,
-                    to: row.to_rt,
-                    intensity: row.intensity,
-                    integral: row.area,
-                    total_area: row.total_area,
-                    timestamp: &row.timestamp,
-                })
-                .collect();
-            let bytes = build_chrom_peaks_bridge(&out_rows).ok_or(ERR_ENCODE)?;
+            let bytes = build_peaks_bridge(&rows).ok_or(ERR_ENCODE)?;
             write_buf(out, bytes);
             Ok(())
         })
@@ -1564,7 +1525,7 @@ pub unsafe extern "C" fn image_free(session: *mut crate::utilities::ion_image::I
 /// `out` must be a valid writable `Buf` pointer.
 #[cfg(not(all(target_arch = "wasm32", not(target_os = "wasi"))))]
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn get_features(
+pub unsafe extern "C" fn match_features(
     dir: *const c_char,
     from: f64,
     to: f64,
@@ -1609,7 +1570,7 @@ pub unsafe extern "C" fn get_features(
         let peak_options = build_peak_options(peak_opts);
         feature_opts.peak_options = peak_options.clone();
 
-        let alignment_opts = AlignmentOptions {
+        let options = MatchFeaturesOptions {
             mz_tolerance: MzTolerance {
                 mz_absolute: if align_mz_absolute > 0.0 {
                     align_mz_absolute
@@ -1632,12 +1593,12 @@ pub unsafe extern "C" fn get_features(
             peak_options,
             mz_estimator: MzEstimatorKind::MedianMzApex,
             threads: thread_count(threads),
-            ..AlignmentOptions::default()
+            features: feature_opts,
+            ..MatchFeaturesOptions::default()
         };
-        feature_opts.threads = thread_count(threads);
 
-        let feats = get_features_rs(path, FromTo { from, to }, feature_opts, alignment_opts)
-            .map_err(|_| ERR_FAST_PATH)?;
+        let feats =
+            match_features_rs(path, FromTo { from, to }, options).map_err(|_| ERR_FAST_PATH)?;
 
         let bytes = build_consensus_bridge(&feats).ok_or(ERR_ENCODE)?;
         write_buf(out, bytes);
@@ -1724,14 +1685,14 @@ pub unsafe extern "C" fn plan_find_features(
     }
 }
 
-/// Write the byte ranges `get_peaks_from_eic` reads for these m/z values to `out`.
+/// Write the byte ranges `find_targets` reads for these m/z values to `out`.
 ///
 /// # Safety
 /// `h` must be a valid `ParsedFile` pointer from this library.
 /// `mzs` must point to `count` readable `f64` values.
 /// `out` must be a valid writable `Buf` pointer.
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn plan_peaks_from_eic(
+pub unsafe extern "C" fn plan_find_targets(
     h: *mut ParsedFile,
     mzs: *const f64,
     count: usize,
@@ -1762,8 +1723,8 @@ pub unsafe extern "C" fn plan_peaks_from_eic(
             })
             .collect();
         let ranges = match file.source_mut() {
-            FileSource::Lazy(ion) => plan_peaks_ranges(ion.as_mut(), &targets, from, to),
-            FileSource::Remote(ion) => plan_peaks_ranges(ion.as_mut(), &targets, from, to),
+            FileSource::Lazy(ion) => plan_targets_ranges(ion.as_mut(), &targets, from, to),
+            FileSource::Remote(ion) => plan_targets_ranges(ion.as_mut(), &targets, from, to),
             FileSource::Full(_) => Err(FastError::UnsupportedBackend),
         }
         .map_err(fast_error_to_code)?;
@@ -1878,194 +1839,6 @@ pub unsafe extern "C" fn calculate_baseline(
         Ok(Ok(())) => OK,
         Ok(Err(c)) => c,
         Err(_) => ERR_PANIC,
-    }
-}
-
-/// Write the byte ranges `find_feature` reads for these targets to `out`.
-///
-/// # Safety
-/// `h` must be a valid `ParsedFile` pointer from this library.
-/// `target_rts` and `half_widths` must point to `n` readable `f64` values.
-/// `out` must be a valid writable `Buf` pointer.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn plan_find_feature(
-    h: *mut ParsedFile,
-    target_rts: *const f64,
-    half_widths: *const f64,
-    n: usize,
-    out: *mut Buf,
-) -> c_int {
-    if h.is_null() || out.is_null() || (n > 0 && (target_rts.is_null() || half_widths.is_null())) {
-        return ERR_INVALID_ARGS;
-    }
-    if file_is_broken(h) {
-        return ERR_PANIC;
-    }
-    clear_buf(out);
-
-    match catch_unwind(AssertUnwindSafe(|| -> Result<(), c_int> {
-        let file = unsafe { &mut *h };
-        let (rts, widths) = if n == 0 {
-            (&[][..], &[][..])
-        } else {
-            unsafe {
-                (
-                    std::slice::from_raw_parts(target_rts, n),
-                    std::slice::from_raw_parts(half_widths, n),
-                )
-            }
-        };
-        let targets: Vec<Target> = rts
-            .iter()
-            .zip(widths)
-            .map(|(rt, width)| Target {
-                rt: *rt,
-                range: *width,
-                ..Default::default()
-            })
-            .collect();
-        let ranges = match file.source_mut() {
-            FileSource::Lazy(ion) => plan_feature_ranges(ion.as_mut(), &targets),
-            FileSource::Remote(ion) => plan_feature_ranges(ion.as_mut(), &targets),
-            FileSource::Full(_) => Err(FastError::UnsupportedBackend),
-        }
-        .map_err(fast_error_to_code)?;
-
-        let bytes = pack_byte_ranges(ranges.iter().map(|range| (range.offset, range.length)));
-        write_buf(out, bytes);
-        Ok(())
-    })) {
-        Ok(Ok(())) => OK,
-        Ok(Err(code)) => code,
-        Err(_) => {
-            mark_file_broken(h);
-            ERR_PANIC
-        }
-    }
-}
-
-/// Find a targeted feature for each ROI and write the result to `out`.
-///
-/// # Safety
-/// `h` must be a valid `ParsedFile` pointer from this library.
-/// `target_rts`, `target_mzs`, and `half_widths` must point to `n` readable `f64` values.
-/// If IDs are provided, `ids_off` and `ids_len` must point to `n` readable `u32` values,
-/// and `ids_buf` must point to `ids_buf_len` readable bytes.
-/// `peak_opts` must be null or point to a valid `CPeakOptions`.
-/// `out` must be a valid writable `Buf` pointer.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn find_feature(
-    h: *const ParsedFile,
-    target_rts: *const f64,
-    target_mzs: *const f64,
-    half_widths: *const f64,
-    ids_off: *const u32,
-    ids_len: *const u32,
-    ids_buf: *const u8,
-    ids_buf_len: usize,
-    n: usize,
-    threads: usize,
-    seed_ppm: f64,
-    seed_mz: f64,
-    final_ppm: f64,
-    final_mz: f64,
-    peak_opts: *const CPeakOptions,
-    out: *mut Buf,
-) -> c_int {
-    if h.is_null()
-        || target_rts.is_null()
-        || target_mzs.is_null()
-        || half_widths.is_null()
-        || out.is_null()
-        || n == 0
-    {
-        return ERR_INVALID_ARGS;
-    }
-    if file_is_broken(h) {
-        return ERR_PANIC;
-    }
-    clear_buf(out);
-    match catch_unwind(AssertUnwindSafe(|| -> Result<(), c_int> {
-        let file = unsafe { &mut *(h as *mut ParsedFile) };
-        let target_rts = unsafe { slice::from_raw_parts(target_rts, n) };
-        let target_mzs = unsafe { slice::from_raw_parts(target_mzs, n) };
-        let half_widths = unsafe { slice::from_raw_parts(half_widths, n) };
-        let mut seed_eic = EicOptions {
-            ppm_tolerance: 10.0,
-            mz_tolerance: 0.003,
-            ..Default::default()
-        };
-        if seed_ppm.is_finite() && seed_ppm >= 0.0 {
-            seed_eic.ppm_tolerance = seed_ppm;
-        }
-        if seed_mz.is_finite() && seed_mz >= 0.0 {
-            seed_eic.mz_tolerance = seed_mz;
-        }
-        let mut final_eic = EicOptions {
-            ppm_tolerance: 20.0,
-            mz_tolerance: 0.005,
-            ..Default::default()
-        };
-        if final_ppm.is_finite() && final_ppm >= 0.0 {
-            final_eic.ppm_tolerance = final_ppm;
-        }
-        if final_mz.is_finite() && final_mz >= 0.0 {
-            final_eic.mz_tolerance = final_mz;
-        }
-        let targets = build_targets(
-            target_rts,
-            target_mzs,
-            half_widths,
-            read_ids(n, ids_off, ids_len, ids_buf, ids_buf_len),
-        );
-        let results = find_feature_rs(
-            file,
-            &targets,
-            FindFeatureOptions {
-                seed_eic_options: Some(seed_eic),
-                final_eic_options: Some(final_eic),
-                peak_options: Some(build_peak_options(peak_opts)),
-                threads,
-            },
-        );
-        let arr: Vec<FoundFeatureOut> = results
-            .iter()
-            .enumerate()
-            .map(|(i, r)| match r {
-                Some(f) => FoundFeatureOut {
-                    id: &f.id,
-                    mz: f.mz,
-                    rt: f.rt,
-                    from: f.peak.from,
-                    to: f.peak.to,
-                    intensity: f.peak.intensity,
-                    integral: f.peak.integral,
-                    n_points: f.peak.n_points,
-                    noise: f.peak.noise,
-                },
-                None => FoundFeatureOut {
-                    id: &targets[i].id,
-                    mz: 0.0,
-                    rt: 0.0,
-                    from: 0.0,
-                    to: 0.0,
-                    intensity: 0.0,
-                    integral: 0.0,
-                    n_points: 0,
-                    noise: 0.0,
-                },
-            })
-            .collect();
-        let bytes = build_found_features_bridge(&arr).ok_or(ERR_ENCODE)?;
-        write_buf(out, bytes);
-        Ok(())
-    })) {
-        Ok(Ok(())) => OK,
-        Ok(Err(c)) => c,
-        Err(_) => {
-            mark_file_broken(h);
-            ERR_PANIC
-        }
     }
 }
 
@@ -2358,64 +2131,6 @@ fn build_fit_bridge(params: &Option<PeakParameters>) -> Option<Box<[u8]>> {
     )
 }
 
-fn build_eic_peaks_bridge(
-    rows: &[(&str, f64, f64, crate::utilities::structs::Peak)],
-) -> Option<Box<[u8]>> {
-    let ids: Vec<&str> = rows.iter().map(|row| row.0).collect();
-    let ort: Vec<f64> = rows.iter().map(|row| row.1).collect();
-    let mz: Vec<f64> = rows.iter().map(|row| row.2).collect();
-    let rt: Vec<f64> = rows.iter().map(|row| row.3.rt).collect();
-    let from: Vec<f64> = rows.iter().map(|row| row.3.from).collect();
-    let to: Vec<f64> = rows.iter().map(|row| row.3.to).collect();
-    let intensity: Vec<f64> = rows.iter().map(|row| row.3.intensity).collect();
-    let integral: Vec<f64> = rows.iter().map(|row| row.3.integral).collect();
-    let noise: Vec<f64> = rows.iter().map(|row| row.3.noise).collect();
-
-    build_record_bridge(
-        QUANTION_PAYLOAD_EIC_PEAKS,
-        rows.len() as u64,
-        &[
-            Column::Text {
-                starts_id: QUANTION_SECTION_EIC_PEAK_ID_STARTS,
-                bytes_id: QUANTION_SECTION_EIC_PEAK_ID_BYTES,
-                values: &ids,
-            },
-            Column::Numbers {
-                id: QUANTION_SECTION_EIC_PEAK_MZ,
-                values: &mz,
-            },
-            Column::Numbers {
-                id: QUANTION_SECTION_EIC_PEAK_ORT,
-                values: &ort,
-            },
-            Column::Numbers {
-                id: QUANTION_SECTION_EIC_PEAK_RT,
-                values: &rt,
-            },
-            Column::Numbers {
-                id: QUANTION_SECTION_EIC_PEAK_FROM,
-                values: &from,
-            },
-            Column::Numbers {
-                id: QUANTION_SECTION_EIC_PEAK_TO,
-                values: &to,
-            },
-            Column::Numbers {
-                id: QUANTION_SECTION_EIC_PEAK_INTENSITY,
-                values: &intensity,
-            },
-            Column::Numbers {
-                id: QUANTION_SECTION_EIC_PEAK_INTEGRAL,
-                values: &integral,
-            },
-            Column::Numbers {
-                id: QUANTION_SECTION_EIC_PEAK_NOISE,
-                values: &noise,
-            },
-        ],
-    )
-}
-
 fn build_features_bridge(
     features: &[crate::utilities::find_features::Feature],
 ) -> Option<Box<[u8]>> {
@@ -2473,7 +2188,7 @@ fn build_features_bridge(
 
 #[cfg(not(all(target_arch = "wasm32", not(target_os = "wasi"))))]
 fn build_consensus_bridge(
-    features: &[crate::utilities::get_features::ConsensusFeature],
+    features: &[crate::utilities::find_features::Feature],
 ) -> Option<Box<[u8]>> {
     let mz: Vec<f64> = features.iter().map(|item| item.mz).collect();
     let rt: Vec<f64> = features.iter().map(|item| item.rt).collect();
@@ -2481,7 +2196,15 @@ fn build_consensus_bridge(
     let to: Vec<f64> = features.iter().map(|item| item.to).collect();
     let intensity: Vec<f64> = features.iter().map(|item| item.intensity).collect();
     let integral: Vec<f64> = features.iter().map(|item| item.integral).collect();
-    let frequency: Vec<f64> = features.iter().map(|item| item.frequency).collect();
+    let n_points: Vec<u32> = features
+        .iter()
+        .map(|item| count_as_u32(item.n_points))
+        .collect();
+    let noise: Vec<f64> = features.iter().map(|item| item.noise).collect();
+    let frequency: Vec<f64> = features
+        .iter()
+        .map(|item| item.frequency.unwrap_or(f64::NAN))
+        .collect();
 
     build_record_bridge(
         QUANTION_PAYLOAD_CONSENSUS_FEATURES,
@@ -2511,122 +2234,17 @@ fn build_consensus_bridge(
                 id: QUANTION_SECTION_CONSENSUS_INTEGRAL,
                 values: &integral,
             },
+            Column::Counts {
+                id: QUANTION_SECTION_CONSENSUS_POINT_COUNT,
+                values: &n_points,
+            },
+            Column::Numbers {
+                id: QUANTION_SECTION_CONSENSUS_NOISE,
+                values: &noise,
+            },
             Column::Numbers {
                 id: QUANTION_SECTION_CONSENSUS_FREQUENCY,
                 values: &frequency,
-            },
-        ],
-    )
-}
-
-fn build_found_features_bridge(rows: &[FoundFeatureOut]) -> Option<Box<[u8]>> {
-    let ids: Vec<&str> = rows.iter().map(|row| row.id).collect();
-    let mz: Vec<f64> = rows.iter().map(|row| row.mz).collect();
-    let rt: Vec<f64> = rows.iter().map(|row| row.rt).collect();
-    let from: Vec<f64> = rows.iter().map(|row| row.from).collect();
-    let to: Vec<f64> = rows.iter().map(|row| row.to).collect();
-    let intensity: Vec<f64> = rows.iter().map(|row| row.intensity).collect();
-    let integral: Vec<f64> = rows.iter().map(|row| row.integral).collect();
-    let point_count: Vec<u32> = rows.iter().map(|row| count_as_u32(row.n_points)).collect();
-    let noise: Vec<f64> = rows.iter().map(|row| row.noise).collect();
-
-    build_record_bridge(
-        QUANTION_PAYLOAD_FOUND_FEATURES,
-        rows.len() as u64,
-        &[
-            Column::Text {
-                starts_id: QUANTION_SECTION_FOUND_ID_STARTS,
-                bytes_id: QUANTION_SECTION_FOUND_ID_BYTES,
-                values: &ids,
-            },
-            Column::Numbers {
-                id: QUANTION_SECTION_FOUND_MZ,
-                values: &mz,
-            },
-            Column::Numbers {
-                id: QUANTION_SECTION_FOUND_RT,
-                values: &rt,
-            },
-            Column::Numbers {
-                id: QUANTION_SECTION_FOUND_FROM,
-                values: &from,
-            },
-            Column::Numbers {
-                id: QUANTION_SECTION_FOUND_TO,
-                values: &to,
-            },
-            Column::Numbers {
-                id: QUANTION_SECTION_FOUND_INTENSITY,
-                values: &intensity,
-            },
-            Column::Numbers {
-                id: QUANTION_SECTION_FOUND_INTEGRAL,
-                values: &integral,
-            },
-            Column::Counts {
-                id: QUANTION_SECTION_FOUND_POINT_COUNT,
-                values: &point_count,
-            },
-            Column::Numbers {
-                id: QUANTION_SECTION_FOUND_NOISE,
-                values: &noise,
-            },
-        ],
-    )
-}
-
-fn build_chrom_peaks_bridge(rows: &[ChromPeakRowOut]) -> Option<Box<[u8]>> {
-    let ids: Vec<&str> = rows.iter().map(|row| row.id).collect();
-    let timestamps: Vec<&str> = rows.iter().map(|row| row.timestamp).collect();
-    let target_rt: Vec<f64> = rows.iter().map(|row| row.ort).collect();
-    let rt: Vec<f64> = rows.iter().map(|row| row.rt).collect();
-    let from: Vec<f64> = rows.iter().map(|row| row.from).collect();
-    let to: Vec<f64> = rows.iter().map(|row| row.to).collect();
-    let intensity: Vec<f64> = rows.iter().map(|row| row.intensity).collect();
-    let integral: Vec<f64> = rows.iter().map(|row| row.integral).collect();
-    let total_area: Vec<f64> = rows.iter().map(|row| row.total_area).collect();
-
-    build_record_bridge(
-        QUANTION_PAYLOAD_CHROM_PEAKS,
-        rows.len() as u64,
-        &[
-            Column::Numbers {
-                id: QUANTION_SECTION_CHROM_TARGET_RT,
-                values: &target_rt,
-            },
-            Column::Numbers {
-                id: QUANTION_SECTION_CHROM_RT,
-                values: &rt,
-            },
-            Column::Numbers {
-                id: QUANTION_SECTION_CHROM_FROM,
-                values: &from,
-            },
-            Column::Numbers {
-                id: QUANTION_SECTION_CHROM_TO,
-                values: &to,
-            },
-            Column::Numbers {
-                id: QUANTION_SECTION_CHROM_INTENSITY,
-                values: &intensity,
-            },
-            Column::Numbers {
-                id: QUANTION_SECTION_CHROM_INTEGRAL,
-                values: &integral,
-            },
-            Column::Numbers {
-                id: QUANTION_SECTION_CHROM_TOTAL_AREA,
-                values: &total_area,
-            },
-            Column::Text {
-                starts_id: QUANTION_SECTION_CHROM_ID_STARTS,
-                bytes_id: QUANTION_SECTION_CHROM_ID_BYTES,
-                values: &ids,
-            },
-            Column::Text {
-                starts_id: QUANTION_SECTION_CHROM_TIMESTAMP_STARTS,
-                bytes_id: QUANTION_SECTION_CHROM_TIMESTAMP_BYTES,
-                values: &timestamps,
             },
         ],
     )
@@ -2705,7 +2323,6 @@ fn build_peak_options(opts: *const CPeakOptions) -> FindPeaksOptions {
             filter: Some(Default::default()),
             baseline: Some(Default::default()),
             artifact_filter: Some(Default::default()),
-            threads: 1,
         };
     }
     let o = unsafe { *opts };
@@ -2742,7 +2359,6 @@ fn build_peak_options(opts: *const CPeakOptions) -> FindPeaksOptions {
             },
             shape: peak_shape_from_code(o.shape),
         }),
-        threads: 1,
     }
 }
 
@@ -3890,11 +3506,11 @@ mod tests {
         }
     }
 
-    fn peaks_from_eic(handle: *mut ParsedFile) -> (c_int, Vec<u8>) {
+    fn targets_found(handle: *mut ParsedFile) -> (c_int, Vec<u8>) {
         let (rts, mzs, ranges) = ([PEAK_RT], [PEAK_MZ], [0.2]);
         let out = new_buf_out();
         let code = unsafe {
-            get_peaks_from_eic(
+            find_targets(
                 handle,
                 rts.as_ptr(),
                 mzs.as_ptr(),
@@ -3934,40 +3550,14 @@ mod tests {
         (code, take_bytes(out))
     }
 
-    fn feature(handle: *mut ParsedFile) -> (c_int, Vec<u8>) {
-        let (rts, mzs, windows) = ([PEAK_RT], [PEAK_MZ], [0.2]);
-        let out = new_buf_out();
-        let code = unsafe {
-            find_feature(
-                handle,
-                rts.as_ptr(),
-                mzs.as_ptr(),
-                windows.as_ptr(),
-                std::ptr::null(),
-                std::ptr::null(),
-                std::ptr::null(),
-                0,
-                1,
-                1,
-                10.0,
-                0.003,
-                20.0,
-                0.005,
-                std::ptr::null(),
-                out,
-            )
-        };
-        (code, take_bytes(out))
-    }
-
     #[test]
-    fn get_peaks_from_eic_reads_only_planned_bytes() {
-        assert_fails_without_plan(peaks_from_eic);
+    fn find_targets_reads_only_planned_bytes() {
+        assert_fails_without_plan(targets_found);
         assert_same_as_local(
             |handle, out| unsafe {
-                plan_peaks_from_eic(handle, [PEAK_MZ].as_ptr(), 1, 0.0, 2.0, out)
+                plan_find_targets(handle, [PEAK_MZ].as_ptr(), 1, 0.0, 2.0, out)
             },
-            peaks_from_eic,
+            targets_found,
         );
     }
 
@@ -3989,17 +3579,6 @@ mod tests {
                 )
             },
             features,
-        );
-    }
-
-    #[test]
-    fn find_feature_reads_only_planned_bytes() {
-        assert_fails_without_plan(feature);
-        assert_same_as_local(
-            |handle, out| unsafe {
-                plan_find_feature(handle, [PEAK_RT].as_ptr(), [0.2].as_ptr(), 1, out)
-            },
-            feature,
         );
     }
 

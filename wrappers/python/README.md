@@ -26,7 +26,7 @@ import quantion
 raw = open("sample.mzML", "rb").read()
 
 with quantion.parse_mzml(raw) as sample:
-    eic   = quantion.calculate_eic(sample, target_mz=174.112, from_to={"from": 1, "to": 15})
+    eic   = quantion.calculate_eic(sample, mz=174.112, window={"from": 1, "to": 15})
     peaks = quantion.find_peaks(eic["x"], eic["y"], options={"auto_noise": True, "min_snr": 3.0})
     for p in peaks:
         print(f"rt={p['rt']:.3f}  intensity={p['intensity']:.0f}")
@@ -97,7 +97,7 @@ with quantion.parse_mzml(data) as sample:
 Get an extracted ion chromatogram for one m/z from a sample.
 
 ```python
-eic = quantion.calculate_eic(sample, target_mz=174.112, from_to={"from": 1, "to": 15}, ppm_tol=20.0, mz_tol=0.005)
+eic = quantion.calculate_eic(sample, mz=174.112, window={"from": 1, "to": 15}, ppm_tolerance=20.0, mz_tolerance=0.005)
 ```
 
 ### Get scans
@@ -194,9 +194,9 @@ targets = [
     {"rt": 7.1, "mz": 203.156, "range": 0.5, "id": "compound_B"},
 ]
 
-peaks = quantion.get_peaks_from_eic(
+peaks = quantion.find_targets(
     sample, targets,
-    from_to={"from": 0.5, "to": 10.0},
+    window={"from": 0.5, "to": 10.0},
     options={"auto_noise": True},
     threads=2
 )
@@ -213,29 +213,10 @@ targets = [
     {"id": "compound_2", "precursor": 520.4, "product": 184.1, "rt": 3.65, "range": 0.4},
 ]
 
-peaks = quantion.get_peaks_from_chrom(sample, targets, options=None, threads=2)
+peaks = quantion.find_transitions(sample, targets, options=None, threads=2)
 ```
 
 ## Untargeted
-
-### Targeted feature detection
-
-Find targeted features by m/z and retention time from a sample.
-
-```python
-targets = [
-    {"rt": 5.3, "mz": 174.112, "range": 0.5, "id": "A"},
-    {"rt": 7.1, "mz": 203.156, "range": 0.5, "id": "B"},
-]
-
-features = quantion.find_feature(
-    sample, targets,
-    scan_eic={"ppm_tolerance": 10, "mz_tolerance": 0.003},
-    eic={"ppm_tolerance": 20, "mz_tolerance": 0.005},
-    options={"auto_noise": True},
-    threads=2,
-)
-```
 
 ### From single sample
 
@@ -244,7 +225,7 @@ Find all features in a sample.
 ```python
 features = quantion.find_features(
     sample,
-    from_to={"from": 1, "to": 15},
+    window={"from": 1, "to": 15},
     eic={"ppm_tolerance": 10, "mz_tolerance": 0.005},
     grid={"start": 40, "end": 1000, "step_size": 0.005},
     options={"auto_noise": True, "min_snr": 3},
@@ -257,9 +238,9 @@ features = quantion.find_features(
 Find and align features across many samples.
 
 ```python
-features = quantion.get_features(
+features = quantion.match_features(
     "/path/to/ion/dir",
-    from_to={"from": 0, "to": 20},
+    window={"from": 0, "to": 20},
     eic={"ppm_tolerance": 5},
     grid={"start": 50, "end": 1000, "step_size": 0.01},
     grouping={"ppm_tolerance": 5, "rt_tolerance": 0.05, "frequency": 2},

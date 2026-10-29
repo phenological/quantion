@@ -7,11 +7,11 @@ memory immediately rather than waiting for R garbage collection.
 }
 \usage{
 dispose(
-  bin
+  object
 )
 }
 \arguments{
-  \item{bin}{Sample file from \code{\link{parse_mzml}()} or \code{\link{parse_ion}()}, a model from \code{\link{load_model}()}, or a warp model from \code{\link{load_warp}()}.}
+  \item{object}{Sample file from \code{\link{parse_mzml}()} or \code{\link{parse_ion}()}, a model from \code{\link{load_model}()}, or a warp model from \code{\link{load_warp}()}.}
 }
 \value{
 \code{NULL}, called for its side effect.

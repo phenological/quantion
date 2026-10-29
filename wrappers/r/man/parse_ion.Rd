@@ -9,12 +9,12 @@ fetching only the bytes it needs.
 }
 \usage{
 parse_ion(
-  input,
+  source,
   max_cache_size = 0
 )
 }
 \arguments{
-  \item{input}{A file path or an http(s) URL to an ion file, or a raw vector of ion bytes.}
+  \item{source}{A file path or an http(s) URL to an ion file, or a raw vector of ion bytes.}
   \item{max_cache_size}{Cache size in bytes. \code{0} sets no limit. Larger values speed up repeated reads at the cost of RAM.}
 }
 \value{

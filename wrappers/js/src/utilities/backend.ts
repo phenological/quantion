@@ -2,7 +2,7 @@ import type {
   CentroidScan,
   IonImage,
   NoiseLevel,
-  PeakOptions,
+  FindPeaksOptions,
   WarpTarget,
   ModelEntry,
 } from "../types/types";
@@ -49,16 +49,11 @@ export interface Backend {
     mzs: Float64Array,
     rts: Float64Array,
   ): Promise<void>;
-  prefetchPeaks(
+  prefetchTargets(
     handle: FileHandle,
     mzs: Float64Array,
     from: number,
     to: number,
-  ): Promise<void>;
-  prefetchFeature(
-    handle: FileHandle,
-    rts: Float64Array,
-    windows: Float64Array,
   ): Promise<void>;
   prefetchFeatures?(
     handle: FileHandle,
@@ -96,8 +91,8 @@ export interface Backend {
     targetMz: number,
     from: number,
     to: number,
-    ppmTol: number,
-    mzTol: number,
+    ppmTolerance: number,
+    mzTolerance: number,
   ): MaybePromise<{ x: Float64Array; y: Float64Array }>;
 
   getScans(
@@ -119,7 +114,7 @@ export interface Backend {
   findPeaks(
     x: Float64Array,
     y: Float64Array,
-    opts: PeakOptions | undefined,
+    options: FindPeaksOptions | undefined,
   ): any;
 
   getPeak(
@@ -127,7 +122,7 @@ export interface Backend {
     y: Float64Array,
     rt: number,
     range: number,
-    opts: PeakOptions | undefined,
+    options: FindPeaksOptions | undefined,
   ): any;
 
   findNoiseLevel(y: Float32Array): NoiseLevel;
@@ -138,7 +133,7 @@ export interface Backend {
     maxIterations: number,
   ): Float64Array;
 
-  getPeaksFromEic(
+  findTargets(
     handle: FileHandle,
     rts: Float64Array,
     mzs: Float64Array,
@@ -150,11 +145,11 @@ export interface Backend {
     count: number,
     from: number,
     to: number,
-    opts: PeakOptions | undefined,
+    options: FindPeaksOptions | undefined,
     threads: number,
   ): any;
 
-  getPeaksFromChrom(
+  findTransitions(
     handle: FileHandle,
     precursors: Float64Array,
     products: Float64Array,
@@ -165,7 +160,7 @@ export interface Backend {
     idBytes: Uint8Array | null,
     idBytesLen: number,
     count: number,
-    opts: PeakOptions | undefined,
+    options: FindPeaksOptions | undefined,
     threads: number,
   ): any;
 
@@ -178,29 +173,12 @@ export interface Backend {
     gridStart: number,
     gridEnd: number,
     gridStep: number,
-    opts: PeakOptions | undefined,
+    options: FindPeaksOptions | undefined,
     threads: number,
   ): any;
 
-  findFeature(
-    handle: FileHandle,
-    rts: Float64Array,
-    mzs: Float64Array,
-    ranges: Float64Array,
-    offsets: Uint32Array | null,
-    lengths: Uint32Array | null,
-    idBytes: Uint8Array | null,
-    idBytesLen: number,
-    count: number,
-    threads: number,
-    scanPpm: number,
-    scanMz: number,
-    eicPpm: number,
-    eicMz: number,
-    opts: PeakOptions | undefined,
-  ): any;
 
-  getFeatures?(
+  matchFeatures?(
     dirPath: string,
     from: number,
     to: number,
@@ -213,7 +191,7 @@ export interface Backend {
     groupMz: number,
     groupRt: number,
     prevalence: number,
-    opts: PeakOptions | undefined,
+    options: FindPeaksOptions | undefined,
     threads: number,
   ): any;
 }

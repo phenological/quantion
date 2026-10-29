@@ -28,10 +28,9 @@ describe("parseIon dispatch to backend primitives", () => {
       getPeak: jest.fn(),
       findNoiseLevel: jest.fn(),
       calculateBaseline: jest.fn(),
-      getPeaksFromEic: jest.fn(),
-      getPeaksFromChrom: jest.fn(),
+      findTargets: jest.fn(),
+      findTransitions: jest.fn(),
       findFeatures: jest.fn(),
-      findFeature: jest.fn(),
     } as any;
 
     setBackend(mockBackend);

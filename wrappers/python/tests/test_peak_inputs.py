@@ -18,17 +18,15 @@ class ChromatogramTargets(unittest.TestCase):
         self.addCleanup(self.file.dispose)
 
     def peaks_for(self, target):
-        return support.quantion.get_peaks_from_chrom(self.file, [target])
+        return support.quantion.find_transitions(self.file, [target])
 
     def test_a_target_finds_its_transition(self):
         row = self.peaks_for(get_target(ALANINE, ALANINE))[0]
-        self.assertEqual(row["id"], "alanine")
         self.assertGreater(row["intensity"], 0.0)
         self.assertAlmostEqual(row["rt"], 2.385, delta=0.05)
 
     def test_a_wrong_product_finds_nothing(self):
         row = self.peaks_for(get_target(ALANINE, SERINE))[0]
-        self.assertEqual(row["id"], "alanine")
         self.assertEqual(row["intensity"], 0.0)
 
     def test_a_missing_precursor_is_refused(self):

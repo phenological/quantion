@@ -111,7 +111,6 @@ mod tests {
                 edge_slope_level: Some(1),
             }),
             artifact_filter: Some(Default::default()),
-            threads: 1,
         }
     }
 

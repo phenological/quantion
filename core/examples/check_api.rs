@@ -7,11 +7,11 @@ use quantion::utilities::{
     find_features::{FindFeaturesOptions, find_features},
     find_noise_level::find_noise_level,
     find_peaks::{FindPeaksOptions, PeakFilter, find_peaks},
-    get_features::{AlignmentOptions, get_features},
+    find_targets::{FindTargetsOptions, find_targets},
+    find_transitions::{FindTransitionsOptions, find_transitions},
     get_peak::get_peak,
-    get_peaks_from_chrom::get_peaks_from_chrom,
-    get_peaks_from_eic::get_peaks_from_eic,
-    structs::{ChromTarget, DataXY, FromTo, Peak, Roi, Target},
+    match_features::{MatchFeaturesOptions, match_features},
+    structs::{DataXY, FromTo, Peak, Roi, Target, Transition},
 };
 use quantion::warp::load_warp;
 
@@ -134,15 +134,15 @@ fn feature_options() -> FindFeaturesOptions {
     options
 }
 
-fn alignment_options() -> AlignmentOptions {
-    let mut options = AlignmentOptions::default();
+fn alignment_options() -> MatchFeaturesOptions {
+    let mut options = MatchFeaturesOptions::default();
     options.eic_options = eic_options();
     options.peak_options = feature_peak_options();
     options.min_samples = 1;
     options
 }
 
-fn time_range() -> FromTo {
+fn window() -> FromTo {
     FromTo {
         from: FROM_RT,
         to: TO_RT,
@@ -162,7 +162,7 @@ fn count_scans(fixture: &Path) -> usize {
 fn extract_eic(fixture: &Path, channel: &Channel) -> DataXY {
     let mut ion = open(fixture);
     let mut reader = EicReader::Ion(&mut ion);
-    calculate_eic(&mut reader, channel.mass, time_range(), eic_options()).expect("calculate_eic")
+    calculate_eic(&mut reader, channel.mass, window(), eic_options()).expect("calculate_eic")
 }
 
 fn peak_lines(prefix: &str, peak: &Peak, out: &mut Vec<String>) {
@@ -178,7 +178,7 @@ fn shared_peak_lines(prefix: &str, peak: &Peak, out: &mut Vec<String>) {
     out.push(format!("{prefix}.intensity = {}", number(peak.intensity)));
 }
 
-fn peaks_from_eic(fixture: &Path, channel: &Channel, prefix: &str, out: &mut Vec<String>) {
+fn report_targets(fixture: &Path, channel: &Channel, prefix: &str, out: &mut Vec<String>) {
     let mut ion = open(fixture);
     let mut reader = EicReader::Ion(&mut ion);
     let targets: Vec<Target> = channel
@@ -191,32 +191,32 @@ fn peaks_from_eic(fixture: &Path, channel: &Channel, prefix: &str, out: &mut Vec
             range: ROI_RANGE,
         })
         .collect();
-    let rows = get_peaks_from_eic(
+    let rows = find_targets(
         &mut reader,
-        time_range(),
         &targets,
-        FindPeaksOptions {
+        window(),
+        FindTargetsOptions {
+            peaks: peak_options(channel),
             threads: THREADS,
-            ..peak_options(channel)
         },
     )
-    .expect("get_peaks_from_eic");
-    for (id, _, _, peak) in &rows {
-        shared_peak_lines(&format!("{prefix}.{id}"), peak, out);
+    .expect("find_targets");
+    for (target, peak) in targets.iter().zip(&rows) {
+        shared_peak_lines(&format!("{prefix}.{}", target.id), peak, out);
     }
 }
 
-fn peaks_from_chrom(fixture: &Path, channel: &Channel, prefix: &str, out: &mut Vec<String>) {
+fn report_transitions(fixture: &Path, channel: &Channel, prefix: &str, out: &mut Vec<String>) {
     let transitions = fixture
         .parent()
         .and_then(Path::parent)
         .expect("fixtures folder");
     let mut ion = open(&transitions.join("srm.ion"));
     let mzml = ion.to_mzml().expect("read chromatograms");
-    let targets: Vec<ChromTarget> = channel
+    let targets: Vec<Transition> = channel
         .targets
         .iter()
-        .map(|(id, rt)| ChromTarget {
+        .map(|(id, rt)| Transition {
             id: id.to_string(),
             precursor: channel.mass,
             product: channel.mass,
@@ -224,22 +224,22 @@ fn peaks_from_chrom(fixture: &Path, channel: &Channel, prefix: &str, out: &mut V
             range: ROI_RANGE,
         })
         .collect();
-    let rows = get_peaks_from_chrom(
+    let rows = find_transitions(
         &mzml,
         &targets,
-        FindPeaksOptions {
+        FindTransitionsOptions {
+            peaks: chrom_peak_options(channel),
             threads: THREADS,
-            ..chrom_peak_options(channel)
         },
     )
     .unwrap_or_default();
-    for row in &rows {
-        let name = format!("{prefix}.{}", row.id);
-        out.push(format!("{name}.rt = {}", number(row.peak_rt)));
-        out.push(format!("{name}.from = {}", number(row.from_rt)));
-        out.push(format!("{name}.to = {}", number(row.to_rt)));
-        out.push(format!("{name}.intensity = {}", number(row.intensity)));
-        out.push(format!("{name}.area = {}", number(row.area)));
+    for (target, peak) in targets.iter().zip(&rows) {
+        let name = format!("{prefix}.{}", target.id);
+        out.push(format!("{name}.rt = {}", number(peak.rt)));
+        out.push(format!("{name}.from = {}", number(peak.from)));
+        out.push(format!("{name}.to = {}", number(peak.to)));
+        out.push(format!("{name}.intensity = {}", number(peak.intensity)));
+        out.push(format!("{name}.area = {}", number(peak.integral)));
     }
 }
 
@@ -248,7 +248,7 @@ fn features(fixture: &Path, out: &mut Vec<String>) {
     let mut reader = EicReader::Ion(&mut ion);
     let found = find_features(
         &mut reader,
-        time_range(),
+        window(),
         FindFeaturesOptions {
             threads: THREADS,
             ..feature_options()
@@ -269,22 +269,24 @@ fn features(fixture: &Path, out: &mut Vec<String>) {
 }
 
 fn consensus_features(directory: &str, out: &mut Vec<String>) {
-    let found = get_features(
+    let found = match_features(
         directory,
-        time_range(),
-        FindFeaturesOptions {
-            threads: THREADS,
-            ..feature_options()
-        },
-        AlignmentOptions {
-            threads: THREADS,
-            ..alignment_options()
+        window(),
+        MatchFeaturesOptions {
+            features: FindFeaturesOptions {
+                threads: THREADS,
+                ..feature_options()
+            },
+            ..MatchFeaturesOptions {
+                threads: THREADS,
+                ..alignment_options()
+            }
         },
     )
-    .expect("get_features");
-    out.push(format!("get_features.count = {}", found.len()));
+    .expect("match_features");
+    out.push(format!("match_features.count = {}", found.len()));
     for (index, f) in found.iter().enumerate() {
-        let name = format!("get_features[{index}]");
+        let name = format!("match_features[{index}]");
         out.push(format!("{name}.mz = {}", number(f.mz)));
         out.push(format!("{name}.rt = {}", number(f.rt)));
         out.push(format!("{name}.from = {}", number(f.from)));
@@ -329,13 +331,8 @@ fn report_channel(fixture: &Path, channel: &Channel, out: &mut Vec<String>) {
     );
     peak_lines(&format!("{name}.get_peak"), &single, out);
 
-    peaks_from_eic(fixture, channel, &format!("{name}.get_peaks_from_eic"), out);
-    peaks_from_chrom(
-        fixture,
-        channel,
-        &format!("{name}.get_peaks_from_chrom"),
-        out,
-    );
+    report_targets(fixture, channel, &format!("{name}.find_targets"), out);
+    report_transitions(fixture, channel, &format!("{name}.find_transitions"), out);
 }
 
 fn predicted_rts(fixture: &Path, directory: &str, out: &mut Vec<String>) {

@@ -25,11 +25,7 @@
 
 #define QUANTION_PAYLOAD_FEATURES 4
 
-#define QUANTION_PAYLOAD_CHROM_PEAKS 5
-
 #define QUANTION_PAYLOAD_FIT_RESULT 6
-
-#define QUANTION_PAYLOAD_EIC_PEAKS 7
 
 #define QUANTION_PAYLOAD_CONSENSUS_FEATURES 8
 
@@ -113,28 +109,6 @@
 
 #define QUANTION_SECTION_FEATURE_NOISE 33
 
-#define QUANTION_SECTION_CHROM_TARGET_RT 35
-
-#define QUANTION_SECTION_CHROM_RT 36
-
-#define QUANTION_SECTION_CHROM_FROM 37
-
-#define QUANTION_SECTION_CHROM_TO 38
-
-#define QUANTION_SECTION_CHROM_INTENSITY 39
-
-#define QUANTION_SECTION_CHROM_INTEGRAL 40
-
-#define QUANTION_SECTION_CHROM_TOTAL_AREA 41
-
-#define QUANTION_SECTION_CHROM_ID_STARTS 42
-
-#define QUANTION_SECTION_CHROM_ID_BYTES 43
-
-#define QUANTION_SECTION_CHROM_TIMESTAMP_STARTS 44
-
-#define QUANTION_SECTION_CHROM_TIMESTAMP_BYTES 45
-
 #define QUANTION_SECTION_FIT_SHAPE 46
 
 #define QUANTION_SECTION_FIT_HEIGHT 47
@@ -146,26 +120,6 @@
 #define QUANTION_SECTION_FIT_TAIL 50
 
 #define QUANTION_SECTION_FIT_R2 51
-
-#define QUANTION_SECTION_EIC_PEAK_ID_STARTS 52
-
-#define QUANTION_SECTION_EIC_PEAK_ID_BYTES 53
-
-#define QUANTION_SECTION_EIC_PEAK_MZ 54
-
-#define QUANTION_SECTION_EIC_PEAK_ORT 55
-
-#define QUANTION_SECTION_EIC_PEAK_RT 56
-
-#define QUANTION_SECTION_EIC_PEAK_FROM 57
-
-#define QUANTION_SECTION_EIC_PEAK_TO 58
-
-#define QUANTION_SECTION_EIC_PEAK_INTENSITY 59
-
-#define QUANTION_SECTION_EIC_PEAK_INTEGRAL 60
-
-#define QUANTION_SECTION_EIC_PEAK_NOISE 61
 
 #define QUANTION_SECTION_CONSENSUS_MZ 62
 
@@ -216,6 +170,10 @@
 #define QUANTION_SECTION_MODEL_METADATA_VALUE_STARTS 85
 
 #define QUANTION_SECTION_MODEL_METADATA_VALUE_BYTES 86
+
+#define QUANTION_SECTION_CONSENSUS_POINT_COUNT 87
+
+#define QUANTION_SECTION_CONSENSUS_NOISE 88
 
 typedef struct ImageSession ImageSession;
 
@@ -428,20 +386,20 @@ int draw_peak(const double *x_ptr,
  * `opts` must be null or point to a valid `CPeakOptions`.
  * `out` must be a valid writable `Buf` pointer.
  */
-int32_t get_peaks_from_eic(const struct ParsedFile *h,
-                           const double *rts_ptr,
-                           const double *mzs_ptr,
-                           const double *ranges_ptr,
-                           const uint32_t *ids_off,
-                           const uint32_t *ids_len,
-                           const uint8_t *ids_buf,
-                           uintptr_t ids_buf_len,
-                           uintptr_t n,
-                           double from,
-                           double to,
-                           const struct CPeakOptions *opts,
-                           uintptr_t threads,
-                           struct Buf *out);
+int32_t find_targets(const struct ParsedFile *h,
+                     const double *rts_ptr,
+                     const double *mzs_ptr,
+                     const double *ranges_ptr,
+                     const uint32_t *ids_off,
+                     const uint32_t *ids_len,
+                     const uint8_t *ids_buf,
+                     uintptr_t ids_buf_len,
+                     uintptr_t n,
+                     double from,
+                     double to,
+                     const struct CPeakOptions *opts,
+                     uintptr_t threads,
+                     struct Buf *out);
 
 /**
  * Find a peak in the chromatogram of each target and write the result to `out`.
@@ -456,19 +414,19 @@ int32_t get_peaks_from_eic(const struct ParsedFile *h,
  * `opts` must be null or point to a valid `CPeakOptions`.
  * `out` must be a valid writable `Buf` pointer.
  */
-int32_t get_peaks_from_chrom(struct ParsedFile *h,
-                             const double *precursors,
-                             const double *products,
-                             const double *target_rts,
-                             const double *ranges,
-                             const uint32_t *ids_off,
-                             const uint32_t *ids_len,
-                             const uint8_t *ids_buf,
-                             uintptr_t ids_buf_len,
-                             uintptr_t n,
-                             const struct CPeakOptions *opts,
-                             uintptr_t threads,
-                             struct Buf *out);
+int32_t find_transitions(struct ParsedFile *h,
+                         const double *precursors,
+                         const double *products,
+                         const double *target_rts,
+                         const double *ranges,
+                         const uint32_t *ids_off,
+                         const uint32_t *ids_len,
+                         const uint8_t *ids_buf,
+                         uintptr_t ids_buf_len,
+                         uintptr_t n,
+                         const struct CPeakOptions *opts,
+                         uintptr_t threads,
+                         struct Buf *out);
 
 /**
  * Find peaks and write the result to `out`.
@@ -594,21 +552,21 @@ void image_free(struct ImageSession *session);
  * `peak_opts` must be null or point to a valid `CPeakOptions`.
  * `out` must be a valid writable `Buf` pointer.
  */
-int get_features(const char *dir,
-                 double from,
-                 double to,
-                 double eic_ppm,
-                 double eic_mz,
-                 double grid_min_mz,
-                 double grid_max_mz,
-                 double grid_step,
-                 double align_ppm,
-                 double align_mz_absolute,
-                 double align_rt_tolerance,
-                 int min_samples,
-                 const struct CPeakOptions *peak_opts,
-                 int threads,
-                 struct Buf *out);
+int match_features(const char *dir,
+                   double from,
+                   double to,
+                   double eic_ppm,
+                   double eic_mz,
+                   double grid_min_mz,
+                   double grid_max_mz,
+                   double grid_step,
+                   double align_ppm,
+                   double align_mz_absolute,
+                   double align_rt_tolerance,
+                   int min_samples,
+                   const struct CPeakOptions *peak_opts,
+                   int threads,
+                   struct Buf *out);
 #endif
 
 /**
@@ -629,19 +587,19 @@ int plan_find_features(struct ParsedFile *h,
                        struct Buf *out);
 
 /**
- * Write the byte ranges `get_peaks_from_eic` reads for these m/z values to `out`.
+ * Write the byte ranges `find_targets` reads for these m/z values to `out`.
  *
  * # Safety
  * `h` must be a valid `ParsedFile` pointer from this library.
  * `mzs` must point to `count` readable `f64` values.
  * `out` must be a valid writable `Buf` pointer.
  */
-int plan_peaks_from_eic(struct ParsedFile *h,
-                        const double *mzs,
-                        uintptr_t count,
-                        double from,
-                        double to,
-                        struct Buf *out);
+int plan_find_targets(struct ParsedFile *h,
+                      const double *mzs,
+                      uintptr_t count,
+                      double from,
+                      double to,
+                      struct Buf *out);
 
 /**
  * Find features in a single sample and write the result to `out`.
@@ -675,48 +633,6 @@ int calculate_baseline(const double *y,
                        int lambda,
                        int max_iterations,
                        struct Buf *out);
-
-/**
- * Write the byte ranges `find_feature` reads for these targets to `out`.
- *
- * # Safety
- * `h` must be a valid `ParsedFile` pointer from this library.
- * `target_rts` and `half_widths` must point to `n` readable `f64` values.
- * `out` must be a valid writable `Buf` pointer.
- */
-int plan_find_feature(struct ParsedFile *h,
-                      const double *target_rts,
-                      const double *half_widths,
-                      uintptr_t n,
-                      struct Buf *out);
-
-/**
- * Find a targeted feature for each ROI and write the result to `out`.
- *
- * # Safety
- * `h` must be a valid `ParsedFile` pointer from this library.
- * `target_rts`, `target_mzs`, and `half_widths` must point to `n` readable `f64` values.
- * If IDs are provided, `ids_off` and `ids_len` must point to `n` readable `u32` values,
- * and `ids_buf` must point to `ids_buf_len` readable bytes.
- * `peak_opts` must be null or point to a valid `CPeakOptions`.
- * `out` must be a valid writable `Buf` pointer.
- */
-int find_feature(const struct ParsedFile *h,
-                 const double *target_rts,
-                 const double *target_mzs,
-                 const double *half_widths,
-                 const uint32_t *ids_off,
-                 const uint32_t *ids_len,
-                 const uint8_t *ids_buf,
-                 uintptr_t ids_buf_len,
-                 uintptr_t n,
-                 uintptr_t threads,
-                 double seed_ppm,
-                 double seed_mz,
-                 double final_ppm,
-                 double final_mz,
-                 const struct CPeakOptions *peak_opts,
-                 struct Buf *out);
 
 int model_load_path(const uint8_t *path_ptr,
                     uintptr_t path_len,

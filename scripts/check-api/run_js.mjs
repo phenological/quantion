@@ -143,14 +143,14 @@ async function reportChannel(file, transitions, channel, out) {
     mz: channel.mass,
     range: ROI_RANGE,
   }));
-  const rows = await quantion.getPeaksFromEic(
+  const rows = await quantion.findTargets(
     file,
     targets,
     { from: FROM_RT, to: TO_RT },
     { ...peakOptions(channel), threads: THREADS },
   );
-  rows.forEach((row) =>
-    sharedPeakLines(`${name}.get_peaks_from_eic.${row.id}`, row, out),
+  rows.forEach((row, position) =>
+    sharedPeakLines(`${name}.find_targets.${targets[position].id}`, row, out),
   );
 
   const chromTargets = channel.targets.map(([id, rt]) => ({
@@ -160,13 +160,13 @@ async function reportChannel(file, transitions, channel, out) {
     rt,
     range: ROI_RANGE,
   }));
-  const chromRows = quantion.getPeaksFromChrom(
+  const chromRows = quantion.findTransitions(
     transitions,
     chromTargets,
     { ...chromPeakOptions(channel), threads: THREADS },
   );
   chromRows.forEach((row, position) => {
-    const prefix = `${name}.get_peaks_from_chrom.${channel.targets[position][0]}`;
+    const prefix = `${name}.find_transitions.${channel.targets[position][0]}`;
     out.push(`${prefix}.rt = ${number(row.rt ?? row.peakRt)}`);
     out.push(`${prefix}.from = ${number(row.from ?? row.fromRt)}`);
     out.push(`${prefix}.to = ${number(row.to ?? row.toRt)}`);
@@ -221,12 +221,12 @@ async function main() {
   );
   featureLines("find_features", found, out, true);
 
-  const consensus = quantion.getFeatures(
+  const consensus = quantion.matchFeatures(
     directory,
     { from: FROM_RT, to: TO_RT },
     { eic, grid, findPeak: featurePeakOptions(), threads: THREADS },
   );
-  featureLines("get_features", consensus, out, false);
+  featureLines("match_features", consensus, out, false);
 
   const warp = quantion.loadWarp(await quantion.loadModel(path.join(directory, "..", "shift_model.onnx")));
   const targets = CHANNELS.flatMap((channel) =>

@@ -7,14 +7,14 @@ No target list is needed.
 }
 \usage{
 find_features(
-  data,
-  from = 0,
-  to = 10,
-  ppm_tolerance = .DEFAULTS$eic_ppm_tol,
-  mz_tolerance = .DEFAULTS$eic_mz_tol,
+  file,
+  from,
+  to,
+  eic_ppm_tolerance = .DEFAULTS$eic_ppm_tolerance,
+  eic_mz_tolerance = .DEFAULTS$eic_mz_tolerance,
   grid_start = .DEFAULTS$grid_start,
   grid_end = .DEFAULTS$grid_end,
-  grid_step_ppm = .DEFAULTS$grid_step,
+  grid_step_size = .DEFAULTS$grid_step_size,
   threads = 1L,
   min_integral = NaN,
   min_intensity = .DEFAULTS$min_intensity,
@@ -31,14 +31,14 @@ find_features(
 )
 }
 \arguments{
-  \item{data}{Sample file from \code{\link{parse_mzml}()} or \code{\link{parse_ion}()}.}
-  \item{from}{Start retention time (minutes). Default 0.}
-  \item{to}{End retention time (minutes). Default 10.}
-  \item{ppm_tolerance}{PPM tolerance for EIC extraction.}
-  \item{mz_tolerance}{Absolute m/z tolerance (Da) for EIC extraction.}
+  \item{file}{Sample file from \code{\link{parse_mzml}()} or \code{\link{parse_ion}()}.}
+  \item{from}{Start retention time (minutes).}
+  \item{to}{End retention time (minutes).}
+  \item{eic_ppm_tolerance}{PPM tolerance for EIC extraction.}
+  \item{eic_mz_tolerance}{Absolute m/z tolerance (Da) for EIC extraction.}
   \item{grid_start}{Lower m/z bound of the search grid (Da). Default 40.}
   \item{grid_end}{Upper m/z bound of the search grid (Da). Default 1000.}
-  \item{grid_step_ppm}{Grid step size (ppm). Default 0.005.}
+  \item{grid_step_size}{Grid step size (ppm). Default 0.005.}
   \item{threads}{Number of threads to use. Default 1.}
   \item{min_integral}{Minimum peak area. \code{NaN} disables.}
   \item{min_intensity}{Minimum apex intensity. Default 1000.}
@@ -67,5 +67,5 @@ features <- find_features(sample, from = 2.3, to = 2.45, grid_start = 255, grid_
 }
 }
 \seealso{
-\code{\link{find_feature}()}, \code{\link{get_features}()}
+\code{\link{match_features}()}
 }
