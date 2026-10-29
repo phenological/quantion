@@ -1,35 +1,582 @@
-.DEFAULTS <- list(
-  eic_ppm_tol          = 10.0,
-  eic_mz_tol           = 0.005,
-  grid_start           = 40,
-  grid_end             = 1000,
-  grid_step            = 0.005,
-  group_ppm_tol        = 5.0,
-  group_mz_tol         = 0.0025,
-  group_rt_tol         = 0.05,
-  frequency            = 1L,
-  min_intensity        = 500,
-  min_peak_width_points = 3L,
-  auto_noise           = TRUE,
-  auto_baseline        = TRUE,
-  min_snr              = 2,
-  min_r2               = 0.0,
-  shape                = "emg",
-  kernel_size          = 0L
+.ERROR_CODES <- c(
+  invalid_argument = 1L,
+  missing_argument = 2L,
+  unknown_option = 3L,
+  remote_file = 4L,
+  file_not_found = 5L,
+  parse_failed = 6L,
+  model_mismatch = 7L,
+  file_exists = 8L,
+  upload_failed = 9L,
+  internal = 99L
 )
 
-dispose <- function(bin) {
-  if (typeof(bin) != "externalptr") stop("quantion: expected an external pointer")
-  if (inherits(bin, "quantion_warp_model"))
-    return(invisible(.Call("C_dispose_warp_model", bin, PACKAGE = "quantion")))
-  if (inherits(bin, "quantion_model"))
-    return(invisible(.Call("C_dispose_model", bin, PACKAGE = "quantion")))
-  invisible(.Call("C_dispose_mzml", bin, PACKAGE = "quantion"))
+.signal_error <- function(kind, function_name, argument, message) {
+  condition <- structure(
+    list(
+      message = paste0(function_name, ": ", message),
+      call = NULL,
+      kind = kind,
+      code = unname(.ERROR_CODES[kind]),
+      `function` = function_name,
+      argument = argument
+    ),
+    class = c("quantion_error", "error", "condition")
+  )
+  stop(condition)
+}
+
+.stop_with_rust_error <- function(text, code) {
+  parts <- strsplit(text, "\x1f", fixed = TRUE)[[1]]
+  if (length(parts) < 5) {
+    .signal_error("internal", "quantion", NULL, sprintf("the call failed with code %d", code))
+  }
+  argument <- if (nzchar(parts[4])) parts[4] else NULL
+  .signal_error(parts[2], parts[3], argument, paste(parts[-(1:4)], collapse = "\x1f"))
+}
+
+.invalid <- function(function_name, argument, message) {
+  .signal_error("invalid_argument", function_name, argument, paste(argument, message))
+}
+
+.missing <- function(function_name, argument) {
+  .signal_error("missing_argument", function_name, argument, paste(argument, "is required"))
+}
+
+.check_number <- function(function_name, argument, value) {
+  if (!is.numeric(value) || length(value) != 1 || is.na(value))
+    .invalid(function_name, argument, "must be one number")
+  as.numeric(value)
+}
+
+.check_optional_number <- function(function_name, argument, value) {
+  if (length(value) == 1 && is.na(value)) return(NA_real_)
+  .check_number(function_name, argument, value)
+}
+
+.check_flag <- function(function_name, argument, value) {
+  if (!is.logical(value) || length(value) != 1 || is.na(value))
+    .invalid(function_name, argument, "must be TRUE or FALSE")
+  value
+}
+
+.check_text <- function(function_name, argument, value) {
+  if (!is.character(value) || length(value) != 1 || is.na(value) || !nzchar(value))
+    .invalid(function_name, argument, "must be one non-empty string")
+  value
+}
+
+.check_choice <- function(function_name, argument, value, choices) {
+  if (!is.character(value) || length(value) != 1 || is.na(value))
+    .invalid(function_name, argument, paste("must be one of", paste(choices, collapse = ", ")))
+  tryCatch(
+    match.arg(value, choices),
+    error = function(error) .invalid(function_name, argument,
+                                     sprintf("must be one of %s, got %s", paste(choices, collapse = ", "), value))
+  )
+}
+
+.check_options <- function(function_name, argument, value, class_name, helper) {
+  if (!inherits(value, class_name))
+    .invalid(function_name, argument, sprintf("must be built with %s()", helper))
+  value
+}
+
+.check_sample <- function(function_name, file) {
+  if (!inherits(file, "quantion_sample"))
+    .invalid(function_name, "file", "must be a sample from parse_ion or parse_mzml")
+  file
+}
+
+.check_trace <- function(function_name, x, y) {
+  if (!is.numeric(x)) .invalid(function_name, "x", "must be numeric")
+  if (!is.numeric(y)) .invalid(function_name, "y", "must be numeric")
+  list(x = as.numeric(x), y = as.numeric(y))
+}
+
+.as_options <- function(class_name, values) {
+  structure(values, class = c(class_name, "quantion_options"))
+}
+
+print.quantion_options <- function(x, ...) {
+  cat("<", class(x)[1], ">\n", sep = "")
+  for (name in names(x)) {
+    value <- x[[name]]
+    shown <- if (inherits(value, "quantion_options")) paste0("<", class(value)[1], ">")
+             else if (is.null(value)) "NULL"
+             else if (is.function(value)) "<function>"
+             else if (is.list(value)) sprintf("list of %d", length(value))
+             else paste(format(value), collapse = ", ")
+    cat("  ", name, ": ", shown, "\n", sep = "")
+  }
+  invisible(x)
+}
+
+header <- function(name, value) {
+  name <- .check_text("header", "name", name)
+  if (!is.character(value) || length(value) != 1 || is.na(value))
+    .invalid("header", "value", "must be one string")
+  .as_options("quantion_header", list(name = name, value = value))
+}
+
+parse_ion_options <- function(max_cache_size = 0) {
+  .as_options("parse_ion_options", list(
+    max_cache_size = .check_number("parse_ion_options", "max_cache_size", max_cache_size)
+  ))
+}
+
+write_ion_options <- function(out = NULL, overwrite = FALSE, level = 12L, f32_compress = FALSE, headers = list()) {
+  function_name <- "write_ion_options"
+  if (!is.null(out)) out <- .check_text(function_name, "out", out)
+  if (inherits(headers, "quantion_header")) headers <- list(headers)
+  if (!is.list(headers)) .invalid(function_name, "headers", "must be a list of header()")
+  for (index in seq_along(headers)) {
+    if (!inherits(headers[[index]], "quantion_header"))
+      .invalid(function_name, sprintf("headers[[%d]]", index), "must be built with header()")
+  }
+  .as_options("write_ion_options", list(
+    out = out,
+    overwrite = .check_flag(function_name, "overwrite", overwrite),
+    level = .check_number(function_name, "level", level),
+    f32_compress = .check_flag(function_name, "f32_compress", f32_compress),
+    headers = headers
+  ))
+}
+
+write_mzml_options <- function(out = NULL, overwrite = FALSE) {
+  function_name <- "write_mzml_options"
+  if (!is.null(out)) out <- .check_text(function_name, "out", out)
+  .as_options("write_mzml_options", list(
+    out = out,
+    overwrite = .check_flag(function_name, "overwrite", overwrite)
+  ))
+}
+
+get_scans_options <- function(level = 1L, time_unit = "MINUTES") {
+  function_name <- "get_scans_options"
+  .as_options("get_scans_options", list(
+    level = .check_number(function_name, "level", level),
+    time_unit = .check_choice(function_name, "time_unit", time_unit, c("MINUTES", "SECONDS"))
+  ))
+}
+
+calculate_eic_options <- function(from = 0, to = Inf, ppm_tolerance = 20, mz_tolerance = 0.005, time_unit = "MINUTES") {
+  function_name <- "calculate_eic_options"
+  .as_options("calculate_eic_options", list(
+    from = .check_number(function_name, "from", from),
+    to = .check_number(function_name, "to", to),
+    ppm_tolerance = .check_number(function_name, "ppm_tolerance", ppm_tolerance),
+    mz_tolerance = .check_number(function_name, "mz_tolerance", mz_tolerance),
+    time_unit = .check_choice(function_name, "time_unit", time_unit, c("MINUTES", "SECONDS"))
+  ))
+}
+
+get_ion_image_options <- function(tolerance = 0.125, level = 1L, on_progress = NULL) {
+  function_name <- "get_ion_image_options"
+  if (!is.null(on_progress) && !is.function(on_progress))
+    .invalid(function_name, "on_progress", "must be a function or NULL")
+  .as_options("get_ion_image_options", list(
+    tolerance = .check_number(function_name, "tolerance", tolerance),
+    level = .check_number(function_name, "level", level),
+    on_progress = on_progress
+  ))
+}
+
+find_peaks_options <- function(min_integral = NA, min_intensity = 500, min_peak_width_points = 3L,
+                               noise = NA, auto_noise = TRUE, auto_baseline = TRUE, lambda = 20,
+                               max_iterations = 4L, allow_overlap = FALSE, min_snr = 2, min_r2 = 0,
+                               shape = "EMG", kernel_size = 0L) {
+  function_name <- "find_peaks_options"
+  .as_options("find_peaks_options", list(
+    min_integral = .check_optional_number(function_name, "min_integral", min_integral),
+    min_intensity = .check_number(function_name, "min_intensity", min_intensity),
+    min_peak_width_points = .check_number(function_name, "min_peak_width_points", min_peak_width_points),
+    noise = .check_optional_number(function_name, "noise", noise),
+    auto_noise = .check_flag(function_name, "auto_noise", auto_noise),
+    auto_baseline = .check_flag(function_name, "auto_baseline", auto_baseline),
+    lambda = .check_number(function_name, "lambda", lambda),
+    max_iterations = .check_number(function_name, "max_iterations", max_iterations),
+    allow_overlap = .check_flag(function_name, "allow_overlap", allow_overlap),
+    min_snr = .check_number(function_name, "min_snr", min_snr),
+    min_r2 = .check_number(function_name, "min_r2", min_r2),
+    shape = .check_choice(function_name, "shape", shape, c("EMG", "GAUSSIAN")),
+    kernel_size = .check_number(function_name, "kernel_size", kernel_size)
+  ))
+}
+
+get_peak_options <- function(range = 0, find_peaks = find_peaks_options()) {
+  function_name <- "get_peak_options"
+  .as_options("get_peak_options", list(
+    range = .check_number(function_name, "range", range),
+    find_peaks = .check_options(function_name, "find_peaks", find_peaks, "find_peaks_options", "find_peaks_options")
+  ))
+}
+
+fit_peak_options <- function(shape = "EMG", intensity = 0) {
+  function_name <- "fit_peak_options"
+  .as_options("fit_peak_options", list(
+    shape = .check_choice(function_name, "shape", shape, c("EMG", "GAUSSIAN")),
+    intensity = .check_number(function_name, "intensity", intensity)
+  ))
+}
+
+draw_peaks_options <- function(from = 0, to = 0, points = 1000L) {
+  function_name <- "draw_peaks_options"
+  .as_options("draw_peaks_options", list(
+    from = .check_number(function_name, "from", from),
+    to = .check_number(function_name, "to", to),
+    points = .check_number(function_name, "points", points)
+  ))
+}
+
+calculate_baseline_options <- function(lambda = 20, max_iterations = 4L) {
+  function_name <- "calculate_baseline_options"
+  .as_options("calculate_baseline_options", list(
+    lambda = .check_number(function_name, "lambda", lambda),
+    max_iterations = .check_number(function_name, "max_iterations", max_iterations)
+  ))
+}
+
+grid_options <- function(start = 40, end = 1000, step_size = 0.005) {
+  function_name <- "grid_options"
+  .as_options("grid_options", list(
+    start = .check_number(function_name, "start", start),
+    end = .check_number(function_name, "end", end),
+    step_size = .check_number(function_name, "step_size", step_size)
+  ))
+}
+
+grouping_options <- function(ppm_tolerance = 5, mz_tolerance = 0.0025, rt_tolerance = 0.05, min_frequency = 0) {
+  function_name <- "grouping_options"
+  .as_options("grouping_options", list(
+    ppm_tolerance = .check_number(function_name, "ppm_tolerance", ppm_tolerance),
+    mz_tolerance = .check_number(function_name, "mz_tolerance", mz_tolerance),
+    rt_tolerance = .check_number(function_name, "rt_tolerance", rt_tolerance),
+    min_frequency = .check_number(function_name, "min_frequency", min_frequency)
+  ))
+}
+
+.check_threads <- function(function_name, threads) {
+  threads <- .check_number(function_name, "threads", threads)
+  if (threads < 1 || threads != floor(threads))
+    .invalid(function_name, "threads", sprintf("must be a whole number of 1 or more, got %s", format(threads)))
+  threads
+}
+
+find_targets_options <- function(eic = calculate_eic_options(), find_peaks = find_peaks_options(), threads = 1L) {
+  function_name <- "find_targets_options"
+  .as_options("find_targets_options", list(
+    eic = .check_options(function_name, "eic", eic, "calculate_eic_options", "calculate_eic_options"),
+    find_peaks = .check_options(function_name, "find_peaks", find_peaks, "find_peaks_options", "find_peaks_options"),
+    threads = .check_threads(function_name, threads)
+  ))
+}
+
+find_transitions_options <- function(find_peaks = find_peaks_options(), threads = 1L) {
+  function_name <- "find_transitions_options"
+  .as_options("find_transitions_options", list(
+    find_peaks = .check_options(function_name, "find_peaks", find_peaks, "find_peaks_options", "find_peaks_options"),
+    threads = .check_threads(function_name, threads)
+  ))
+}
+
+find_features_options <- function(eic = calculate_eic_options(), grid = grid_options(),
+                                  find_peaks = find_peaks_options(), threads = 1L) {
+  function_name <- "find_features_options"
+  .as_options("find_features_options", list(
+    eic = .check_options(function_name, "eic", eic, "calculate_eic_options", "calculate_eic_options"),
+    grid = .check_options(function_name, "grid", grid, "grid_options", "grid_options"),
+    find_peaks = .check_options(function_name, "find_peaks", find_peaks, "find_peaks_options", "find_peaks_options"),
+    threads = .check_threads(function_name, threads)
+  ))
+}
+
+match_features_options <- function(eic = calculate_eic_options(), grid = grid_options(), grouping = grouping_options(),
+                                   find_peaks = find_peaks_options(), threads = 1L) {
+  function_name <- "match_features_options"
+  .as_options("match_features_options", list(
+    eic = .check_options(function_name, "eic", eic, "calculate_eic_options", "calculate_eic_options"),
+    grid = .check_options(function_name, "grid", grid, "grid_options", "grid_options"),
+    grouping = .check_options(function_name, "grouping", grouping, "grouping_options", "grouping_options"),
+    find_peaks = .check_options(function_name, "find_peaks", find_peaks, "find_peaks_options", "find_peaks_options"),
+    threads = .check_threads(function_name, threads)
+  ))
+}
+
+.PEAK_COLUMNS <- c("rt", "from", "to", "intensity", "integral", "n_points", "noise", "r2")
+.FEATURE_COLUMNS <- c("mz", "rt", "from", "to", "intensity", "integral", "n_points", "noise")
+
+.as_table <- function(rows, columns) {
+  rows <- as.data.frame(rows)[, columns, drop = FALSE]
+  rownames(rows) <- NULL
+  rows
+}
+
+.is_url <- function(text) {
+  is.character(text) && length(text) == 1 && !is.na(text) && grepl("^https?://", text, ignore.case = TRUE)
+}
+
+.remote_source <- function(file) attr(file, "quantion_source")
+
+.as_sample <- function(handle) {
+  class(handle) <- "quantion_sample"
+  handle
+}
+
+parse_ion <- function(source, options = parse_ion_options()) {
+  function_name <- "parse_ion"
+  options <- .check_options(function_name, "options", options, "parse_ion_options", "parse_ion_options")
+  cache <- options$max_cache_size
+  if (is.raw(source)) return(.as_sample(.Call("C_parse_ion", source, cache, PACKAGE = "quantion")))
+  source <- .check_text(function_name, "source", source)
+  if (.is_url(source)) return(.parse_ion_remote(source, cache))
+  .as_sample(.Call("C_parse_ion_path", path.expand(source), cache, PACKAGE = "quantion"))
+}
+
+parse_mzml <- function(source) {
+  function_name <- "parse_mzml"
+  if (is.raw(source)) return(.as_sample(.Call("C_parse_mzml", source, PACKAGE = "quantion")))
+  source <- .check_text(function_name, "source", source)
+  .as_sample(.Call("C_parse_mzml_path", path.expand(source), PACKAGE = "quantion"))
+}
+
+.get_out <- function(out) {
+  if (is.null(out) || .is_url(out)) out else path.expand(out)
+}
+
+write_ion <- function(file, options = write_ion_options()) {
+  function_name <- "write_ion"
+  file <- .check_sample(function_name, file)
+  options <- .check_options(function_name, "options", options, "write_ion_options", "write_ion_options")
+  out <- .get_out(options$out)
+  headers <- as.character(unlist(lapply(options$headers, function(item) c(item$name, item$value)), use.names = FALSE))
+  bytes <- .Call("C_write_ion", file, out, options$overwrite, as.integer(options$level),
+                 options$f32_compress, headers, PACKAGE = "quantion")
+  if (!is.null(out) && .is_url(out)) {
+    .upload_ion(out, options$headers, bytes)
+    return(invisible(NULL))
+  }
+  if (is.null(out)) bytes else invisible(NULL)
+}
+
+.upload_ion <- function(url, headers, bytes) {
+  handle <- curl::new_handle(customrequest = "PUT", postfields = bytes)
+  if (length(headers)) {
+    fields <- vapply(headers, function(item) item$value, character(1))
+    names(fields) <- vapply(headers, function(item) trimws(item$name), character(1))
+    curl::handle_setheaders(handle, .list = as.list(fields))
+  }
+  response <- tryCatch(
+    curl::curl_fetch_memory(url, handle = handle),
+    error = function(error) .signal_error("upload_failed", "write_ion", NULL, paste("PUT failed:", conditionMessage(error)))
+  )
+  if (response$status_code >= 400)
+    .signal_error("upload_failed", "write_ion", NULL, paste("PUT returned", response$status_code))
+  invisible(NULL)
+}
+
+write_mzml <- function(file, options = write_mzml_options()) {
+  function_name <- "write_mzml"
+  file <- .check_sample(function_name, file)
+  options <- .check_options(function_name, "options", options, "write_mzml_options", "write_mzml_options")
+  out <- .get_out(options$out)
+  bytes <- .Call("C_write_mzml", file, out, options$overwrite, PACKAGE = "quantion")
+  if (is.null(out)) bytes else invisible(NULL)
+}
+
+.QUERY_RT_RANGE <- 0L
+.QUERY_CLOSEST_RT <- 1L
+.QUERY_MZ_RANGE <- 2L
+.QUERY_CLOSEST_MZ <- 3L
+
+.get_scan_query <- function(function_name, value, name, range_query, closest_query) {
+  if (!is.numeric(value) || !(length(value) %in% c(1, 2)) || anyNA(value))
+    .invalid(function_name, name, "must be one number or c(from, to)")
+  value <- as.numeric(value)
+  if (length(value) == 2) return(list(type = range_query, from = value[1], to = value[2]))
+  list(type = closest_query, from = value, to = NaN)
+}
+
+get_scans <- function(file, rt = NULL, mz = NULL, options = get_scans_options()) {
+  function_name <- "get_scans"
+  file <- .check_sample(function_name, file)
+  options <- .check_options(function_name, "options", options, "get_scans_options", "get_scans_options")
+  if (is.null(rt) == is.null(mz)) .invalid(function_name, "rt", "or mz must be given, not both")
+  query <- if (!is.null(rt)) {
+    .get_scan_query(function_name, rt, "rt", .QUERY_RT_RANGE, .QUERY_CLOSEST_RT)
+  } else {
+    .get_scan_query(function_name, mz, "mz", .QUERY_MZ_RANGE, .QUERY_CLOSEST_MZ)
+  }
+  level <- as.integer(options$level)
+  source <- .remote_source(file)
+  if (!is.null(source)) {
+    .prefetch(source, .Call("C_plan_scans", file, query$type, query$from, query$to, level,
+                            options$time_unit, PACKAGE = "quantion"))
+  }
+  .Call("C_get_scans", file, query$type, query$from, query$to, level, options$time_unit,
+        PACKAGE = "quantion")
+}
+
+calculate_eic <- function(file, mz, options = calculate_eic_options()) {
+  function_name <- "calculate_eic"
+  file <- .check_sample(function_name, file)
+  mz <- .check_number(function_name, "mz", mz)
+  options <- .check_options(function_name, "options", options, "calculate_eic_options", "calculate_eic_options")
+  source <- .remote_source(file)
+  if (!is.null(source)) .prefetch(source, .Call("C_plan_eic", file, mz, options, PACKAGE = "quantion"))
+  .Call("C_calculate_eic", file, mz, options, PACKAGE = "quantion")
+}
+
+get_ion_image <- function(file, mz, options = get_ion_image_options()) {
+  function_name <- "get_ion_image"
+  file <- .check_sample(function_name, file)
+  mz <- .check_number(function_name, "mz", mz)
+  options <- .check_options(function_name, "options", options, "get_ion_image_options", "get_ion_image_options")
+  level <- as.integer(options$level)
+  source <- .remote_source(file)
+  if (!is.null(source)) {
+    wanted <- .Call("C_plan_image", file, mz, options$tolerance, level, PACKAGE = "quantion")
+    .prefetch(source, wanted, options$on_progress)
+  }
+  .Call("C_get_ion_image", file, mz, options$tolerance, level, PACKAGE = "quantion")
+}
+
+find_peaks <- function(x, y, options = find_peaks_options()) {
+  function_name <- "find_peaks"
+  trace <- .check_trace(function_name, x, y)
+  options <- .check_options(function_name, "options", options, "find_peaks_options", "find_peaks_options")
+  .as_table(.Call("C_find_peaks", trace$x, trace$y, options, PACKAGE = "quantion"), .PEAK_COLUMNS)
+}
+
+get_peak <- function(x, y, rt, options = get_peak_options()) {
+  function_name <- "get_peak"
+  trace <- .check_trace(function_name, x, y)
+  rt <- .check_number(function_name, "rt", rt)
+  options <- .check_options(function_name, "options", options, "get_peak_options", "get_peak_options")
+  rows <- .Call("C_get_peak", trace$x, trace$y, rt, options$range, options$find_peaks, PACKAGE = "quantion")
+  as.list(.as_table(rows, .PEAK_COLUMNS)[1, ])
+}
+
+fit_peak <- function(x, y, rt, options = fit_peak_options()) {
+  function_name <- "fit_peak"
+  trace <- .check_trace(function_name, x, y)
+  rt <- .check_number(function_name, "rt", rt)
+  options <- .check_options(function_name, "options", options, "fit_peak_options", "fit_peak_options")
+  rows <- .Call("C_fit_peak", trace$x, trace$y, rt, options$shape, options$intensity, PACKAGE = "quantion")
+  if (nrow(rows) == 0) return(NULL)
+  as.list(rows[1, ])
+}
+
+.get_peak_value <- function(function_name, peak, index, name, required) {
+  argument <- sprintf("params[[%d]]$%s", index, name)
+  value <- peak[[name]]
+  if (is.null(value)) {
+    if (!required) return(0)
+    .missing(function_name, argument)
+  }
+  .check_number(function_name, argument, value)
+}
+
+draw_peaks <- function(params, options = draw_peaks_options()) {
+  function_name <- "draw_peaks"
+  options <- .check_options(function_name, "options", options, "draw_peaks_options", "draw_peaks_options")
+  if (!is.list(params)) .invalid(function_name, "params", "must be a list of PeakParameters lists")
+  if (!is.null(params$center) && !is.list(params$center)) params <- list(params)
+  values <- function(name, required) {
+    vapply(seq_along(params), function(index)
+      .get_peak_value(function_name, params[[index]], index, name, required), numeric(1))
+  }
+  .Call("C_draw_peaks", values("height", TRUE), values("center", TRUE), values("fwhm", TRUE),
+        values("tail", FALSE), options$from, options$to, options$points, PACKAGE = "quantion")
+}
+
+find_noise_level <- function(y) {
+  if (!is.numeric(y)) .invalid("find_noise_level", "y", "must be numeric")
+  .Call("C_find_noise_level", as.numeric(y), PACKAGE = "quantion")
+}
+
+calculate_baseline <- function(y, options = calculate_baseline_options()) {
+  function_name <- "calculate_baseline"
+  if (!is.numeric(y)) .invalid(function_name, "y", "must be numeric")
+  options <- .check_options(function_name, "options", options, "calculate_baseline_options", "calculate_baseline_options")
+  .Call("C_calculate_baseline", as.numeric(y), options$lambda, options$max_iterations, PACKAGE = "quantion")
+}
+
+.get_column <- function(function_name, table, name, required, empty, argument = "targets") {
+  if (name %in% names(table)) return(table[[name]])
+  if (required) .missing(function_name, sprintf("%s$%s", argument, name))
+  rep(empty, nrow(table))
+}
+
+.check_table <- function(function_name, targets, argument = "targets") {
+  if (!is.data.frame(targets)) .invalid(function_name, argument, "must be a data.frame")
+  targets
+}
+
+find_targets <- function(file, targets, options = find_targets_options()) {
+  function_name <- "find_targets"
+  file <- .check_sample(function_name, file)
+  targets <- .check_table(function_name, targets)
+  options <- .check_options(function_name, "options", options, "find_targets_options", "find_targets_options")
+  mzs <- as.numeric(.get_column(function_name, targets, "mz", TRUE, NA))
+  rts <- as.numeric(.get_column(function_name, targets, "rt", TRUE, NA))
+  ranges <- as.numeric(.get_column(function_name, targets, "range", FALSE, NA))
+  ranges[is.na(ranges)] <- NaN
+  ids <- as.character(.get_column(function_name, targets, "id", FALSE, NA))
+  source <- .remote_source(file)
+  if (!is.null(source)) .prefetch(source, .Call("C_plan_find_targets", file, mzs, options$eic, PACKAGE = "quantion"))
+  peaks <- .Call("C_find_targets", file, rts, mzs, ranges, ids, options$eic, options$find_peaks,
+                 options$threads, PACKAGE = "quantion")
+  .as_table(peaks, .PEAK_COLUMNS)
+}
+
+find_transitions <- function(file, targets, options = find_transitions_options()) {
+  function_name <- "find_transitions"
+  file <- .check_sample(function_name, file)
+  targets <- .check_table(function_name, targets)
+  options <- .check_options(function_name, "options", options, "find_transitions_options", "find_transitions_options")
+  column <- function(name) as.numeric(.get_column(function_name, targets, name, TRUE, NA))
+  ids <- as.character(.get_column(function_name, targets, "id", FALSE, NA))
+  peaks <- .Call("C_find_transitions", file, column("precursor"), column("product"), column("rt"),
+                 column("range"), ids, options$find_peaks, options$threads, PACKAGE = "quantion")
+  .as_table(peaks, .PEAK_COLUMNS)
+}
+
+find_features <- function(file, options = find_features_options()) {
+  function_name <- "find_features"
+  file <- .check_sample(function_name, file)
+  options <- .check_options(function_name, "options", options, "find_features_options", "find_features_options")
+  source <- .remote_source(file)
+  if (!is.null(source)) {
+    .prefetch(source, .Call("C_plan_find_features", file, options$eic, options$grid, PACKAGE = "quantion"))
+  }
+  features <- .Call("C_find_features", file, options$eic, options$grid, options$find_peaks, options$threads,
+                    PACKAGE = "quantion")
+  .as_table(features, .FEATURE_COLUMNS)
+}
+
+match_features <- function(directory, options = match_features_options()) {
+  function_name <- "match_features"
+  directory <- .check_text(function_name, "directory", directory)
+  options <- .check_options(function_name, "options", options, "match_features_options", "match_features_options")
+  features <- .Call("C_match_features", path.expand(directory), options$eic, options$grid, options$grouping,
+                    options$find_peaks, options$threads, PACKAGE = "quantion")
+  .as_table(features, c(.FEATURE_COLUMNS, "frequency"))
+}
+
+dispose <- function(object) {
+  if (inherits(object, "quantion_warp_model"))
+    return(invisible(.Call("C_dispose_warp_model", object, PACKAGE = "quantion")))
+  if (inherits(object, "quantion_model"))
+    return(invisible(.Call("C_dispose_model", object, PACKAGE = "quantion")))
+  if (inherits(object, "quantion_sample"))
+    return(invisible(.Call("C_dispose_sample", object, PACKAGE = "quantion")))
+  .invalid("dispose", "object", "must be a sample, a model or a warp model")
 }
 
 load_model <- function(source) {
-  if (is.character(source) && length(source) == 1 && !is.na(source) &&
-      (startsWith(tolower(source), "http://") || startsWith(tolower(source), "https://"))) {
+  function_name <- "load_model"
+  if (.is_url(source)) {
     destination <- tempfile()
     on.exit(unlink(destination), add = TRUE)
     status <- tryCatch(
@@ -37,15 +584,14 @@ load_model <- function(source) {
       error = function(error) conditionMessage(error)
     )
     if (!identical(status, 0L))
-      stop("quantion/load_model failed: the model was not read: GET ", source, " failed: ", status)
+      .signal_error("parse_failed", function_name, NULL,
+                    sprintf("the file could not be read: GET %s failed: %s", source, status))
     source <- readBin(destination, "raw", file.info(destination)$size)
   }
   model <- if (is.raw(source)) {
     .Call("C_model_load_bytes", source, PACKAGE = "quantion")
-  } else if (is.character(source) && length(source) == 1 && !is.na(source) && nchar(source) > 0) {
-    .Call("C_model_load_path", path.expand(source), PACKAGE = "quantion")
   } else {
-    stop("`source` must be a path, a URL, or raw bytes")
+    .Call("C_model_load_path", path.expand(.check_text(function_name, "source", source)), PACKAGE = "quantion")
   }
   class(model) <- "quantion_model"
   attr(model, "metadata") <- .Call("C_model_metadata", model, PACKAGE = "quantion")
@@ -53,525 +599,101 @@ load_model <- function(source) {
 }
 
 load_warp <- function(model) {
-  if (!inherits(model, "quantion_model")) stop("quantion: expected a model from load_model")
+  if (!inherits(model, "quantion_model")) .invalid("load_warp", "model", "must be a model from load_model")
   warp <- .Call("C_warp_model_load", model, PACKAGE = "quantion")
   class(warp) <- "quantion_warp_model"
   attr(warp, "metadata") <- attr(model, "metadata")
   warp
 }
 
-get_metadata <- function(model) {
+.get_metadata <- function(function_name, model) {
   if (!inherits(model, c("quantion_model", "quantion_warp_model")))
-    stop("quantion: expected a model from load_model or a warp model from load_warp")
+    .invalid(function_name, "model", "must be a model from load_model or a warp model from load_warp")
   attr(model, "metadata")
 }
 
 get_keys <- function(model) {
-  get_metadata(model)$key
+  .get_metadata("get_keys", model)$key
 }
 
 get_values <- function(model) {
-  get_metadata(model)$value
+  .get_metadata("get_values", model)$value
 }
 
 get_value <- function(model, key) {
-  metadata <- get_metadata(model)
+  metadata <- .get_metadata("get_value", model)
+  key <- .check_text("get_value", "key", key)
   value <- metadata$value[metadata$key == key]
   if (length(value) == 0) NULL else value[[1]]
 }
 
-calibrate <- function(warp, anchor_samples, target_lists) {
-  if (!inherits(warp, "quantion_warp_model")) stop("quantion: expected a warp model from load_warp")
-  if (!is.list(anchor_samples) || !is.list(target_lists) || is.data.frame(target_lists))
-    stop("`anchor_samples` and `target_lists` must be lists")
-  if (length(anchor_samples) != length(target_lists))
-    stop("calibrate needs one target list per sample, got ", length(anchor_samples),
-         " samples and ", length(target_lists), " target lists")
-  for (index in seq_along(target_lists)) {
-    targets <- target_lists[[index]]
-    if (!is.data.frame(targets) || !all(c("id", "mz", "rt") %in% names(targets)))
-      stop("each target list must be a data.frame with columns id, mz and rt")
-    prefetch_targets(warp, anchor_samples[[index]], targets)
-  }
-  get_column <- function(name, empty) {
-    unlist(lapply(target_lists, function(targets)
-      if (name %in% names(targets)) targets[[name]] else rep(empty, nrow(targets))), use.names = FALSE)
-  }
-  .Call("C_calibrate_rts", warp, anchor_samples,
-        as.numeric(vapply(target_lists, nrow, integer(1))),
-        as.character(get_column("id", "")), as.numeric(get_column("mz", NA)),
-        as.numeric(get_column("rt", NA)), PACKAGE = "quantion")
+.check_warp <- function(function_name, warp) {
+  if (!inherits(warp, "quantion_warp_model")) .invalid(function_name, "warp", "must be a warp model from load_warp")
+  warp
 }
 
-prefetch_targets <- function(warp, bin, targets) {
-  source <- attr(bin, "quantion_source")
-  if (is.null(source) || nrow(targets) == 0) return(invisible(NULL))
-  wanted <- .Call("C_plan_predict_rts", warp, bin, as.numeric(targets$mz), as.numeric(targets$rt),
-                  PACKAGE = "quantion")
-  .prefetch(source, wanted)
+.prefetch_targets <- function(warp, file, mzs, rts) {
+  source <- .remote_source(file)
+  if (is.null(source) || length(mzs) == 0) return(invisible(NULL))
+  .prefetch(source, .Call("C_plan_predict_rts", warp, file, mzs, rts, PACKAGE = "quantion"))
 }
 
-predict_rts <- function(warp, bin, targets) {
-  if (!inherits(warp, "quantion_warp_model")) stop("quantion: expected a warp model from load_warp")
-  if (typeof(bin) != "externalptr") stop("quantion: expected an external pointer (MzML sample)")
-  if (!is.data.frame(targets) || !all(c("mz", "rt") %in% names(targets)))
-    stop("`targets` must be a data.frame with columns mz and rt")
-  mzs <- as.numeric(targets$mz)
-  rts <- as.numeric(targets$rt)
+predict_rts <- function(warp, file, targets) {
+  function_name <- "predict_rts"
+  warp <- .check_warp(function_name, warp)
+  file <- .check_sample(function_name, file)
+  targets <- .check_table(function_name, targets)
+  mzs <- as.numeric(.get_column(function_name, targets, "mz", TRUE, NA))
+  rts <- as.numeric(.get_column(function_name, targets, "rt", TRUE, NA))
   if (length(mzs) == 0) return(data.frame(rt = numeric(0), uncertainty = numeric(0)))
-  prefetch_targets(warp, bin, targets)
-  values <- .Call("C_predict_rts", warp, bin, mzs, rts, PACKAGE = "quantion")
+  .prefetch_targets(warp, file, mzs, rts)
+  values <- .Call("C_predict_rts", warp, file, mzs, rts, PACKAGE = "quantion")
   data.frame(rt = values[c(TRUE, FALSE)], uncertainty = values[c(FALSE, TRUE)])
 }
 
-parse_mzml <- function(data) {
-  stopifnot(is.raw(data))
-  .Call("C_parse_mzml", data, PACKAGE="quantion")
-}
-
-mzml_to_ion <- function(bin, level = 12L, f32_compress = FALSE) {
-  if (typeof(bin) != "externalptr") stop("quantion: expected an external pointer (MzML sample)")
-
-  if (!is.numeric(level) || length(level) != 1 || is.na(level))
-    stop("`level` must be a single number 0..22")
-  lvl <- as.integer(level)
-  if (lvl < 0L || lvl > 22L)
-    stop("`level` must be between 0 and 22 (inclusive)")
-
-  if (!is.logical(f32_compress) || length(f32_compress) != 1 || is.na(f32_compress))
-    stop("`f32_compress` must be TRUE/FALSE")
-
-  .Call("C_mzml_to_ion", bin, lvl, f32_compress, PACKAGE = "quantion")
-}
-
-mzml_to_ion_file <- function(input_path, output_path, level = 12L, f32_compress = FALSE) {
-  if (!is.character(input_path) || length(input_path) != 1 || is.na(input_path))
-    stop("`input_path` must be a single string")
-  if (!is.character(output_path) || length(output_path) != 1 || is.na(output_path))
-    stop("`output_path` must be a single string")
-
-  if (!is.numeric(level) || length(level) != 1 || is.na(level))
-    stop("`level` must be a single number 0..22")
-  lvl <- as.integer(level)
-  if (lvl < 0L || lvl > 22L)
-    stop("`level` must be between 0 and 22 (inclusive)")
-
-  if (!is.logical(f32_compress) || length(f32_compress) != 1 || is.na(f32_compress))
-    stop("`f32_compress` must be TRUE/FALSE")
-
-  .Call("C_mzml_to_ion_file", input_path, output_path, lvl, f32_compress, PACKAGE = "quantion")
-  invisible(output_path)
-}
-
-ion_to_mzml <- function(bin) {
-  if (typeof(bin) != "externalptr") stop("quantion: expected an external pointer (MzML sample)")
-  .Call("C_ion_to_mzml", bin, PACKAGE = "quantion")
-}
-
-get_peak <- function(
-  x, y, rt, range,
-  min_integral          = NaN,
-  min_intensity         = .DEFAULTS$min_intensity,
-  min_peak_width_points = .DEFAULTS$min_peak_width_points,
-  noise                 = NaN,
-  auto_noise            = .DEFAULTS$auto_noise,
-  auto_baseline         = .DEFAULTS$auto_baseline,
-  lambda                = 0L,
-  max_iterations        = 0L,
-  allow_overlap         = FALSE,
-  min_snr               = .DEFAULTS$min_snr,
-  min_r2                = .DEFAULTS$min_r2,
-  shape                 = .DEFAULTS$shape,
-  kernel_size           = .DEFAULTS$kernel_size
-) {
-  stopifnot(is.numeric(x), is.numeric(y))
-  if (length(x) != length(y) || length(x) < 3) stop("x and y must have the same length (>= 3)")
-  if (!is.logical(auto_noise) || length(auto_noise) != 1 || is.na(auto_noise)) stop("auto_noise must be logical TRUE/FALSE")
-  if (!is.logical(allow_overlap) || length(allow_overlap) != 1 || is.na(allow_overlap)) stop("allow_overlap must be logical TRUE/FALSE")
-  if (!is.logical(auto_baseline) || length(auto_baseline) != 1 || is.na(auto_baseline)) stop("auto_baseline must be logical TRUE/FALSE")
-  filter_supplied <- !(missing(min_integral) && missing(min_intensity) &&
-    missing(min_peak_width_points) && missing(noise) && missing(auto_noise) &&
-    missing(auto_baseline) && missing(lambda) && missing(max_iterations) &&
-    missing(allow_overlap) && missing(min_snr) && missing(min_r2) && missing(shape) &&
-    missing(kernel_size))
-  opt <- if (filter_supplied) list(
-    min_integral=min_integral, min_intensity=min_intensity,
-    min_peak_width_points=min_peak_width_points, noise=noise,
-    auto_noise=auto_noise, auto_baseline=auto_baseline,
-    lambda=lambda, max_iterations=max_iterations,
-    allow_overlap=allow_overlap, min_snr=min_snr, min_r2=min_r2, shape=shape,
-    kernel_size=kernel_size
-  ) else NULL
-  rows <- .Call("C_get_peak", as.numeric(x), as.numeric(y), as.numeric(rt), as.numeric(range), opt, PACKAGE="quantion")
-  if (nrow(rows) == 0) NULL else as.list(rows[1, ])
-}
-
-get_peaks_from_eic <- function(
-  bin, df, from=0.5, to=5, cores=1L,
-  min_integral          = NaN,
-  min_intensity         = .DEFAULTS$min_intensity,
-  min_peak_width_points = .DEFAULTS$min_peak_width_points,
-  noise                 = NaN,
-  auto_noise            = .DEFAULTS$auto_noise,
-  auto_baseline         = .DEFAULTS$auto_baseline,
-  lambda                = 0L,
-  max_iterations        = 0L,
-  allow_overlap         = FALSE,
-  min_snr               = .DEFAULTS$min_snr,
-  min_r2                = .DEFAULTS$min_r2,
-  shape                 = .DEFAULTS$shape,
-  kernel_size           = .DEFAULTS$kernel_size
-) {
-  stopifnot(typeof(bin) == "externalptr")
-  if (!is.data.frame(df)) stop("`df` must be a data.frame")
-  req <- c("id","rt","mz","ranges"); miss <- setdiff(req, names(df))
-  if (length(miss)) stop(paste0("missing columns: ", paste(miss, collapse=", ")))
-  id <- as.character(df$id)
-  rts <- suppressWarnings(as.numeric(df$rt))
-  mzs <- suppressWarnings(as.numeric(df$mz))
-  ranges <- suppressWarnings(as.numeric(df$ranges))
-  n <- length(id)
-  if (!(length(rts)==n && length(mzs)==n && length(ranges)==n)) stop("id, rt, mz, ranges must have the same length")
-  id[is.na(id)] <- ""
-  if (!is.logical(auto_noise) || length(auto_noise) != 1 || is.na(auto_noise)) stop("auto_noise must be logical TRUE/FALSE")
-  if (!is.logical(allow_overlap) || length(allow_overlap) != 1 || is.na(allow_overlap)) stop("allow_overlap must be logical TRUE/FALSE")
-  if (!is.logical(auto_baseline) || length(auto_baseline) != 1 || is.na(auto_baseline)) stop("auto_baseline must be logical TRUE/FALSE")
-  filter_supplied <- !(missing(min_integral) && missing(min_intensity) &&
-    missing(min_peak_width_points) && missing(noise) && missing(auto_noise) &&
-    missing(auto_baseline) && missing(lambda) && missing(max_iterations) &&
-    missing(allow_overlap) && missing(min_snr) && missing(min_r2) && missing(shape) &&
-    missing(kernel_size))
-  opt <- if (filter_supplied) list(
-    min_integral=min_integral, min_intensity=min_intensity,
-    min_peak_width_points=min_peak_width_points, noise=noise,
-    auto_noise=auto_noise, auto_baseline=auto_baseline,
-    lambda=lambda, max_iterations=max_iterations,
-    allow_overlap=allow_overlap, min_snr=min_snr, min_r2=min_r2, shape=shape,
-    kernel_size=kernel_size
-  ) else NULL
-  cores <- .validate_cores(cores)
-  out_json <- .Call("C_get_peaks_from_eic",
-    bin, as.numeric(rts), as.numeric(mzs), as.numeric(ranges), as.character(id),
-    as.numeric(from), as.numeric(to), opt, as.integer(cores),
-    PACKAGE="quantion"
-  )
-  res <- out_json
-  if (!is.data.frame(res)) res <- as.data.frame(res)
-  want <- c("id","mz","ort","rt","from","to","intensity","integral")
-  present <- intersect(want, names(res)); extras <- setdiff(names(res), present)
-  res <- res[, c(present, extras), drop=FALSE]
-  rownames(res) <- NULL
-  res
-}
-
-get_peaks_from_chrom <- function(
-  bin, items, cores=1L,
-  min_integral          = NaN,
-  min_intensity         = .DEFAULTS$min_intensity,
-  min_peak_width_points = .DEFAULTS$min_peak_width_points,
-  noise                 = NaN,
-  auto_noise            = .DEFAULTS$auto_noise,
-  auto_baseline         = .DEFAULTS$auto_baseline,
-  lambda                = 0L,
-  max_iterations        = 0L,
-  allow_overlap         = FALSE,
-  min_snr               = .DEFAULTS$min_snr,
-  min_r2                = .DEFAULTS$min_r2,
-  shape                 = .DEFAULTS$shape
-) {
-  stopifnot(typeof(bin) == "externalptr")
-  if (is.null(items) || !(is.list(items) || is.data.frame(items))) stop("items must be a list/data.frame")
-  idxs <- suppressWarnings(as.integer(if (!is.null(items$idx)) items$idx else items$index))
-  rts  <- suppressWarnings(as.numeric(items$rt))
-  wins <- suppressWarnings(as.numeric(if (!is.null(items$window)) items$window else items$range))
-  if (length(idxs) != length(rts) || length(wins) != length(rts)) stop("idx, rt, range length mismatch")
-  if (any(is.na(idxs)) || any(idxs < 0)) stop("idx must be a non-negative integer for every item")
-  if (!is.logical(auto_noise) || length(auto_noise) != 1 || is.na(auto_noise)) stop("auto_noise must be logical TRUE/FALSE")
-  if (!is.logical(allow_overlap) || length(allow_overlap) != 1 || is.na(allow_overlap)) stop("allow_overlap must be logical TRUE/FALSE")
-  if (!is.logical(auto_baseline) || length(auto_baseline) != 1 || is.na(auto_baseline)) stop("auto_baseline must be logical TRUE/FALSE")
-  filter_supplied <- !(missing(min_integral) && missing(min_intensity) &&
-    missing(min_peak_width_points) && missing(noise) && missing(auto_noise) &&
-    missing(auto_baseline) && missing(lambda) && missing(max_iterations) &&
-    missing(allow_overlap) && missing(min_snr) && missing(min_r2) && missing(shape))
-  opt <- if (filter_supplied) list(
-    min_integral=min_integral, min_intensity=min_intensity,
-    min_peak_width_points=min_peak_width_points, noise=noise,
-    auto_noise=auto_noise, auto_baseline=auto_baseline,
-    lambda=lambda, max_iterations=max_iterations,
-    allow_overlap=allow_overlap, min_snr=min_snr, min_r2=min_r2, shape=shape
-  ) else NULL
-  cores <- .validate_cores(cores)
-  out_json <- .Call("C_get_peaks_from_chrom",
-    bin, idxs, rts, wins, opt, as.integer(cores), PACKAGE="quantion"
-  )
-  df <- out_json
-  if (!is.data.frame(df)) df <- as.data.frame(df)
-  if (!"ort" %in% names(df)) stop("internal error: 'ort' missing from result")
-  want <- c("index","id","ort","rt","from","to","intensity","integral","total_area")
-  present <- want[want %in% names(df)]; extras <- setdiff(names(df), present)
-  df <- df[, c(present, extras), drop=FALSE]
-  if ("index" %in% names(df)) df <- df[order(df$index), , drop=FALSE]
-  rownames(df) <- NULL
-  df
-}
-
-calculate_eic <- function(bin, targets, from, to, ppm_tolerance=20, mz_tolerance=0.005) {
-  if (typeof(bin) != "externalptr") stop("quantion: expected an external pointer (MzML sample)")
-  stopifnot(is.numeric(targets), length(targets) == 1)
-  source <- attr(bin, "quantion_source")
-  if (!is.null(source)) {
-    wanted <- .Call("C_plan_eic", bin, as.numeric(targets), as.numeric(from),
-                    as.numeric(to), as.numeric(ppm_tolerance), as.numeric(mz_tolerance),
-                    PACKAGE = "quantion")
-    .prefetch(source, wanted)
+calibrate <- function(warp, anchor_samples, target_lists) {
+  function_name <- "calibrate"
+  warp <- .check_warp(function_name, warp)
+  if (!is.list(anchor_samples) || inherits(anchor_samples, "quantion_sample"))
+    .invalid(function_name, "anchor_samples", "must be a list of samples")
+  if (!is.list(target_lists) || is.data.frame(target_lists))
+    .invalid(function_name, "target_lists", "must be a list of data.frames")
+  for (index in seq_along(anchor_samples)) .check_sample(function_name, anchor_samples[[index]])
+  for (index in seq_along(target_lists)) {
+    argument <- sprintf("target_lists[[%d]]", index)
+    targets <- .check_table(function_name, target_lists[[index]], argument)
+    if (index <= length(anchor_samples)) {
+      .prefetch_targets(warp, anchor_samples[[index]],
+                        as.numeric(.get_column(function_name, targets, "mz", TRUE, NA, argument)),
+                        as.numeric(.get_column(function_name, targets, "rt", TRUE, NA, argument)))
+    }
   }
-  .Call("C_calculate_eic",
-    bin, as.numeric(targets), as.numeric(from), as.numeric(to),
-    as.numeric(ppm_tolerance), as.numeric(mz_tolerance),
-    PACKAGE="quantion"
-  )
-}
-
-find_peaks <- function(
-  x, y,
-  min_integral          = NaN,
-  min_intensity         = .DEFAULTS$min_intensity,
-  min_peak_width_points = .DEFAULTS$min_peak_width_points,
-  noise                 = NaN,
-  auto_noise            = .DEFAULTS$auto_noise,
-  auto_baseline         = .DEFAULTS$auto_baseline,
-  lambda                = 0L,
-  max_iterations        = 0L,
-  allow_overlap         = FALSE,
-  min_snr               = .DEFAULTS$min_snr,
-  min_r2                = .DEFAULTS$min_r2,
-  shape                 = .DEFAULTS$shape,
-  kernel_size           = .DEFAULTS$kernel_size
-) {
-  stopifnot(is.numeric(x), is.numeric(y))
-  if (length(x) != length(y) || length(x) < 3) stop("x and y must have the same length >= 3")
-  if (!is.logical(auto_noise) || length(auto_noise) != 1 || is.na(auto_noise)) stop("auto_noise must be logical TRUE/FALSE")
-  if (!is.logical(allow_overlap) || length(allow_overlap) != 1 || is.na(allow_overlap)) stop("allow_overlap must be logical TRUE/FALSE")
-  if (!is.logical(auto_baseline) || length(auto_baseline) != 1 || is.na(auto_baseline)) stop("auto_baseline must be logical TRUE/FALSE")
-  filter_supplied <- !(missing(min_integral) && missing(min_intensity) &&
-    missing(min_peak_width_points) && missing(noise) && missing(auto_noise) &&
-    missing(auto_baseline) && missing(lambda) && missing(max_iterations) &&
-    missing(allow_overlap) && missing(min_snr) && missing(min_r2) && missing(shape) &&
-    missing(kernel_size))
-  opt <- if (filter_supplied) list(
-    min_integral=min_integral, min_intensity=min_intensity,
-    min_peak_width_points=min_peak_width_points, noise=noise,
-    auto_noise=auto_noise, auto_baseline=auto_baseline,
-    lambda=lambda, max_iterations=max_iterations,
-    allow_overlap=allow_overlap, min_snr=min_snr, min_r2=min_r2, shape=shape,
-    kernel_size=kernel_size
-  ) else NULL
-  out_json <- .Call("C_find_peaks", as.numeric(x), as.numeric(y), opt, PACKAGE="quantion")
-  out_json
-}
-
-calculate_baseline <- function(y, lambda=0L, max_iterations=0L) {
-  stopifnot(is.numeric(y))
-  .Call("C_calculate_baseline",
-        as.numeric(y),
-        as.integer(lambda),
-        as.integer(max_iterations),
-        PACKAGE="quantion")
-}
-
-find_noise_level <- function(y) .Call("C_find_noise_level", as.numeric(y), PACKAGE="quantion")
-
-.shape_code <- function(shape) {
-  s <- tolower(as.character(shape))
-  if (s == "gaussian") return(0L)
-  if (s == "emg")      return(1L)
-  stop("shape must be 'gaussian' or 'emg'")
-}
-
-fit_peak <- function(x, y, rt, intensity, shape = "emg") {
-  stopifnot(is.numeric(x), is.numeric(y), length(x) == length(y), length(x) >= 5)
-  rows <- .Call("C_fit_peak",
-        as.numeric(x), as.numeric(y),
-        as.numeric(rt), as.numeric(intensity), .shape_code(shape),
-        PACKAGE="quantion")
-  if (nrow(rows) == 0) NULL else as.list(rows[1, ])
-}
-
-draw_peak <- function(x, params) {
-  stopifnot(is.numeric(x), is.list(params))
-  tail <- if (is.null(params$tail)) 0 else params$tail
-  .Call("C_draw_peak",
-        as.numeric(x), .shape_code(params$shape),
-        as.numeric(params$height), as.numeric(params$center),
-        as.numeric(params$fwhm), as.numeric(tail),
-        PACKAGE="quantion")
-}
-
-find_feature <- function(
-  bin,
-  rt, mz, window, id = NULL,
-  scan_ppm = 10, scan_mz = 0.003, eic_ppm = 20, eic_mz = 0.005,
-  cores                 = 1L,
-  min_integral          = NaN,
-  min_intensity         = .DEFAULTS$min_intensity,
-  min_peak_width_points = .DEFAULTS$min_peak_width_points,
-  noise                 = NaN,
-  auto_noise            = .DEFAULTS$auto_noise,
-  auto_baseline         = .DEFAULTS$auto_baseline,
-  lambda                = 0L,
-  max_iterations        = 0L,
-  allow_overlap         = FALSE,
-  min_snr               = .DEFAULTS$min_snr,
-  min_r2                = .DEFAULTS$min_r2,
-  shape                 = .DEFAULTS$shape
-) {
-  stopifnot(typeof(bin) == "externalptr")
-  if (!is.numeric(rt)) stop("rt must be numeric")
-  if (!is.numeric(mz)) stop("mz must be numeric")
-  if (!is.numeric(window)) stop("window must be numeric")
-
-  if (!is.numeric(scan_ppm) || length(scan_ppm) != 1) stop("scan_ppm must be a single numeric")
-  if (!is.numeric(scan_mz)  || length(scan_mz)  != 1) stop("scan_mz must be a single numeric")
-  if (!is.numeric(eic_ppm)  || length(eic_ppm)  != 1) stop("eic_ppm must be a single numeric")
-  if (!is.numeric(eic_mz)   || length(eic_mz)   != 1) stop("eic_mz must be a single numeric")
-
-  if (!is.logical(auto_noise) || length(auto_noise) != 1 || is.na(auto_noise)) stop("auto_noise must be logical TRUE/FALSE")
-  if (!is.logical(allow_overlap) || length(allow_overlap) != 1 || is.na(allow_overlap)) stop("allow_overlap must be logical TRUE/FALSE")
-  if (!is.logical(auto_baseline) || length(auto_baseline) != 1 || is.na(auto_baseline)) stop("auto_baseline must be logical TRUE/FALSE")
-
-  if (is.null(id)) {
-    id <- rep("", length(rt))
-  } else {
-    id <- as.character(id)
-    if (length(id) != length(rt)) stop("id must have the same length as rt")
+  combined <- function(name, required) {
+    unlist(lapply(seq_along(target_lists), function(index)
+      .get_column(function_name, target_lists[[index]], name, required, NA, sprintf("target_lists[[%d]]", index))),
+      use.names = FALSE)
   }
-  if (length(mz) != length(rt) || length(window) != length(rt))
-    stop("rt, mz and window must have the same length")
-
-  opt <- list(
-    min_integral=min_integral,
-    min_intensity=min_intensity,
-    min_peak_width_points=min_peak_width_points,
-    noise=noise,
-    auto_noise=auto_noise,
-    auto_baseline=auto_baseline,
-    lambda=lambda,
-    max_iterations=max_iterations,
-    allow_overlap=allow_overlap,
-    min_snr=min_snr, min_r2=min_r2, shape=shape
-  )
-
-  cores <- .validate_cores(cores)
-
-  out_json <- .Call(
-    "C_find_feature",
-    bin,
-    as.numeric(rt), as.numeric(mz), as.numeric(window),
-    id,
-    as.numeric(scan_ppm), as.numeric(scan_mz),
-    as.numeric(eic_ppm), as.numeric(eic_mz),
-    opt, as.integer(cores),
-    PACKAGE = "quantion"
-  )
-
-  res <- out_json
-  if (!is.data.frame(res)) res <- as.data.frame(res)
-  want <- c("id","mz","ort","rt","from","to","intensity","integral")
-  present <- intersect(want, names(res)); extras <- setdiff(names(res), present)
-  res <- res[, c(present, extras), drop = FALSE]
-  rownames(res) <- NULL
-  res
-}
-
-find_features <- function(
-  data, from = 0, to = 10,
-  ppm_tolerance         = .DEFAULTS$eic_ppm_tol,
-  mz_tolerance          = .DEFAULTS$eic_mz_tol,
-  grid_start            = .DEFAULTS$grid_start,
-  grid_end              = .DEFAULTS$grid_end,
-  grid_step_ppm         = .DEFAULTS$grid_step,
-  cores                 = 1L,
-  min_integral          = NaN,
-  min_intensity         = .DEFAULTS$min_intensity,
-  min_peak_width_points = .DEFAULTS$min_peak_width_points,
-  noise                 = NaN,
-  auto_noise            = .DEFAULTS$auto_noise,
-  auto_baseline         = .DEFAULTS$auto_baseline,
-  lambda                = 0L,
-  max_iterations        = 0L,
-  allow_overlap         = FALSE,
-  min_snr               = .DEFAULTS$min_snr,
-  min_r2                = .DEFAULTS$min_r2,
-  shape                 = .DEFAULTS$shape
-) {
-  stopifnot(typeof(data) == "externalptr")
-  cores <- .validate_cores(cores)
-
-  opt <- list(
-    min_integral=min_integral, min_intensity=min_intensity,
-    min_peak_width_points=min_peak_width_points, noise=noise,
-    auto_noise=auto_noise, auto_baseline=auto_baseline,
-    lambda=lambda, max_iterations=max_iterations,
-    allow_overlap=allow_overlap, min_snr=min_snr, min_r2=min_r2, shape=shape
-  )
-
-  out_json <- .Call(
-    "C_find_features", data,
-    as.numeric(from), as.numeric(to),
-    as.numeric(ppm_tolerance), as.numeric(mz_tolerance),
-    as.numeric(grid_start), as.numeric(grid_end), as.numeric(grid_step_ppm),
-    opt, as.integer(cores),
-    PACKAGE = "quantion"
-  )
-
-  df <- out_json
-  if (!is.data.frame(df)) df <- as.data.frame(df)
-  want <- c("mz","rt","from","to","intensity","integral","n_points")
-  present <- intersect(want, names(df))
-  df <- df[, c(present, setdiff(names(df), present)), drop = FALSE]
-  rownames(df) <- NULL
-  df
-}
-
-parse_ion <- function(input, max_cache_size = 0) {
-  if (is.character(input)) {
-    looks_like_url <- length(input) == 1 && !is.na(input) && grepl("^https?://", input, ignore.case = TRUE)
-    if (looks_like_url) return(.parse_ion_remote(input, max_cache_size))
-    return(.parse_ion_path(input, max_cache_size))
-  }
-  .parse_ion_raw(input, max_cache_size)
-}
-
-.parse_ion_raw <- function(input, max_cache_size = 0) {
-  if (!is.raw(input)) stop("`input` must be a raw vector of ion bytes")
-  if (!is.numeric(max_cache_size) || length(max_cache_size) != 1 || is.na(max_cache_size) || max_cache_size < 0)
-    stop("`max_cache_size` must be a single non-negative number")
-  .Call("C_parse_ion", input, as.numeric(max_cache_size), PACKAGE = "quantion")
-}
-
-.parse_ion_path <- function(path, max_cache_size = 0) {
-  if (!is.character(path) || length(path) != 1 || is.na(path) || nchar(path) == 0)
-    stop("`path` must be a single non-empty string")
-  full_path <- path.expand(path)
-  if (!file.exists(full_path)) stop("`path` does not point to an existing file: ", path)
-  if (!is.numeric(max_cache_size) || length(max_cache_size) != 1 || is.na(max_cache_size) || max_cache_size < 0)
-    stop("`max_cache_size` must be a single non-negative number")
-  .Call("C_parse_ion_path", full_path, as.numeric(max_cache_size), PACKAGE = "quantion")
+  ids <- as.character(combined("id", FALSE))
+  .Call("C_calibrate_rts", warp, anchor_samples, as.numeric(vapply(target_lists, nrow, integer(1))),
+        ids, as.numeric(combined("mz", TRUE)), as.numeric(combined("rt", TRUE)), PACKAGE = "quantion")
 }
 
 .fetch_range <- function(url, offset, span) {
   destination <- tempfile()
   on.exit(unlink(destination), add = TRUE)
   last <- offset + span - 1
-  status <- utils::download.file(
-    url, destination, method = "libcurl", quiet = TRUE, mode = "wb",
-    headers = c(Range = sprintf("bytes=%.0f-%.0f", offset, last))
+  status <- tryCatch(
+    utils::download.file(url, destination, method = "libcurl", quiet = TRUE, mode = "wb",
+                         headers = c(Range = sprintf("bytes=%.0f-%.0f", offset, last))),
+    error = function(error) conditionMessage(error)
   )
-  if (!identical(status, 0L)) stop("quantion: the range request failed for ", url)
+  if (!identical(status, 0L))
+    .signal_error("parse_failed", "parse_ion", NULL, sprintf("the file could not be read: GET %s failed", url))
   bytes <- readBin(destination, "raw", file.info(destination)$size)
   if (length(bytes) != span)
-    stop(sprintf("quantion: the server returned %d bytes for a %d byte range; it does not support range requests",
-                 length(bytes), span))
+    .signal_error("parse_failed", "parse_ion", NULL,
+                  sprintf("the server returned %d bytes for a %d byte range; it does not support range requests",
+                          length(bytes), span))
   bytes
 }
 
@@ -606,11 +728,18 @@ parse_ion <- function(input, max_cache_size = 0) {
   FALSE
 }
 
-.prefetch <- function(source, ranges) {
+.held_bytes <- function(source) {
+  sum(vapply(source$held, function(held) held[2], numeric(1)))
+}
+
+.prefetch <- function(source, ranges, on_progress = NULL) {
+  if (nrow(ranges) == 0) return(invisible(NULL))
   wanted <- ranges[!apply(ranges, 1, function(row) .already_held(source, row[1], row[2])), , drop = FALSE]
   if (nrow(wanted) == 0) return(invisible(NULL))
 
   spans <- .merge_ranges(wanted, .gap_for(source$total))
+  total <- sum(spans[, 2])
+  fetched <- 0
   for (row in seq_len(nrow(spans))) {
     offset <- spans[row, 1]
     span <- spans[row, 2]
@@ -618,16 +747,13 @@ parse_ion <- function(input, max_cache_size = 0) {
     bytes <- .fetch_range(source$url, offset, span)
     .Call("C_store_add", source$store, offset, bytes, PACKAGE = "quantion")
     source$held[[length(source$held) + 1]] <- c(offset, length(bytes))
+    fetched <- fetched + length(bytes)
+    if (!is.null(on_progress)) on_progress(fetched, total, .held_bytes(source))
   }
   invisible(NULL)
 }
 
 .parse_ion_remote <- function(url, max_cache_size = 0) {
-  if (!is.character(url) || length(url) != 1 || is.na(url) || nchar(url) == 0)
-    stop("`url` must be a single non-empty string")
-  if (!startsWith(tolower(url), "http://") && !startsWith(tolower(url), "https://"))
-    stop("`url` must start with http:// or https://")
-
   source <- new.env(parent = emptyenv())
   source$url <- url
   source$store <- .Call("C_store_new", PACKAGE = "quantion")
@@ -642,146 +768,8 @@ parse_ion <- function(input, max_cache_size = 0) {
   source$total <- if (nrow(planned)) max(planned[, 1] + planned[, 2]) else 0
   .prefetch(source, planned)
 
-  handle <- .Call("C_parse_ion_source", source$store, as.numeric(max_cache_size),
-                  PACKAGE = "quantion")
+  handle <- .Call("C_parse_ion_source", source$store, as.numeric(max_cache_size), PACKAGE = "quantion")
+  handle <- .as_sample(handle)
   attr(handle, "quantion_source") <- source
   handle
 }
-
-.QUERY_RT_RANGE   <- 0L
-.QUERY_CLOSEST_RT <- 1L
-.QUERY_MZ_RANGE   <- 2L
-.QUERY_CLOSEST_MZ <- 3L
-
-get_scans <- function(bin, rt_from = NULL, rt_to = NULL, rt = NULL,
-                      mz_from = NULL, mz_to = NULL, mz = NULL,
-                      level = 1L) {
-  if (typeof(bin) != "externalptr") stop("quantion: expected an external pointer (MzML sample)")
-  if (!is.numeric(level) || length(level) != 1) stop("level must be a single numeric")
-
-  provided <- c(!is.null(rt_from) && !is.null(rt_to),
-                !is.null(rt),
-                !is.null(mz_from) && !is.null(mz_to),
-                !is.null(mz))
-  if (sum(provided) != 1) stop("get_scans: exactly one of {rt_from+rt_to, rt, mz_from+mz_to, mz} must be provided")
-
-  if (provided[1]) {
-    a <- as.numeric(rt_from); b <- as.numeric(rt_to)
-    if (!is.finite(a) || !is.finite(b)) stop("rt_from and rt_to must be finite numerics")
-    query_type <- .QUERY_RT_RANGE
-  } else if (provided[2]) {
-    a <- as.numeric(rt)
-    if (!is.finite(a)) stop("rt must be a single finite numeric")
-    query_type <- .QUERY_CLOSEST_RT; b <- NaN
-  } else if (provided[3]) {
-    a <- as.numeric(mz_from); b <- as.numeric(mz_to)
-    if (!is.finite(a) || !is.finite(b)) stop("mz_from and mz_to must be finite numerics")
-    query_type <- .QUERY_MZ_RANGE
-  } else {
-    a <- as.numeric(mz)
-    if (!is.finite(a) || a <= 0) stop("mz must be a single positive finite numeric")
-    query_type <- .QUERY_CLOSEST_MZ; b <- NaN
-  }
-
-  source <- attr(bin, "quantion_source")
-  if (!is.null(source)) {
-    wanted <- .Call("C_plan_scans", bin, as.integer(query_type), a, b,
-                    as.integer(level), PACKAGE = "quantion")
-    .prefetch(source, wanted)
-  }
-
-  scans <- .Call("C_get_scans",
-    bin, as.integer(query_type), a, b, as.integer(level),
-    PACKAGE = "quantion"
-  )
-  if (query_type %in% c(.QUERY_CLOSEST_RT, .QUERY_CLOSEST_MZ)) {
-    if (nrow(scans) == 0) {
-      NULL
-    } else {
-      list(
-        rt = scans$rt[[1]],
-        mz = as.list(scans$mz[[1]]),
-        intensity = as.list(scans$intensity[[1]]),
-        metadata = as.list(scans$metadata[1, ])
-      )
-    }
-  } else {
-    scans
-  }
-}
-
-get_features <- function(
-  dir_path, from = 0, to = 10,
-  eic_ppm_tol           = .DEFAULTS$eic_ppm_tol,
-  eic_mz_tol            = .DEFAULTS$eic_mz_tol,
-  grid_start            = .DEFAULTS$grid_start,
-  grid_end              = .DEFAULTS$grid_end,
-  grid_step             = .DEFAULTS$grid_step,
-  group_ppm_tol         = .DEFAULTS$group_ppm_tol,
-  group_mz_tol          = .DEFAULTS$group_mz_tol,
-  group_rt_tol          = .DEFAULTS$group_rt_tol,
-  frequency             = .DEFAULTS$frequency,
-  cores                 = 1L,
-  min_integral          = NaN,
-  min_intensity         = .DEFAULTS$min_intensity,
-  min_peak_width_points = .DEFAULTS$min_peak_width_points,
-  noise                 = NaN,
-  auto_noise            = .DEFAULTS$auto_noise,
-  auto_baseline         = .DEFAULTS$auto_baseline,
-  lambda                = 0L,
-  max_iterations        = 0L,
-  allow_overlap         = FALSE,
-  min_snr               = .DEFAULTS$min_snr,
-  min_r2                = .DEFAULTS$min_r2,
-  shape                 = .DEFAULTS$shape
-) {
-  if (!is.character(dir_path) || length(dir_path) != 1) stop("dir_path must be a single string")
-  cores <- .validate_cores(cores)
-
-  opt <- list(
-    min_integral=min_integral, min_intensity=min_intensity,
-    min_peak_width_points=min_peak_width_points, noise=noise,
-    auto_noise=auto_noise, auto_baseline=auto_baseline,
-    lambda=lambda, max_iterations=max_iterations,
-    allow_overlap=allow_overlap, min_snr=min_snr, min_r2=min_r2, shape=shape
-  )
-
-  out_json <- .Call("C_get_features",
-    dir_path,
-    as.numeric(from), as.numeric(to),
-    as.numeric(eic_ppm_tol), as.numeric(eic_mz_tol),
-    as.numeric(grid_start), as.numeric(grid_end), as.numeric(grid_step),
-    as.numeric(group_ppm_tol), as.numeric(group_mz_tol), as.numeric(group_rt_tol),
-    as.integer(frequency),
-    opt, as.integer(cores),
-    PACKAGE = "quantion"
-  )
-
-  df <- out_json
-  if (!is.data.frame(df)) df <- as.data.frame(df)
-  rownames(df) <- NULL
-  df
-}
-
-.validate_cores <- function(cores) {
-  if (!is.numeric(cores) || length(cores) != 1L || is.na(cores)) stop("cores must be a single number")
-
-  if (cores != floor(cores)) stop("cores must be a single number")
-
-  cores <- as.integer(cores)
-  if (is.na(cores) || cores < 1L) stop("cores must be a single number")
-
-  maxc <- NA_integer_
-  if (requireNamespace("parallel", quietly = TRUE)) {
-    maxc <- suppressWarnings(tryCatch(parallel::detectCores(logical = FALSE), error = function(e) NA_integer_))
-    if (is.na(maxc) || maxc < 1L) {
-      maxc <- suppressWarnings(tryCatch(parallel::detectCores(logical = TRUE), error = function(e) NA_integer_))
-    }
-  }
-  if (!is.na(maxc) && cores > maxc) {
-    warning(sprintf("cores (%d) exceeds detected cores (%d)", cores, maxc))
-  }
-
-  cores
-}
-

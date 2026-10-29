@@ -1,13 +1,16 @@
 import { ContainmentCache } from "./containmentCache";
 
-export type ByteRangeResult = { offset: bigint; length: bigint };
+export interface ByteRangeResult {
+  offset: bigint;
+  length: bigint;
+}
 
-export type RemoteSource = {
+export interface RemoteSource {
   url: string;
   cache: ContainmentCache;
   total: bigint;
   multipart: boolean | null;
-};
+}
 
 export const HEADER_BYTES = 1024n;
 

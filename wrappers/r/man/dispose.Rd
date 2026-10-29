@@ -1,21 +1,22 @@
 \name{dispose}
 \alias{dispose}
-\title{Free a sample file or a warp model}
+\title{Free native memory}
 \description{
-Releases native memory held by a sample file or a warp model. Call this when you want to free
-memory immediately rather than waiting for R garbage collection.
+Free the native memory of a sample, a model or a warp model. It is also freed by the garbage collector.
 }
 \usage{
-dispose(
-  bin
-)
+dispose(object)
 }
 \arguments{
-  \item{bin}{Sample file from \code{\link{parse_mzml}()} or \code{\link{parse_ion}()}, a model from \code{\link{load_model}()}, or a warp model from \code{\link{load_warp}()}.}
+  \item{object}{A sample, a model or a warp model.}
 }
 \value{
-\code{NULL}, called for its side effect.
+\code{NULL}, invisibly.
 }
-\seealso{
-\code{\link{parse_mzml}()}, \code{\link{parse_ion}()}, \code{\link{load_model}()}, \code{\link{load_warp}()}
+\section{Documentation}{
+\url{https://phenological.github.io/quantion/?language=r#dispose}
+}
+\examples{
+model <- load_model(system.file("extdata", "model.onnx", package = "quantion"))
+dispose(model)
 }

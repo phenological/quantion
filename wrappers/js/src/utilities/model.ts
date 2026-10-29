@@ -1,7 +1,8 @@
 import type { Backend, ModelHandle } from "./backend";
 import { fileHandleRegistry } from "./handleRegistry";
 import { Metadata } from "./metadata";
-import type { ModelEntry } from "../types/types";
+import { invalidArgument } from "./errors";
+import type { ModelEntry } from "../types/internal";
 
 type Cell = ReturnType<typeof fileHandleRegistry.register>;
 
@@ -29,7 +30,11 @@ export class Model extends Metadata {
   }
 
   /**
-   * Release the native memory held by this model. Warp models made from it keep working.
+   * dispose · Models
+   *
+   * Free the memory held by a sample, model or warp model.
+   * @returns Nothing.
+   * @see {@link https://phenological.github.io/quantion/?language=js#dispose | Documentation}
    */
   dispose(): void {
     const cell = this._cell;
@@ -38,11 +43,11 @@ export class Model extends Metadata {
   }
 
   /** @internal */
-  getMetadata(caller: string): ModelEntry[] {
+  _getMetadata(caller: string): ModelEntry[] {
     if (this.metadata === null) {
       const handle = this._handle;
       if (handle === null) {
-        throw new Error(`${caller}: the model has been disposed`);
+        throw invalidArgument(caller, "model", "is not open; it was disposed");
       }
       this.metadata = this._backend.modelMetadata(handle);
     }

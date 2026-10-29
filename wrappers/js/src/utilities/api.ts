@@ -1,384 +1,402 @@
-import type { Backend, FileHandle } from "./backend";
+import type {
+  Backend,
+  EicSettings,
+  FileHandle,
+  PeakColumns,
+  TargetColumns,
+  TransitionColumns,
+} from "./backend";
 import { SampleFile } from "./sampleFile";
 import { Model } from "./model";
 import { WarpModel } from "./warpModel";
-import { toCores, toUint8 } from "./shared";
-import { encodeTargetIds, unpackTargets } from "./pack";
+import { toUint8 } from "./shared";
 import { getIonSource, type IonSource } from "./ionSource";
+import { QuantionError, invalidArgument } from "./errors";
+import { uploadIon } from "./upload";
+import {
+  getShapeCode,
+  getTimeUnitCode,
+  packHeaders,
+  readBaselineOptions,
+  readDrawPeaksOptions,
+  readEicOptions,
+  readFindFeaturesOptions,
+  readFindPeaksOptions,
+  readFindTargetsOptions,
+  readFindTransitionsOptions,
+  readFitPeakOptions,
+  readGetPeakOptions,
+  readGetScansOptions,
+  readIonImageOptions,
+  readMatchFeaturesOptions,
+  readParseIonOptions,
+  readWriteIonOptions,
+  readWriteMzmlOptions,
+  type Complete,
+} from "./options";
 import type {
+  CalculateBaselineOptions,
   BinaryInput,
-  IonInput,
-  PeakOptions,
-  BaselineOptions,
-  NoiseLevel,
-  Peak,
-  Target,
-  PredictedRt,
-  WarpTarget,
-  ModelEntry,
-  ChromItem,
-  ChromPeak,
+  DataXY,
+  DrawPeaksOptions,
+  CalculateEicOptions,
   Feature,
-  FoundFeature,
   FindFeaturesOptions,
-  GetFeaturesOptions,
-  ConsensusFeature,
+  FindPeaksOptions,
+  FindTargetsOptions,
+  FindTransitionsOptions,
+  FitPeakOptions,
   FromTo,
-  CentroidScan,
-  SpectrumSummary,
-  ScanQuery,
+  GetPeakOptions,
+  GetScansOptions,
   IonImage,
-  IonImageOptions,
+  GetIonImageOptions,
+  IonInput,
+  MatchFeaturesOptions,
+  NoiseLevel,
+  ParseIonOptions,
+  Peak,
+  PeakParameters,
+  Scan,
+  ScanQuery,
+  Target,
+  Transition,
+  WriteIonOptions,
+  WriteMzmlOptions,
 } from "../types/types";
 
-export type {
-  BinaryInput,
-  IonInput,
-  PeakOptions,
-  BaselineOptions,
-  NoiseLevel,
-  Peak,
-  Target,
-  PredictedRt,
-  WarpTarget,
-  ModelEntry,
-  ChromItem,
-  ChromPeak,
-  Feature,
-  FoundFeature,
-  FindFeaturesOptions,
-  GetFeaturesOptions,
-  ConsensusFeature,
-  FromTo,
-  CentroidScan,
-  SpectrumSummary,
-  ScanQuery,
-  IonImage,
-  IonImageOptions,
-};
+let selectedBackend: Backend | null = null;
+let initPromise: Promise<void> | null = null;
 
-const DEFAULTS = {
-  eic: { mzTolerance: 0.005, ppmTolerance: 10.0 },
-  grid: { start: 40, end: 1000, stepSize: 0.005 },
-  grouping: {
-    ppmTolerance: 5.0,
-    mzTolerance: 0.0025,
-    rtTolerance: 0.05,
-    frequency: 1,
-  },
-  findPeak: {
-    minIntensity: 500,
-    minPeakWidthPoints: 3,
-    autoNoise: true,
-    autoBaseline: true,
-    minSnr: 2,
-    minR2: 0.0,
-    shape: "emg",
-  },
-} as const;
-
-let _backend: Backend | null = null;
-let _initPromise: Promise<void> | null = null;
-
-export function setBackend(b: Backend): void {
-  _backend = b;
+export function setBackend(backend: Backend): void {
+  selectedBackend = backend;
 }
 
-export function setInitPromise(p: Promise<void>): void {
-  _initPromise = p;
+export function setInitPromise(promise: Promise<void>): void {
+  initPromise = promise;
 }
 
-function backend(): Backend {
-  if (!_backend || !_backend.ready) {
-    throw new Error(
-      "Backend not initialized. Call init() first (WASM) or ensure the native module loaded (Node).",
+function getBackend(): Backend {
+  if (!selectedBackend || !selectedBackend.ready) {
+    throw new QuantionError(
+      "internal",
+      "quantion",
+      "the library is not loaded; call init() first in the browser",
     );
   }
-  return _backend;
+  return selectedBackend;
 }
 
-async function backendAsync(): Promise<Backend> {
-  if (_initPromise) await _initPromise;
-  return backend();
+async function getBackendAsync(): Promise<Backend> {
+  if (initPromise) await initPromise;
+  return getBackend();
 }
 
-function assertFile(file: SampleFile, caller: string): void {
-  if (!(file instanceof SampleFile) || !file._handle) {
-    throw new Error(`${caller}: expects a valid SampleFile object`);
+function getHandle(file: SampleFile, functionName: string): FileHandle {
+  if (!(file instanceof SampleFile)) {
+    throw invalidArgument(functionName, "file", "must be a SampleFile");
   }
-}
-
-function checkCacheSize(cacheSize: number): void {
-  if (
-    !Number.isFinite(cacheSize) ||
-    !Number.isInteger(cacheSize) ||
-    cacheSize < 0
-  ) {
-    throw new TypeError(
-      "parseIon: maxCacheSize must be a non-negative integer",
+  const handle = file._handle;
+  if (!handle) {
+    throw invalidArgument(
+      functionName,
+      "file",
+      "is not open; it was disposed or never opened",
     );
   }
+  return handle;
+}
+
+function getNumber(
+  value: unknown,
+  functionName: string,
+  argument: string,
+): number {
+  if (typeof value !== "number") {
+    throw invalidArgument(
+      functionName,
+      argument,
+      `must be a number, got ${typeof value}`,
+    );
+  }
+  return value;
+}
+
+function isFloat64Array(value: unknown): value is Float64Array {
+  return Object.prototype.toString.call(value) === "[object Float64Array]";
+}
+
+function getTrace(
+  x: Float64Array,
+  y: Float64Array,
+  functionName: string,
+): [Float64Array, Float64Array] {
+  if (!isFloat64Array(x)) {
+    throw invalidArgument(functionName, "x", "must be a Float64Array");
+  }
+  if (!isFloat64Array(y)) {
+    throw invalidArgument(functionName, "y", "must be a Float64Array");
+  }
+  if (x.length !== y.length) {
+    throw invalidArgument(
+      functionName,
+      "y",
+      `must have the same length as x (${x.length}), got ${y.length}`,
+    );
+  }
+  return [x, y];
+}
+
+function getEicSettings(eic: Complete<CalculateEicOptions>): EicSettings {
+  return {
+    from: eic.from,
+    to: eic.to,
+    ppmTolerance: eic.ppmTolerance,
+    mzTolerance: eic.mzTolerance,
+    timeUnit: getTimeUnitCode(eic.timeUnit),
+  };
+}
+
+function getTargetColumns(
+  targets: Target[],
+  functionName: string,
+): TargetColumns {
+  if (!Array.isArray(targets)) {
+    throw invalidArgument(functionName, "targets", "must be an array");
+  }
+  return {
+    rts: Float64Array.from(targets, (target, index) =>
+      getNumber(target.rt, functionName, `targets[${index}].rt`),
+    ),
+    mzs: Float64Array.from(targets, (target, index) =>
+      getNumber(target.mz, functionName, `targets[${index}].mz`),
+    ),
+    ranges: Float64Array.from(targets, (target, index) =>
+      target.range === undefined
+        ? NaN
+        : getNumber(target.range, functionName, `targets[${index}].range`),
+    ),
+    ids: targets.map((target) => target.id ?? ""),
+  };
+}
+
+function getTransitionColumns(
+  targets: Transition[],
+  functionName: string,
+): TransitionColumns {
+  if (!Array.isArray(targets)) {
+    throw invalidArgument(functionName, "targets", "must be an array");
+  }
+  const read = (key: keyof Transition) =>
+    Float64Array.from(targets, (target, index) =>
+      getNumber(target[key], functionName, `targets[${index}].${key}`),
+    );
+  return {
+    precursors: read("precursor"),
+    products: read("product"),
+    rts: read("rt"),
+    ranges: read("range"),
+    ids: targets.map((target) => target.id ?? ""),
+  };
+}
+
+function openIon(
+  backend: Backend,
+  source: IonSource,
+  cacheSize: number,
+): FileHandle | Promise<FileHandle> {
+  if (source.kind === "path")
+    return backend.parseIonPath(source.path, cacheSize);
+  if (source.kind === "url")
+    return backend.parseIonRemote(source.url, cacheSize);
+  return backend.parseIonBuffer(source.bytes, cacheSize);
 }
 
 /**
- * Parse an mzML file buffer into a {@link SampleFile}.
+ * parseIon · Files
  *
- * @param data - Raw mzML file bytes.
- * @returns Loaded sample file.
+ * Open an .ion file from a path, a URL or bytes. Paths and URLs are read lazily: only the bytes a query needs are fetched.
+ *
+ * @param source - Where the file is: a path, an http(s) URL, or raw bytes.
+ * @param options - Optional settings. Every field and default is listed in ParseIonOptions.
+ * @returns The opened sample.
+ * @see {@link https://phenological.github.io/quantion/?language=js#parse_ion | Documentation}
  */
-export async function parseMzML(data: BinaryInput): Promise<SampleFile> {
-  const selected_backend = await backendAsync();
-  const file_handle = selected_backend.parseMzML(toUint8(data));
-  return new SampleFile(file_handle, selected_backend);
-}
-
 export async function parseIon(
   source: IonInput,
-  options: { maxCacheSize?: number } = {},
+  options?: ParseIonOptions,
 ): Promise<SampleFile> {
-  const cacheSize = options.maxCacheSize ?? 0;
-  checkCacheSize(cacheSize);
-  const ionSource = getIonSource(source);
-
-  const selectedBackend = await backendAsync();
-  const fileHandle = await parseIonSource(
-    selectedBackend,
-    ionSource,
-    cacheSize,
-  );
-  return new SampleFile(fileHandle, selectedBackend);
+  const settings = readParseIonOptions(options, "parse_ion");
+  const ionSource = getIonSource(source, "parse_ion");
+  const backend = await getBackendAsync();
+  const handle = await openIon(backend, ionSource, settings.maxCacheSize);
+  return new SampleFile(handle, backend);
 }
 
 /**
- * Load an ONNX model from a path (Node only), a URL, or bytes.
+ * parseMzml · Files
  *
- * @param source - Path, URL, or model bytes.
- * @returns The loaded model.
+ * Open an mzML file from a path or bytes. It is always loaded fully into memory. URLs are refused.
+ *
+ * @param source - Where the file is: a path or raw bytes.
+ * @returns The loaded sample.
+ * @see {@link https://phenological.github.io/quantion/?language=js#parse_mzml | Documentation}
+ */
+export async function parseMzml(
+  source: string | BinaryInput,
+): Promise<SampleFile> {
+  const backend = await getBackendAsync();
+  if (typeof source === "string") {
+    if (/^https?:/i.test(source)) {
+      throw new QuantionError(
+        "remote_file",
+        "parse_mzml",
+        "this needs the whole file: open it from a path or bytes, not a URL",
+      );
+    }
+    if (!backend.canReadPaths) {
+      throw invalidArgument(
+        "parse_mzml",
+        "source",
+        "must be bytes in the browser; paths need Node",
+      );
+    }
+    return new SampleFile(backend.parseMzmlPath(source), backend);
+  }
+  if (!(source instanceof Uint8Array) && !(source instanceof ArrayBuffer)) {
+    throw invalidArgument("parse_mzml", "source", "must be a path or bytes");
+  }
+  return new SampleFile(backend.parseMzmlBytes(toUint8(source)), backend);
+}
+
+/**
+ * writeIon · Files
+ *
+ * Write a sample as .ion. With no out, it returns the bytes. A path writes a file; a URL uploads it in one PUT request.
+ *
+ * @param file - The sample to write.
+ * @param options - Optional settings. Every field and default is listed in WriteIonOptions.
+ * @returns The bytes when out is left out; nothing when it is written or uploaded.
+ * @see {@link https://phenological.github.io/quantion/?language=js#write_ion | Documentation}
+ */
+export async function writeIon(
+  file: SampleFile,
+  options?: WriteIonOptions,
+): Promise<Uint8Array | undefined> {
+  const handle = getHandle(file, "write_ion");
+  const settings = readWriteIonOptions(options, "write_ion");
+  const isUrl = settings.out !== null && /^https?:/i.test(settings.out);
+  if (settings.out !== null && !isUrl && !file._backend.canReadPaths) {
+    throw invalidArgument(
+      "write_ion",
+      "out",
+      "cannot be a path in the browser; use a URL or leave it out to get the bytes",
+    );
+  }
+  const bytes = await file._backend.writeIon(
+    handle,
+    settings.out,
+    settings.overwrite,
+    settings.level,
+    settings.f32Compress,
+    packHeaders(settings.headers),
+  );
+  if (!isUrl) return bytes;
+  await uploadIon(
+    settings.out as string,
+    settings.headers,
+    bytes as Uint8Array,
+  );
+  return undefined;
+}
+
+/**
+ * writeMzml · Files
+ *
+ * Write a sample as mzML. With no out, it returns the bytes. Only a path is allowed, no URL.
+ *
+ * @param file - The sample to write.
+ * @param options - Optional settings. Every field and default is listed in WriteMzmlOptions.
+ * @returns The bytes when out is left out; nothing when it is written.
+ * @see {@link https://phenological.github.io/quantion/?language=js#write_mzml | Documentation}
+ */
+export async function writeMzml(
+  file: SampleFile,
+  options?: WriteMzmlOptions,
+): Promise<Uint8Array | undefined> {
+  const handle = getHandle(file, "write_mzml");
+  const settings = readWriteMzmlOptions(options, "write_mzml");
+  if (settings.out !== null && !file._backend.canReadPaths) {
+    throw invalidArgument(
+      "write_mzml",
+      "out",
+      "cannot be a path in the browser; leave it out to get the bytes",
+    );
+  }
+  return file._backend.writeMzml(handle, settings.out, settings.overwrite);
+}
+
+/**
+ * loadModel · Models
+ *
+ * Load an ONNX model from a path, a URL or bytes, and read the keys and values stored in it.
+ *
+ * @param source - Where the model is: a path, an http(s) URL, or raw bytes.
+ * @returns The model, with get_keys(), get_values() and get_value(key).
+ * @see {@link https://phenological.github.io/quantion/?language=js#load_model | Documentation}
  */
 export async function loadModel(source: IonInput): Promise<Model> {
-  const modelSource = getIonSource(source, "loadModel");
-  const selectedBackend = await backendAsync();
+  const modelSource = getIonSource(source, "load_model");
+  const backend = await getBackendAsync();
   if (modelSource.kind === "path") {
-    return new Model(
-      selectedBackend.loadModelPath(modelSource.path),
-      selectedBackend,
-    );
+    return new Model(backend.loadModelPath(modelSource.path), backend);
   }
   const bytes =
     modelSource.kind === "url"
       ? await fetchModel(modelSource.url)
       : modelSource.bytes;
-  return new Model(selectedBackend.loadModelBytes(bytes), selectedBackend);
-}
-
-/**
- * Make a warp model from a loaded model. The model stays usable.
- *
- * @param model - A model from {@link loadModel}.
- * @returns The warp model.
- */
-export function loadWarp(model: Model): WarpModel {
-  if (!(model instanceof Model) || !model._handle) {
-    throw new Error("loadWarp: expects a valid Model from loadModel");
-  }
-  return new WarpModel(
-    model._backend.loadWarp(model._handle),
-    model._backend,
-    model.getMetadata("loadWarp"),
-  );
+  return new Model(backend.loadModelBytes(bytes), backend);
 }
 
 async function fetchModel(url: URL): Promise<Uint8Array> {
   const response = await fetch(url).catch((error: Error) => {
-    throw new Error(
-      `load_model: the model was not read: GET ${url} failed: ${error.message}`,
+    throw new QuantionError(
+      "parse_failed",
+      "load_model",
+      `the file could not be read: GET ${url} failed: ${error.message}`,
     );
   });
   if (!response.ok) {
-    throw new Error(
-      `load_model: the model was not read: GET ${url} failed: HTTP ${response.status}`,
+    throw new QuantionError(
+      "parse_failed",
+      "load_model",
+      `the file could not be read: GET ${url} answered ${response.status}`,
     );
   }
   return new Uint8Array(await response.arrayBuffer());
 }
 
-function parseIonSource(
-  backend: Backend,
-  source: IonSource,
-  cacheSize: number,
-): FileHandle | Promise<FileHandle> {
-  if (source.kind === "path") {
-    return backend.parseIonPath(source.path, cacheSize);
-  }
-  if (source.kind === "url") {
-    return backend.parseIonRemote(source.url, cacheSize);
-  }
-  return backend.parseIonBuffer(source.bytes, cacheSize);
-}
-
-
 /**
- * Serialize a sample back to mzML format.
+ * loadWarp · Models
  *
- * @param file - Loaded sample file.
- * @returns Full mzML file content as a string.
- */
-export function ionToMzml(file: SampleFile): string {
-  assertFile(file, "ionToMzml");
-  return backend().fileToMzml(file._handle!);
-}
-
-/**
- * Encode a sample as compressed ion binary bytes.
+ * Make a retention-time warp model from a loaded model.
  *
- * @param file - Loaded sample file.
- * @param options.level - Compression level, 0 (none) to 22 (max). Default 12.
- * @param options.f32Compress - Compress intensity values to 32-bit float. Default false.
- * @returns Raw ion binary bytes.
+ * @param model - A model from load_model that holds a warp.
+ * @returns The warp model.
+ * @see {@link https://phenological.github.io/quantion/?language=js#load_warp | Documentation}
  */
-export function mzmlToIon(
-  file: SampleFile,
-  options: { level?: number; f32Compress?: boolean } = {},
-): Uint8Array {
-  assertFile(file, "mzmlToIon");
-  const { level = 12, f32Compress = false } = options;
-  if (
-    typeof level !== "number" ||
-    !Number.isFinite(level) ||
-    (level | 0) !== level ||
-    level < 0 ||
-    level > 22
-  ) {
-    throw new RangeError("mzmlToIon: level must be an integer in [0,22]");
-  }
-  if (typeof f32Compress !== "boolean") {
-    throw new TypeError("mzmlToIon: f32Compress must be a boolean");
-  }
-  return backend().fileToBin(file._handle!, level, f32Compress);
-}
-
-/**
- * Extract an extracted ion chromatogram (EIC) for a target m/z.
- *
- * @param file - Loaded sample file.
- * @param mz - Target m/z value.
- * @param fromTo - Retention time range `{ from, to }` in minutes.
- * @param ppmTol - PPM tolerance. Default 20.
- * @param mzTol - Absolute m/z tolerance in Da. Default 0.005.
- * @returns Object with `x` (retention times) and `y` (intensities) arrays.
- */
-export async function calculateEic(
-  file: SampleFile,
-  mz: number,
-  fromTo: FromTo,
-  ppmTol = 20,
-  mzTol = 0.005,
-): Promise<{ x: Float64Array; y: Float64Array }> {
-  assertFile(file, "calculateEic");
-  if (typeof mz !== "number" || !Number.isFinite(mz) || mz <= 0) {
-    throw new RangeError(
-      "calculateEic: targetMz must be a positive finite number",
+export function loadWarp(model: Model): WarpModel {
+  if (!(model instanceof Model) || !model._handle) {
+    throw invalidArgument(
+      "load_warp",
+      "model",
+      "must be an open Model from loadModel",
     );
   }
-  const { from, to } = fromTo;
-  if (!Number.isFinite(from) || !Number.isFinite(to)) {
-    throw new RangeError("calculateEic: from and to must be finite numbers");
-  }
-
-  return await file._backend.calculateEic(
-    file._handle!,
-    mz,
-    from,
-    to,
-    ppmTol,
-    mzTol,
-  );
-}
-
-/**
- * Detect peaks in a chromatographic trace.
- *
- * @param x - Retention time array.
- * @param y - Intensity array.
- * @param opts - Peak detection options.
- * @returns Array of detected peaks.
- */
-export function findPeaks(
-  x: Float64Array,
-  y: Float64Array,
-  opts?: PeakOptions,
-): Peak[] {
-  if (!(x instanceof Float64Array) || !(y instanceof Float64Array)) {
-    throw new TypeError("findPeaks: x and y must be Float64Array");
-  }
-  if (x.length !== y.length) {
-    throw new RangeError("findPeaks: x and y must have equal length");
-  }
-  return backend().findPeaks(x, y, opts);
-}
-
-/**
- * Find a single peak near a target retention time.
- *
- * @param x - Retention time array.
- * @param y - Intensity array.
- * @param rt - Target retention time in minutes.
- * @param range - Search window half-width in minutes.
- * @param opts - Peak detection options.
- * @returns The best matching peak.
- */
-export function getPeak(
-  x: Float64Array,
-  y: Float64Array,
-  rt: number,
-  range: number,
-  opts?: PeakOptions,
-): Peak {
-  if (!(x instanceof Float64Array) || !(y instanceof Float64Array)) {
-    throw new TypeError("getPeak: x and y must be Float64Array");
-  }
-  if (x.length !== y.length) {
-    throw new RangeError("getPeak: x and y must have equal length");
-  }
-  if (!Number.isFinite(rt)) {
-    throw new RangeError("getPeak: rt must be a finite number");
-  }
-  if (!Number.isFinite(range) || range <= 0) {
-    throw new RangeError("getPeak: range must be a positive finite number");
-  }
-  const rows = backend().getPeak(x, y, rt, range, opts);
-  return rows.length ? rows[0] : null;
-}
-
-/**
- * Estimate the noise level of an intensity array.
- *
- * @param y - Intensity array.
- * @returns The window width the estimate came from and the noise intensity.
- */
-export function findNoiseLevel(y: Float64Array | Float32Array): NoiseLevel {
-  const y32 = y instanceof Float32Array ? y : new Float32Array(y);
-  return backend().findNoiseLevel(y32);
-}
-
-/**
- * Compute the rolling baseline of an intensity array.
- *
- * @param y - Intensity array.
- * @param options.lambda - airPLS smoothing parameter. Default auto.
- * @param options.maxIterations - Maximum airPLS iterations. Default auto.
- * @returns Baseline array, same length as `y`.
- */
-export function calculateBaseline(
-  y: Float64Array | ArrayLike<number>,
-  options?: BaselineOptions,
-): Float64Array {
-  const y64 =
-    y instanceof Float64Array ? y : new Float64Array(y as ArrayLike<number>);
-  return backend().calculateBaseline(
-    y64,
-    (options?.lambda as any) | 0,
-    (options?.maxIterations as any) | 0,
+  return new WarpModel(
+    model._backend.loadWarp(model._handle),
+    model._backend,
+    model._getMetadata("load_warp"),
   );
 }
 
@@ -387,410 +405,401 @@ const QUERY_CLOSEST_RT = 1;
 const QUERY_MZ_RANGE = 2;
 const QUERY_CLOSEST_MZ = 3;
 
-function assertLevel(level: number, caller: string): void {
-  if (
-    typeof level !== "number" ||
-    !Number.isFinite(level) ||
-    (level | 0) !== level ||
-    level < 0 ||
-    level > 255
-  ) {
-    throw new RangeError(`${caller}: level must be an integer in [0,255]`);
+function getScanQuery(query: ScanQuery): [number, number, number] {
+  const given = query as unknown as Record<string, unknown>;
+  if (given === null || typeof given !== "object") {
+    throw invalidArgument("get_scans", "query", "must be { rt } or { mz }");
   }
+  const keys = Object.keys(given);
+  if (keys.length !== 1 || (keys[0] !== "rt" && keys[0] !== "mz")) {
+    throw invalidArgument(
+      "get_scans",
+      "query",
+      "must have exactly one of rt or mz",
+    );
+  }
+  const key = keys[0];
+  const value = given[key];
+  const closest = key === "rt" ? QUERY_CLOSEST_RT : QUERY_CLOSEST_MZ;
+  const range = key === "rt" ? QUERY_RT_RANGE : QUERY_MZ_RANGE;
+  if (typeof value === "number") return [closest, value, NaN];
+  const fromTo = value as FromTo;
+  if (fromTo === null || typeof fromTo !== "object") {
+    throw invalidArgument("get_scans", key, "must be a number or { from, to }");
+  }
+  return [
+    range,
+    getNumber(fromTo.from, "get_scans", "from"),
+    getNumber(fromTo.to, "get_scans", "to"),
+  ];
 }
 
 /**
- * Retrieve centroid scans from a sample by retention time or precursor m/z.
+ * getScans · Files
  *
- * @param file - Loaded sample file.
- * @param query - Query by RT range, closest RT, m/z range, or closest m/z.
- * @param level - MS level (1 = MS1, 2 = MS2, etc.). Default 1.
- * @returns Array of scans for range queries, single scan (or null) for closest queries.
+ * Read scans by retention time or precursor m/z. A range returns every scan in it; one number returns the closest scan, as a list of one.
+ *
+ * @param file - The sample to read, from parse_ion or parse_mzml.
+ * @param query.rt - Which scans, by retention time: a range or one value.
+ * @param query.mz - Or by precursor m/z: a range or one value. Give rt or mz, not both.
+ * @param options - Optional settings. Every field and default is listed in GetScansOptions.
+ * @returns The scans found, in rt order.
+ * @see {@link https://phenological.github.io/quantion/?language=js#get_scans | Documentation}
  */
 export async function getScans(
   file: SampleFile,
   query: ScanQuery,
-  level = 1,
-): Promise<CentroidScan[] | CentroidScan | null> {
-  assertFile(file, "getScans");
-  assertLevel(level, "getScans");
-
-  let queryType: number;
-  let a: number;
-  let b: number;
-
-  const assertFinite = (v: number, label: string) => {
-    if (!Number.isFinite(v))
-      throw new RangeError(`getScans: ${label} must be finite`);
-  };
-
-  if ("rt" in query) {
-    if ("from" in query.rt) {
-      assertFinite(query.rt.from, "rt.from");
-      assertFinite(query.rt.to, "rt.to");
-      queryType = QUERY_RT_RANGE;
-      a = query.rt.from;
-      b = query.rt.to;
-    } else {
-      assertFinite(query.rt.closest, "rt.closest");
-      queryType = QUERY_CLOSEST_RT;
-      a = query.rt.closest;
-      b = NaN;
-    }
-  } else {
-    if ("from" in query.mz) {
-      assertFinite(query.mz.from, "mz.from");
-      assertFinite(query.mz.to, "mz.to");
-      queryType = QUERY_MZ_RANGE;
-      a = query.mz.from;
-      b = query.mz.to;
-    } else {
-      assertFinite(query.mz.closest, "mz.closest");
-      if (query.mz.closest <= 0)
-        throw new RangeError("getScans: mz.closest must be positive");
-      queryType = QUERY_CLOSEST_MZ;
-      a = query.mz.closest;
-      b = NaN;
-    }
-  }
-
-  const raw = await file._backend.getScans(
-    file._handle!,
+  options?: GetScansOptions,
+): Promise<Scan[]> {
+  const handle = getHandle(file, "get_scans");
+  const settings = readGetScansOptions(options, "get_scans");
+  const [queryType, from, to] = getScanQuery(query);
+  return file._backend.getScans(
+    handle,
     queryType,
-    a,
-    b,
-    level,
+    from,
+    to,
+    settings.level,
+    getTimeUnitCode(settings.timeUnit),
   );
-  if (queryType === QUERY_CLOSEST_RT || queryType === QUERY_CLOSEST_MZ) {
-    return raw?.length ? raw[0] : null;
-  }
-  return raw as CentroidScan[];
 }
 
 /**
- * Copy one scan's `mz` and `intensity` into plain arrays.
+ * calculateEic · Files
  *
- * A scan returned by `getScans` holds views over the bridge the core produced, so
- * keeping a single scan alive keeps the whole bridge alive and blocks rebinding.
- * Use this when a scan must outlive the rest of the result.
+ * Extract the ion chromatogram of one m/z.
  *
- * @param scan - Scan whose arrays should be detached.
- * @returns The same scan with `mz` and `intensity` copied into plain arrays.
+ * @param file - The sample to read, from parse_ion or parse_mzml.
+ * @param mz - The m/z to extract (Da).
+ * @param options - Optional settings. Every field and default is listed in CalculateEicOptions.
+ * @returns The chromatogram: x = retention times, y = summed intensities.
+ * @see {@link https://phenological.github.io/quantion/?language=js#calculate_eic | Documentation}
  */
-export function toNumberArrays(scan: CentroidScan): {
-  rt: number;
-  mz: number[];
-  intensity: number[];
-  metadata: CentroidScan["metadata"];
-} {
-  return {
-    rt: scan.rt,
-    mz: Array.from(scan.mz),
-    intensity: Array.from(scan.intensity),
-    metadata: scan.metadata,
-  };
+export async function calculateEic(
+  file: SampleFile,
+  mz: number,
+  options?: CalculateEicOptions,
+): Promise<DataXY> {
+  const handle = getHandle(file, "calculate_eic");
+  const eic = readEicOptions(options, "calculate_eic", "");
+  return file._backend.calculateEic(
+    handle,
+    getNumber(mz, "calculate_eic", "mz"),
+    getEicSettings(eic),
+  );
 }
 
 /**
- * Build a 2D ion image for a target m/z. For each spectrum, intensity in
- * `[mz - tolerance, mz + tolerance]` is summed, then the mean per
- * `position_x`/`position_y` pixel is returned as a row-major grid.
+ * getIonImage · Files
  *
- * @param file - Loaded sample file.
- * @param mz - Target m/z value.
- * @param options.tolerance - Absolute m/z half-window in Da. Default 0.125.
- * @param options.level - MS level (1 = MS1). Default 1.
- * @returns Image with `width`, `height`, `minX`, `minY`, `minZ`, `maxZ`, `data` (mean intensity), and `counts` (spectra per pixel).
+ * Build an imaging map of one m/z: summed intensity at each x, y position.
+ *
+ * @param file - The sample to read. Must come from parse_ion.
+ * @param mz - The m/z to map (Da).
+ * @param options - Optional settings. Every field and default is listed in GetIonImageOptions.
+ * @returns The image.
+ * @see {@link https://phenological.github.io/quantion/?language=js#get_ion_image | Documentation}
  */
 export async function getIonImage(
   file: SampleFile,
   mz: number,
-  options: IonImageOptions = {},
+  options?: GetIonImageOptions,
 ): Promise<IonImage> {
-  assertFile(file, "getIonImage");
-  const tolerance = options.tolerance ?? 0.125;
-  const level = options.level ?? 1;
-  if (!Number.isFinite(mz))
-    throw new RangeError("getIonImage: mz must be finite");
-  if (!Number.isFinite(tolerance) || tolerance < 0)
-    throw new RangeError(
-      "getIonImage: tolerance must be a non-negative number",
+  const handle = getHandle(file, "get_ion_image");
+  const settings = readIonImageOptions(options, "get_ion_image");
+  return file._backend.getIonImage(
+    handle,
+    getNumber(mz, "get_ion_image", "mz"),
+    settings.tolerance,
+    settings.level,
+    settings.onProgress,
+  );
+}
+
+/**
+ * findPeaks · Traces
+ *
+ * Find every peak in one trace.
+ *
+ * @param x - Retention times, ascending. At least 3 points.
+ * @param y - Intensities, same length as x.
+ * @param options - Optional settings. Every field and default is listed in FindPeaksOptions.
+ * @returns Every peak that passes the filters.
+ * @see {@link https://phenological.github.io/quantion/?language=js#find_peaks | Documentation}
+ */
+export function findPeaks(
+  x: Float64Array,
+  y: Float64Array,
+  options?: FindPeaksOptions,
+): Peak[] {
+  getTrace(x, y, "find_peaks");
+  const settings = readFindPeaksOptions(options, "find_peaks", "");
+  return getBackend().findPeaks(x, y, settings);
+}
+
+/**
+ * getPeak · Traces
+ *
+ * Find the one peak near rt. With a range, only rt ± range is searched; without one, the whole trace is searched and the peak is chosen by its size and its distance to rt.
+ *
+ * @param x - Retention times, ascending. At least 3 points.
+ * @param y - Intensities, same length as x.
+ * @param rt - Expected retention time of the peak.
+ * @param options - Optional settings. Every field and default is listed in GetPeakOptions.
+ * @returns The best peak near rt. No peak gives a Peak with every field 0.
+ * @see {@link https://phenological.github.io/quantion/?language=js#get_peak | Documentation}
+ */
+export function getPeak(
+  x: Float64Array,
+  y: Float64Array,
+  rt: number,
+  options?: GetPeakOptions,
+): Peak {
+  getTrace(x, y, "get_peak");
+  const settings = readGetPeakOptions(options, "get_peak");
+  return getBackend().getPeak(
+    x,
+    y,
+    getNumber(rt, "get_peak", "rt"),
+    settings.range,
+    settings.findPeaks,
+  );
+}
+
+/**
+ * fitPeak · Traces
+ *
+ * Fit a Gaussian or EMG curve to the peak near rt. rt says which peak; its apex intensity is the starting point unless you force one.
+ *
+ * @param x - Retention times, ascending. At least 3 points.
+ * @param y - Intensities, same length as x.
+ * @param rt - Expected retention time of the peak.
+ * @param options - Optional settings. Every field and default is listed in FitPeakOptions.
+ * @returns The fitted curve, or none when no peak is found or the fit fails.
+ * @see {@link https://phenological.github.io/quantion/?language=js#fit_peak | Documentation}
+ */
+export function fitPeak(
+  x: Float64Array,
+  y: Float64Array,
+  rt: number,
+  options?: FitPeakOptions,
+): PeakParameters | null {
+  getTrace(x, y, "fit_peak");
+  const settings = readFitPeakOptions(options, "fit_peak");
+  return getBackend().fitPeak(
+    x,
+    y,
+    getNumber(rt, "fit_peak", "rt"),
+    getShapeCode(settings.shape),
+    settings.intensity,
+  );
+}
+
+/**
+ * drawPeaks · Traces
+ *
+ * Simulate a chromatogram from one or more peak shapes. Every peak is drawn into the same chromatogram; where they overlap, intensities add up. No real data is needed.
+ *
+ * @param params - The peaks to draw, one PeakParameters per peak.
+ * @param options - Optional settings. Every field and default is listed in DrawPeaksOptions.
+ * @returns The simulated chromatogram: x = retention times, y = summed intensities.
+ * @see {@link https://phenological.github.io/quantion/?language=js#draw_peaks | Documentation}
+ */
+export function drawPeaks(
+  params: PeakParameters[],
+  options?: DrawPeaksOptions,
+): DataXY {
+  if (!Array.isArray(params)) {
+    throw invalidArgument(
+      "draw_peaks",
+      "params",
+      "must be an array of PeakParameters",
     );
-  assertLevel(level, "getIonImage");
-  return (await file._backend.getIonImage(
-    file._handle!,
-    mz,
-    tolerance,
-    level,
-    options.onProgress,
-  )) as IonImage;
-}
-
-/**
- * Extract and pick peaks for a list of targets using their EIC traces.
- *
- * @param file - Loaded sample file.
- * @param targets - List of targets with `id`, `rt`, `mz`, and `range`.
- * @param fromTo - Retention time range `{ from, to }` in minutes.
- * @param options - Peak detection options.
- * @param cores - Number of CPU cores to use. Default 1.
- * @returns Array of found features, one per target.
- */
-export function getPeaksFromEic(
-  file: SampleFile,
-  targets: Target[],
-  fromTo: FromTo,
-  options?: PeakOptions,
-  cores = 1,
-): FoundFeature[] {
-  assertFile(file, "getPeaksFromEic");
-  const { from = 0.5, to = 5 } = fromTo;
-  const { rts, mzs, ranges, ids } = unpackTargets(targets);
-  const { packedBytes, offsets, lengths } = encodeTargetIds(ids);
-  return backend().getPeaksFromEic(
-    file._handle!,
-    rts,
-    mzs,
-    ranges,
-    offsets,
-    lengths,
-    packedBytes,
-    packedBytes.length,
-    targets.length,
-    from,
-    to,
-    options,
-    toCores(cores),
-  );
-}
-
-/**
- * Pick peaks from pre-computed chromatogram traces.
- *
- * @param file - Loaded sample file.
- * @param items - List of chromatogram items with `idx`, `rt`, and `window`.
- * @param options - Peak detection options.
- * @param cores - Number of CPU cores to use. Default 1.
- * @returns Array of chromatogram peaks.
- */
-export function getPeaksFromChrom(
-  file: SampleFile,
-  items: ChromItem[],
-  options?: PeakOptions,
-  cores = 1,
-): ChromPeak[] {
-  assertFile(file, "getPeaksFromChrom");
-  const n = items.length;
-  const indices = new Uint32Array(n);
-  const rts = new Float64Array(n);
-  const windows = new Float64Array(n);
-  for (let i = 0; i < n; i++) {
-    const item = items[i];
-    const idx = Number.isFinite(item.idx)
-      ? (item.idx as number)
-      : Number.isFinite(item.index)
-        ? (item.index as number)
-        : -1;
-    if (idx < 0 || !Number.isInteger(idx)) {
-      throw new RangeError(
-        `getPeaksFromChrom: item ${i} needs a non-negative integer idx`,
-      );
-    }
-    indices[i] = idx >>> 0;
-    rts[i] = +item.rt;
-    windows[i] = +(item.window ?? item.range ?? 0);
   }
-  return backend().getPeaksFromChrom(
-    file._handle!,
-    indices,
-    rts,
-    windows,
-    n,
-    options,
-    toCores(cores),
-  );
-}
-
-/**
- * Detect all chromatographic features across an m/z grid.
- * Node.js only — not available in the WASM build.
- *
- * @param file - Loaded sample file.
- * @param fromTo - Retention time range `{ from, to }` in minutes.
- * @param options - Feature detection options (eic, grid, findPeak, cores).
- * @returns Array of detected features.
- */
-export function findFeatures(
-  file: SampleFile,
-  fromTo: FromTo,
-  options: FindFeaturesOptions = {},
-): Feature[] {
-  const back = backend();
-  if (!back.findFeatures) {
-    throw new Error("findFeatures is not supported in the WASM build");
-  }
-  assertFile(file, "findFeatures");
-  const {
-    eic = DEFAULTS.eic,
-    grid = DEFAULTS.grid,
-    findPeak = DEFAULTS.findPeak,
-    cores = 1,
-  } = options;
-  const { from, to } = fromTo;
-  const eicPpm =
-    typeof eic.ppmTolerance === "number" &&
-    Number.isFinite(eic.ppmTolerance) &&
-    eic.ppmTolerance >= 0
-      ? eic.ppmTolerance
-      : NaN;
-  const eicMz =
-    typeof eic.mzTolerance === "number" &&
-    Number.isFinite(eic.mzTolerance) &&
-    eic.mzTolerance >= 0
-      ? eic.mzTolerance
-      : NaN;
-  const gridStart =
-    typeof grid.start === "number" && Number.isFinite(grid.start)
-      ? grid.start
-      : NaN;
-  const gridEnd =
-    typeof grid.end === "number" && Number.isFinite(grid.end) ? grid.end : NaN;
-  const gridStep =
-    typeof grid.stepSize === "number" &&
-    Number.isFinite(grid.stepSize) &&
-    grid.stepSize > 0
-      ? grid.stepSize
-      : NaN;
-  return back.findFeatures!(
-    file._handle!,
-    from,
-    to,
-    eicPpm,
-    eicMz,
-    gridStart,
-    gridEnd,
-    gridStep,
-    findPeak,
-    toCores(cores),
-  );
-}
-
-/**
- * Find a feature for each target using its EIC and scan data.
- *
- * @param file - Loaded sample file.
- * @param targets - List of targets with `id`, `rt`, `mz`, and `ranges`.
- * @param options - Detection options including `scanEic`, `eic`, `findPeak`, and `cores`.
- * @returns Array of found features, one per target.
- */
-export function findFeature(
-  file: SampleFile,
-  targets: Target[],
-  options: FindFeaturesOptions & {
-    scanEic?: { ppmTolerance?: number; mzTolerance?: number };
-    cores?: number;
-  } = {},
-): FoundFeature[] {
-  assertFile(file, "findFeature");
-
-  const {
-    scanEic: { ppmTolerance: scanPpm = 10, mzTolerance: scanMz = 0.003 } = {},
-    eic: { ppmTolerance: eicPpm = 20, mzTolerance: eicMz = 0.005 } = {},
-  } = options;
-
-  const check = (raw: unknown, label: string): void => {
-    if (
-      raw !== undefined &&
-      (typeof raw !== "number" || !Number.isFinite(raw) || raw < 0)
-    ) {
-      throw new TypeError(`${label} must be a finite, non-negative number`);
-    }
+  const settings = readDrawPeaksOptions(options, "draw_peaks");
+  const read = (key: keyof PeakParameters) =>
+    Float64Array.from(params, (peak, index) =>
+      getNumber(peak[key], "draw_peaks", `params[${index}].${key}`),
+    );
+  const peaks: PeakColumns = {
+    heights: read("height"),
+    centers: read("center"),
+    fwhms: read("fwhm"),
+    tails: read("tail"),
   };
-  check(scanPpm, "scanEic.ppmTolerance");
-  check(scanMz, "scanEic.mzTolerance");
-  check(eicPpm, "eic.ppmTolerance");
-  check(eicMz, "eic.mzTolerance");
-
-  const { rts, mzs, ranges, ids } = unpackTargets(targets, 0.5);
-  const { packedBytes, offsets, lengths } = encodeTargetIds(ids);
-
-  return backend().findFeature(
-    file._handle!,
-    rts,
-    mzs,
-    ranges,
-    offsets,
-    lengths,
-    packedBytes,
-    packedBytes.length,
-    targets.length,
-    toCores(options.cores),
-    +scanPpm,
-    +scanMz,
-    +eicPpm,
-    +eicMz,
-    options.findPeak ?? DEFAULTS.findPeak,
+  return getBackend().drawPeaks(
+    peaks,
+    settings.from,
+    settings.to,
+    settings.points,
   );
 }
 
 /**
- * Detect and group consensus features across multiple samples in a directory.
- * Node.js only — not available in the WASM build.
+ * findNoiseLevel · Traces
  *
- * @param directoryPath - Path to a directory containing ion files.
- * @param fromTo - Retention time range `{ from, to }` in minutes.
- * @param options - Feature detection and grouping options.
- * @returns Array of consensus features aligned across samples.
+ * Estimate the noise level of a signal.
+ *
+ * @param y - Intensities.
+ * @returns The noise intensity and the window width it came from.
+ * @see {@link https://phenological.github.io/quantion/?language=js#find_noise_level | Documentation}
  */
-export function getFeatures(
-  directoryPath: string,
-  fromTo: FromTo,
-  options: GetFeaturesOptions = {},
-): ConsensusFeature[] {
-  const back = backend();
-  if (!back.getFeatures) {
-    throw new Error("getFeatures is not supported in the WASM build");
+export function findNoiseLevel(y: Float64Array | Float32Array): NoiseLevel {
+  const isFloat32Array =
+    Object.prototype.toString.call(y) === "[object Float32Array]";
+  if (!isFloat64Array(y) && !isFloat32Array) {
+    throw invalidArgument(
+      "find_noise_level",
+      "y",
+      "must be a Float64Array or Float32Array",
+    );
   }
-  if (typeof directoryPath !== "string" || directoryPath.length === 0) {
-    throw new Error("getFeatures: Valid directory path is required");
+  const values = isFloat32Array ? (y as Float32Array) : new Float32Array(y);
+  return getBackend().findNoiseLevel(values);
+}
+
+/**
+ * calculateBaseline · Traces
+ *
+ * Estimate a signal's baseline with airPLS.
+ *
+ * @param y - Intensities.
+ * @param options - Optional settings. Every field and default is listed in CalculateBaselineOptions.
+ * @returns The baseline, same length as y.
+ * @see {@link https://phenological.github.io/quantion/?language=js#calculate_baseline | Documentation}
+ */
+export function calculateBaseline(
+  y: Float64Array,
+  options?: CalculateBaselineOptions,
+): Float64Array {
+  if (!isFloat64Array(y)) {
+    throw invalidArgument("calculate_baseline", "y", "must be a Float64Array");
   }
-  const {
-    eic = DEFAULTS.eic,
-    grid = DEFAULTS.grid,
-    grouping = DEFAULTS.grouping,
-    findPeak = DEFAULTS.findPeak,
-    cores = 1,
-  } = options;
-  const { from, to } = fromTo;
-  const eicPpm = Number.isFinite(eic.ppmTolerance)
-    ? (eic.ppmTolerance as number)
-    : NaN;
-  const eicMz = Number.isFinite(eic.mzTolerance)
-    ? (eic.mzTolerance as number)
-    : NaN;
-  const gridStart = Number.isFinite(grid.start) ? (grid.start as number) : NaN;
-  const gridEnd = Number.isFinite(grid.end) ? (grid.end as number) : NaN;
-  const gridStep = Number.isFinite(grid.stepSize)
-    ? (grid.stepSize as number)
-    : NaN;
-  const groupPpm = grouping.ppmTolerance ?? DEFAULTS.grouping.ppmTolerance;
-  const groupMz = grouping.mzTolerance ?? DEFAULTS.grouping.mzTolerance;
-  const groupRt = grouping.rtTolerance ?? DEFAULTS.grouping.rtTolerance;
-  const prevalence = grouping.frequency ?? DEFAULTS.grouping.frequency;
-  return back.getFeatures!(
-    directoryPath,
-    +from,
-    +to,
-    +eicPpm,
-    +eicMz,
-    +gridStart,
-    +gridEnd,
-    +gridStep,
-    +groupPpm,
-    +groupMz,
-    +groupRt,
-    +prevalence,
-    findPeak,
-    toCores(cores),
+  const settings = readBaselineOptions(options, "calculate_baseline");
+  return getBackend().calculateBaseline(
+    y,
+    settings.lambda,
+    settings.maxIterations,
+  );
+}
+
+/**
+ * findTargets · Targets
+ *
+ * For each target, build its EIC at mz and find its peak near rt ± range.
+ *
+ * @param file - The sample to read, from parse_ion or parse_mzml.
+ * @param targets - What to look for. A target without range searches its whole EIC.
+ * @param options - Optional settings. Every field and default is listed in FindTargetsOptions.
+ * @returns One Peak per target, in the same order. A target with no peak gets a Peak with every field 0.
+ * @see {@link https://phenological.github.io/quantion/?language=js#find_targets | Documentation}
+ */
+export async function findTargets(
+  file: SampleFile,
+  targets: Target[],
+  options?: FindTargetsOptions,
+): Promise<Peak[]> {
+  const handle = getHandle(file, "find_targets");
+  const settings = readFindTargetsOptions(options, "find_targets");
+  return file._backend.findTargets(
+    handle,
+    getTargetColumns(targets, "find_targets"),
+    getEicSettings(settings.eic),
+    settings.findPeaks,
+    settings.threads,
+  );
+}
+
+/**
+ * findTransitions · Targets
+ *
+ * For each SRM transition, take the stored chromatogram whose precursor (Q1) and product (Q3) are both within 0.005 m/z, and find its peak near rt ± range.
+ *
+ * @param file - The sample to read, from parse_ion or parse_mzml.
+ * @param targets - The transitions.
+ * @param options - Optional settings. Every field and default is listed in FindTransitionsOptions.
+ * @returns One Peak per transition, in the same order. No match gives a Peak with every field 0.
+ * @see {@link https://phenological.github.io/quantion/?language=js#find_transitions | Documentation}
+ */
+export function findTransitions(
+  file: SampleFile,
+  targets: Transition[],
+  options?: FindTransitionsOptions,
+): Peak[] {
+  const handle = getHandle(file, "find_transitions");
+  const settings = readFindTransitionsOptions(options, "find_transitions");
+  return file._backend.findTransitions(
+    handle,
+    getTransitionColumns(targets, "find_transitions"),
+    settings.findPeaks,
+    settings.threads,
+  );
+}
+
+/**
+ * findFeatures · Features
+ *
+ * Untargeted: find every feature in one file by scanning an m/z grid.
+ *
+ * @param file - The sample to read, from parse_ion or parse_mzml.
+ * @param options - Optional settings. Every field and default is listed in FindFeaturesOptions.
+ * @returns Every feature found, without frequency.
+ * @see {@link https://phenological.github.io/quantion/?language=js#find_features | Documentation}
+ */
+export async function findFeatures(
+  file: SampleFile,
+  options?: FindFeaturesOptions,
+): Promise<Feature[]> {
+  const handle = getHandle(file, "find_features");
+  const settings = readFindFeaturesOptions(options, "find_features");
+  if (!file._backend.findFeatures) {
+    throw new QuantionError(
+      "invalid_argument",
+      "find_features",
+      "is not available in the browser build",
+    );
+  }
+  return file._backend.findFeatures(
+    handle,
+    getEicSettings(settings.eic),
+    settings.grid,
+    settings.findPeaks,
+    settings.threads,
+  );
+}
+
+/**
+ * matchFeatures · Features
+ *
+ * Untargeted across samples: find features in every file of a folder and match them. Values are medians over the samples where a feature was found.
+ *
+ * @param directory - Folder with the .ion or mzML files.
+ * @param options - Optional settings. Every field and default is listed in MatchFeaturesOptions.
+ * @returns One Feature per matched feature; frequency is the fraction of samples (0–1).
+ * @see {@link https://phenological.github.io/quantion/?language=js#match_features | Documentation}
+ */
+export function matchFeatures(
+  directory: string,
+  options?: MatchFeaturesOptions,
+): Feature[] {
+  const backend = getBackend();
+  if (typeof directory !== "string") {
+    throw invalidArgument("match_features", "directory", "must be a path");
+  }
+  const settings = readMatchFeaturesOptions(options, "match_features");
+  if (!backend.matchFeatures) {
+    throw new QuantionError(
+      "invalid_argument",
+      "match_features",
+      "is not available in the browser build",
+    );
+  }
+  return backend.matchFeatures(
+    directory,
+    getEicSettings(settings.eic),
+    settings.grid,
+    settings.grouping,
+    settings.findPeaks,
+    settings.threads,
   );
 }

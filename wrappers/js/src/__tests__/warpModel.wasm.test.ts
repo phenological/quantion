@@ -22,7 +22,9 @@ describeWithBundle("warp model on wasm", () => {
   it("predicts from model bytes and a file in memory", async () => {
     const quantion = getQuantion();
     await quantion.init();
-    const warp = quantion.loadWarp(await quantion.loadModel(readFixture("shift_model.onnx")));
+    const warp = quantion.loadWarp(
+      await quantion.loadModel(readFixture("shift_model.onnx")),
+    );
     const file = await quantion.parseIon(readFixture("api/api.ion"));
     const predicted = await warp.predictRts(file, targets);
     expect(predicted).toHaveLength(targets.length);
@@ -37,7 +39,9 @@ describeWithBundle("warp model on wasm", () => {
   it("names a target without mz by its number", async () => {
     const quantion = getQuantion();
     await quantion.init();
-    const warp = quantion.loadWarp(await quantion.loadModel(readFixture("shift_model.onnx")));
+    const warp = quantion.loadWarp(
+      await quantion.loadModel(readFixture("shift_model.onnx")),
+    );
     const file = await quantion.parseIon(readFixture("api/api.ion"));
     await expect(
       warp.predictRts(file, [targets[0], { mz: NaN, rt: 2 }]),
@@ -51,6 +55,8 @@ describeWithBundle("warp model on wasm", () => {
     await quantion.init();
     await expect(
       quantion.loadModel(path.join(fixtures, "shift_model.onnx")),
-    ).rejects.toThrow("file paths need the Node backend");
+    ).rejects.toThrow(
+      "load_model: source must be a URL or bytes in the browser",
+    );
   });
 });

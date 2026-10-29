@@ -34,10 +34,9 @@ class PeakOptions(ctypes.Structure):
         ("noise",                 c_double),
         ("auto_noise",            c_int32),
         ("auto_baseline",         c_int32),
-        ("lambda_",               c_int32),
         ("max_iterations",        c_int32),
         ("allow_overlap",         c_int32),
-        ("_pad2",                 c_int32),
+        ("lambda_",               c_double),
         ("min_snr",               c_double),
         ("min_r2",                c_double),
         ("kernel_size",           c_int32),
@@ -48,27 +47,7 @@ assert ctypes.sizeof(PeakOptions) == 80, (
     f"PeakOptions is {ctypes.sizeof(PeakOptions)} bytes — expected 80"
 )
 
-QUANTION_ABI_VERSION = 1
-
-_CODE_MSG = {
-    1: "invalid arguments",
-    2: "panic inside Rust",
-    4: "parse error",
-    5: "encode error",
-    6: "fast EIC path unavailable: this .ion file has no usable spectrum bounds (A3); re-encode it with the current Ionic to use the fast EIC path",
-}
-
-
-def _check(name: str, code: int) -> None:
-    if code != 0:
-        msg = _CODE_MSG.get(code, f"unknown error code {code}")
-        raise RuntimeError(f"quantion/{name}: {msg} (code={code})")
-
-
-def _check_with_message(name: str, code: int, abi: "_ABI", message: "_Buf") -> None:
-    if code != 0:
-        text = buf_to_str(abi, message) if message.len else _CODE_MSG.get(code, f"unknown error code {code}")
-        raise RuntimeError(f"quantion/{name}: {text} (code={code})")
+QUANTION_ABI_VERSION = 2
 
 
 READ_RANGE = ctypes.CFUNCTYPE(
@@ -80,60 +59,67 @@ class _ABI:
     _REQUIRED: dict[str, tuple[list, object]] = {
         "quantion_abi_version": ([], ctypes.c_uint32),
         "quantion_sizeof_peak_options": ([], c_size_t),
-        "parse_mzml": (
-            [POINTER(c_uint8), c_size_t, POINTER(c_void_p)], c_int32),
+        "quantion_last_error": ([POINTER(_Buf)], c_int32),
+        "parse_mzml": ([POINTER(c_uint8), c_size_t, POINTER(c_void_p)], c_int32),
+        "parse_mzml_path": ([ctypes.c_char_p, POINTER(c_void_p)], c_int32),
         "parse_bin": ([POINTER(c_uint8), c_size_t, c_size_t, POINTER(c_void_p)], c_int32),
         "parse_ion_path": ([ctypes.c_char_p, c_size_t, POINTER(c_void_p)], c_int32),
         "parse_ion_source": ([READ_RANGE, c_void_p, c_size_t, POINTER(c_void_p)], c_int32),
         "plan_open": ([POINTER(c_uint8), c_size_t, POINTER(_Buf)], c_int32),
-        "plan_eic": ([c_void_p, c_double, c_double, c_double, c_double, c_double,
+        "plan_eic": ([c_void_p, c_double, c_double, c_double, c_double, c_double, c_uint8,
              POINTER(_Buf)], c_int32),
+        "plan_scans": ([c_void_p, c_uint8, c_double, c_double, c_uint8, c_uint8,
+             POINTER(_Buf)], c_int32),
+        "plan_image": ([c_void_p, c_double, c_double, c_uint8, POINTER(_Buf)], c_int32),
+        "plan_find_targets": ([c_void_p, POINTER(c_double), c_size_t, c_double, c_double,
+             c_double, c_double, c_uint8, POINTER(_Buf)], c_int32),
+        "plan_find_features": ([c_void_p, c_double, c_double, c_double, c_double, c_uint8,
+             c_double, c_double, c_double, POINTER(_Buf)], c_int32),
         "free_mzml": ([c_void_p], None),
         "free_": ([POINTER(c_uint8), c_size_t], None),
-        "bin_to_mzml": ([c_void_p, POINTER(_Buf)], c_int32),
-        "mzml_to_bin": ([c_void_p, POINTER(_Buf), c_uint8, c_uint8], c_int32),
-        "convert_mzml_file_to_ion_file": (
-            [ctypes.c_char_p, ctypes.c_char_p, c_uint8, c_uint8], c_int32),
-        "get_peak": ([POINTER(c_double), POINTER(c_double), c_size_t,
-             c_double, c_double, POINTER(PeakOptions), POINTER(_Buf)], c_int32),
-        "calculate_eic": ([c_void_p, c_double, c_double, c_double,
-             c_double, c_double, POINTER(_Buf), POINTER(_Buf)], c_int32),
-        "get_scans": ([c_void_p, c_uint8, c_double, c_double, c_uint8, POINTER(_Buf)], c_int32),
-        "get_peaks_from_eic": ([c_void_p,
-             POINTER(c_double), POINTER(c_double), POINTER(c_double),
-             POINTER(c_uint32), POINTER(c_uint32),
-             POINTER(c_uint8), c_size_t,
-             c_size_t, c_double, c_double,
-             POINTER(PeakOptions), c_size_t, POINTER(_Buf)], c_int32),
-        "get_peaks_from_chrom": ([c_void_p,
-             POINTER(c_uint32), POINTER(c_double), POINTER(c_double),
-             c_size_t, POINTER(PeakOptions), c_size_t, POINTER(_Buf)], c_int32),
+        "write_ion": ([c_void_p, ctypes.c_char_p, c_uint8, c_uint8, c_uint8,
+             POINTER(c_uint8), c_size_t, POINTER(_Buf)], c_int32),
+        "write_mzml": ([c_void_p, ctypes.c_char_p, c_uint8, POINTER(_Buf)], c_int32),
         "find_peaks": ([POINTER(c_double), POINTER(c_double), c_size_t,
              POINTER(PeakOptions), POINTER(_Buf)], c_int32),
+        "get_peak": ([POINTER(c_double), POINTER(c_double), c_size_t,
+             c_double, c_double, POINTER(PeakOptions), POINTER(_Buf)], c_int32),
         "fit_peak": ([POINTER(c_double), POINTER(c_double), c_size_t,
-             c_double, c_double, c_int32, POINTER(_Buf)], c_int32),
-        "draw_peak": ([POINTER(c_double), c_size_t, c_int32,
-             c_double, c_double, c_double, c_double, POINTER(_Buf)], c_int32),
-        "calculate_baseline": ([POINTER(c_double), c_size_t, c_int32, c_int32,
+             c_double, c_int32, c_double, POINTER(_Buf)], c_int32),
+        "draw_peaks": ([POINTER(c_double), POINTER(c_double), POINTER(c_double), POINTER(c_double),
+             c_size_t, c_double, c_double, c_size_t, POINTER(_Buf), POINTER(_Buf)], c_int32),
+        "calculate_baseline": ([POINTER(c_double), c_size_t, c_double, c_size_t,
              POINTER(_Buf)], c_int32),
-        "find_feature": ([c_void_p,
-             POINTER(c_double), POINTER(c_double), POINTER(c_double),
-             POINTER(c_uint32), POINTER(c_uint32),
-             POINTER(c_uint8), c_size_t,
-             c_size_t, c_size_t,
-             c_double, c_double, c_double, c_double,
-             POINTER(PeakOptions), POINTER(_Buf)], c_int32),
-        "find_features": ([c_void_p,
-            c_double, c_double, c_double, c_double,
-            c_double, c_double, c_double,
-            POINTER(PeakOptions), c_int32, POINTER(_Buf)], c_int32),
-        "get_features": ([ctypes.c_char_p,
-            c_double, c_double, c_double, c_double,
-            c_double, c_double, c_double,
-            c_double, c_double, c_double,
-            c_int32, POINTER(PeakOptions), c_int32, POINTER(_Buf)], c_int32),
         "find_noise_level": ([POINTER(c_float), c_size_t,
              POINTER(c_size_t), POINTER(c_double)], c_int32),
+        "calculate_eic": ([c_void_p, c_double, c_double, c_double, c_double, c_double, c_uint8,
+             POINTER(_Buf), POINTER(_Buf)], c_int32),
+        "get_scans": ([c_void_p, c_uint8, c_double, c_double, c_uint8, c_uint8,
+             POINTER(_Buf)], c_int32),
+        "get_ion_image": ([c_void_p, c_double, c_double, c_uint8, POINTER(_Buf)], c_int32),
+        "image_begin": ([c_void_p, c_double, c_double, c_uint8, POINTER(c_size_t)], c_int32),
+        "image_scan_count": ([c_void_p, POINTER(c_size_t)], c_int32),
+        "image_fold": ([c_void_p, c_void_p, c_size_t, c_size_t], c_int32),
+        "image_finish": ([c_void_p, POINTER(_Buf)], c_int32),
+        "image_free": ([c_void_p], None),
+        "find_targets": ([c_void_p,
+             POINTER(c_double), POINTER(c_double), POINTER(c_double),
+             POINTER(c_uint32), POINTER(c_uint32), POINTER(c_uint8), c_size_t,
+             c_size_t, c_double, c_double, c_double, c_double, c_uint8,
+             POINTER(PeakOptions), c_size_t, POINTER(_Buf)], c_int32),
+        "find_transitions": ([c_void_p,
+             POINTER(c_double), POINTER(c_double), POINTER(c_double), POINTER(c_double),
+             POINTER(c_uint32), POINTER(c_uint32), POINTER(c_uint8), c_size_t,
+             c_size_t, POINTER(PeakOptions), c_size_t, POINTER(_Buf)], c_int32),
+        "find_features": ([c_void_p,
+             c_double, c_double, c_double, c_double, c_uint8,
+             c_double, c_double, c_double,
+             POINTER(PeakOptions), c_size_t, POINTER(_Buf)], c_int32),
+        "match_features": ([ctypes.c_char_p,
+             c_double, c_double, c_double, c_double, c_uint8,
+             c_double, c_double, c_double,
+             c_double, c_double, c_double, c_double,
+             POINTER(PeakOptions), c_size_t, POINTER(_Buf)], c_int32),
         "model_load_path": ([POINTER(c_uint8), c_size_t, POINTER(c_void_p),
              POINTER(_Buf)], c_int32),
         "model_load_bytes": ([POINTER(c_uint8), c_size_t, POINTER(c_void_p),
@@ -142,18 +128,13 @@ class _ABI:
         "model_metadata": ([c_void_p, POINTER(_Buf)], c_int32),
         "warp_model_load": ([c_void_p, POINTER(c_void_p), POINTER(_Buf)], c_int32),
         "warp_model_free": ([c_void_p], None),
-        "calibrate_rts": ([c_void_p, POINTER(c_void_p), c_size_t, POINTER(c_size_t),
+        "calibrate_rts": ([c_void_p, POINTER(c_void_p), c_size_t, POINTER(c_size_t), c_size_t,
              POINTER(c_uint32), POINTER(c_uint32), POINTER(c_uint8), c_size_t,
              POINTER(c_double), POINTER(c_double), c_size_t, POINTER(_Buf)], c_int32),
         "predict_rts_from_file": ([c_void_p, c_void_p, POINTER(c_double), POINTER(c_double),
              c_size_t, POINTER(_Buf)], c_int32),
         "plan_predict_rts": ([c_void_p, c_void_p, POINTER(c_double), POINTER(c_double),
              c_size_t, POINTER(_Buf)], c_int32),
-    }
-
-    _OPTIONAL: dict[str, tuple[list, object]] = {
-        "plan_scans": ([c_void_p, c_uint8, c_double, c_double, c_uint8,
-             POINTER(_Buf)], c_int32),
     }
 
     def __init__(self, lib: ctypes.CDLL) -> None:
@@ -167,14 +148,6 @@ class _ABI:
                 raise RuntimeError(
                     f"quantion: required symbol '{name}' not found in shared library"
                 )
-        for name, (argtypes, restype) in self._OPTIONAL.items():
-            try:
-                fn = getattr(lib, name)
-                fn.argtypes = argtypes
-                fn.restype  = restype
-                setattr(self, name, fn)
-            except AttributeError:
-                setattr(self, name, None)
 
 
 def _read_and_free(abi: _ABI, buf: _Buf) -> bytes:
@@ -253,17 +226,19 @@ _SECTION_TYPES = {
     SECTION_IMAGE_COUNTS: ELEMENT_U32,
 }
 
-_METADATA_SECTIONS = (
-    ("rt_seconds", SECTION_RT_SECONDS),
+_SCAN_NUMBERS = (
+    ("precursor_mz", SECTION_SELECTED_ION_MZ),
     ("base_peak_mz", SECTION_BASE_PEAK_MZ),
-    ("selected_ion_mz", SECTION_SELECTED_ION_MZ),
-    ("base_peak_int", SECTION_BASE_PEAK_INT),
+    ("base_peak_intensity", SECTION_BASE_PEAK_INT),
     ("total_ion_current", SECTION_TOTAL_ION_CURRENT),
-    ("ms_level", SECTION_MS_LEVEL),
+)
+
+_SCAN_COUNTS = (
+    ("level", SECTION_MS_LEVEL),
     ("polarity", SECTION_POLARITY),
-    ("position_x", SECTION_POSITION_X),
-    ("position_y", SECTION_POSITION_Y),
-    ("position_z", SECTION_POSITION_Z),
+    ("x", SECTION_POSITION_X),
+    ("y", SECTION_POSITION_Y),
+    ("z", SECTION_POSITION_Z),
 )
 
 
@@ -362,19 +337,22 @@ def read_scans_bridge(raw: bytes) -> list:
     if np.any(np.diff(point_starts.astype(np.int64)) < 0):
         _fail("point starts do not increase")
 
-    columns = {name: read_section(bridge, section_id, np.float64)
-               for name, section_id in _METADATA_SECTIONS}
+    numbers = [(name, read_section(bridge, section_id, np.float64)) for name, section_id in _SCAN_NUMBERS]
+    counts = [(name, read_section(bridge, section_id, np.float64)) for name, section_id in _SCAN_COUNTS]
 
     scans = []
     for index in range(count):
         start = int(point_starts[index])
         stop = int(point_starts[index + 1])
-        scans.append({
+        scan = {
             "rt": float(rt[index]),
-            "mz": mz[start:stop],
-            "intensity": intensity[start:stop],
-            "metadata": {name: float(column[index]) for name, column in columns.items()},
-        })
+            "mz": mz[start:stop].copy(),
+            "intensity": intensity[start:stop].copy(),
+        }
+        scan.update({name: int(column[index]) for name, column in counts[:1]})
+        scan.update({name: float(column[index]) for name, column in numbers})
+        scan.update({name: int(column[index]) for name, column in counts[1:]})
+        scans.append(scan)
     return scans
 
 
@@ -382,13 +360,33 @@ def buf_to_scans(abi: _ABI, buf: _Buf) -> list:
     return read_scans_bridge(_read_and_free(abi, buf))
 
 
+def read_image_bridge(raw: bytes) -> dict:
+    bridge = read_bridge(raw)
+    expect_kind(bridge, PAYLOAD_ION_IMAGE)
+    shape = read_section(bridge, SECTION_IMAGE_SHAPE, np.uint32)
+    if len(shape) != 6:
+        _fail("image shape must have six numbers")
+    width, height, min_x, min_y, min_z, max_z = (int(value) for value in shape)
+    return {
+        "width": width,
+        "height": height,
+        "min_x": min_x,
+        "min_y": min_y,
+        "min_z": min_z,
+        "max_z": max_z,
+        "data": read_section(bridge, SECTION_IMAGE_DATA, np.float64).copy(),
+        "counts": read_section(bridge, SECTION_IMAGE_COUNTS, np.uint32).copy(),
+    }
+
+
+def buf_to_image(abi: _ABI, buf: _Buf) -> dict:
+    return read_image_bridge(_read_and_free(abi, buf))
+
+
 PAYLOAD_PEAKS = 3
 PAYLOAD_FEATURES = 4
-PAYLOAD_CHROM_PEAKS = 5
 PAYLOAD_FIT_RESULT = 6
-PAYLOAD_EIC_PEAKS = 7
 PAYLOAD_CONSENSUS_FEATURES = 8
-PAYLOAD_FOUND_FEATURES = 9
 PAYLOAD_WARP_TARGETS = 10
 PAYLOAD_MODEL_METADATA = 11
 
@@ -405,30 +403,14 @@ _RECORD_COLUMNS = {
         ("to", 29, _NUMBER), ("intensity", 30, _NUMBER), ("integral", 31, _NUMBER),
         ("n_points", 32, _COUNT), ("noise", 33, _NUMBER),
     ],
-    PAYLOAD_CHROM_PEAKS: [
-        ("index", 34, _COUNT), ("id", (42, 43), _TEXT), ("ort", 35, _NUMBER),
-        ("rt", 36, _NUMBER), ("from", 37, _NUMBER), ("to", 38, _NUMBER),
-        ("intensity", 39, _NUMBER), ("integral", 40, _NUMBER),
-        ("total_area", 41, _NUMBER), ("timestamp", (44, 45), _TEXT),
-    ],
     PAYLOAD_FIT_RESULT: [
-        ("shape", 46, _NUMBER), ("height", 47, _NUMBER), ("center", 48, _NUMBER),
+        ("height", 47, _NUMBER), ("center", 48, _NUMBER),
         ("fwhm", 49, _NUMBER), ("tail", 50, _NUMBER), ("r2", 51, _NUMBER),
-    ],
-    PAYLOAD_EIC_PEAKS: [
-        ("id", (52, 53), _TEXT), ("mz", 54, _NUMBER), ("ort", 55, _NUMBER),
-        ("rt", 56, _NUMBER), ("from", 57, _NUMBER), ("to", 58, _NUMBER),
-        ("intensity", 59, _NUMBER), ("integral", 60, _NUMBER), ("noise", 61, _NUMBER),
     ],
     PAYLOAD_CONSENSUS_FEATURES: [
         ("mz", 62, _NUMBER), ("rt", 63, _NUMBER), ("from", 64, _NUMBER),
         ("to", 65, _NUMBER), ("intensity", 66, _NUMBER), ("integral", 67, _NUMBER),
-        ("frequency", 68, _NUMBER),
-    ],
-    PAYLOAD_FOUND_FEATURES: [
-        ("id", (69, 70), _TEXT), ("mz", 71, _NUMBER), ("rt", 72, _NUMBER),
-        ("from", 73, _NUMBER), ("to", 74, _NUMBER), ("intensity", 75, _NUMBER),
-        ("integral", 76, _NUMBER), ("n_points", 77, _COUNT), ("noise", 78, _NUMBER),
+        ("n_points", 87, _COUNT), ("noise", 88, _NUMBER), ("frequency", 68, _NUMBER),
     ],
     PAYLOAD_WARP_TARGETS: [
         ("id", (79, 80), _TEXT), ("mz", 81, _NUMBER), ("rt", 82, _NUMBER),
@@ -581,9 +563,6 @@ def load_library(path: Optional[str] = None) -> tuple[ctypes.CDLL, _ABI]:
             f"quantion ABI version mismatch: library={actual}, "
             f"wrapper={QUANTION_ABI_VERSION}. Rebuild or update the package."
         )
-    # Defence-in-depth: verify the PeakOptions struct layout matches the binary.
-    # If the Rust struct ever changes without bumping the ABI version, this
-    # catches it at import time instead of silently corrupting peak detection.
     expected = ctypes.sizeof(PeakOptions)
     actual_size = abi.quantion_sizeof_peak_options()
     if actual_size != expected:

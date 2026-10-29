@@ -12,275 +12,171 @@ The install downloads the native library for your platform from the GitHub relea
 
 ## Concepts
 
-**Sample**: A parsed mzML or ion file held in memory. Create samples with `parse_mzml()` or `parse_ion()`. Use as a context manager (`with`) to ensure automatic cleanup.
+**Sample**: an opened .ion or mzML file, from `parse_ion()` or `parse_mzml()`. Use it as a context manager (`with`) to free it automatically, or call `dispose()`.
 
-**XY data**: A pair of numeric sequences where `x` is retention time and `y` is intensity.
+**Options**: every function with settings takes one `options` dict. Leave a key out to use its default. An unknown key raises `QuantionError` with kind `"unknown_option"`.
+
+**Errors**: every failure raises `quantion.QuantionError`, with `kind`, `code`, `function`, `argument` and a message like `"calculate_eic: mz must be greater than 0, got -1"`.
 
 ## Quick start
-
-Load a file and extract peaks in a few lines:
 
 ```python
 import quantion
 
-raw = open("sample.mzML", "rb").read()
-
-with quantion.parse_mzml(raw) as sample:
-    eic   = quantion.calculate_eic(sample, target_mz=174.112, from_to={"from": 1, "to": 15})
-    peaks = quantion.find_peaks(eic["x"], eic["y"], options={"auto_noise": True, "min_snr": 3.0})
-    for p in peaks:
-        print(f"rt={p['rt']:.3f}  intensity={p['intensity']:.0f}")
+with quantion.parse_ion("sample.ion") as sample:
+    eic = quantion.calculate_eic(sample, 174.112, {"from": 1, "to": 15})
+    peaks = quantion.find_peaks(eic["x"], eic["y"], {"min_snr": 3})
+    for peak in peaks:
+        print(f"rt={peak['rt']:.3f}  intensity={peak['intensity']:.0f}")
 ```
 
-The library loads automatically on import. No initialization call needed.
+The library loads automatically on import.
 
-## Load files
+## Files
 
-### Load mzML
+### Open
 
-Load an mzML file into a sample.
+`parse_ion` reads a path, an http(s) URL or bytes. Paths and URLs are read lazily: only the bytes a query needs are fetched.
 
 ```python
-sample = quantion.parse_mzml(bytes)
+sample = quantion.parse_ion("sample.ion")
+remote = quantion.parse_ion("https://example.org/sample.ion", {"max_cache_size": 64_000_000})
 ```
 
-### Load ion
-
-Load an ion binary file into a sample.
+`parse_mzml` reads a path or bytes and loads the whole file. URLs are refused.
 
 ```python
-sample = quantion.parse_ion(bytes)
+sample = quantion.parse_mzml("sample.mzML")
 ```
 
-## Convert
+### Write
 
-### Sample to JSON
-
-Get JSON from a sample.
+Without `out` you get the bytes back. With a path the file is written; with a URL it is uploaded in one PUT request.
 
 ```python
-json = quantion.ion_to_json(sample)
+data = quantion.write_ion(sample)
+quantion.write_ion(sample, {"out": "sample.ion", "level": 12})
+quantion.write_ion(sample, {
+    "out": "https://example.org/upload/sample.ion",
+    "headers": [{"name": "Authorization", "value": "Bearer <token>"}],
+})
+quantion.write_mzml(sample, {"out": "sample.mzML"})
 ```
 
-### Sample to mzML
+### Scans
 
-Get mzML text from a sample.
+A range gives every scan in it; one number gives a list with the closest scan.
 
 ```python
-mzml = quantion.ion_to_mzml(sample)
+scans = quantion.get_scans(sample, rt={"from": 1.0, "to": 2.5})
+closest = quantion.get_scans(sample, rt=108, options={"level": 2, "time_unit": quantion.TimeUnit.SECONDS})
 ```
 
-### Sample to ion
+### EIC
 
-Convert a sample to compressed ion bytes.
+The range is `from` and `to` in the options; the default is the whole run.
 
 ```python
-ion_bytes = quantion.mzml_to_ion(sample, level=5, f32_compress=False)
+eic = quantion.calculate_eic(sample, 174.112, {"from": 1, "to": 15, "ppm_tolerance": 10})
 ```
 
-### Sample instance methods
+### Ion image
 
-Convert using sample methods.
+Only .ion files.
 
 ```python
-with quantion.parse_mzml(data) as sample:
-    json = sample.to_json()
-    mzml = sample.to_mzml()
-    ion_bytes = sample.to_ion(level=12)
-    sample.dispose()
+image = quantion.get_ion_image(sample, 760.585, {"tolerance": 0.05})
 ```
 
-## Extract from samples
-
-### Extract EIC
-
-Get an extracted ion chromatogram for one m/z from a sample.
+## Traces
 
 ```python
-eic = quantion.calculate_eic(sample, target_mz=174.112, from_to={"from": 1, "to": 15}, ppm_tol=20.0, mz_tol=0.005)
-```
-
-### Get scans
-
-Get scans from a sample by retention time range and MS level.
-
-```python
-scans = quantion.get_scans(sample, rt_range=(1, 15), level=1)
-```
-
-## Process XY data
-
-### Calculate baseline
-
-Estimate a baseline for XY data.
-
-```python
-baseline = quantion.calculate_baseline(y, lambda_=0, max_iterations=0)
-```
-
-### Find noise level
-
-Estimate the noise level in XY data. The result has `width`, the number of
-points the estimate came from, and `intensity`, the noise level itself.
-
-```python
+peaks = quantion.find_peaks(x, y, {"min_snr": 3})
+peak = quantion.get_peak(x, y, 5.3, {"range": 0.6})
+anywhere = quantion.get_peak(x, y, 5.3)
+params = quantion.fit_peak(x, y, 5.3, {"shape": quantion.PeakShape.GAUSSIAN})
+chromatogram = quantion.draw_peaks([params], {"from": 4.5, "to": 6.0, "points": 500})
 noise = quantion.find_noise_level(y)["intensity"]
+baseline = quantion.calculate_baseline(y, {"lambda": 50})
 ```
 
-### Find peaks
+`get_peak` without a range searches the whole trace. A peak with every field 0 means no peak was found.
 
-Find all peaks in XY data.
+## Targets
 
 ```python
-peaks = quantion.find_peaks(x, y, options={"auto_noise": True, "min_snr": 3.0})
+targets = [
+    {"id": "compound_A", "mz": 174.112, "rt": 5.3, "range": 0.5},
+    {"id": "compound_B", "mz": 203.156, "rt": 7.1, "range": 0.5},
+]
+peaks = quantion.find_targets(sample, targets, {
+    "eic": {"from": 0.5, "to": 10.0},
+    "find_peaks": {"min_intensity": 1000},
+    "threads": 2,
+})
 ```
 
-### Get single peak
-
-Find one peak near a target retention time in XY data.
+Stored SRM chromatograms: each transition picks the chromatogram whose precursor (Q1) and product (Q3) m/z are both within 0.005. Needs the whole file.
 
 ```python
-peak = quantion.get_peak(x, y, rt=5.3, range=0.6, options={"auto_noise": True})
+transitions = [{"id": "compound_1", "precursor": 500.3, "product": 184.1, "rt": 3.20, "range": 0.4}]
+peaks = quantion.find_transitions(sample, transitions, {"threads": 2})
 ```
 
-## Predict retention times
+## Features
 
-Load an ONNX model from a path, a URL, or bytes, read the keys and values stored
-in it, and make a warp model from it. The model stays usable after `load_warp`,
-and the warp keeps working if the model is disposed.
+```python
+features = quantion.find_features(sample, {
+    "grid": {"start": 100, "end": 600},
+    "threads": 4,
+})
+
+matched = quantion.match_features("samples/", {
+    "grouping": {"min_frequency": 0.5},
+    "threads": 8,
+})
+```
+
+`frequency` in each matched feature is the fraction of samples where it was found.
+
+## Retention-time models
 
 ```python
 model = quantion.load_model("model.onnx")
-model.get_keys()                  # ["points", "time_from", ..., "targets"]
-model.get_value("points")         # "1024"
+model.get_value("points")
 
 warp = quantion.load_warp(model)
-warp.get_value("targets")         # the warp has the same keys and values
-```
+rts = warp.predict_rts(sample, [{"id": "feature_1", "mz": 300.1, "rt": 2.38}])
 
-Predict each target's retention time in a sample. You get one
-`{"rt", "uncertainty"}` per target, in the same order.
-
-```python
-targets = [{"id": "feature_1", "mz": 300.1, "rt": 2.38}]
-rts = warp.predict_rts(sample, targets)
-```
-
-Without reference RTs, calibrate from anchor samples such as LTRs or QCs: give
-the samples and, for each one, the targets seen in it. Each target gets the
-median calibrated RT over the samples where it was seen. One sample works, three
-are better, five or more are best. Each RT must be the one measured in
-that anchor sample: a generic target list runs without error but gives wrong RTs.
-
-```python
-anchor_samples = [ltr_1, ltr_2, ltr_3]
-target_lists = [seen_in_ltr_1, seen_in_ltr_2, seen_in_ltr_3]
-calibrated = warp.calibrate(anchor_samples, target_lists)
+calibrated = warp.calibrate([ltr_1, ltr_2, ltr_3], [seen_in_ltr_1, seen_in_ltr_2, seen_in_ltr_3])
 rts = warp.predict_rts(other_sample, calibrated)
 
 warp.dispose()
 model.dispose()
 ```
 
-## Find peaks from samples
+Each rt given to `calibrate` must be the one measured in that anchor sample.
 
-### From EICs
+## Options and defaults
 
-Find peaks for many targets using extracted ion chromatograms from a sample.
+| Options | Keys (defaults) |
+|---|---|
+| `FindPeaksOptions` | `min_integral` (off), `min_intensity` (500), `min_peak_width_points` (3), `noise` (off), `auto_noise` (True), `auto_baseline` (True), `lambda` (20), `max_iterations` (4), `allow_overlap` (False), `min_snr` (2), `min_r2` (0), `shape` ("EMG"), `kernel_size` (0) |
+| `CalculateEicOptions` | `from` (0), `to` (inf), `ppm_tolerance` (20), `mz_tolerance` (0.005), `time_unit` ("MINUTES") |
+| `GridOptions` | `start` (40), `end` (1000), `step_size` (0.005) |
+| `GroupingOptions` | `ppm_tolerance` (5), `mz_tolerance` (0.0025), `rt_tolerance` (0.05), `min_frequency` (0) |
+| `GetPeakOptions` | `range` (0), `find_peaks` |
+| `FitPeakOptions` | `shape` ("EMG"), `intensity` (0 = taken from the peak) |
+| `DrawPeaksOptions` | `from` (0), `to` (0; both 0 fit the range around the peaks), `points` (1000) |
+| `CalculateBaselineOptions` | `lambda` (20), `max_iterations` (4) |
+| `FindTargetsOptions` | `eic`, `find_peaks`, `threads` (1) |
+| `FindTransitionsOptions` | `find_peaks`, `threads` (1) |
+| `FindFeaturesOptions` | `eic`, `grid`, `find_peaks`, `threads` (1) |
+| `MatchFeaturesOptions` | `eic`, `grid`, `grouping`, `find_peaks`, `threads` (1) |
+| `GetScansOptions` | `level` (1), `time_unit` ("MINUTES") |
+| `ParseIonOptions` | `max_cache_size` (0 = no limit) |
+| `WriteIonOptions` | `out`, `overwrite` (False), `level` (12), `f32_compress` (False), `headers` ([]) |
+| `WriteMzmlOptions` | `out`, `overwrite` (False) |
+| `GetIonImageOptions` | `tolerance` (0.125), `level` (1), `on_progress` |
 
-```python
-targets = [
-    {"rt": 5.3, "mz": 174.112, "range": 0.5, "id": "compound_A"},
-    {"rt": 7.1, "mz": 203.156, "range": 0.5, "id": "compound_B"},
-]
-
-peaks = quantion.get_peaks_from_eic(
-    sample, targets,
-    from_to={"from": 0.5, "to": 10.0},
-    options={"auto_noise": True},
-    cores=2
-)
-```
-
-### From chromatograms
-
-Find peaks from stored chromatograms in a sample.
-
-```python
-items = [
-    {"idx": 0, "rt": 5.3, "window": 0.5},
-    {"idx": 5, "rt": 7.1, "window": 0.5},
-]
-
-peaks = quantion.get_peaks_from_chrom(sample, items, options=None, cores=2)
-```
-
-## Untargeted
-
-### Targeted feature detection
-
-Find targeted features by m/z and retention time from a sample.
-
-```python
-targets = [
-    {"rt": 5.3, "mz": 174.112, "range": 0.5, "id": "A"},
-    {"rt": 7.1, "mz": 203.156, "range": 0.5, "id": "B"},
-]
-
-features = quantion.find_feature(
-    sample, targets,
-    scan_eic={"ppm_tolerance": 10, "mz_tolerance": 0.003},
-    eic={"ppm_tolerance": 20, "mz_tolerance": 0.005},
-    options={"auto_noise": True},
-    cores=2,
-)
-```
-
-### From single sample
-
-Find all features in a sample.
-
-```python
-features = quantion.find_features(
-    sample,
-    from_to={"from": 1, "to": 15},
-    eic={"ppm_tolerance": 10, "mz_tolerance": 0.005},
-    grid={"start": 40, "end": 1000, "step_size": 0.005},
-    options={"auto_noise": True, "min_snr": 3},
-    cores=4,
-)
-```
-
-### Align features across samples
-
-Find and align features across many samples.
-
-```python
-features = quantion.get_features(
-    "/path/to/ion/dir",
-    from_to={"from": 0, "to": 20},
-    eic={"ppm_tolerance": 5},
-    grid={"start": 50, "end": 1000, "step_size": 0.01},
-    grouping={"ppm_tolerance": 5, "rt_tolerance": 0.05, "frequency": 2},
-    cores=8,
-)
-```
-
-## Peak detection options
-
-Pass peak detection options as a dictionary:
-
-```python
-options = {
-    "min_integral":        0.0,
-    "min_intensity":       150.0,
-    "min_peak_width_points": 5,
-    "noise":               float("nan"),
-    "auto_noise":          True,
-    "auto_baseline":       True,
-    "lambda_":             0,
-    "max_iterations":      0,
-    "allow_overlap":       False,
-    "min_snr":             3.0,
-}
-```
+`TimeUnit` is `"MINUTES"` or `"SECONDS"`; `PeakShape` is `"GAUSSIAN"` or `"EMG"`. Both accept the enum or the uppercase text.

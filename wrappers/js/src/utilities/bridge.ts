@@ -8,11 +8,8 @@ export const PAYLOAD_ION_IMAGE = 2;
 
 export const PAYLOAD_PEAKS = 3;
 export const PAYLOAD_FEATURES = 4;
-export const PAYLOAD_CHROM_PEAKS = 5;
 export const PAYLOAD_FIT_RESULT = 6;
-export const PAYLOAD_EIC_PEAKS = 7;
 export const PAYLOAD_CONSENSUS_FEATURES = 8;
-export const PAYLOAD_FOUND_FEATURES = 9;
 export const PAYLOAD_WARP_TARGETS = 10;
 export const PAYLOAD_MODEL_METADATA = 11;
 
@@ -57,36 +54,12 @@ export const SECTION_FEATURE_INTEGRAL = 31;
 export const SECTION_FEATURE_POINT_COUNT = 32;
 export const SECTION_FEATURE_NOISE = 33;
 
-export const SECTION_CHROM_INDEX = 34;
-export const SECTION_CHROM_TARGET_RT = 35;
-export const SECTION_CHROM_RT = 36;
-export const SECTION_CHROM_FROM = 37;
-export const SECTION_CHROM_TO = 38;
-export const SECTION_CHROM_INTENSITY = 39;
-export const SECTION_CHROM_INTEGRAL = 40;
-export const SECTION_CHROM_TOTAL_AREA = 41;
-export const SECTION_CHROM_ID_STARTS = 42;
-export const SECTION_CHROM_ID_BYTES = 43;
-export const SECTION_CHROM_TIMESTAMP_STARTS = 44;
-export const SECTION_CHROM_TIMESTAMP_BYTES = 45;
-
 export const SECTION_FIT_SHAPE = 46;
 export const SECTION_FIT_HEIGHT = 47;
 export const SECTION_FIT_CENTER = 48;
 export const SECTION_FIT_FWHM = 49;
 export const SECTION_FIT_TAIL = 50;
 export const SECTION_FIT_R2 = 51;
-
-export const SECTION_EIC_PEAK_ID_STARTS = 52;
-export const SECTION_EIC_PEAK_ID_BYTES = 53;
-export const SECTION_EIC_PEAK_MZ = 54;
-export const SECTION_EIC_PEAK_ORT = 55;
-export const SECTION_EIC_PEAK_RT = 56;
-export const SECTION_EIC_PEAK_FROM = 57;
-export const SECTION_EIC_PEAK_TO = 58;
-export const SECTION_EIC_PEAK_INTENSITY = 59;
-export const SECTION_EIC_PEAK_INTEGRAL = 60;
-export const SECTION_EIC_PEAK_NOISE = 61;
 
 export const SECTION_CONSENSUS_MZ = 62;
 export const SECTION_CONSENSUS_RT = 63;
@@ -95,17 +68,8 @@ export const SECTION_CONSENSUS_TO = 65;
 export const SECTION_CONSENSUS_INTENSITY = 66;
 export const SECTION_CONSENSUS_INTEGRAL = 67;
 export const SECTION_CONSENSUS_FREQUENCY = 68;
-
-export const SECTION_FOUND_ID_STARTS = 69;
-export const SECTION_FOUND_ID_BYTES = 70;
-export const SECTION_FOUND_MZ = 71;
-export const SECTION_FOUND_RT = 72;
-export const SECTION_FOUND_FROM = 73;
-export const SECTION_FOUND_TO = 74;
-export const SECTION_FOUND_INTENSITY = 75;
-export const SECTION_FOUND_INTEGRAL = 76;
-export const SECTION_FOUND_POINT_COUNT = 77;
-export const SECTION_FOUND_NOISE = 78;
+export const SECTION_CONSENSUS_POINT_COUNT = 87;
+export const SECTION_CONSENSUS_NOISE = 88;
 
 export const SECTION_WARP_TARGET_ID_STARTS = 79;
 export const SECTION_WARP_TARGET_ID_BYTES = 80;
@@ -144,30 +108,21 @@ const SECTION_TYPES: Record<number, number> = {
   [SECTION_IMAGE_COUNTS]: ELEMENT_U32,
   [SECTION_PEAK_POINT_COUNT]: ELEMENT_U32,
   [SECTION_FEATURE_POINT_COUNT]: ELEMENT_U32,
-  [SECTION_CHROM_INDEX]: ELEMENT_U32,
-  [SECTION_FOUND_POINT_COUNT]: ELEMENT_U32,
-  [SECTION_CHROM_ID_STARTS]: ELEMENT_U64,
-  [SECTION_CHROM_ID_BYTES]: ELEMENT_U8,
-  [SECTION_CHROM_TIMESTAMP_STARTS]: ELEMENT_U64,
-  [SECTION_CHROM_TIMESTAMP_BYTES]: ELEMENT_U8,
-  [SECTION_EIC_PEAK_ID_STARTS]: ELEMENT_U64,
-  [SECTION_EIC_PEAK_ID_BYTES]: ELEMENT_U8,
-  [SECTION_FOUND_ID_STARTS]: ELEMENT_U64,
-  [SECTION_FOUND_ID_BYTES]: ELEMENT_U8,
+  [SECTION_CONSENSUS_POINT_COUNT]: ELEMENT_U32,
 };
 
-export type Section = {
+export interface Section {
   elementType: number;
   byteOffset: number;
   byteLength: number;
-};
+}
 
-export type Bridge = {
+export interface Bridge {
   buffer: ArrayBuffer;
   payloadKind: number;
   recordCount: number;
   sections: Map<number, Section>;
-};
+}
 
 function fail(reason: string): never {
   throw new Error(`quantion bridge: ${reason}`);

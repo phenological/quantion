@@ -5,7 +5,8 @@ use std::{
     ptr, slice,
 };
 
-use super::{Buf, ERR_ENCODE, ERR_INVALID_ARGS, ERR_PANIC, OK, clear_buf, write_buf};
+use super::{
+    public::{fail, remember},Buf, ERR_ENCODE, ERR_INVALID_ARGS, ERR_PANIC, OK, clear_buf, write_buf};
 use crate::utilities::{
     bridge::{
         Column, QUANTION_PAYLOAD_MODEL_METADATA, QUANTION_SECTION_MODEL_METADATA_KEY_BYTES,
@@ -15,7 +16,6 @@ use crate::utilities::{
     load_model::{Model, ModelInput, load_model},
 };
 
-pub(super) const ERR_MODEL_NOT_READ: c_int = 7;
 
 pub struct ModelHandle {
     pub(super) model: Model,
@@ -29,11 +29,11 @@ pub unsafe extern "C" fn model_load_path(
     message: *mut Buf,
 ) -> c_int {
     if path_ptr.is_null() || path_len == 0 || out.is_null() || message.is_null() {
-        return ERR_INVALID_ARGS;
+        return fail(ERR_INVALID_ARGS, "load_model");
     }
     let path_bytes = unsafe { slice::from_raw_parts(path_ptr, path_len) };
     let Ok(path) = std::str::from_utf8(path_bytes) else {
-        return ERR_INVALID_ARGS;
+        return fail(ERR_INVALID_ARGS, "load_model");
     };
     write_model(out, message, ModelInput::from(Path::new(path)))
 }
@@ -46,7 +46,7 @@ pub unsafe extern "C" fn model_load_bytes(
     message: *mut Buf,
 ) -> c_int {
     if model_ptr.is_null() || model_len == 0 || out.is_null() || message.is_null() {
-        return ERR_INVALID_ARGS;
+        return fail(ERR_INVALID_ARGS, "load_model");
     }
     let bytes = unsafe { slice::from_raw_parts(model_ptr, model_len) };
     write_model(out, message, ModelInput::from(bytes))
@@ -62,7 +62,7 @@ pub unsafe extern "C" fn model_free(model: *mut ModelHandle) {
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn model_metadata(model: *const ModelHandle, out: *mut Buf) -> c_int {
     if model.is_null() || out.is_null() {
-        return ERR_INVALID_ARGS;
+        return fail(ERR_INVALID_ARGS, "load_model");
     }
     clear_buf(out);
     let model = unsafe { &(*model).model };
@@ -74,7 +74,7 @@ pub unsafe extern "C" fn model_metadata(model: *const ModelHandle, out: *mut Buf
             OK
         }
         Ok(None) => ERR_ENCODE,
-        Err(_) => ERR_PANIC,
+        Err(_) => fail(ERR_PANIC, "load_model"),
     }
 }
 
@@ -109,8 +109,8 @@ fn write_model(out: *mut *mut ModelHandle, message: *mut Buf, input: ModelInput)
         }
         Ok(Err(error)) => {
             write_buf(message, error.to_string().into_bytes().into_boxed_slice());
-            ERR_MODEL_NOT_READ
+            remember(crate::files::read_error("load_model", error))
         }
-        Err(_) => ERR_PANIC,
+        Err(_) => fail(ERR_PANIC, "load_model"),
     }
 }

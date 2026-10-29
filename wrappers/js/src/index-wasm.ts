@@ -9,7 +9,29 @@ export async function init(): Promise<void> {
   await _ready;
 }
 
-export * from "./utilities/api";
+export {
+  parseIon,
+  parseMzml,
+  writeIon,
+  writeMzml,
+  loadModel,
+  loadWarp,
+  getScans,
+  calculateEic,
+  getIonImage,
+  findPeaks,
+  getPeak,
+  fitPeak,
+  drawPeaks,
+  findNoiseLevel,
+  calculateBaseline,
+  findTargets,
+  findTransitions,
+  findFeatures,
+  matchFeatures,
+} from "./utilities/api";
 export { SampleFile } from "./utilities/sampleFile";
 export { Model } from "./utilities/model";
 export { WarpModel } from "./utilities/warpModel";
+export { QuantionError, ERROR_CODES, type ErrorKind } from "./utilities/errors";
+export * from "./types/types";

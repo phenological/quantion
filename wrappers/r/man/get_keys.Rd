@@ -22,11 +22,9 @@ values in the same order. \code{get_value()} gives the text stored under
 \code{key}, or \code{NULL} if it is missing.
 }
 \examples{
-\donttest{
-model <- load_model("https://example.org/model.onnx")
+model <- load_model(system.file("extdata", "model.onnx", package = "quantion"))
 get_keys(model)
 get_value(model, "points")
-}
 }
 \seealso{
 \code{\link{load_model}()}, \code{\link{load_warp}()}

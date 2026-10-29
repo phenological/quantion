@@ -1,26 +1,24 @@
 \name{load_warp}
 \alias{load_warp}
-\title{Make a warp model}
+\title{Make a retention-time warp model}
 \description{
-Makes a warp model from a model loaded with \code{\link{load_model}()}. The model
-stays usable, and the warp model keeps working if the model is disposed.
+Make a retention-time warp model from a loaded model.
 }
 \usage{
-load_warp(
-  model
-)
+load_warp(model)
 }
 \arguments{
-  \item{model}{A model from \code{\link{load_model}()}.}
+  \item{model}{A model from \code{\link{load_model}()} that holds a warp.}
 }
 \value{
-A warp model for use in \code{\link{predict_rts}()} and \code{\link{calibrate}()}.
+A warp model (an external pointer of class \code{quantion_warp_model}).
+}
+\section{Documentation}{
+\url{https://phenological.github.io/quantion/?language=r#load_warp}
 }
 \examples{
-\donttest{
-warp <- load_warp(load_model("https://example.org/model.onnx"))
-}
+warp <- load_warp(load_model(system.file("extdata", "model.onnx", package = "quantion")))
 }
 \seealso{
-\code{\link{load_model}()}, \code{\link{predict_rts}()}, \code{\link{calibrate}()}
+\code{\link{predict_rts}()}, \code{\link{calibrate}()}
 }

@@ -105,9 +105,9 @@ class RemoteReading(unittest.TestCase):
         return local
 
     def eic_of(self, file):
-        return support.quantion.calculate_eic(
-            file, MASS, {"from": FROM_RT, "to": TO_RT}, PPM_TOLERANCE, MZ_TOLERANCE
-        )
+        return support.quantion.calculate_eic(file, MASS, {
+            "from": FROM_RT, "to": TO_RT, "ppm_tolerance": PPM_TOLERANCE, "mz_tolerance": MZ_TOLERANCE,
+        })
 
     def test_the_fixture_is_the_size_the_counts_were_measured_on(self):
         self.assertEqual(support.ION_FIXTURE.stat().st_size, FILE_TOTAL)

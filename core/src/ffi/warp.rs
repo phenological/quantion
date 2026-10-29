@@ -5,9 +5,10 @@ use std::{
 };
 
 use super::{
+    public::{fail, remember},
     Buf, ERR_ENCODE, ERR_INVALID_ARGS, ERR_PANIC, FileSource, OK, ParsedFile, clear_buf, f64_to_u8,
-    fast_error_to_code, file_is_broken, mark_file_broken,
-    model::{ERR_MODEL_NOT_READ, ModelHandle},
+    file_is_broken, mark_file_broken,
+    model::ModelHandle,
     pack_byte_ranges, write_buf,
 };
 use crate::utilities::{
@@ -17,16 +18,13 @@ use crate::utilities::{
         QUANTION_SECTION_WARP_TARGET_RT, build_record_bridge,
     },
     calculate_eic::{EicReader, FastError},
+    structs::Target,
     warp_model::{
-        Target, WarpError, WarpModel, check_target_lists, get_median_targets, load_warp,
+        WarpError, WarpModel, check_target_lists, get_median_targets, load_warp,
         plan_predict_rts_ranges,
     },
 };
 
-const ERR_TARGET_MISSING: c_int = 8;
-const ERR_SCANS_NOT_COVERED: c_int = 9;
-const ERR_NO_BACKGROUND: c_int = 10;
-const ERR_PREDICT_FAILED: c_int = 11;
 
 pub struct WarpModelHandle {
     warp: WarpModel,
@@ -39,7 +37,7 @@ pub unsafe extern "C" fn warp_model_load(
     message: *mut Buf,
 ) -> c_int {
     if model.is_null() || out.is_null() || message.is_null() {
-        return ERR_INVALID_ARGS;
+        return fail(ERR_INVALID_ARGS, "load_warp");
     }
     unsafe { *out = ptr::null_mut() };
     clear_buf(message);
@@ -49,8 +47,8 @@ pub unsafe extern "C" fn warp_model_load(
             unsafe { *out = Box::into_raw(Box::new(WarpModelHandle { warp })) };
             OK
         }
-        Ok(Err(error)) => write_error(message, error),
-        Err(_) => ERR_PANIC,
+        Ok(Err(error)) => write_error("load_warp", message, error),
+        Err(_) => fail(ERR_PANIC, "load_warp"),
     }
 }
 
@@ -71,10 +69,10 @@ pub unsafe extern "C" fn predict_rts_from_file(
     out: *mut Buf,
 ) -> c_int {
     if warp.is_null() || h.is_null() || mzs_ptr.is_null() || rts_ptr.is_null() || out.is_null() {
-        return ERR_INVALID_ARGS;
+        return fail(ERR_INVALID_ARGS, "predict_rts");
     }
     if file_is_broken(h) {
-        return ERR_PANIC;
+        return fail(ERR_PANIC, "predict_rts");
     }
     clear_buf(out);
 
@@ -88,8 +86,8 @@ pub unsafe extern "C" fn predict_rts_from_file(
         };
 
         let predicted = unsafe { &(*warp).warp }
-            .predict_rts(&mut reader, &targets)
-            .map_err(|error| write_error(out, error))?;
+            .predict_rts_from_reader(&mut reader, &targets)
+            .map_err(|error| write_error("predict_rts", out, error))?;
         let values: Vec<f64> = predicted
             .iter()
             .flat_map(|prediction| [prediction.rt, prediction.uncertainty])
@@ -101,7 +99,7 @@ pub unsafe extern "C" fn predict_rts_from_file(
         Ok(Err(code)) => code,
         Err(_) => {
             mark_file_broken(h);
-            ERR_PANIC
+            fail(ERR_PANIC, "predict_rts")
         }
     }
 }
@@ -116,10 +114,10 @@ pub unsafe extern "C" fn plan_predict_rts(
     out: *mut Buf,
 ) -> c_int {
     if warp.is_null() || h.is_null() || mzs_ptr.is_null() || rts_ptr.is_null() || out.is_null() {
-        return ERR_INVALID_ARGS;
+        return fail(ERR_INVALID_ARGS, "predict_rts");
     }
     if file_is_broken(h) {
-        return ERR_PANIC;
+        return fail(ERR_PANIC, "predict_rts");
     }
     clear_buf(out);
 
@@ -132,7 +130,7 @@ pub unsafe extern "C" fn plan_predict_rts(
             FileSource::Remote(ion) => plan_predict_rts_ranges(warp, ion.as_mut(), &targets),
             FileSource::Full(_) => Err(WarpError::FileNotRead(FastError::UnsupportedBackend)),
         }
-        .map_err(|error| write_error(out, error))?;
+        .map_err(|error| write_error("predict_rts", out, error))?;
         write_buf(
             out,
             pack_byte_ranges(ranges.iter().map(|range| (range.offset, range.length))),
@@ -143,7 +141,7 @@ pub unsafe extern "C" fn plan_predict_rts(
         Ok(Err(code)) => code,
         Err(_) => {
             mark_file_broken(h);
-            ERR_PANIC
+            fail(ERR_PANIC, "predict_rts")
         }
     }
 }
@@ -154,6 +152,7 @@ pub unsafe extern "C" fn calibrate_rts(
     files: *const *const ParsedFile,
     file_count: usize,
     list_lengths: *const usize,
+    list_count: usize,
     ids_off: *const u32,
     ids_len: *const u32,
     ids_buf: *const u8,
@@ -164,25 +163,28 @@ pub unsafe extern "C" fn calibrate_rts(
     out: *mut Buf,
 ) -> c_int {
     if warp.is_null() || out.is_null() {
-        return ERR_INVALID_ARGS;
+        return fail(ERR_INVALID_ARGS, "calibrate");
     }
-    if file_count > 0 && (files.is_null() || list_lengths.is_null()) {
-        return ERR_INVALID_ARGS;
+    if (file_count > 0 && files.is_null()) || (list_count > 0 && list_lengths.is_null()) {
+        return fail(ERR_INVALID_ARGS, "calibrate");
     }
     if target_count > 0
         && (ids_off.is_null() || ids_len.is_null() || mzs_ptr.is_null() || rts_ptr.is_null())
     {
-        return ERR_INVALID_ARGS;
+        return fail(ERR_INVALID_ARGS, "calibrate");
     }
     clear_buf(out);
     let files = get_slice(files, file_count);
-    let lengths = get_slice(list_lengths, file_count);
-    if lengths.iter().sum::<usize>() != target_count
-        || files
-            .iter()
-            .any(|file| file.is_null() || file_is_broken(*file))
-    {
-        return ERR_INVALID_ARGS;
+    let lengths = get_slice(list_lengths, list_count);
+    if lengths.iter().sum::<usize>() != target_count {
+        return fail(ERR_INVALID_ARGS, "calibrate");
+    }
+    if files.iter().any(|file| file.is_null() || file_is_broken(*file)) {
+        return remember(crate::QuantionError::invalid(
+            "calibrate",
+            "anchor_samples",
+            "must all be open; one was disposed or never opened",
+        ));
     }
 
     let warp = unsafe { &(*warp).warp };
@@ -191,12 +193,12 @@ pub unsafe extern "C" fn calibrate_rts(
         Some(ids) => targets
             .iter_mut()
             .zip(ids)
-            .for_each(|(target, id)| target.id = id),
-        None => return ERR_INVALID_ARGS,
+            .for_each(|(target, id)| target.id = (!id.is_empty()).then_some(id)),
+        None => return fail(ERR_INVALID_ARGS, "calibrate"),
     }
     let target_lists = split_targets(targets, lengths);
     if let Err(error) = check_target_lists(files.len(), &target_lists) {
-        return write_error(out, error);
+        return write_error("calibrate", out, error);
     }
 
     let mut calibrated_lists = Vec::with_capacity(files.len());
@@ -211,10 +213,10 @@ pub unsafe extern "C" fn calibrate_rts(
             warp.calibrate_sample(&mut reader, targets)
         })) {
             Ok(Ok(calibrated)) => calibrated_lists.push(calibrated),
-            Ok(Err(error)) => return write_error(out, error),
+            Ok(Err(error)) => return write_error("calibrate", out, error),
             Err(_) => {
                 mark_file_broken(*file);
-                return ERR_PANIC;
+                return fail(ERR_PANIC, "calibrate");
             }
         }
     }
@@ -245,7 +247,7 @@ fn get_slice<'a, T>(values: *const T, count: usize) -> &'a [T] {
 }
 
 fn build_targets_bridge(targets: &[Target]) -> Option<Box<[u8]>> {
-    let ids: Vec<&str> = targets.iter().map(|target| target.id.as_str()).collect();
+    let ids: Vec<&str> = targets.iter().map(|target| target.get_id()).collect();
     let mz: Vec<f64> = targets.iter().map(|target| target.mz).collect();
     let rt: Vec<f64> = targets.iter().map(|target| target.rt).collect();
     build_record_bridge(
@@ -278,9 +280,10 @@ fn get_targets(mzs_ptr: *const f64, rts_ptr: *const f64, n: usize) -> Vec<Target
     mzs.iter()
         .zip(rts)
         .map(|(mz, rt)| Target {
-            id: String::new(),
+            id: None,
             mz: *mz,
             rt: *rt,
+            range: None,
         })
         .collect()
 }
@@ -310,20 +313,7 @@ fn get_ids(
         .collect()
 }
 
-fn write_error(message: *mut Buf, error: WarpError) -> c_int {
+fn write_error(function: &'static str, message: *mut Buf, error: WarpError) -> c_int {
     write_buf(message, error.to_string().into_bytes().into_boxed_slice());
-    get_error_code(error)
-}
-
-fn get_error_code(error: WarpError) -> c_int {
-    match error {
-        WarpError::WrongInputs | WarpError::ValueMissing(_) => ERR_MODEL_NOT_READ,
-        WarpError::TargetMissing(_)
-        | WarpError::ListsDiffer { .. }
-        | WarpError::IdMissing { .. } => ERR_TARGET_MISSING,
-        WarpError::ScansNotCovered { .. } => ERR_SCANS_NOT_COVERED,
-        WarpError::NoBackground => ERR_NO_BACKGROUND,
-        WarpError::FileNotRead(error) => fast_error_to_code(error),
-        WarpError::PredictFailed(_) => ERR_PREDICT_FAILED,
-    }
+    remember(crate::models::from_warp_error(function, error))
 }

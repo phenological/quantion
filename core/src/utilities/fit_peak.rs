@@ -8,9 +8,15 @@ const FIT_ITERATIONS: usize = 40;
 const FIT_TIMEOUT_SECONDS: f64 = 1.0;
 const MIN_POINTS: usize = 5;
 
+/// **PeakShape** · Enums
+///
+/// Curve used to fit a peak.
+///
+/// [Documentation](https://phenological.github.io/quantion/?language=rust#PeakShape)
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[allow(clippy::upper_case_acronyms)]
 pub enum PeakShape {
-    Gaussian,
+    GAUSSIAN,
     EMG,
 }
 
@@ -29,9 +35,13 @@ impl From<&Peak> for PeakSeed {
     }
 }
 
+/// **PeakParameters** · Results
+///
+/// One peak curve: returned by fit_peak, or written by hand to simulate. draw_peaks takes a list of them. tail = 0 is a Gaussian, tail above 0 an EMG.
+///
+/// [Documentation](https://phenological.github.io/quantion/?language=rust#PeakParameters)
 #[derive(Clone, Debug)]
 pub struct PeakParameters {
-    pub shape: PeakShape,
     pub height: f64,
     pub center: f64,
     pub fwhm: f64,
@@ -55,10 +65,9 @@ pub fn fit_peak(data: &DataXY, seed: &PeakSeed, shape: PeakShape) -> Option<Peak
     let scaled_y: Vec<f64> = data.y.iter().map(|value| value / seed.intensity).collect();
 
     let mut params = match shape {
-        PeakShape::Gaussian => {
+        PeakShape::GAUSSIAN => {
             let fwhm = fit_gaussian(&scaled_x, &scaled_y)?;
             PeakParameters {
-                shape: PeakShape::Gaussian,
                 height: seed.intensity,
                 center: seed.rt,
                 fwhm: fwhm * width,
@@ -69,7 +78,6 @@ pub fn fit_peak(data: &DataXY, seed: &PeakSeed, shape: PeakShape) -> Option<Peak
         PeakShape::EMG => {
             let fit = fit_emg(&scaled_x, &scaled_y)?;
             PeakParameters {
-                shape: PeakShape::EMG,
                 height: fit[0] * seed.intensity,
                 center: seed.rt + fit[1] * width,
                 fwhm: fit[2].abs().max(1e-9) * width,
@@ -93,14 +101,53 @@ pub fn draw_peak(data: &DataXY, params: &PeakParameters) -> DataXY {
     }
 }
 
+pub fn draw_peaks(peaks: &[PeakParameters], from: f64, to: f64, points: usize) -> DataXY {
+    if peaks.is_empty() || points == 0 {
+        return DataXY::empty();
+    }
+    let (from, to) = if from == 0.0 && to == 0.0 {
+        get_drawing_range(peaks)
+    } else {
+        (from, to)
+    };
+    let step = if points > 1 {
+        (to - from) / (points - 1) as f64
+    } else {
+        0.0
+    };
+    let x: Vec<f64> = (0..points).map(|point| from + step * point as f64).collect();
+    let curves: Vec<Box<dyn Fn(f64) -> f64>> = peaks.iter().map(build_curve).collect();
+    let y = x
+        .iter()
+        .map(|&value| curves.iter().map(|curve| curve(value)).sum())
+        .collect();
+    DataXY { x, y }
+}
+
+fn get_drawing_range(peaks: &[PeakParameters]) -> (f64, f64) {
+    const WIDTHS_BEFORE: f64 = 2.0;
+    const WIDTHS_AFTER: f64 = 2.0;
+    const TAILS_AFTER: f64 = 10.0;
+    let from = peaks
+        .iter()
+        .map(|peak| peak.center - WIDTHS_BEFORE * peak.fwhm.abs())
+        .fold(f64::INFINITY, f64::min);
+    let to = peaks
+        .iter()
+        .map(|peak| peak.center + WIDTHS_AFTER * peak.fwhm.abs() + TAILS_AFTER * peak.tail.abs())
+        .fold(f64::NEG_INFINITY, f64::max);
+    (from, to)
+}
+
 fn build_curve(params: &PeakParameters) -> Box<dyn Fn(f64) -> f64> {
     let height = params.height;
     let center = params.center;
     let sigma = sigma_from_fwhm(params.fwhm.abs().max(1e-9));
-    let tail = params.tail.abs().max(1e-9);
-    match params.shape {
-        PeakShape::Gaussian => Box::new(move |x| gaussian_fn(x, height, center, sigma)),
-        PeakShape::EMG => Box::new(move |x| emg_fn(x, height, center, sigma, tail)),
+    let tail = params.tail.abs();
+    if tail > 0.0 {
+        Box::new(move |x| emg_fn(x, height, center, sigma, tail))
+    } else {
+        Box::new(move |x| gaussian_fn(x, height, center, sigma))
     }
 }
 

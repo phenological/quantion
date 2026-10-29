@@ -1,5 +1,5 @@
 import ctypes
-from typing import TYPE_CHECKING, Any, Dict, List, Sequence
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence
 
 from quantion.model import Metadata
 
@@ -12,30 +12,30 @@ class WarpModel(Metadata):
     def __init__(
         self, handle: ctypes.c_void_p, abi: "_ABI", metadata: List[Dict[str, str]]
     ) -> None:
-        self._handle: ctypes.c_void_p | None = handle
+        self._handle: Optional[ctypes.c_void_p] = handle
         self._abi = abi
         self._metadata = metadata
 
     @property
-    def handle(self) -> ctypes.c_void_p:
-        if self._handle is None:
-            raise RuntimeError("WarpModel: model has been disposed")
+    def handle(self) -> Optional[ctypes.c_void_p]:
         return self._handle
 
     def _get_metadata(self) -> List[Dict[str, str]]:
         return self._metadata
 
-    def predict_rts(
-        self, file: "SampleFile", targets: Sequence[Dict[str, Any]]
-    ) -> List[Dict[str, float]]:
-        """Predict each target's RT in this file.
+    def predict_rts(self, file: "SampleFile", targets: Sequence[Dict[str, Any]]) -> List[Dict[str, float]]:
+        """predict_rts · Models
+
+        Predict where each target elutes in one sample.
 
         Args:
-            file: The sample file.
-            targets: Dicts with "mz" and "rt".
+            file: The sample to read, from parse_ion or parse_mzml.
+            targets: Targets with mz and reference rt. id and range are optional and not used.
 
         Returns:
-            One {"rt", "uncertainty"} per target, in the same order.
+            One PredictedRt per target, in the same order.
+
+        Documentation: https://phenological.github.io/quantion/?language=python#predict_rts
         """
         from quantion.api import _predict_rts
 
@@ -46,20 +46,33 @@ class WarpModel(Metadata):
         anchor_samples: Sequence["SampleFile"],
         target_lists: Sequence[Sequence[Dict[str, Any]]],
     ) -> List[Dict[str, Any]]:
-        """Turn the RTs seen in anchor samples into targets for predict_rts.
+        """calibrate · Models
+
+        Turn the retention times seen in anchor samples (LTRs, QCs) into targets for predict_rts. Each id gets the median rt over the anchors.
 
         Args:
-            anchor_samples: The samples where the targets were seen, like LTRs or QCs.
-            target_lists: One list per sample, with dicts of "id", "mz" and the "rt" seen in it.
+            anchor_samples: Anchor samples.
+            target_lists: For each anchor sample, the targets seen in it with their observed rt.
 
         Returns:
-            One {"id", "mz", "rt"} per id, with the median calibrated rt over the samples.
+            One Target per id with the median rt.
+
+        Documentation: https://phenological.github.io/quantion/?language=python#calibrate
         """
         from quantion.api import _calibrate_rts
 
         return _calibrate_rts(self, anchor_samples, target_lists)
 
     def dispose(self) -> None:
+        """dispose · Models
+
+        Free the memory held by a sample, model or warp model.
+
+        Returns:
+            Nothing.
+
+        Documentation: https://phenological.github.io/quantion/?language=python#dispose
+        """
         if self._handle is not None:
             self._abi.warp_model_free(self._handle)
             self._handle = None

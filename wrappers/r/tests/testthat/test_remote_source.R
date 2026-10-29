@@ -55,7 +55,7 @@ test_that("an extracted ion chromatogram needs no bytes the open did not bring i
     source <- attr(handle, "quantion_source")
     held_before <- length(source$held)
 
-    eic <- quantion::calculate_eic(handle, 89.04768, 0.5, 1.5)
+    eic <- quantion::calculate_eic(handle, 89.04768, quantion::calculate_eic_options(from = 0.5, to = 1.5))
 
     expect_named(eic, c("x", "y"))
     expect_gt(length(eic$x), 0)

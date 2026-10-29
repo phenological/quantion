@@ -1,36 +1,30 @@
 \name{predict_rts}
 \alias{predict_rts}
-\title{Predict retention times with a warp model}
+\title{Predict retention times}
 \description{
-Predicts the retention time of each target in a sample file. The file is read
-once and the model runs once. The file's scans must cover the time range of the
-model, or this stops with an error.
+Predict where each target elutes in one sample.
 }
 \usage{
-predict_rts(
-  warp,
-  bin,
-  targets
-)
+predict_rts(warp, file, targets)
 }
 \arguments{
   \item{warp}{A warp model from \code{\link{load_warp}()}.}
-  \item{bin}{Sample file from \code{\link{parse_ion}()}.}
-  \item{targets}{A data frame with columns \code{mz} and \code{rt}.}
+  \item{file}{A sample from \code{\link{parse_ion}()} or \code{\link{parse_mzml}()}.}
+  \item{targets}{A data.frame with columns \code{mz} and \code{rt}; \code{id} and \code{range} are optional and not used.}
 }
 \value{
-A data frame with columns \code{rt} (the predicted retention time) and
-\code{uncertainty}, one row per target, in the same order.
+A data.frame with \code{rt} and \code{uncertainty}, one row per target in the same order.
+}
+\section{Documentation}{
+\url{https://phenological.github.io/quantion/?language=r#predict_rts}
 }
 \examples{
-\donttest{
-warp <- load_warp(load_model("https://example.org/model.onnx"))
-sample <- parse_ion("https://example.org/file.ion")
-targets <- data.frame(mz = c(250.1, 310.2), rt = c(1.2, 3.1))
-rts <- predict_rts(warp, sample, targets)
-targets$rt <- rts$rt
+\dontrun{
+warp <- load_warp(load_model("model.onnx"))
+predicted <- predict_rts(warp, parse_ion("sample.ion"),
+                         data.frame(id = "compound_1", mz = 260.103, rt = 2.383))
 }
 }
 \seealso{
-\code{\link{load_warp}()}, \code{\link{calibrate}()}, \code{\link{get_peaks_from_eic}()}
+\code{\link{load_warp}()}, \code{\link{calibrate}()}
 }

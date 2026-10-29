@@ -1,11 +1,11 @@
 use std::cmp::Ordering;
 
+use crate::options::{CalculateBaselineOptions, FindPeaksOptions};
 use crate::utilities::{
-    calculate_baseline::{BaselineOptions, calculate_baseline},
+    calculate_baseline::calculate_baseline,
     cheminfo::sgg::{SggOptions, sgg},
     closest_index,
-    find_noise_level::{find_noise_level, find_noise_level_san_plot},
-    fit_peak::PeakShape,
+    find_noise_level::find_noise_level,
     get_boundaries::{Boundaries, BoundariesOptions, SmoothedSignal, find_boundaries},
     math::xy_integration,
     resolve_apexes::resolve_apexes,
@@ -14,58 +14,7 @@ use crate::utilities::{
     structs::{DataXY, Peak},
 };
 
-#[derive(Clone, Copy, Debug)]
-pub struct ArtifactFilter {
-    pub min_r2: f64,
-    pub shape: PeakShape,
-}
-
-impl Default for ArtifactFilter {
-    fn default() -> Self {
-        Self {
-            min_r2: 0.0,
-            shape: PeakShape::EMG,
-        }
-    }
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
-pub enum NoiseMethod {
-    #[default]
-    FindNoiseLevel,
-    SanPlot,
-}
-
-#[derive(Clone, Copy, Debug)]
-pub struct PeakFilter {
-    pub min_integral: Option<f64>,
-    pub min_peak_width_points: Option<usize>,
-    pub min_intensity: Option<f64>,
-    pub noise: Option<f64>,
-    pub auto_noise: Option<bool>,
-    pub auto_baseline: Option<bool>,
-    pub allow_overlap: Option<bool>,
-    pub min_snr: Option<f64>,
-    pub noise_method: Option<NoiseMethod>,
-    pub kernel_size: Option<usize>,
-}
-
-impl Default for PeakFilter {
-    fn default() -> Self {
-        Self {
-            min_integral: None,
-            min_peak_width_points: Some(3),
-            min_intensity: Some(500.0),
-            noise: None,
-            auto_noise: Some(true),
-            auto_baseline: Some(true),
-            allow_overlap: Some(false),
-            min_snr: Some(2.0),
-            noise_method: None,
-            kernel_size: None,
-        }
-    }
-}
+const PEAK_EDGE_SLOPE_LEVEL: u8 = 0;
 
 #[derive(Clone, Debug)]
 struct PeakCandidate {
@@ -89,7 +38,7 @@ impl From<PeakCandidate> for Peak {
             rt: c.rt,
             integral: c.integral,
             intensity: c.intensity,
-            r2: if c.r2.is_finite() { Some(c.r2) } else { None },
+            r2: if c.r2.is_finite() { c.r2 } else { 0.0 },
             n_points: c.n_points,
             noise: c.noise,
         }
@@ -103,25 +52,6 @@ impl Candidate for PeakCandidate {
 
     fn set_score(&mut self, r2: f64) {
         self.r2 = r2;
-    }
-}
-
-#[derive(Clone, Debug)]
-pub struct FindPeaksOptions {
-    pub boundaries: Option<BoundariesOptions>,
-    pub filter: Option<PeakFilter>,
-    pub baseline: Option<BaselineOptions>,
-    pub artifact_filter: Option<ArtifactFilter>,
-}
-
-impl Default for FindPeaksOptions {
-    fn default() -> Self {
-        Self {
-            boundaries: Some(BoundariesOptions::default()),
-            filter: Some(PeakFilter::default()),
-            baseline: Some(BaselineOptions::default()),
-            artifact_filter: Some(ArtifactFilter::default()),
-        }
     }
 }
 
@@ -142,32 +72,31 @@ impl Separation {
     };
 }
 
-pub fn find_peaks(data: &DataXY, options: Option<FindPeaksOptions>) -> Vec<Peak> {
+pub fn find_peaks(data: &DataXY, options: &FindPeaksOptions) -> Vec<Peak> {
     find_separated_peaks(data, options, Separation::ANY_PEAK)
 }
 
 pub(crate) fn find_separated_peaks(
     data: &DataXY,
-    options: Option<FindPeaksOptions>,
+    options: &FindPeaksOptions,
     separation: Separation,
 ) -> Vec<Peak> {
-    let o = options.unwrap_or_default();
-    let filter = o.filter.unwrap_or_default();
-    let base_opts = o.baseline.unwrap_or_default();
 
     let n = data.y.len();
     if n == 0 {
         return Vec::new();
     }
 
-    let auto_baseline = filter.auto_baseline.unwrap_or(true);
-    let auto_noise = filter.auto_noise.unwrap_or(true);
-    let allow_overlap = filter.allow_overlap.unwrap_or(false);
+    let auto_baseline = options.auto_baseline;
+    let auto_noise = options.auto_noise;
+    let allow_overlap = options.allow_overlap;
 
     let baseline: Vec<f64> = if auto_baseline {
-        let mut b = base_opts;
-        b.edge_slope_level = Some(0);
-        calculate_baseline(&data.y, b)
+        let baseline_options = CalculateBaselineOptions {
+            lambda: options.lambda,
+            max_iterations: options.max_iterations,
+        };
+        calculate_baseline(&data.y, baseline_options, PEAK_EDGE_SLOPE_LEVEL)
     } else {
         vec![0.0; n]
     };
@@ -180,12 +109,9 @@ pub(crate) fn find_separated_peaks(
     };
 
     let noise: f64 = if auto_noise {
-        match filter.noise_method.unwrap_or_default() {
-            NoiseMethod::FindNoiseLevel => find_noise_level(&normalized_data.y).intensity,
-            NoiseMethod::SanPlot => find_noise_level_san_plot(&normalized_data.y).intensity,
-        }
+        find_noise_level(&normalized_data.y).intensity
     } else {
-        filter.noise.unwrap_or_default()
+        options.noise.unwrap_or(0.0)
     };
 
     let positions = scan_for_peaks(&normalized_data);
@@ -193,9 +119,9 @@ pub(crate) fn find_separated_peaks(
         return Vec::new();
     }
 
-    let bopt = o.boundaries.unwrap_or_default();
+    let bopt = BoundariesOptions::default();
 
-    let smoothed_signal = get_smoothed_signal(&normalized_data, filter.kernel_size);
+    let smoothed_signal = get_smoothed_signal(&normalized_data, (options.kernel_size > 0).then_some(options.kernel_size));
     let boundary_input = smoothed_signal.as_ref().unwrap_or(&normalized_data);
 
     let smoothed = SmoothedSignal::new(boundary_input, &bopt);
@@ -252,20 +178,13 @@ pub(crate) fn find_separated_peaks(
         return Vec::new();
     }
 
-    if let Some(artifact_opts) = o.artifact_filter {
-        ShapeFilter::new(artifact_opts.min_r2, artifact_opts.shape).retain(
-            &mut candidates,
-            &data.x,
-            &data.y,
-            &baseline,
-        );
-    }
+    ShapeFilter::new(options.min_r2, options.shape).retain(&mut candidates, &data.x, &data.y, &baseline);
 
     if candidates.is_empty() {
         return Vec::new();
     }
 
-    let mut peaks = filter_peak_candidates(candidates, filter);
+    let mut peaks = filter_peak_candidates(candidates, options);
 
     peaks.sort_by(|a, b| a.rt.partial_cmp(&b.rt).unwrap_or(Ordering::Equal));
     peaks = dedupe_near_identical(peaks);
@@ -273,13 +192,10 @@ pub(crate) fn find_separated_peaks(
     if !peaks.is_empty() {
         let mut cutoff = 0.0_f64;
         if noise > 0.0 {
-            let sn_mult = filter.min_snr.or(PeakFilter::default().min_snr).unwrap_or_default();
-            cutoff = sn_mult * noise;
+            cutoff = options.min_snr * noise;
         }
-        if let Some(user_int) = filter.min_intensity
-            && user_int > cutoff
-        {
-            cutoff = user_int;
+        if options.min_intensity > cutoff {
+            cutoff = options.min_intensity;
         }
 
         if cutoff > 0.0 {
@@ -381,32 +297,14 @@ pub fn apex_in_window(data: &DataXY, b: &Boundaries) -> Option<(f64, f64)> {
     Some((data.x[i], max_y))
 }
 
-fn filter_peak_candidates(peaks: Vec<PeakCandidate>, opt: PeakFilter) -> Vec<Peak> {
-    let mut out: Vec<Peak> = Vec::with_capacity(peaks.len());
-
-    let min_intensity = opt.min_intensity;
-    let min_width = opt.min_peak_width_points;
-
-    for p in peaks {
-        let mut pass = true;
-        if let Some(mi) = min_intensity
-            && p.intensity < mi
-        {
-            pass = false;
-        }
-
-        if pass
-            && let Some(w) = min_width
-            && p.n_points < w
-        {
-            pass = false;
-        }
-
-        if pass {
-            out.push(Peak::from(p));
-        }
-    }
-    out
+fn filter_peak_candidates(peaks: Vec<PeakCandidate>, options: &FindPeaksOptions) -> Vec<Peak> {
+    peaks
+        .into_iter()
+        .filter(|peak| peak.intensity >= options.min_intensity)
+        .filter(|peak| peak.n_points >= options.min_peak_width_points)
+        .filter(|peak| options.min_integral.is_none_or(|min_integral| peak.integral >= min_integral))
+        .map(Peak::from)
+        .collect()
 }
 
 fn dedupe_near_identical(peaks: Vec<Peak>) -> Vec<Peak> {

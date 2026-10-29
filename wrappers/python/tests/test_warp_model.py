@@ -55,13 +55,19 @@ class WarpModel(unittest.TestCase):
 
     def test_a_target_without_mz_is_named_by_its_index(self):
         targets = [TARGETS[0], {"id": "broken", "rt": 2.0}]
-        with self.assertRaisesRegex(RuntimeError, "predict_rts: target 2 has no valid m/z or rt"):
+        with self.assertRaises(support.quantion.QuantionError) as caught:
+            self.load(str(MODEL)).predict_rts(self.file, targets)
+        self.assertEqual(caught.exception.argument, "targets[1].mz")
+
+    def test_a_target_with_a_bad_mz_is_named_by_rust(self):
+        targets = [TARGETS[0], {"id": "broken", "mz": float("nan"), "rt": 2.0}]
+        with self.assertRaisesRegex(support.quantion.QuantionError, "predict_rts: target 2 has no valid m/z or rt"):
             self.load(str(MODEL)).predict_rts(self.file, targets)
 
     def test_a_file_without_scans_in_the_model_range_is_refused(self):
         empty = support.quantion.parse_ion(str(EMPTY_FILE))
         self.addCleanup(empty.dispose)
-        with self.assertRaisesRegex(RuntimeError, "predict_rts: the file has no scans, the warp model needs"):
+        with self.assertRaisesRegex(support.quantion.QuantionError, "predict_rts: the file has no scans, the warp model needs"):
             self.load(str(MODEL)).predict_rts(empty, TARGETS)
 
     def test_keys_and_values_come_from_the_model(self):
@@ -87,16 +93,16 @@ class WarpModel(unittest.TestCase):
         self.assertEqual(warp.calibrate(files, [early, TARGETS, late]), middle)
 
     def test_calibrate_needs_one_target_list_per_sample(self):
-        with self.assertRaisesRegex(ValueError, "got 1 samples and 2 target lists"):
+        with self.assertRaisesRegex(support.quantion.QuantionError, "got 1 samples and 2 target lists"):
             self.load(str(MODEL)).calibrate([self.file], [TARGETS, TARGETS])
 
     def test_calibrate_needs_an_id_for_each_target(self):
         targets = [TARGETS[0], {"mz": 310.2, "rt": 3.1}]
-        with self.assertRaisesRegex(RuntimeError, "calibrate: target 2 in list 1 has no id"):
+        with self.assertRaisesRegex(support.quantion.QuantionError, "calibrate: target 2 in list 1 has no id"):
             self.load(str(MODEL)).calibrate([self.file], [targets])
 
     def test_a_missing_model_is_refused(self):
-        with self.assertRaisesRegex(RuntimeError, "load_model: the model was not read"):
+        with self.assertRaisesRegex(support.quantion.QuantionError, "load_model: the file could not be read: the model was not read"):
             support.quantion.load_model(str(MODEL.with_name("missing.onnx")))
 
     def test_the_warp_keeps_working_after_the_model_is_disposed(self):
@@ -116,5 +122,5 @@ class WarpModel(unittest.TestCase):
         self.assertEqual(model.get_keys(), self.load(str(MODEL)).get_keys())
 
     def test_load_warp_needs_a_model(self):
-        with self.assertRaisesRegex(TypeError, "load_warp: expects a Model from load_model"):
+        with self.assertRaisesRegex(support.quantion.QuantionError, "load_warp: model must be a Model from load_model"):
             support.quantion.load_warp(str(MODEL))

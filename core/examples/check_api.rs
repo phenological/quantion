@@ -1,19 +1,11 @@
 use std::path::Path;
 
-use ionic::{IonReader, ReadOptions};
-use quantion::model::load_model;
-use quantion::utilities::{
-    calculate_eic::{EicOptions, EicReader, calculate_eic, get_scan_times},
-    find_features::{FindFeaturesOptions, find_features},
-    find_noise_level::find_noise_level,
-    find_peaks::{FindPeaksOptions, PeakFilter, find_peaks},
-    get_features::{AlignmentOptions, get_features},
-    get_peak::get_peak,
-    get_peaks_from_chrom::get_peaks_from_chrom,
-    get_peaks_from_eic::get_peaks_from_eic,
-    structs::{DataXY, FromTo, Peak, Roi},
+use quantion::{
+    DataXY, CalculateEicOptions, FindFeaturesOptions, FindPeaksOptions, FindTargetsOptions, FindTransitionsOptions,
+    GetPeakOptions, GridOptions, MatchFeaturesOptions, ParseIonOptions, Peak, SampleFile, ScanQuery, Target,
+    Transition, FromTo, calculate_eic, find_features, find_noise_level, find_peaks, find_targets, find_transitions,
+    get_peak, get_scans, load_model, load_warp, match_features, parse_ion,
 };
-use quantion::warp::{Target, load_warp};
 
 const FROM_RT: f64 = 0.0;
 const TO_RT: f64 = 5.0;
@@ -23,8 +15,7 @@ const GRID_STEP: f64 = 0.005;
 const GRID_START: f64 = 89.0;
 const GRID_END: f64 = 91.0;
 const ROI_RANGE: f64 = 0.05;
-const CORES: usize = 1;
-const MS1_LEVEL: u8 = 1;
+const THREADS: usize = 1;
 
 const FEATURE_MIN_INTENSITY: f64 = 500.0;
 const FEATURE_MIN_PEAK_WIDTH_POINTS: usize = 5;
@@ -77,92 +68,63 @@ fn digest(values: &[f64]) -> String {
     format!("{hash:08x}")
 }
 
-fn eic_options() -> EicOptions {
-    EicOptions {
+fn eic_options() -> CalculateEicOptions {
+    CalculateEicOptions {
+        from: FROM_RT,
+        to: TO_RT,
         ppm_tolerance: EIC_PPM,
         mz_tolerance: EIC_MZ,
         ..Default::default()
     }
 }
+
 fn peak_options(channel: &Channel) -> FindPeaksOptions {
     FindPeaksOptions {
-        filter: Some(PeakFilter {
-            min_intensity: Some(channel.min_intensity),
-            min_peak_width_points: Some(channel.min_peak_width_points),
-            auto_noise: Some(true),
-            auto_baseline: Some(true),
-            ..Default::default()
-        }),
+        min_intensity: channel.min_intensity,
+        min_peak_width_points: channel.min_peak_width_points,
+        auto_noise: true,
+        auto_baseline: true,
         ..Default::default()
     }
 }
 
 fn chrom_peak_options(channel: &Channel) -> FindPeaksOptions {
     FindPeaksOptions {
-        filter: Some(PeakFilter {
-            min_intensity: Some(channel.min_intensity),
-            min_peak_width_points: Some(channel.min_peak_width_points),
-            auto_noise: Some(false),
-            auto_baseline: Some(false),
-            ..Default::default()
-        }),
-        ..Default::default()
+        auto_noise: false,
+        auto_baseline: false,
+        ..peak_options(channel)
     }
 }
 
 fn feature_peak_options() -> FindPeaksOptions {
     FindPeaksOptions {
-        filter: Some(PeakFilter {
-            min_intensity: Some(FEATURE_MIN_INTENSITY),
-            min_peak_width_points: Some(FEATURE_MIN_PEAK_WIDTH_POINTS),
-            auto_noise: Some(true),
-            auto_baseline: Some(true),
-            ..Default::default()
-        }),
+        min_intensity: FEATURE_MIN_INTENSITY,
+        min_peak_width_points: FEATURE_MIN_PEAK_WIDTH_POINTS,
+        auto_noise: true,
+        auto_baseline: true,
         ..Default::default()
     }
 }
 
-fn feature_options() -> FindFeaturesOptions {
-    let mut options = FindFeaturesOptions::default();
-    options.final_eic_options.ppm_tolerance = EIC_PPM;
-    options.final_eic_options.mz_tolerance = EIC_MZ;
-    options.mz_scan_grid.min_mz = GRID_START;
-    options.mz_scan_grid.max_mz = GRID_END;
-    options.mz_scan_grid.step = GRID_STEP;
-    options.peak_options = feature_peak_options();
-    options
-}
-
-fn alignment_options() -> AlignmentOptions {
-    let mut options = AlignmentOptions::default();
-    options.eic_options = eic_options();
-    options.peak_options = Some(feature_peak_options());
-    options.min_samples = 1;
-    options
-}
-
-fn time_range() -> FromTo {
-    FromTo {
-        from: FROM_RT,
-        to: TO_RT,
+fn grid_options() -> GridOptions {
+    GridOptions {
+        start: GRID_START,
+        end: GRID_END,
+        step_size: GRID_STEP,
     }
 }
 
-fn open(fixture: &Path) -> IonReader {
-    IonReader::open(fixture, &ReadOptions::default()).expect("open fixture")
+fn open(fixture: &Path) -> SampleFile {
+    parse_ion(fixture.to_path_buf(), ParseIonOptions::default()).expect("open fixture")
 }
 
 fn count_scans(fixture: &Path) -> usize {
-    let mut ion = open(fixture);
-    let mut reader = EicReader::Ion(&mut ion);
-    get_scan_times(&mut reader, FROM_RT, TO_RT, MS1_LEVEL).len()
+    let query = ScanQuery::RtRange(FromTo { from: FROM_RT, to: TO_RT });
+    get_scans(&mut open(fixture), query, Default::default()).expect("get_scans").len()
 }
 
 fn extract_eic(fixture: &Path, channel: &Channel) -> DataXY {
-    let mut ion = open(fixture);
-    let mut reader = EicReader::Ion(&mut ion);
-    calculate_eic(&mut reader, channel.mass, time_range(), eic_options()).expect("calculate_eic")
+    calculate_eic(&mut open(fixture), channel.mass, eic_options()).expect("calculate_eic")
 }
 
 fn peak_lines(prefix: &str, peak: &Peak, out: &mut Vec<String>) {
@@ -178,60 +140,64 @@ fn shared_peak_lines(prefix: &str, peak: &Peak, out: &mut Vec<String>) {
     out.push(format!("{prefix}.intensity = {}", number(peak.intensity)));
 }
 
-fn peaks_from_eic(fixture: &Path, channel: &Channel, prefix: &str, out: &mut Vec<String>) {
-    let mut ion = open(fixture);
-    let mut reader = EicReader::Ion(&mut ion);
-    let rois: Vec<Roi> = channel
+fn report_targets(fixture: &Path, channel: &Channel, prefix: &str, out: &mut Vec<String>) {
+    let targets: Vec<Target> = channel
         .targets
         .iter()
-        .map(|(id, rt)| Roi::eic(*id, *rt, channel.mass, ROI_RANGE))
+        .map(|(id, rt)| Target {
+            id: Some(id.to_string()),
+            mz: channel.mass,
+            rt: *rt,
+            range: Some(ROI_RANGE),
+        })
         .collect();
-    let rows = get_peaks_from_eic(
-        &mut reader,
-        time_range(),
-        &rois,
-        Some(peak_options(channel)),
-        CORES,
-    )
-    .expect("get_peaks_from_eic");
-    for (id, _, _, peak) in &rows {
+    let options = FindTargetsOptions {
+        eic: eic_options(),
+        find_peaks: peak_options(channel),
+        threads: THREADS,
+    };
+    let rows = find_targets(&mut open(fixture), &targets, options).expect("find_targets");
+    for ((id, _), peak) in channel.targets.iter().zip(&rows) {
         shared_peak_lines(&format!("{prefix}.{id}"), peak, out);
     }
 }
 
-fn chromatogram_index(channel: &Channel) -> usize {
-    CHANNELS
-        .iter()
-        .filter(|other| other.mass < channel.mass)
-        .count()
-}
-
-fn peaks_from_chrom(fixture: &Path, channel: &Channel, prefix: &str, out: &mut Vec<String>) {
-    let mut ion = open(fixture);
-    let mzml = ion.to_mzml().expect("read chromatograms");
-    let index = chromatogram_index(channel);
-    let rois: Vec<Roi> = channel
+fn report_transitions(fixture: &Path, channel: &Channel, prefix: &str, out: &mut Vec<String>) {
+    let folder = fixture.parent().and_then(Path::parent).expect("fixtures folder");
+    let targets: Vec<Transition> = channel
         .targets
         .iter()
-        .map(|(id, rt)| Roi::chrom(*id, index, *rt, ROI_RANGE))
+        .map(|(id, rt)| Transition {
+            id: Some(id.to_string()),
+            precursor: channel.mass,
+            product: channel.mass,
+            rt: *rt,
+            range: ROI_RANGE,
+        })
         .collect();
-    let rows = get_peaks_from_chrom(&mzml, &rois, Some(chrom_peak_options(channel)), CORES)
-        .unwrap_or_default();
-    for (roi, row) in channel.targets.iter().zip(&rows) {
-        let name = format!("{prefix}.{}", roi.0);
-        out.push(format!("{name}.rt = {}", number(row.peak_rt)));
-        out.push(format!("{name}.from = {}", number(row.from_rt)));
-        out.push(format!("{name}.to = {}", number(row.to_rt)));
-        out.push(format!("{name}.intensity = {}", number(row.intensity)));
-        out.push(format!("{name}.area = {}", number(row.area)));
+    let options = FindTransitionsOptions {
+        find_peaks: chrom_peak_options(channel),
+        threads: THREADS,
+    };
+    let rows = find_transitions(&mut open(&folder.join("srm.ion")), &targets, options).expect("find_transitions");
+    for ((id, _), peak) in channel.targets.iter().zip(&rows) {
+        let name = format!("{prefix}.{id}");
+        out.push(format!("{name}.rt = {}", number(peak.rt)));
+        out.push(format!("{name}.from = {}", number(peak.from)));
+        out.push(format!("{name}.to = {}", number(peak.to)));
+        out.push(format!("{name}.intensity = {}", number(peak.intensity)));
+        out.push(format!("{name}.area = {}", number(peak.integral)));
     }
 }
 
 fn features(fixture: &Path, out: &mut Vec<String>) {
-    let mut ion = open(fixture);
-    let mut reader = EicReader::Ion(&mut ion);
-    let found = find_features(&mut reader, time_range(), Some(feature_options()), CORES)
-        .expect("find_features");
+    let options = FindFeaturesOptions {
+        eic: eic_options(),
+        grid: grid_options(),
+        find_peaks: feature_peak_options(),
+        threads: THREADS,
+    };
+    let found = find_features(&mut open(fixture), options).expect("find_features");
     out.push(format!("find_features.count = {}", found.len()));
     for (index, f) in found.iter().enumerate() {
         let name = format!("find_features[{index}]");
@@ -246,17 +212,17 @@ fn features(fixture: &Path, out: &mut Vec<String>) {
 }
 
 fn consensus_features(directory: &str, out: &mut Vec<String>) {
-    let found = get_features(
-        directory,
-        time_range(),
-        feature_options(),
-        alignment_options(),
-        CORES,
-    )
-    .expect("get_features");
-    out.push(format!("get_features.count = {}", found.len()));
+    let options = MatchFeaturesOptions {
+        eic: eic_options(),
+        grid: grid_options(),
+        find_peaks: feature_peak_options(),
+        threads: THREADS,
+        ..Default::default()
+    };
+    let found = match_features(directory, options).expect("match_features");
+    out.push(format!("match_features.count = {}", found.len()));
     for (index, f) in found.iter().enumerate() {
-        let name = format!("get_features[{index}]");
+        let name = format!("match_features[{index}]");
         out.push(format!("{name}.mz = {}", number(f.mz)));
         out.push(format!("{name}.rt = {}", number(f.rt)));
         out.push(format!("{name}.from = {}", number(f.from)));
@@ -284,33 +250,28 @@ fn report_channel(fixture: &Path, channel: &Channel, out: &mut Vec<String>) {
     ));
     out.push(format!("{name}.find_noise_level.width = {}", noise.width));
 
-    let found = find_peaks(&data, Some(peak_options(channel)));
+    let found = find_peaks(&data, peak_options(channel)).expect("find_peaks");
     out.push(format!("{name}.find_peaks.count = {}", found.len()));
     for (index, peak) in found.iter().enumerate() {
         peak_lines(&format!("{name}.find_peaks[{index}]"), peak, out);
     }
 
     let target = channel.targets[2].1;
-    let single = get_peak(
-        &data,
-        &Roi::peak(target, ROI_RANGE),
-        Some(peak_options(channel)),
-    );
+    let options = GetPeakOptions {
+        range: ROI_RANGE,
+        find_peaks: peak_options(channel),
+    };
+    let single = get_peak(&data, target, options).expect("get_peak");
     peak_lines(&format!("{name}.get_peak"), &single, out);
 
-    peaks_from_eic(fixture, channel, &format!("{name}.get_peaks_from_eic"), out);
-    peaks_from_chrom(
-        fixture,
-        channel,
-        &format!("{name}.get_peaks_from_chrom"),
-        out,
-    );
+    report_targets(fixture, channel, &format!("{name}.find_targets"), out);
+    report_transitions(fixture, channel, &format!("{name}.find_transitions"), out);
 }
 
 fn predicted_rts(fixture: &Path, directory: &str, out: &mut Vec<String>) {
     let model = Path::new(directory).join("..").join("shift_model.onnx");
     let warp = load_warp(&load_model(model.as_path()).expect("model")).expect("warp model");
-    let mut ion = IonReader::open(fixture, &ReadOptions::default()).expect("open fixture");
+    let mut file = open(fixture);
     let names: Vec<String> = CHANNELS
         .iter()
         .flat_map(|channel| {
@@ -324,14 +285,15 @@ fn predicted_rts(fixture: &Path, directory: &str, out: &mut Vec<String>) {
         .iter()
         .flat_map(|channel| {
             channel.targets.iter().map(move |(id, rt)| Target {
-                id: id.to_string(),
+                id: Some(id.to_string()),
                 mz: channel.mass,
                 rt: *rt,
+                range: None,
             })
         })
         .collect();
     let predicted = warp
-        .predict_rts(&mut EicReader::Ion(&mut ion), &targets)
+        .predict_rts(&mut file, &targets)
         .expect("predict_rts");
     out.push(format!("predict_rts.count = {}", predicted.len()));
     for (name, prediction) in names.iter().zip(&predicted) {

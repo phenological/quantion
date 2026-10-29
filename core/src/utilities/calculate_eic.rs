@@ -6,6 +6,7 @@ use ionic::{
     source::{ByteRange, merge_ranges},
 };
 
+use crate::options::CalculateEicOptions;
 use crate::utilities::{
     ion::{ScanSource, ScanSummary},
     structs::{DataXY, FromTo, Peak},
@@ -27,36 +28,25 @@ fn scan_in_minutes(mut summary: ScanSummary) -> ScanSummary {
     summary
 }
 
-#[derive(Clone, Copy, Debug)]
-pub struct EicOptions {
-    pub ppm_tolerance: f64,
-    pub mz_tolerance: f64,
-    pub time_unit: TimeUnit,
-}
-
-impl Default for EicOptions {
-    fn default() -> Self {
-        Self {
-            ppm_tolerance: 20.0,
-            mz_tolerance: 0.005,
-            time_unit: TimeUnit::Minutes,
-        }
-    }
-}
-
-#[derive(Clone, Copy, Debug, Default)]
+/// **TimeUnit** · Enums
+///
+/// Unit of the retention times you give to a function. Results are always in minutes.
+///
+/// [Documentation](https://phenological.github.io/quantion/?language=rust#TimeUnit)
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[allow(clippy::upper_case_acronyms)]
 pub enum TimeUnit {
-    Seconds,
+    SECONDS,
     #[default]
-    Minutes,
+    MINUTES,
 }
 
 impl TimeUnit {
     #[inline]
     pub fn to_minutes(self, value: f64) -> f64 {
         match self {
-            TimeUnit::Seconds => value / 60.0,
-            TimeUnit::Minutes => value,
+            TimeUnit::SECONDS => value / 60.0,
+            TimeUnit::MINUTES => value,
         }
     }
 }
@@ -213,7 +203,7 @@ pub fn get_scan_times(
     reader: &mut EicReader,
     rt_from: f64,
     rt_to: f64,
-    ms_level: u8,
+    level: u8,
 ) -> Vec<ScanTime> {
     let mut result = Vec::new();
     let rt_min = rt_from.min(rt_to);
@@ -223,7 +213,7 @@ pub fn get_scan_times(
         EicReader::Ion(ion) => {
             ion.for_each_summary(&mut |idx, summary| {
                 let summary = scan_in_minutes(summary);
-                if summary.rt >= rt_min && summary.rt <= rt_max && summary.ms_level == ms_level {
+                if summary.rt >= rt_min && summary.rt <= rt_max && summary.ms_level == level {
                     result.push(ScanTime {
                         index: idx,
                         rt: summary.rt,
@@ -234,7 +224,7 @@ pub fn get_scan_times(
         EicReader::Mzml(mzml) => {
             mzml.for_each_summary(&mut |idx, summary| {
                 let summary = scan_in_minutes(summary);
-                if summary.rt >= rt_min && summary.rt <= rt_max && summary.ms_level == ms_level {
+                if summary.rt >= rt_min && summary.rt <= rt_max && summary.ms_level == level {
                     result.push(ScanTime {
                         index: idx,
                         rt: summary.rt,
@@ -341,28 +331,28 @@ pub fn plan_window_ranges(
 
 pub fn plan_eic_ranges(
     ion: &mut IonReader,
-    target_mz: f64,
+    mz: f64,
     from: f64,
     to: f64,
-    ppm: f64,
-    mz_tol: f64,
+    ppm_tolerance: f64,
+    mz_tolerance: f64,
 ) -> Result<Vec<ByteRange>, FastError> {
-    if !target_mz.is_finite() || target_mz <= 0.0 {
+    if !mz.is_finite() || mz <= 0.0 {
         return Err(FastError::InvalidRequest);
     }
 
-    let options = EicOptions {
-        ppm_tolerance: ppm,
-        mz_tolerance: mz_tol,
+    let options = CalculateEicOptions {
+        ppm_tolerance,
+        mz_tolerance,
         ..Default::default()
     };
 
-    let tolerance = mz_tolerance_for(target_mz, options);
+    let tolerance = mz_tolerance_for(mz, options);
     if !tolerance.is_finite() || tolerance <= 0.0 {
         return Err(FastError::InvalidRequest);
     }
 
-    plan_window_ranges(ion, from, to, target_mz - tolerance, target_mz + tolerance)
+    plan_window_ranges(ion, from, to, mz - tolerance, mz + tolerance)
 }
 
 fn whole_scan_mz_range() -> Range {
@@ -376,11 +366,11 @@ pub fn plan_scan_ranges(
     ion: &mut IonReader,
     query: ScanQuery,
     time_unit: TimeUnit,
-    ms_level: u8,
+    level: u8,
 ) -> Result<Vec<ByteRange>, FastError> {
     ion.require_bounds().map_err(FastError::from)?;
 
-    let wanted = find_wanted_scans(ion, query, time_unit, ms_level);
+    let wanted = find_wanted_scans(ion, query, time_unit, level);
     if wanted.only_first {
         return ranges_for_first_scan_with_data(ion, &wanted.scans);
     }
@@ -420,28 +410,28 @@ fn ranges_for_first_scan_with_data(
 
 pub fn calculate_eic(
     reader: &mut EicReader,
-    target_mz: f64,
-    time_range: FromTo,
-    options: EicOptions,
+    mz: f64,
+    window: FromTo,
+    options: CalculateEicOptions,
 ) -> Result<DataXY, FastError> {
-    if !target_mz.is_finite() || target_mz <= 0.0 {
+    if !mz.is_finite() || mz <= 0.0 {
         return Err(FastError::InvalidRequest);
     }
 
-    let tolerance = mz_tolerance_for(target_mz, options);
+    let tolerance = mz_tolerance_for(mz, options);
     if !tolerance.is_finite() || tolerance <= 0.0 {
         return Err(FastError::InvalidRequest);
     }
 
-    let mz_lower = target_mz - tolerance;
-    let mz_upper = target_mz + tolerance;
+    let mz_lower = mz - tolerance;
+    let mz_upper = mz + tolerance;
 
     let rt_min = options
         .time_unit
-        .to_minutes(time_range.from.min(time_range.to));
+        .to_minutes(window.from.min(window.to));
     let rt_max = options
         .time_unit
-        .to_minutes(time_range.from.max(time_range.to));
+        .to_minutes(window.from.max(window.to));
 
     let scan_times = get_scan_times(reader, rt_min, rt_max, MS1_LEVEL);
 
@@ -475,18 +465,18 @@ pub fn calculate_eic(
 pub fn get_eic_for_mz(
     scans: &[CentroidScan],
     scan_count: usize,
-    target_mz: f64,
-    options: EicOptions,
+    mz: f64,
+    options: CalculateEicOptions,
 ) -> Vec<f64> {
-    if !target_mz.is_finite() || target_mz <= 0.0 {
+    if !mz.is_finite() || mz <= 0.0 {
         return vec![0.0; scan_count];
     }
-    let tolerance = mz_tolerance_for(target_mz, options);
+    let tolerance = mz_tolerance_for(mz, options);
     if !tolerance.is_finite() || tolerance <= 0.0 {
         return vec![0.0; scan_count];
     }
-    let mz_lower = target_mz - tolerance;
-    let mz_upper = target_mz + tolerance;
+    let mz_lower = mz - tolerance;
+    let mz_upper = mz + tolerance;
     let mut intensities = vec![0.0f64; scan_count];
     for (index, scan) in scans.iter().take(scan_count).enumerate() {
         intensities[index] =
@@ -495,12 +485,17 @@ pub fn get_eic_for_mz(
     intensities
 }
 
+/// **ScanQuery** · Inputs
+///
+/// Which scans get_scans returns.
+///
+/// [Documentation](https://phenological.github.io/quantion/?language=rust#ScanQuery)
 #[derive(Debug, Clone, Copy)]
 pub enum ScanQuery {
     RtRange(FromTo),
-    ClosestRt(f64),
+    Rt(f64),
     MzRange(FromTo),
-    ClosestMz(f64),
+    Mz(f64),
 }
 
 pub struct WantedScans {
@@ -512,9 +507,9 @@ pub fn get_scans(
     source: &mut impl ScanSource,
     query: ScanQuery,
     time_unit: TimeUnit,
-    ms_level: u8,
+    level: u8,
 ) -> (Vec<f64>, Vec<CentroidScan>) {
-    let wanted = find_wanted_scans(source, query, time_unit, ms_level);
+    let wanted = find_wanted_scans(source, query, time_unit, level);
     if wanted.only_first {
         return load_first(source, wanted.scans.into_iter());
     }
@@ -525,13 +520,13 @@ pub fn find_wanted_scans(
     source: &mut impl ScanSource,
     query: ScanQuery,
     time_unit: TimeUnit,
-    ms_level: u8,
+    level: u8,
 ) -> WantedScans {
     match query {
-        ScanQuery::RtRange(range) => find_by_rt_range(source, range, time_unit, ms_level),
-        ScanQuery::ClosestRt(rt) => find_closest_by_rt(source, time_unit.to_minutes(rt), ms_level),
-        ScanQuery::MzRange(range) => find_by_mz_range(source, range, ms_level),
-        ScanQuery::ClosestMz(mz) => find_closest_by_mz(source, mz, ms_level),
+        ScanQuery::RtRange(range) => find_by_rt_range(source, range, time_unit, level),
+        ScanQuery::Rt(rt) => find_closest_by_rt(source, time_unit.to_minutes(rt), level),
+        ScanQuery::MzRange(range) => find_by_mz_range(source, range, level),
+        ScanQuery::Mz(mz) => find_closest_by_mz(source, mz, level),
     }
 }
 
@@ -539,14 +534,14 @@ fn find_by_rt_range(
     source: &mut impl ScanSource,
     range: FromTo,
     time_unit: TimeUnit,
-    ms_level: u8,
+    level: u8,
 ) -> WantedScans {
     let rt_min = time_unit.to_minutes(range.from.min(range.to));
     let rt_max = time_unit.to_minutes(range.from.max(range.to));
     let mut scans: Vec<(usize, ScanSummary)> = Vec::new();
     source.for_each_summary(&mut |index, summary| {
         let summary = scan_in_minutes(summary);
-        if ms_level != 0 && summary.ms_level != ms_level {
+        if level != 0 && summary.ms_level != level {
             return;
         }
         if !summary.rt.is_finite() || summary.rt < rt_min || summary.rt > rt_max {
@@ -561,11 +556,11 @@ fn find_by_rt_range(
     }
 }
 
-fn find_closest_by_rt(source: &mut impl ScanSource, target_rt: f64, ms_level: u8) -> WantedScans {
+fn find_closest_by_rt(source: &mut impl ScanSource, target_rt: f64, level: u8) -> WantedScans {
     let mut by_distance: Vec<(f64, usize, ScanSummary)> = Vec::new();
     source.for_each_summary(&mut |index, summary| {
         let summary = scan_in_minutes(summary);
-        if ms_level != 0 && summary.ms_level != ms_level {
+        if level != 0 && summary.ms_level != level {
             return;
         }
         if !summary.rt.is_finite() {
@@ -579,13 +574,13 @@ fn find_closest_by_rt(source: &mut impl ScanSource, target_rt: f64, ms_level: u8
     }
 }
 
-fn find_by_mz_range(source: &mut impl ScanSource, range: FromTo, ms_level: u8) -> WantedScans {
+fn find_by_mz_range(source: &mut impl ScanSource, range: FromTo, level: u8) -> WantedScans {
     let mz_min = range.from.min(range.to);
     let mz_max = range.from.max(range.to);
     let mut scans: Vec<(usize, ScanSummary)> = Vec::new();
     source.for_each_summary(&mut |index, summary| {
         let summary = scan_in_minutes(summary);
-        if ms_level != 0 && summary.ms_level != ms_level {
+        if level != 0 && summary.ms_level != level {
             return;
         }
         let mz = summary.selected_ion_mz;
@@ -601,17 +596,17 @@ fn find_by_mz_range(source: &mut impl ScanSource, range: FromTo, ms_level: u8) -
     }
 }
 
-fn find_closest_by_mz(source: &mut impl ScanSource, target_mz: f64, ms_level: u8) -> WantedScans {
+fn find_closest_by_mz(source: &mut impl ScanSource, mz: f64, level: u8) -> WantedScans {
     let mut by_distance: Vec<(f64, usize, ScanSummary)> = Vec::new();
     source.for_each_summary(&mut |index, summary| {
         let summary = scan_in_minutes(summary);
-        if ms_level != 0 && summary.ms_level != ms_level {
+        if level != 0 && summary.ms_level != level {
             return;
         }
         if !summary.selected_ion_mz.is_finite() {
             return;
         }
-        by_distance.push(((summary.selected_ion_mz - target_mz).abs(), index, summary));
+        by_distance.push(((summary.selected_ion_mz - mz).abs(), index, summary));
     });
     WantedScans {
         scans: sort_by_distance(by_distance),
@@ -727,9 +722,9 @@ pub fn upper_bound(values: &[f64], target: f64) -> usize {
 }
 
 #[inline]
-pub fn mz_tolerance_for(target_mz: f64, options: EicOptions) -> f64 {
+pub fn mz_tolerance_for(mz: f64, options: CalculateEicOptions) -> f64 {
     let ppm_window = if options.ppm_tolerance > 0.0 {
-        (options.ppm_tolerance * 1e-6) * target_mz.abs()
+        (options.ppm_tolerance * 1e-6) * mz.abs()
     } else {
         0.0
     };
@@ -889,7 +884,7 @@ mod tests {
 
     #[test]
     fn mz_tolerance_ppm_dominates() {
-        let opts = EicOptions {
+        let opts = CalculateEicOptions {
             ppm_tolerance: 10.0,
             mz_tolerance: 0.001,
             ..Default::default()
@@ -900,7 +895,7 @@ mod tests {
 
     #[test]
     fn mz_tolerance_abs_dominates() {
-        let opts = EicOptions {
+        let opts = CalculateEicOptions {
             ppm_tolerance: 1.0,
             mz_tolerance: 0.1,
             ..Default::default()
@@ -919,7 +914,7 @@ mod tests {
         let (rts, scans) = get_scans(
             &mut source,
             ScanQuery::RtRange(FromTo { from: 1.0, to: 2.5 }),
-            TimeUnit::Minutes,
+            TimeUnit::MINUTES,
             1,
         );
         assert_eq!(rts, vec![1.0, 2.0]);
@@ -935,7 +930,7 @@ mod tests {
         let (rts, scans) = get_scans(
             &mut source,
             ScanQuery::RtRange(FromTo { from: 0.0, to: 5.0 }),
-            TimeUnit::Minutes,
+            TimeUnit::MINUTES,
             1,
         );
         assert_eq!(rts, vec![1.0]);
@@ -949,7 +944,7 @@ mod tests {
         let (rts, scans) = get_scans(
             &mut source,
             ScanQuery::RtRange(FromTo { from: 0.0, to: 2.0 }),
-            TimeUnit::Minutes,
+            TimeUnit::MINUTES,
             1,
         );
         assert!(rts.is_empty());
@@ -963,7 +958,7 @@ mod tests {
             make_scan(3.0, 1, f64::NAN, vec![300.0], vec![30.0]),
             make_scan(5.0, 1, f64::NAN, vec![500.0], vec![50.0]),
         ]);
-        let (rts, scans) = get_scans(&mut source, ScanQuery::ClosestRt(2.8), TimeUnit::Minutes, 1);
+        let (rts, scans) = get_scans(&mut source, ScanQuery::Rt(2.8), TimeUnit::MINUTES, 1);
         assert_eq!(rts, vec![3.0]);
         assert_eq!(scans.len(), 1);
     }
@@ -974,7 +969,7 @@ mod tests {
             make_scan(1.0, 1, f64::NAN, vec![], vec![]),
             make_scan(2.0, 1, f64::NAN, vec![200.0], vec![20.0]),
         ]);
-        let (rts, scans) = get_scans(&mut source, ScanQuery::ClosestRt(1.0), TimeUnit::Minutes, 1);
+        let (rts, scans) = get_scans(&mut source, ScanQuery::Rt(1.0), TimeUnit::MINUTES, 1);
         assert_eq!(rts, vec![2.0]);
         assert_eq!(scans.len(), 1);
     }
@@ -982,7 +977,7 @@ mod tests {
     #[test]
     fn get_closest_rt_empty_when_source_empty() {
         let mut source = MockSource::new(vec![]);
-        let (rts, scans) = get_scans(&mut source, ScanQuery::ClosestRt(1.0), TimeUnit::Minutes, 1);
+        let (rts, scans) = get_scans(&mut source, ScanQuery::Rt(1.0), TimeUnit::MINUTES, 1);
         assert!(rts.is_empty());
         assert!(scans.is_empty());
     }
@@ -1000,7 +995,7 @@ mod tests {
                 from: 490.0,
                 to: 650.0,
             }),
-            TimeUnit::Minutes,
+            TimeUnit::MINUTES,
             2,
         );
         assert_eq!(rts.len(), 2);
@@ -1020,7 +1015,7 @@ mod tests {
                 from: 0.0,
                 to: 1000.0,
             }),
-            TimeUnit::Minutes,
+            TimeUnit::MINUTES,
             2,
         );
         assert_eq!(rts, vec![2.0]);
@@ -1034,12 +1029,7 @@ mod tests {
             make_scan(2.0, 2, 600.0, vec![600.0], vec![200.0]),
             make_scan(3.0, 2, 700.0, vec![700.0], vec![300.0]),
         ]);
-        let (rts, scans) = get_scans(
-            &mut source,
-            ScanQuery::ClosestMz(610.0),
-            TimeUnit::Minutes,
-            2,
-        );
+        let (rts, scans) = get_scans(&mut source, ScanQuery::Mz(610.0), TimeUnit::MINUTES, 2);
         assert_eq!(rts, vec![2.0]);
         assert_eq!(scans[0].metadata.selected_ion_mz, 600.0);
     }
@@ -1050,12 +1040,7 @@ mod tests {
             make_scan(1.0, 2, 500.0, vec![], vec![]),
             make_scan(2.0, 2, 510.0, vec![510.0], vec![200.0]),
         ]);
-        let (rts, scans) = get_scans(
-            &mut source,
-            ScanQuery::ClosestMz(500.0),
-            TimeUnit::Minutes,
-            2,
-        );
+        let (rts, scans) = get_scans(&mut source, ScanQuery::Mz(500.0), TimeUnit::MINUTES, 2);
         assert_eq!(rts, vec![2.0]);
         assert_eq!(scans.len(), 1);
     }
@@ -1064,12 +1049,7 @@ mod tests {
     fn get_closest_mz_empty_when_no_finite_selected_ion_mz() {
         let mut source =
             MockSource::new(vec![make_scan(1.0, 2, f64::NAN, vec![100.0], vec![10.0])]);
-        let (rts, scans) = get_scans(
-            &mut source,
-            ScanQuery::ClosestMz(500.0),
-            TimeUnit::Minutes,
-            2,
-        );
+        let (rts, scans) = get_scans(&mut source, ScanQuery::Mz(500.0), TimeUnit::MINUTES, 2);
         assert!(rts.is_empty());
         assert!(scans.is_empty());
     }
@@ -1083,7 +1063,7 @@ mod tests {
         let (rts, scans) = get_scans(
             &mut source,
             ScanQuery::RtRange(FromTo { from: 0.0, to: 5.0 }),
-            TimeUnit::Minutes,
+            TimeUnit::MINUTES,
             0,
         );
         assert_eq!(rts.len(), 2);

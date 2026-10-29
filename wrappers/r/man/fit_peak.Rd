@@ -1,37 +1,30 @@
 \name{fit_peak}
 \alias{fit_peak}
-\title{Fit a peak shape to XY data}
+\title{Fit a curve to a peak}
 \description{
-Fits a Gaussian or an exponentially modified Gaussian to XY data around one
-retention time, and returns the shape parameters of the best fit.
+Fit a Gaussian or EMG curve to the peak at \code{rt}. The apex intensity of that peak is the starting point unless one is forced.
 }
 \usage{
-fit_peak(
-  x,
-  y,
-  rt,
-  intensity,
-  shape = "emg"
-)
+fit_peak(x, y, rt, options = fit_peak_options())
 }
 \arguments{
-  \item{x}{A numeric vector of retention times. At least 5 points.}
-  \item{y}{A numeric vector of intensities, the same length as \code{x}.}
-  \item{rt}{The retention time to start the fit from.}
-  \item{intensity}{The intensity at \code{rt}, used as the starting height.}
-  \item{shape}{\code{"gaussian"} or \code{"emg"}.}
+  \item{x}{Retention times in minutes, ascending. At least 3 points.}
+  \item{y}{Intensities, the same length as \code{x}.}
+  \item{rt}{Retention time of the peak to fit.}
+  \item{options}{Settings from \code{\link{fit_peak_options}()}.}
 }
 \value{
-A list with \code{shape}, \code{height}, \code{center}, \code{fwhm}, \code{tail}
-and \code{r2}. \code{tail} is \code{0} for a Gaussian.
+A list with \code{height}, \code{center}, \code{fwhm}, \code{tail} (0 for a Gaussian) and \code{r2}, or \code{NULL} when no peak is found or the fit fails.
+}
+\section{Documentation}{
+\url{https://phenological.github.io/quantion/?language=r#fit_peak}
 }
 \examples{
-\donttest{
-eic <- calculate_eic(file, 89.04768, from = 0, to = 5)
-peak <- get_peak(eic$x, eic$y, rt = 2.385, range = 0.1)
-params <- fit_peak(eic$x, eic$y, peak$rt, peak$intensity)
-}
+trace <- draw_peaks(list(list(height = 1000, center = 2, fwhm = 0.05, tail = 0.01)),
+                    draw_peaks_options(from = 1, to = 3, points = 400L))
+params <- fit_peak(trace$x, trace$y, rt = 2)
+gaussian <- fit_peak(trace$x, trace$y, rt = 2, options = fit_peak_options(shape = "GAUSSIAN"))
 }
 \seealso{
-\code{\link{draw_peak}()}, \code{\link{get_peak}()}, \code{\link{find_peaks}()}
+\code{\link{fit_peak_options}()}, \code{\link{draw_peaks}()}
 }

@@ -17,7 +17,7 @@ OUT           ?= $(ARTIFACTS)/$(CRATE_VERSION)
 .PHONY: release mac linux windows wasm \
         macos-arm64 macos-x86_64 linux-amd64 linux-arm64 windows-amd64 windows-arm64 \
         check-version test header header-check native quick-check check-api check-api-update \
-        publish clean
+        publish publish_python publish_R clean
 
 release: mac linux windows wasm
 
@@ -137,6 +137,12 @@ check-api-update:
 
 publish:
 	@scripts/publish.sh "$(VERSION)"
+
+publish_python:
+	@scripts/publish-python.sh "$(VERSION)"
+
+publish_R:
+	@scripts/publish-r.sh "$(VERSION)"
 
 clean:
 	cargo clean --manifest-path $(CRATE_MANIFEST)

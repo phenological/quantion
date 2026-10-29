@@ -3,12 +3,7 @@ import * as fs from "fs";
 import * as http from "http";
 import * as path from "path";
 import { NodeBackend } from "../utilities/backendNode";
-import {
-  setBackend,
-  loadModel,
-  loadWarp,
-  parseIon,
-} from "../utilities/api";
+import { setBackend, loadModel, loadWarp, parseIon } from "../utilities/api";
 
 const fixtures = path.join(__dirname, "../../../../core/tests/fixtures");
 const modelPath = path.join(fixtures, "shift_model.onnx");
@@ -138,7 +133,7 @@ describeWithNode("warp model", () => {
   it("refuses a model URL that answers with an HTTP error", async () => {
     await expect(
       loadModel(modelUrl.replace("shift_model.onnx", "missing.onnx")),
-    ).rejects.toThrow("load_model: the model was not read: GET");
+    ).rejects.toThrow("load_model: the file could not be read: GET");
   });
 
   it("gives the keys and values stored in the model", async () => {
@@ -217,13 +212,13 @@ describeWithNode("warp model", () => {
 
   it("needs a model to make a warp", () => {
     expect(() => loadWarp(modelPath as never)).toThrow(
-      "loadWarp: expects a valid Model from loadModel",
+      "load_warp: model must be an open Model from loadModel",
     );
   });
 
   it("refuses a missing model file", async () => {
     await expect(
       loadModel(path.join(fixtures, "missing.onnx")),
-    ).rejects.toThrow("load_model: the model was not read");
+    ).rejects.toThrow("load_model: the file could not be read");
   });
 });

@@ -1,17 +1,22 @@
-use std::{borrow::Cow, f64};
+use std::borrow::Cow;
 
 use crate::utilities::cheminfo::{
     kmeans,
     noise_san_plot::{NoiseSanPlotOptions, noise_san_plot},
 };
 
+/// **NoiseLevel** · Results
+///
+/// Result of find_noise_level.
+///
+/// [Documentation](https://phenological.github.io/quantion/?language=rust#NoiseLevel)
 #[derive(Clone, Copy, Debug)]
-pub struct Noise {
+pub struct NoiseLevel {
     pub width: usize,
     pub intensity: f64,
 }
 
-impl Default for Noise {
+impl Default for NoiseLevel {
     fn default() -> Self {
         Self {
             width: 0,
@@ -20,7 +25,7 @@ impl Default for Noise {
     }
 }
 
-pub fn find_noise_level<'a, Y>(y: Y) -> Noise
+pub fn find_noise_level<'a, Y>(y: Y) -> NoiseLevel
 where
     Y: IntoF64Slice<'a>,
 {
@@ -28,10 +33,10 @@ where
     let floor = min_value(&y);
     let segments = scan_segments(y.as_ref(), floor);
     if segments.is_empty() {
-        return Noise::default();
+        return NoiseLevel::default();
     }
     if segments.len() == 1 {
-        return Noise {
+        return NoiseLevel {
             width: 0,
             intensity: floor,
         };
@@ -57,22 +62,22 @@ where
     }
 
     if max_in_noise.is_finite() {
-        Noise {
+        NoiseLevel {
             width: max_noise_width,
             intensity: max_in_noise,
         }
     } else {
-        Noise::default()
+        NoiseLevel::default()
     }
 }
 
-pub fn find_noise_level_san_plot<'a, Y>(y: Y) -> Noise
+pub fn find_noise_level_san_plot<'a, Y>(y: Y) -> NoiseLevel
 where
     Y: IntoF64Slice<'a>,
 {
     let y = y.into_f64_slice();
     if y.is_empty() {
-        return Noise::default();
+        return NoiseLevel::default();
     }
 
     let result = noise_san_plot(
@@ -90,7 +95,7 @@ where
         0.0
     };
 
-    Noise {
+    NoiseLevel {
         width: 0,
         intensity,
     }

@@ -2,13 +2,15 @@ import type { Backend, WarpModelHandle } from "./backend";
 import { fileHandleRegistry } from "./handleRegistry";
 import { Metadata } from "./metadata";
 import { SampleFile } from "./sampleFile";
-import type { ModelEntry, PredictedRt, WarpTarget } from "../types/types";
+import { invalidArgument } from "./errors";
+import type { PredictedRt, Target } from "../types/types";
+import type { ModelEntry } from "../types/internal";
 
 type Cell = ReturnType<typeof fileHandleRegistry.register>;
 
 /**
  * A warp model. Make it once with {@link loadWarp} and use it
- * with {@link predictRts} for every file.
+ * with predictRts for every file.
  */
 export class WarpModel extends Metadata {
   /** @internal */
@@ -36,18 +38,21 @@ export class WarpModel extends Metadata {
   }
 
   /**
-   * Predict each target's RT in a file.
+   * predictRts · Models
    *
-   * @param file - The sample file.
-   * @param targets - Targets, each with `mz` and `rt`.
-   * @returns One `{ rt, uncertainty }` per target, in the same order.
+   * Predict where each target elutes in one sample.
+   *
+   * @param file - The sample to read, from parse_ion or parse_mzml.
+   * @param targets - Targets with mz and reference rt. id and range are optional and not used.
+   * @returns One PredictedRt per target, in the same order.
+   * @see {@link https://phenological.github.io/quantion/?language=js#predict_rts | Documentation}
    */
   async predictRts(
     file: SampleFile,
-    targets: WarpTarget[],
+    targets: Target[],
   ): Promise<PredictedRt[]> {
-    const warp = this.getHandle("predictRts");
-    const handle = getFileHandle(file, "predictRts");
+    const warp = this.getHandle("predict_rts");
+    const handle = getFileHandle(file, "predict_rts");
     if (targets.length === 0) return [];
 
     const mzs = Float64Array.from(targets, (target) => target.mz);
@@ -61,26 +66,25 @@ export class WarpModel extends Metadata {
   }
 
   /**
-   * Turn the RTs seen in anchor samples into targets for {@link predictRts}.
+   * calibrate · Models
    *
-   * @param anchorSamples - The samples where the targets were seen, like LTRs or QCs.
-   * @param targetLists - One list per sample, with `id`, `mz` and the `rt` seen in it.
-   * @returns One `{ id, mz, rt }` per id, with the median calibrated rt over the samples.
+   * Turn the retention times seen in anchor samples (LTRs, QCs) into targets for predict_rts. Each id gets the median rt over the anchors.
+   *
+   * @param anchorSamples - Anchor samples.
+   * @param targetLists - For each anchor sample, the targets seen in it with their observed rt.
+   * @returns One Target per id with the median rt.
+   * @see {@link https://phenological.github.io/quantion/?language=js#calibrate | Documentation}
    */
   async calibrate(
     anchorSamples: SampleFile[],
-    targetLists: WarpTarget[][],
-  ): Promise<WarpTarget[]> {
+    targetLists: Target[][],
+  ): Promise<Target[]> {
     const warp = this.getHandle("calibrate");
-    if (anchorSamples.length !== targetLists.length) {
-      throw new Error(
-        `calibrate needs one target list per sample, got ${anchorSamples.length} samples and ${targetLists.length} target lists`,
-      );
-    }
     const handles = anchorSamples.map((sample) =>
       getFileHandle(sample, "calibrate"),
     );
     for (const [index, targets] of targetLists.entries()) {
+      if (index >= handles.length) break;
       await this._backend.prefetchRts(
         warp,
         handles[index],
@@ -100,7 +104,11 @@ export class WarpModel extends Metadata {
   }
 
   /**
-   * Release the native memory held by this model.
+   * dispose · Models
+   *
+   * Free the memory held by a sample, model or warp model.
+   * @returns Nothing.
+   * @see {@link https://phenological.github.io/quantion/?language=js#dispose | Documentation}
    */
   dispose(): void {
     const cell = this._cell;
@@ -108,14 +116,14 @@ export class WarpModel extends Metadata {
     fileHandleRegistry.release(this, cell);
   }
 
-  protected getMetadata(): ModelEntry[] {
+  protected _getMetadata(): ModelEntry[] {
     return this.metadata;
   }
 
   private getHandle(caller: string): WarpModelHandle {
     const handle = this._handle;
     if (handle === null) {
-      throw new Error(`${caller}: the warp model has been disposed`);
+      throw invalidArgument(caller, "warp", "is not open; it was disposed");
     }
     return handle;
   }
@@ -123,7 +131,11 @@ export class WarpModel extends Metadata {
 
 function getFileHandle(file: SampleFile, caller: string) {
   if (!(file instanceof SampleFile) || !file._handle) {
-    throw new Error(`${caller}: expects a valid SampleFile object`);
+    throw invalidArgument(
+      caller,
+      "file",
+      "is not open; it was disposed or never opened",
+    );
   }
   return file._handle;
 }

@@ -3,26 +3,25 @@ use std::{collections::HashMap, fmt};
 use ionic::{IonReader, source::ByteRange};
 use runnet::Tensor;
 
+use crate::options::CalculateEicOptions;
 use crate::utilities::{
     calculate_eic::{
-        EicOptions, EicReader, FastError, MS1_LEVEL, ScanTime, get_scan_times, mz_tolerance_for,
+        EicReader, FastError, MS1_LEVEL, ScanTime, get_scan_times, mz_tolerance_for,
         plan_window_ranges,
     },
-    get_peaks_from_eic::{MzWindow, read_eics_one_pass},
+    find_targets::{MzWindow, read_eics_one_pass},
     load_model::Model,
-    structs::FromTo,
+    structs::{FromTo, Target},
 };
 
 const INPUT_NAMES: [&str; 2] = ["eics", "targets"];
 const ALLOWED_EDGE_GAP: f64 = 0.05;
 
-#[derive(Clone, Debug, Default, PartialEq)]
-pub struct Target {
-    pub id: String,
-    pub mz: f64,
-    pub rt: f64,
-}
-
+/// **PredictedRt** · Results
+///
+/// One predicted retention time from predict_rts.
+///
+/// [Documentation](https://phenological.github.io/quantion/?language=rust#PredictedRt)
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct PredictedRt {
     pub rt: f64,
@@ -101,7 +100,7 @@ pub struct WarpModel {
     points: usize,
     time_range: FromTo,
     context_mz: Vec<f64>,
-    eic_options: EicOptions,
+    eic_options: CalculateEicOptions,
 }
 
 pub fn load_warp(model: &Model) -> Result<WarpModel, WarpError> {
@@ -145,10 +144,10 @@ impl WarpModel {
                 to: get_number(&model, "time_to")?,
             },
             context_mz: get_numbers(&model, "context_mz")?,
-            eic_options: EicOptions {
+            eic_options: CalculateEicOptions {
                 ppm_tolerance: get_number(&model, "eic_ppm")?,
                 mz_tolerance: get_number(&model, "eic_mz_tolerance")?,
-                ..EicOptions::default()
+                ..CalculateEicOptions::default()
             },
             model,
         };
@@ -182,7 +181,7 @@ impl WarpModel {
         self.model.get_value(key)
     }
 
-    pub fn predict_rts(
+    pub(crate) fn predict_rts_from_reader(
         &self,
         reader: &mut EicReader,
         targets: &[Target],
@@ -206,7 +205,7 @@ impl WarpModel {
         self.predict_from_traces(targets, &scan_rts, &values)
     }
 
-    pub fn calibrate(
+    pub(crate) fn calibrate_from_readers(
         &self,
         samples: &mut [EicReader],
         target_lists: &[Vec<Target>],
@@ -225,7 +224,7 @@ impl WarpModel {
         sample: &mut EicReader,
         targets: &[Target],
     ) -> Result<Vec<Target>, WarpError> {
-        let predicted = self.predict_rts(sample, targets)?;
+        let predicted = self.predict_rts_from_reader(sample, targets)?;
         Ok(targets
             .iter()
             .zip(predicted)
@@ -233,6 +232,7 @@ impl WarpModel {
                 id: target.id.clone(),
                 mz: target.mz,
                 rt: get_calibrated_rt(target.rt, prediction.rt),
+                range: target.range,
             })
             .collect())
     }
@@ -407,7 +407,7 @@ pub(crate) fn check_target_lists(
         });
     }
     for (list, targets) in target_lists.iter().enumerate() {
-        if let Some(target) = targets.iter().position(|target| target.id.is_empty()) {
+        if let Some(target) = targets.iter().position(|target| target.get_id().is_empty()) {
             return Err(WarpError::IdMissing { list, target });
         }
     }
@@ -418,7 +418,7 @@ pub(crate) fn get_median_targets(target_lists: &[Vec<Target>]) -> Vec<Target> {
     let mut order: Vec<&Target> = Vec::new();
     let mut rts: HashMap<&str, Vec<f64>> = HashMap::new();
     for target in target_lists.iter().flatten() {
-        let found = rts.entry(target.id.as_str()).or_default();
+        let found = rts.entry(target.get_id()).or_default();
         if found.is_empty() {
             order.push(target);
         }
@@ -429,7 +429,8 @@ pub(crate) fn get_median_targets(target_lists: &[Vec<Target>]) -> Vec<Target> {
         .map(|target| Target {
             id: target.id.clone(),
             mz: target.mz,
-            rt: get_median(&mut rts[target.id.as_str()].clone()),
+            rt: get_median(&mut rts[target.get_id()].clone()),
+            range: target.range,
         })
         .collect()
 }
