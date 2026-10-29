@@ -46,6 +46,10 @@ echo "checking $(basename "$tarball") as CRAN does..."
 grep -E "^Status:|WARNING|ERROR|NOTE" "$work/check.log" || true
 if ! grep -qE "^Status: (OK|[0-9]+ NOTEs?)$" "$work/check.log"; then
   cp "$work/quantion.Rcheck/00check.log" "$output/check.log"
+  awk '/^\* / { show = /(WARNING|ERROR)$/ } show' "$output/check.log"
+  if [ -f "$work/quantion.Rcheck/00install.out" ]; then
+    grep -iE "warning|error" "$work/quantion.Rcheck/00install.out" || true
+  fi
   echo "the check failed, see $output/check.log"
   exit 1
 fi

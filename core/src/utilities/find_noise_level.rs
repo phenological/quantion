@@ -1,4 +1,4 @@
-use std::{borrow::Cow, f64};
+use std::borrow::Cow;
 
 use crate::utilities::cheminfo::{
     kmeans,

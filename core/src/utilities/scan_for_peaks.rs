@@ -1,5 +1,3 @@
-use core::f64;
-
 use crate::utilities::{
     cheminfo::{
         Point, kmeans,

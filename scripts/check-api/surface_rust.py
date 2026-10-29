@@ -7,7 +7,7 @@ SOURCE = ROOT / "core" / "src"
 
 
 def read_exports():
-    text = (SOURCE / "lib.rs").read_text()
+    text = (SOURCE / "lib.rs").read_text(encoding="utf-8")
     exports = []
     for statement in re.findall(r"pub use ([^;]+);", text, re.S):
         statement = re.sub(r"\s+", "", statement)
@@ -77,7 +77,7 @@ def public_lines(block, pattern):
 
 
 def describe(path, name):
-    text = module_file(path).read_text().split("\n#[cfg(test)]")[0]
+    text = module_file(path).read_text(encoding="utf-8").split("\n#[cfg(test)]")[0]
     out = []
     function = re.search(r"pub fn " + name + r"\b", text)
     struct = re.search(r"pub struct " + name + r"\b", text)
@@ -104,7 +104,7 @@ def describe_impls(name):
     for file in sorted(SOURCE.rglob("*.rs")):
         if "tests" in file.parts:
             continue
-        text = file.read_text().split("\n#[cfg(test)]")[0]
+        text = file.read_text(encoding="utf-8").split("\n#[cfg(test)]")[0]
         for match in re.finditer(r"\nimpl(?:<[^>]*>)? (?:([A-Za-z0-9_<>&': ]+) for )?" + name + r"\b[^{]*\{", text):
             trait = match.group(1)
             block = read_block(text, match.start())
