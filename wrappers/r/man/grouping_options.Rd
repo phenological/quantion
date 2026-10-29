@@ -16,6 +16,9 @@ grouping_options(ppm_tolerance = 5, mz_tolerance = 0.0025, rt_tolerance = 0.05, 
 \value{
 An options object for \code{\link{match_features_options}()}.
 }
+\section{Documentation}{
+\url{https://phenological.github.io/quantion/?language=r#GroupingOptions}
+}
 \examples{
 grouping_options(min_frequency = 0.5)
 }

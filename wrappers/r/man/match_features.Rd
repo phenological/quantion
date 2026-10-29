@@ -14,6 +14,9 @@ match_features(directory, options = match_features_options())
 \value{
 A data.frame like \code{\link{find_features}()} plus \code{frequency}, the fraction of samples (0 to 1) where the feature was found.
 }
+\section{Documentation}{
+\url{https://phenological.github.io/quantion/?language=r#match_features}
+}
 \examples{
 \dontrun{
 features <- match_features("samples/", options = match_features_options(

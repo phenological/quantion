@@ -13,6 +13,11 @@ pub(crate) enum FileSource {
     Remote(Box<IonReader>),
 }
 
+/// **SampleFile** · Inputs
+///
+/// An opened sample from parse_ion or parse_mzml. Free it with dispose when you are done.
+///
+/// [Documentation](https://phenological.github.io/quantion/?language=rust#SampleFile)
 pub struct SampleFile {
     pub(crate) source: FileSource,
 }

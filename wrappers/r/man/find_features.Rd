@@ -14,6 +14,9 @@ find_features(file, options = find_features_options())
 \value{
 A data.frame with one row per feature: \code{mz}, \code{rt}, \code{from}, \code{to}, \code{intensity}, \code{integral}, \code{n_points}, \code{noise}.
 }
+\section{Documentation}{
+\url{https://phenological.github.io/quantion/?language=r#find_features}
+}
 \examples{
 \dontrun{
 sample <- parse_ion("sample.ion")

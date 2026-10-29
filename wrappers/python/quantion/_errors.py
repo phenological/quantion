@@ -20,6 +20,12 @@ _KIND_CODES = {
 
 
 class QuantionError(Exception):
+    """QuantionError · Errors
+
+    The error every function raises, with its kind, code, function, argument and message.
+
+    Documentation: https://phenological.github.io/quantion/?language=python#QuantionError
+    """
     def __init__(
         self,
         kind: str,

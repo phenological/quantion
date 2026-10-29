@@ -13,6 +13,9 @@ load_model(source)
 \value{
 A model (an external pointer of class \code{quantion_model}).
 }
+\section{Documentation}{
+\url{https://phenological.github.io/quantion/?language=r#load_model}
+}
 \examples{
 model <- load_model(system.file("extdata", "model.onnx", package = "quantion"))
 get_value(model, "points")

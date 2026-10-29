@@ -83,6 +83,11 @@ impl From<FastError> for FeatureError {
     }
 }
 
+/// **Feature** · Results
+///
+/// A peak at an m/z. match_features adds frequency.
+///
+/// [Documentation](https://phenological.github.io/quantion/?language=rust#Feature)
 #[derive(Clone, Debug, Default)]
 pub struct Feature {
     pub mz: f64,

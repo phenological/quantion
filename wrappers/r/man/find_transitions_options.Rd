@@ -14,6 +14,9 @@ find_transitions_options(find_peaks = find_peaks_options(), threads = 1L)
 \value{
 An options object for \code{\link{find_transitions}()}.
 }
+\section{Documentation}{
+\url{https://phenological.github.io/quantion/?language=r#FindTransitionsOptions}
+}
 \examples{
 find_transitions_options(threads = 2L)
 }

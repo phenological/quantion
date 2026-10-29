@@ -28,6 +28,9 @@ find_peaks_options(min_integral = NA, min_intensity = 500, min_peak_width_points
 \value{
 An options object for \code{\link{find_peaks}()}.
 }
+\section{Documentation}{
+\url{https://phenological.github.io/quantion/?language=r#FindPeaksOptions}
+}
 \examples{
 find_peaks_options(min_intensity = 1000, min_snr = 3)
 }

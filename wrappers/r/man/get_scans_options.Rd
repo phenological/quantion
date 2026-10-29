@@ -14,6 +14,9 @@ get_scans_options(level = 1L, time_unit = "MINUTES")
 \value{
 An options object for \code{\link{get_scans}()}.
 }
+\section{Documentation}{
+\url{https://phenological.github.io/quantion/?language=r#GetScansOptions}
+}
 \examples{
 get_scans_options(level = 2L, time_unit = "SECONDS")
 }

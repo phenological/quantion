@@ -17,6 +17,11 @@ use crate::utilities::{
 const INPUT_NAMES: [&str; 2] = ["eics", "targets"];
 const ALLOWED_EDGE_GAP: f64 = 0.05;
 
+/// **PredictedRt** · Results
+///
+/// One predicted retention time from predict_rts.
+///
+/// [Documentation](https://phenological.github.io/quantion/?language=rust#PredictedRt)
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct PredictedRt {
     pub rt: f64,

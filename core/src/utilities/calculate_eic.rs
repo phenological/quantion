@@ -28,6 +28,11 @@ fn scan_in_minutes(mut summary: ScanSummary) -> ScanSummary {
     summary
 }
 
+/// **TimeUnit** · Enums
+///
+/// Unit of the retention times you give to a function. Results are always in minutes.
+///
+/// [Documentation](https://phenological.github.io/quantion/?language=rust#TimeUnit)
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 #[allow(clippy::upper_case_acronyms)]
 pub enum TimeUnit {
@@ -480,6 +485,11 @@ pub fn get_eic_for_mz(
     intensities
 }
 
+/// **ScanQuery** · Inputs
+///
+/// Which scans get_scans returns.
+///
+/// [Documentation](https://phenological.github.io/quantion/?language=rust#ScanQuery)
 #[derive(Debug, Clone, Copy)]
 pub enum ScanQuery {
     RtRange(FromTo),

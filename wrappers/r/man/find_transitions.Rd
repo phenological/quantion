@@ -15,6 +15,9 @@ find_transitions(file, targets, options = find_transitions_options())
 \value{
 A data.frame with one row per transition, like \code{\link{find_targets}()}. No matching chromatogram gives a row of zeros.
 }
+\section{Documentation}{
+\url{https://phenological.github.io/quantion/?language=r#find_transitions}
+}
 \examples{
 \dontrun{
 sample <- parse_ion("sample.ion")

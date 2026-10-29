@@ -40,6 +40,15 @@ class Model(Metadata):
         return self._metadata
 
     def dispose(self) -> None:
+        """dispose · Models
+
+        Free the memory held by a sample, model or warp model.
+
+        Returns:
+            Nothing.
+
+        Documentation: https://phenological.github.io/quantion/?language=python#dispose
+        """
         if self._handle is not None:
             self._abi.model_free(self._handle)
             self._handle = None

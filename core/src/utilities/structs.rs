@@ -1,5 +1,10 @@
 use serde::Deserialize;
 
+/// **DataXY** · Results
+///
+/// A trace: x = retention times, y = intensities. Returned by calculate_eic, taken by find_peaks.
+///
+/// [Documentation](https://phenological.github.io/quantion/?language=rust#DataXY)
 #[derive(Clone, Debug, Default, Deserialize)]
 pub struct DataXY {
     pub x: Vec<f64>,
@@ -15,12 +20,22 @@ impl DataXY {
     }
 }
 
+/// **FromTo** · Inputs
+///
+/// A range: retention-time windows and m/z ranges.
+///
+/// [Documentation](https://phenological.github.io/quantion/?language=rust#FromTo)
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct FromTo {
     pub from: f64,
     pub to: f64,
 }
 
+/// **Peak** · Results
+///
+/// One chromatographic peak. No peak gives every field 0.
+///
+/// [Documentation](https://phenological.github.io/quantion/?language=rust#Peak)
 #[derive(Clone, Copy, Debug, Deserialize)]
 pub struct Peak {
     pub from: f64,
@@ -54,6 +69,11 @@ pub struct Roi {
     pub range: f64,
 }
 
+/// **Target** · Inputs
+///
+/// One compound. range limits the search in find_targets; missing or 0 searches the whole EIC. predict_rts and calibrate do not use range.
+///
+/// [Documentation](https://phenological.github.io/quantion/?language=rust#Target)
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Target {
     pub id: Option<String>,
@@ -72,6 +92,11 @@ impl Target {
     }
 }
 
+/// **Transition** · Inputs
+///
+/// One SRM transition.
+///
+/// [Documentation](https://phenological.github.io/quantion/?language=rust#Transition)
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Transition {
     pub id: Option<String>,

@@ -24,7 +24,19 @@ class WarpModel(Metadata):
         return self._metadata
 
     def predict_rts(self, file: "SampleFile", targets: Sequence[Dict[str, Any]]) -> List[Dict[str, float]]:
-        """Predict where each target elutes in one sample: one {"rt", "uncertainty"} per target."""
+        """predict_rts · Models
+
+        Predict where each target elutes in one sample.
+
+        Args:
+            file: The sample to read, from parse_ion or parse_mzml.
+            targets: Targets with mz and reference rt. id and range are optional and not used.
+
+        Returns:
+            One PredictedRt per target, in the same order.
+
+        Documentation: https://phenological.github.io/quantion/?language=python#predict_rts
+        """
         from quantion.api import _predict_rts
 
         return _predict_rts(self, file, targets)
@@ -34,12 +46,33 @@ class WarpModel(Metadata):
         anchor_samples: Sequence["SampleFile"],
         target_lists: Sequence[Sequence[Dict[str, Any]]],
     ) -> List[Dict[str, Any]]:
-        """Turn the rts seen in anchor samples into targets for predict_rts: one target per id with the median rt."""
+        """calibrate · Models
+
+        Turn the retention times seen in anchor samples (LTRs, QCs) into targets for predict_rts. Each id gets the median rt over the anchors.
+
+        Args:
+            anchor_samples: Anchor samples.
+            target_lists: For each anchor sample, the targets seen in it with their observed rt.
+
+        Returns:
+            One Target per id with the median rt.
+
+        Documentation: https://phenological.github.io/quantion/?language=python#calibrate
+        """
         from quantion.api import _calibrate_rts
 
         return _calibrate_rts(self, anchor_samples, target_lists)
 
     def dispose(self) -> None:
+        """dispose · Models
+
+        Free the memory held by a sample, model or warp model.
+
+        Returns:
+            Nothing.
+
+        Documentation: https://phenological.github.io/quantion/?language=python#dispose
+        """
         if self._handle is not None:
             self._abi.warp_model_free(self._handle)
             self._handle = None

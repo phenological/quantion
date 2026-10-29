@@ -30,10 +30,14 @@ function readEntryFromAddress() {
   return decodeURIComponent(location.hash.slice(1)) || "overview";
 }
 
+function readLanguageFromAddress() {
+  return new URLSearchParams(location.search).get("language");
+}
+
 function getStartState() {
   return {
     ...initialState,
-    language: readSavedLanguage() ?? initialState.language,
+    language: readLanguageFromAddress() ?? readSavedLanguage() ?? initialState.language,
     entryName: readEntryFromAddress(),
   };
 }
@@ -61,8 +65,8 @@ export function DocumentationProvider({ children }) {
   }, [state.language]);
 
   useEffect(() => {
-    history.replaceState(null, "", `#${encodeURIComponent(state.entryName)}`);
-  }, [state.entryName]);
+    history.replaceState(null, "", `?language=${state.language}#${encodeURIComponent(state.entryName)}`);
+  }, [state.entryName, state.language]);
 
   return <DocumentationContext.Provider value={{ state, dispatch }}>{children}</DocumentationContext.Provider>;
 }

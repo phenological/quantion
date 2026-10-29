@@ -9,6 +9,11 @@ use crate::{
     },
 };
 
+/// **FindPeaksOptions** · Options
+///
+/// Peak-picking settings. Every field is optional.
+///
+/// [Documentation](https://phenological.github.io/quantion/?language=rust#FindPeaksOptions)
 #[derive(Clone, Debug, PartialEq)]
 pub struct FindPeaksOptions {
     pub min_integral: Option<f64>,
@@ -71,6 +76,11 @@ impl FindPeaksOptions {
     }
 }
 
+/// **GetPeakOptions** · Options
+///
+/// Settings for get_peak.
+///
+/// [Documentation](https://phenological.github.io/quantion/?language=rust#GetPeakOptions)
 #[derive(Clone, Debug, PartialEq, Default)]
 pub struct GetPeakOptions {
     pub range: f64,
@@ -84,6 +94,11 @@ impl GetPeakOptions {
     }
 }
 
+/// **FitPeakOptions** · Options
+///
+/// Settings for fit_peak.
+///
+/// [Documentation](https://phenological.github.io/quantion/?language=rust#FitPeakOptions)
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct FitPeakOptions {
     pub shape: PeakShape,
@@ -105,6 +120,11 @@ impl FitPeakOptions {
     }
 }
 
+/// **DrawPeaksOptions** · Options
+///
+/// Settings for draw_peaks.
+///
+/// [Documentation](https://phenological.github.io/quantion/?language=rust#DrawPeaksOptions)
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct DrawPeaksOptions {
     pub from: f64,
@@ -141,6 +161,11 @@ impl DrawPeaksOptions {
     }
 }
 
+/// **CalculateBaselineOptions** · Options
+///
+/// airPLS baseline settings for calculate_baseline.
+///
+/// [Documentation](https://phenological.github.io/quantion/?language=rust#CalculateBaselineOptions)
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct CalculateBaselineOptions {
     pub lambda: f64,
@@ -166,6 +191,11 @@ impl CalculateBaselineOptions {
     }
 }
 
+/// **CalculateEicOptions** · Options
+///
+/// Which scans are read and how wide the m/z window is. Used by calculate_eic, and as the eic group of find_targets, find_features and match_features. The wider of the ppm and absolute m/z windows is used.
+///
+/// [Documentation](https://phenological.github.io/quantion/?language=rust#CalculateEicOptions)
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct CalculateEicOptions {
     pub from: f64,
@@ -231,6 +261,11 @@ impl CalculateEicOptions {
     }
 }
 
+/// **GridOptions** · Options
+///
+/// The m/z grid that find_features and match_features search.
+///
+/// [Documentation](https://phenological.github.io/quantion/?language=rust#GridOptions)
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct GridOptions {
     pub start: f64,
@@ -262,6 +297,11 @@ impl GridOptions {
     }
 }
 
+/// **GroupingOptions** · Options
+///
+/// How match_features matches features across samples.
+///
+/// [Documentation](https://phenological.github.io/quantion/?language=rust#GroupingOptions)
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct GroupingOptions {
     pub ppm_tolerance: f64,
@@ -298,6 +338,11 @@ impl GroupingOptions {
     }
 }
 
+/// **FindTargetsOptions** · Options
+///
+/// Settings for find_targets.
+///
+/// [Documentation](https://phenological.github.io/quantion/?language=rust#FindTargetsOptions)
 #[derive(Clone, Debug, PartialEq)]
 pub struct FindTargetsOptions {
     pub eic: CalculateEicOptions,
@@ -315,6 +360,11 @@ impl Default for FindTargetsOptions {
     }
 }
 
+/// **FindTransitionsOptions** · Options
+///
+/// Settings for find_transitions.
+///
+/// [Documentation](https://phenological.github.io/quantion/?language=rust#FindTransitionsOptions)
 #[derive(Clone, Debug, PartialEq)]
 pub struct FindTransitionsOptions {
     pub find_peaks: FindPeaksOptions,
@@ -330,6 +380,11 @@ impl Default for FindTransitionsOptions {
     }
 }
 
+/// **FindFeaturesOptions** · Options
+///
+/// Settings for find_features.
+///
+/// [Documentation](https://phenological.github.io/quantion/?language=rust#FindFeaturesOptions)
 #[derive(Clone, Debug, PartialEq)]
 pub struct FindFeaturesOptions {
     pub eic: CalculateEicOptions,
@@ -349,6 +404,11 @@ impl Default for FindFeaturesOptions {
     }
 }
 
+/// **MatchFeaturesOptions** · Options
+///
+/// Settings for match_features: the find_features settings plus grouping.
+///
+/// [Documentation](https://phenological.github.io/quantion/?language=rust#MatchFeaturesOptions)
 #[derive(Clone, Debug, PartialEq)]
 pub struct MatchFeaturesOptions {
     pub eic: CalculateEicOptions,
@@ -377,6 +437,11 @@ pub(crate) fn check_threads(function: &'static str, threads: usize) -> Result<()
     Ok(())
 }
 
+/// **GetScansOptions** · Options
+///
+/// Settings for get_scans.
+///
+/// [Documentation](https://phenological.github.io/quantion/?language=rust#GetScansOptions)
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct GetScansOptions {
     pub level: u8,
@@ -392,11 +457,21 @@ impl Default for GetScansOptions {
     }
 }
 
+/// **ParseIonOptions** · Options
+///
+/// Settings for parse_ion.
+///
+/// [Documentation](https://phenological.github.io/quantion/?language=rust#ParseIonOptions)
 #[derive(Clone, Copy, Debug, PartialEq, Default)]
 pub struct ParseIonOptions {
     pub max_cache_size: usize,
 }
 
+/// **Header** · Inputs
+///
+/// One HTTP header sent with an upload in write_ion. Values are never printed. A line break, or Host, Content-Length or Transfer-Encoding, gives an invalid_argument error.
+///
+/// [Documentation](https://phenological.github.io/quantion/?language=rust#Header)
 #[derive(Clone, Debug, PartialEq)]
 pub struct Header {
     pub name: String,
@@ -431,6 +506,11 @@ impl From<PathBuf> for IonOutput {
     }
 }
 
+/// **WriteIonOptions** · Options
+///
+/// Settings for write_ion.
+///
+/// [Documentation](https://phenological.github.io/quantion/?language=rust#WriteIonOptions)
 #[derive(Clone, Debug, PartialEq)]
 pub struct WriteIonOptions {
     pub out: Option<IonOutput>,
@@ -452,12 +532,22 @@ impl Default for WriteIonOptions {
     }
 }
 
+/// **WriteMzmlOptions** · Options
+///
+/// Settings for write_mzml.
+///
+/// [Documentation](https://phenological.github.io/quantion/?language=rust#WriteMzmlOptions)
 #[derive(Clone, Debug, PartialEq, Default)]
 pub struct WriteMzmlOptions {
     pub out: Option<PathBuf>,
     pub overwrite: bool,
 }
 
+/// **GetIonImageOptions** · Options
+///
+/// Settings for get_ion_image.
+///
+/// [Documentation](https://phenological.github.io/quantion/?language=rust#GetIonImageOptions)
 #[derive(Clone, Copy, Debug)]
 pub struct GetIonImageOptions {
     pub tolerance: f64,

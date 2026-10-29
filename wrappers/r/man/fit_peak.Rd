@@ -16,6 +16,9 @@ fit_peak(x, y, rt, options = fit_peak_options())
 \value{
 A list with \code{height}, \code{center}, \code{fwhm}, \code{tail} (0 for a Gaussian) and \code{r2}, or \code{NULL} when no peak is found or the fit fails.
 }
+\section{Documentation}{
+\url{https://phenological.github.io/quantion/?language=r#fit_peak}
+}
 \examples{
 trace <- draw_peaks(list(list(height = 1000, center = 2, fwhm = 0.05, tail = 0.01)),
                     draw_peaks_options(from = 1, to = 3, points = 400L))

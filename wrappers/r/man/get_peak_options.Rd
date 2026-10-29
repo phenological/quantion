@@ -14,6 +14,9 @@ get_peak_options(range = 0, find_peaks = find_peaks_options())
 \value{
 An options object for \code{\link{get_peak}()}.
 }
+\section{Documentation}{
+\url{https://phenological.github.io/quantion/?language=r#GetPeakOptions}
+}
 \examples{
 get_peak_options(range = 0.05)
 }

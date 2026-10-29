@@ -30,7 +30,11 @@ export class Model extends Metadata {
   }
 
   /**
-   * Release the native memory held by this model. Warp models made from it keep working.
+   * dispose · Models
+   *
+   * Free the memory held by a sample, model or warp model.
+   * @returns Nothing.
+   * @see {@link https://phenological.github.io/quantion/?language=js#dispose | Documentation}
    */
   dispose(): void {
     const cell = this._cell;

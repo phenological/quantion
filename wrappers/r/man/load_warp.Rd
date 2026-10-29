@@ -13,6 +13,9 @@ load_warp(model)
 \value{
 A warp model (an external pointer of class \code{quantion_warp_model}).
 }
+\section{Documentation}{
+\url{https://phenological.github.io/quantion/?language=r#load_warp}
+}
 \examples{
 warp <- load_warp(load_model(system.file("extdata", "model.onnx", package = "quantion")))
 }

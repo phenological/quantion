@@ -13,8 +13,20 @@ export const ERROR_CODES = {
   internal: 99,
 } as const;
 
+/**
+ * ErrorKind · Errors
+ *
+ * What went wrong, as a name and a fixed number code.
+ * @see {@link https://phenological.github.io/quantion/?language=js#ErrorKind | Documentation}
+ */
 export type ErrorKind = keyof typeof ERROR_CODES;
 
+/**
+ * QuantionError · Errors
+ *
+ * The error every function raises, with its kind, code, function, argument and message.
+ * @see {@link https://phenological.github.io/quantion/?language=js#QuantionError | Documentation}
+ */
 export class QuantionError extends Error {
   readonly kind: ErrorKind;
   readonly code: number;

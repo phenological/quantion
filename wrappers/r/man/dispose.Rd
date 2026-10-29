@@ -13,6 +13,9 @@ dispose(object)
 \value{
 \code{NULL}, invisibly.
 }
+\section{Documentation}{
+\url{https://phenological.github.io/quantion/?language=r#dispose}
+}
 \examples{
 model <- load_model(system.file("extdata", "model.onnx", package = "quantion"))
 dispose(model)

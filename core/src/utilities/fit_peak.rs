@@ -8,6 +8,11 @@ const FIT_ITERATIONS: usize = 40;
 const FIT_TIMEOUT_SECONDS: f64 = 1.0;
 const MIN_POINTS: usize = 5;
 
+/// **PeakShape** · Enums
+///
+/// Curve used to fit a peak.
+///
+/// [Documentation](https://phenological.github.io/quantion/?language=rust#PeakShape)
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[allow(clippy::upper_case_acronyms)]
 pub enum PeakShape {
@@ -30,6 +35,11 @@ impl From<&Peak> for PeakSeed {
     }
 }
 
+/// **PeakParameters** · Results
+///
+/// One peak curve: returned by fit_peak, or written by hand to simulate. draw_peaks takes a list of them. tail = 0 is a Gaussian, tail above 0 an EMG.
+///
+/// [Documentation](https://phenological.github.io/quantion/?language=rust#PeakParameters)
 #[derive(Clone, Debug)]
 pub struct PeakParameters {
     pub height: f64,

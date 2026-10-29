@@ -32,6 +32,7 @@ export const documentationReducer = produce((state, action) => {
       state.document = action.document;
       state.status = "ready";
       if (!findEntry(action.document, state.entryName)) state.entryName = "overview";
+      if (!action.document.languages.some((language) => language.key === state.language)) state.language = initialState.language;
       break;
     case actions.documentFailed:
       state.status = "failed";

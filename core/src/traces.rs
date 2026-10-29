@@ -32,6 +32,17 @@ pub(crate) fn check_trace(function: &'static str, data: &DataXY) -> Result<(), Q
     Ok(())
 }
 
+/// **find_peaks** · Traces
+///
+/// Find every peak in one trace.
+///
+/// - `data.x`: Retention times, ascending. At least 3 points.
+/// - `data.y`: Intensities, same length as x.
+/// - `options`: Optional settings. Every field and default is listed in FindPeaksOptions.
+///
+/// Returns: Every peak that passes the filters.
+///
+/// [Documentation](https://phenological.github.io/quantion/?language=rust#find_peaks)
 pub fn find_peaks(data: &DataXY, options: FindPeaksOptions) -> Result<Vec<Peak>, QuantionError> {
     const FUNCTION: &str = "find_peaks";
     check_trace(FUNCTION, data)?;
@@ -39,6 +50,18 @@ pub fn find_peaks(data: &DataXY, options: FindPeaksOptions) -> Result<Vec<Peak>,
     Ok(pick_peaks(data, &options))
 }
 
+/// **get_peak** · Traces
+///
+/// Find the one peak near rt. With a range, only rt ± range is searched; without one, the whole trace is searched and the peak is chosen by its size and its distance to rt.
+///
+/// - `data.x`: Retention times, ascending. At least 3 points.
+/// - `data.y`: Intensities, same length as x.
+/// - `rt`: Expected retention time of the peak.
+/// - `options`: Optional settings. Every field and default is listed in GetPeakOptions.
+///
+/// Returns: The best peak near rt. No peak gives a Peak with every field 0.
+///
+/// [Documentation](https://phenological.github.io/quantion/?language=rust#get_peak)
 pub fn get_peak(data: &DataXY, rt: f64, options: GetPeakOptions) -> Result<Peak, QuantionError> {
     const FUNCTION: &str = "get_peak";
     check_trace(FUNCTION, data)?;
@@ -48,6 +71,18 @@ pub fn get_peak(data: &DataXY, rt: f64, options: GetPeakOptions) -> Result<Peak,
     Ok(pick_peak(data, &roi, &options.find_peaks))
 }
 
+/// **fit_peak** · Traces
+///
+/// Fit a Gaussian or EMG curve to the peak near rt. rt says which peak; its apex intensity is the starting point unless you force one.
+///
+/// - `data.x`: Retention times, ascending. At least 3 points.
+/// - `data.y`: Intensities, same length as x.
+/// - `rt`: Expected retention time of the peak.
+/// - `options`: Optional settings. Every field and default is listed in FitPeakOptions.
+///
+/// Returns: The fitted curve, or none when no peak is found or the fit fails.
+///
+/// [Documentation](https://phenological.github.io/quantion/?language=rust#fit_peak)
 pub fn fit_peak(data: &DataXY, rt: f64, options: FitPeakOptions) -> Result<Option<PeakParameters>, QuantionError> {
     const FUNCTION: &str = "fit_peak";
     check_trace(FUNCTION, data)?;
@@ -74,6 +109,16 @@ fn get_section(data: &DataXY, from: f64, to: f64) -> DataXY {
     DataXY { x, y }
 }
 
+/// **draw_peaks** · Traces
+///
+/// Simulate a chromatogram from one or more peak shapes. Every peak is drawn into the same chromatogram; where they overlap, intensities add up. No real data is needed.
+///
+/// - `params`: The peaks to draw, one PeakParameters per peak.
+/// - `options`: Optional settings. Every field and default is listed in DrawPeaksOptions.
+///
+/// Returns: The simulated chromatogram: x = retention times, y = summed intensities.
+///
+/// [Documentation](https://phenological.github.io/quantion/?language=rust#draw_peaks)
 pub fn draw_peaks(params: &[PeakParameters], options: DrawPeaksOptions) -> Result<DataXY, QuantionError> {
     const FUNCTION: &str = "draw_peaks";
     options.check(FUNCTION)?;
@@ -97,10 +142,29 @@ pub fn draw_peaks(params: &[PeakParameters], options: DrawPeaksOptions) -> Resul
     Ok(draw_curves(params, options.from, options.to, options.points))
 }
 
+/// **find_noise_level** · Traces
+///
+/// Estimate the noise level of a signal.
+///
+/// - `y`: Intensities.
+///
+/// Returns: The noise intensity and the window width it came from.
+///
+/// [Documentation](https://phenological.github.io/quantion/?language=rust#find_noise_level)
 pub fn find_noise_level(y: &[f64]) -> NoiseLevel {
     read_noise_level(y)
 }
 
+/// **calculate_baseline** · Traces
+///
+/// Estimate a signal's baseline with airPLS.
+///
+/// - `y`: Intensities.
+/// - `options`: Optional settings. Every field and default is listed in CalculateBaselineOptions.
+///
+/// Returns: The baseline, same length as y.
+///
+/// [Documentation](https://phenological.github.io/quantion/?language=rust#calculate_baseline)
 pub fn calculate_baseline(y: &[f64], options: CalculateBaselineOptions) -> Result<Vec<f64>, QuantionError> {
     const FUNCTION: &str = "calculate_baseline";
     options.check(FUNCTION)?;

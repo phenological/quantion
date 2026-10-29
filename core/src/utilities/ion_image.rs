@@ -10,6 +10,11 @@ use super::{
     ion::{ScanSource, ScanSummary},
 };
 
+/// **IonImage** · Results
+///
+/// An imaging map of one m/z from get_ion_image.
+///
+/// [Documentation](https://phenological.github.io/quantion/?language=rust#IonImage)
 #[derive(Clone, Debug)]
 pub struct IonImage {
     pub width: u32,

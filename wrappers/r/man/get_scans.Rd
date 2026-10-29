@@ -16,6 +16,9 @@ get_scans(file, rt = NULL, mz = NULL, options = get_scans_options())
 \value{
 A data.frame with one row per scan: \code{rt}, \code{mz} and \code{intensity} (list columns), \code{level}, \code{precursor_mz}, \code{base_peak_mz}, \code{base_peak_intensity}, \code{total_ion_current}, \code{polarity}, \code{x}, \code{y}, \code{z}.
 }
+\section{Documentation}{
+\url{https://phenological.github.io/quantion/?language=r#get_scans}
+}
 \examples{
 \dontrun{
 sample <- parse_ion("sample.ion")

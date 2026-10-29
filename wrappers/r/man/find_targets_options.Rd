@@ -15,6 +15,9 @@ find_targets_options(eic = calculate_eic_options(), find_peaks = find_peaks_opti
 \value{
 An options object for \code{\link{find_targets}()}.
 }
+\section{Documentation}{
+\url{https://phenological.github.io/quantion/?language=r#FindTargetsOptions}
+}
 \examples{
 find_targets_options(eic = calculate_eic_options(from = 0.5, to = 5), threads = 4L)
 }

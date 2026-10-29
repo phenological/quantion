@@ -14,6 +14,9 @@ header(name, value)
 \value{
 A header object.
 }
+\section{Documentation}{
+\url{https://phenological.github.io/quantion/?language=r#Header}
+}
 \examples{
 header("Authorization", "Bearer <token>")
 }

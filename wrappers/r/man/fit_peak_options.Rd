@@ -14,6 +14,9 @@ fit_peak_options(shape = "EMG", intensity = 0)
 \value{
 An options object for \code{\link{fit_peak}()}.
 }
+\section{Documentation}{
+\url{https://phenological.github.io/quantion/?language=r#FitPeakOptions}
+}
 \examples{
 fit_peak_options(shape = "GAUSSIAN")
 }

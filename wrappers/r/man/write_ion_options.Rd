@@ -17,6 +17,9 @@ write_ion_options(out = NULL, overwrite = FALSE, level = 12L, f32_compress = FAL
 \value{
 An options object for \code{\link{write_ion}()}.
 }
+\section{Documentation}{
+\url{https://phenological.github.io/quantion/?language=r#WriteIonOptions}
+}
 \examples{
 write_ion_options(out = "sample.ion", level = 12L)
 }

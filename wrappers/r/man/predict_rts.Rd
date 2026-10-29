@@ -15,6 +15,9 @@ predict_rts(warp, file, targets)
 \value{
 A data.frame with \code{rt} and \code{uncertainty}, one row per target in the same order.
 }
+\section{Documentation}{
+\url{https://phenological.github.io/quantion/?language=r#predict_rts}
+}
 \examples{
 \dontrun{
 warp <- load_warp(load_model("model.onnx"))

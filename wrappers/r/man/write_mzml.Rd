@@ -14,6 +14,9 @@ write_mzml(file, options = write_mzml_options())
 \value{
 A raw vector when \code{out} is not given, otherwise \code{NULL} (invisible).
 }
+\section{Documentation}{
+\url{https://phenological.github.io/quantion/?language=r#write_mzml}
+}
 \examples{
 \dontrun{
 sample <- parse_ion("sample.ion")

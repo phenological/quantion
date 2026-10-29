@@ -218,7 +218,19 @@ def _open_file(function: str, abi: _ABI, call: Callable[[Any], int], is_ion: boo
 
 
 def parse_ion(source, options: Optional[ParseIonOptions] = None) -> SampleFile:
-    """Open an .ion file from a path, an http(s) URL or bytes. Paths and URLs are read lazily."""
+    """parse_ion · Files
+
+    Open an .ion file from a path, a URL or bytes. Paths and URLs are read lazily: only the bytes a query needs are fetched.
+
+    Args:
+        source: Where the file is: a path, an http(s) URL, or raw bytes.
+        options: Optional settings. Every field and default is listed in ParseIonOptions.
+
+    Returns:
+        The opened sample.
+
+    Documentation: https://phenological.github.io/quantion/?language=python#parse_ion
+    """
     function = "parse_ion"
     settings = read_options(function, options, PARSE_ION)
     cache_size = get_count(function, "max_cache_size", settings["max_cache_size"])
@@ -237,7 +249,18 @@ def parse_ion(source, options: Optional[ParseIonOptions] = None) -> SampleFile:
 
 
 def parse_mzml(source) -> SampleFile:
-    """Open an mzML file from a path or bytes. It is loaded fully into memory; URLs are refused."""
+    """parse_mzml · Files
+
+    Open an mzML file from a path or bytes. It is always loaded fully into memory. URLs are refused.
+
+    Args:
+        source: Where the file is: a path or raw bytes.
+
+    Returns:
+        The loaded sample.
+
+    Documentation: https://phenological.github.io/quantion/?language=python#parse_mzml
+    """
     function = "parse_mzml"
     abi = _get_abi()
     if isinstance(source, (str, os.PathLike)):
@@ -274,7 +297,19 @@ def _encode_headers(function: str, headers: Any) -> bytes:
 
 
 def write_ion(file: SampleFile, options: Optional[WriteIonOptions] = None) -> Optional[bytes]:
-    """Write a sample as .ion: bytes when out is not given, a file for a path, an upload for a URL."""
+    """write_ion · Files
+
+    Write a sample as .ion. With no out, it returns the bytes. A path writes a file; a URL uploads it in one PUT request.
+
+    Args:
+        file: The sample to write.
+        options: Optional settings. Every field and default is listed in WriteIonOptions.
+
+    Returns:
+        The bytes when out is left out; nothing when it is written or uploaded.
+
+    Documentation: https://phenological.github.io/quantion/?language=python#write_ion
+    """
     function = "write_ion"
     settings = read_options(function, options, WRITE_ION)
     out = _encode_out(function, settings["out"])
@@ -312,7 +347,19 @@ def _upload_ion(url: str, headers: Sequence[Mapping[str, str]], data: bytes) -> 
 
 
 def write_mzml(file: SampleFile, options: Optional[WriteMzmlOptions] = None) -> Optional[bytes]:
-    """Write a sample as mzML: bytes when out is not given, otherwise a file at the path."""
+    """write_mzml · Files
+
+    Write a sample as mzML. With no out, it returns the bytes. Only a path is allowed, no URL.
+
+    Args:
+        file: The sample to write.
+        options: Optional settings. Every field and default is listed in WriteMzmlOptions.
+
+    Returns:
+        The bytes when out is left out; nothing when it is written.
+
+    Documentation: https://phenological.github.io/quantion/?language=python#write_mzml
+    """
     function = "write_mzml"
     settings = read_options(function, options, WRITE_MZML)
     out = _encode_out(function, settings["out"])
@@ -339,7 +386,21 @@ def get_scans(
     mz: "float | FromTo | None" = None,
     options: Optional[GetScansOptions] = None,
 ) -> List[Scan]:
-    """Read scans by retention time or precursor m/z. A range gives every scan in it; one number gives the closest scan."""
+    """get_scans · Files
+
+    Read scans by retention time or precursor m/z. A range returns every scan in it; one number returns the closest scan, as a list of one.
+
+    Args:
+        file: The sample to read, from parse_ion or parse_mzml.
+        rt: Which scans, by retention time: a range or one value.
+        mz: Or by precursor m/z: a range or one value. Give rt or mz, not both.
+        options: Optional settings. Every field and default is listed in GetScansOptions.
+
+    Returns:
+        The scans found, in rt order.
+
+    Documentation: https://phenological.github.io/quantion/?language=python#get_scans
+    """
     function = "get_scans"
     settings = read_options(function, options, GET_SCANS)
     if rt is None and mz is None:
@@ -363,7 +424,20 @@ def get_scans(
 
 
 def calculate_eic(file: SampleFile, mz: float, options: Optional[CalculateEicOptions] = None) -> DataXY:
-    """Extract the ion chromatogram of one m/z between from and to (the whole run by default)."""
+    """calculate_eic · Files
+
+    Extract the ion chromatogram of one m/z.
+
+    Args:
+        file: The sample to read, from parse_ion or parse_mzml.
+        mz: The m/z to extract (Da).
+        options: Optional settings. Every field and default is listed in CalculateEicOptions.
+
+    Returns:
+        The chromatogram: x = retention times, y = summed intensities.
+
+    Documentation: https://phenological.github.io/quantion/?language=python#calculate_eic
+    """
     function = "calculate_eic"
     settings = read_options(function, options, EIC)
     start, end, ppm_tolerance, mz_tolerance, time_unit = _get_eic(function, settings)
@@ -381,7 +455,20 @@ def calculate_eic(file: SampleFile, mz: float, options: Optional[CalculateEicOpt
 
 
 def get_ion_image(file: SampleFile, mz: float, options: Optional[GetIonImageOptions] = None) -> IonImage:
-    """Build the imaging map of one m/z. Only .ion files from parse_ion."""
+    """get_ion_image · Files
+
+    Build an imaging map of one m/z: summed intensity at each x, y position.
+
+    Args:
+        file: The sample to read. Must come from parse_ion.
+        mz: The m/z to map (Da).
+        options: Optional settings. Every field and default is listed in GetIonImageOptions.
+
+    Returns:
+        The image.
+
+    Documentation: https://phenological.github.io/quantion/?language=python#get_ion_image
+    """
     function = "get_ion_image"
     settings = read_options(function, options, ION_IMAGE)
     mz = get_number(function, "mz", mz)
@@ -430,7 +517,20 @@ def _get_trace(function: str, x: Sequence, y: Sequence) -> Tuple[np.ndarray, np.
 
 
 def find_peaks(x: Sequence, y: Sequence, options: Optional[FindPeaksOptions] = None) -> List[Peak]:
-    """Find every peak in one trace."""
+    """find_peaks · Traces
+
+    Find every peak in one trace.
+
+    Args:
+        x: Retention times, ascending. At least 3 points.
+        y: Intensities, same length as x.
+        options: Optional settings. Every field and default is listed in FindPeaksOptions.
+
+    Returns:
+        Every peak that passes the filters.
+
+    Documentation: https://phenological.github.io/quantion/?language=python#find_peaks
+    """
     function = "find_peaks"
     settings = read_options(function, options, FIND_PEAKS)
     packed = pack_peak_options(function, settings, "")
@@ -450,7 +550,21 @@ def _check_lengths(function: str, x_values: np.ndarray, y_values: np.ndarray) ->
 
 
 def get_peak(x: Sequence, y: Sequence, rt: float, options: Optional[GetPeakOptions] = None) -> Peak:
-    """Find the one peak near rt. A range of 0 (the default) searches the whole trace."""
+    """get_peak · Traces
+
+    Find the one peak near rt. With a range, only rt ± range is searched; without one, the whole trace is searched and the peak is chosen by its size and its distance to rt.
+
+    Args:
+        x: Retention times, ascending. At least 3 points.
+        y: Intensities, same length as x.
+        rt: Expected retention time of the peak.
+        options: Optional settings. Every field and default is listed in GetPeakOptions.
+
+    Returns:
+        The best peak near rt. No peak gives a Peak with every field 0.
+
+    Documentation: https://phenological.github.io/quantion/?language=python#get_peak
+    """
     function = "get_peak"
     settings = read_options(function, options, GET_PEAK)
     packed = pack_peak_options(function, settings["find_peaks"])
@@ -466,7 +580,21 @@ def get_peak(x: Sequence, y: Sequence, rt: float, options: Optional[GetPeakOptio
 
 
 def fit_peak(x: Sequence, y: Sequence, rt: float, options: Optional[FitPeakOptions] = None) -> Optional[PeakParameters]:
-    """Fit a Gaussian or EMG curve to the peak at rt. None when no peak is found or the fit fails."""
+    """fit_peak · Traces
+
+    Fit a Gaussian or EMG curve to the peak near rt. rt says which peak; its apex intensity is the starting point unless you force one.
+
+    Args:
+        x: Retention times, ascending. At least 3 points.
+        y: Intensities, same length as x.
+        rt: Expected retention time of the peak.
+        options: Optional settings. Every field and default is listed in FitPeakOptions.
+
+    Returns:
+        The fitted curve, or none when no peak is found or the fit fails.
+
+    Documentation: https://phenological.github.io/quantion/?language=python#fit_peak
+    """
     function = "fit_peak"
     settings = read_options(function, options, FIT_PEAK)
     x_values, y_values = _get_trace(function, x, y)
@@ -484,7 +612,19 @@ def fit_peak(x: Sequence, y: Sequence, rt: float, options: Optional[FitPeakOptio
 
 
 def draw_peaks(params: Sequence[PeakParameters], options: Optional[DrawPeaksOptions] = None) -> DataXY:
-    """Draw peak curves into one chromatogram; where they overlap, intensities add up."""
+    """draw_peaks · Traces
+
+    Simulate a chromatogram from one or more peak shapes. Every peak is drawn into the same chromatogram; where they overlap, intensities add up. No real data is needed.
+
+    Args:
+        params: The peaks to draw, one PeakParameters per peak.
+        options: Optional settings. Every field and default is listed in DrawPeaksOptions.
+
+    Returns:
+        The simulated chromatogram: x = retention times, y = summed intensities.
+
+    Documentation: https://phenological.github.io/quantion/?language=python#draw_peaks
+    """
     function = "draw_peaks"
     settings = read_options(function, options, DRAW_PEAKS)
     if not isinstance(params, (list, tuple)):
@@ -507,7 +647,18 @@ def draw_peaks(params: Sequence[PeakParameters], options: Optional[DrawPeaksOpti
 
 
 def find_noise_level(y: Sequence) -> NoiseLevel:
-    """Estimate the noise level of a signal."""
+    """find_noise_level · Traces
+
+    Estimate the noise level of a signal.
+
+    Args:
+        y: Intensities.
+
+    Returns:
+        The noise intensity and the window width it came from.
+
+    Documentation: https://phenological.github.io/quantion/?language=python#find_noise_level
+    """
     function = "find_noise_level"
     values = np.ascontiguousarray(_get_numbers(function, "y", y), dtype=np.float32)
     abi = _get_abi()
@@ -518,7 +669,19 @@ def find_noise_level(y: Sequence) -> NoiseLevel:
 
 
 def calculate_baseline(y: Sequence, options: Optional[CalculateBaselineOptions] = None) -> np.ndarray:
-    """Estimate a signal's baseline with airPLS."""
+    """calculate_baseline · Traces
+
+    Estimate a signal's baseline with airPLS.
+
+    Args:
+        y: Intensities.
+        options: Optional settings. Every field and default is listed in CalculateBaselineOptions.
+
+    Returns:
+        The baseline, same length as y.
+
+    Documentation: https://phenological.github.io/quantion/?language=python#calculate_baseline
+    """
     function = "calculate_baseline"
     settings = read_options(function, options, BASELINE)
     values = _get_numbers(function, "y", y)
@@ -548,7 +711,20 @@ def _read_targets(function: str, targets: Sequence[Target]):
 
 
 def find_targets(file: SampleFile, targets: Sequence[Target], options: Optional[FindTargetsOptions] = None) -> List[Peak]:
-    """Find each target's peak in its EIC. One Peak per target, in order; no peak gives every field 0."""
+    """find_targets · Targets
+
+    For each target, build its EIC at mz and find its peak near rt ± range.
+
+    Args:
+        file: The sample to read, from parse_ion or parse_mzml.
+        targets: What to look for. A target without range searches its whole EIC.
+        options: Optional settings. Every field and default is listed in FindTargetsOptions.
+
+    Returns:
+        One Peak per target, in the same order. A target with no peak gets a Peak with every field 0.
+
+    Documentation: https://phenological.github.io/quantion/?language=python#find_targets
+    """
     function = "find_targets"
     settings = read_options(function, options, FIND_TARGETS)
     start, end, ppm_tolerance, mz_tolerance, time_unit = _get_eic(function, settings["eic"], "eic.")
@@ -572,7 +748,20 @@ def find_targets(file: SampleFile, targets: Sequence[Target], options: Optional[
 def find_transitions(
     file: SampleFile, targets: Sequence[Transition], options: Optional[FindTransitionsOptions] = None
 ) -> List[Peak]:
-    """Find each SRM transition's peak in its stored chromatogram. Needs the whole file."""
+    """find_transitions · Targets
+
+    For each SRM transition, take the stored chromatogram whose precursor (Q1) and product (Q3) are both within 0.005 m/z, and find its peak near rt ± range.
+
+    Args:
+        file: The sample to read, from parse_ion or parse_mzml.
+        targets: The transitions.
+        options: Optional settings. Every field and default is listed in FindTransitionsOptions.
+
+    Returns:
+        One Peak per transition, in the same order. No match gives a Peak with every field 0.
+
+    Documentation: https://phenological.github.io/quantion/?language=python#find_transitions
+    """
     function = "find_transitions"
     settings = read_options(function, options, FIND_TRANSITIONS)
     packed = pack_peak_options(function, settings["find_peaks"])
@@ -596,7 +785,19 @@ def find_transitions(
 
 
 def find_features(file: SampleFile, options: Optional[FindFeaturesOptions] = None) -> List[Feature]:
-    """Find every feature in one file by scanning an m/z grid."""
+    """find_features · Features
+
+    Untargeted: find every feature in one file by scanning an m/z grid.
+
+    Args:
+        file: The sample to read, from parse_ion or parse_mzml.
+        options: Optional settings. Every field and default is listed in FindFeaturesOptions.
+
+    Returns:
+        Every feature found, without frequency.
+
+    Documentation: https://phenological.github.io/quantion/?language=python#find_features
+    """
     function = "find_features"
     settings = read_options(function, options, FIND_FEATURES)
     start, end, ppm_tolerance, mz_tolerance, time_unit = _get_eic(function, settings["eic"], "eic.")
@@ -616,7 +817,19 @@ def find_features(file: SampleFile, options: Optional[FindFeaturesOptions] = Non
 
 
 def match_features(directory, options: Optional[MatchFeaturesOptions] = None) -> List[Feature]:
-    """Find features in every file of a folder and match them across samples."""
+    """match_features · Features
+
+    Untargeted across samples: find features in every file of a folder and match them. Values are medians over the samples where a feature was found.
+
+    Args:
+        directory: Folder with the .ion or mzML files.
+        options: Optional settings. Every field and default is listed in MatchFeaturesOptions.
+
+    Returns:
+        One Feature per matched feature; frequency is the fraction of samples (0–1).
+
+    Documentation: https://phenological.github.io/quantion/?language=python#match_features
+    """
     function = "match_features"
     settings = read_options(function, options, MATCH_FEATURES)
     if not isinstance(directory, (str, os.PathLike)):
@@ -641,7 +854,18 @@ def match_features(directory, options: Optional[MatchFeaturesOptions] = None) ->
 
 
 def load_model(source) -> Model:
-    """Load an ONNX model from a path, an http(s) URL or bytes."""
+    """load_model · Models
+
+    Load an ONNX model from a path, a URL or bytes, and read the keys and values stored in it.
+
+    Args:
+        source: Where the model is: a path, an http(s) URL, or raw bytes.
+
+    Returns:
+        The model, with get_keys(), get_values() and get_value(key).
+
+    Documentation: https://phenological.github.io/quantion/?language=python#load_model
+    """
     function = "load_model"
     abi = _get_abi()
     if isinstance(source, (str, os.PathLike)):
@@ -676,7 +900,18 @@ def _open_model(abi: _ABI, call) -> Model:
 
 
 def load_warp(model: Model) -> WarpModel:
-    """Make a retention-time warp model from a loaded model. The model stays usable."""
+    """load_warp · Models
+
+    Make a retention-time warp model from a loaded model.
+
+    Args:
+        model: A model from load_model that holds a warp.
+
+    Returns:
+        The warp model.
+
+    Documentation: https://phenological.github.io/quantion/?language=python#load_warp
+    """
     function = "load_warp"
     if not isinstance(model, Model):
         raise _invalid(function, "model", "must be a Model from load_model")

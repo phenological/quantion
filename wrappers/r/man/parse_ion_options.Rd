@@ -13,6 +13,9 @@ parse_ion_options(max_cache_size = 0)
 \value{
 An options object for \code{\link{parse_ion}()}.
 }
+\section{Documentation}{
+\url{https://phenological.github.io/quantion/?language=r#ParseIonOptions}
+}
 \examples{
 parse_ion_options(max_cache_size = 64e6)
 }

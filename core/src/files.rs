@@ -22,6 +22,11 @@ const MAX_COMPRESSION_LEVEL: u8 = 22;
 const IMAGE_SCANS_PER_STEP: usize = 256;
 const RESERVED_HEADERS: [&str; 3] = ["host", "content-length", "transfer-encoding"];
 
+/// **Scan** · Results
+///
+/// One scan from get_scans: its retention time, centroided m/z and intensity values, and its details.
+///
+/// [Documentation](https://phenological.github.io/quantion/?language=rust#Scan)
 #[derive(Clone, Debug, PartialEq)]
 pub struct Scan {
     pub rt: f64,
@@ -69,6 +74,16 @@ pub(crate) fn from_fast_error(function: &'static str, error: FastError) -> Quant
     }
 }
 
+/// **parse_ion** · Files
+///
+/// Open an .ion file from a path, a URL or bytes. Paths and URLs are read lazily: only the bytes a query needs are fetched.
+///
+/// - `input`: Where the file is: a path, an http(s) URL, or raw bytes.
+/// - `options`: Optional settings. Every field and default is listed in ParseIonOptions.
+///
+/// Returns: The opened sample.
+///
+/// [Documentation](https://phenological.github.io/quantion/?language=rust#parse_ion)
 pub fn parse_ion(input: impl Into<IonInput>, options: ParseIonOptions) -> Result<SampleFile, QuantionError> {
     const FUNCTION: &str = "parse_ion";
     let input = input.into();
@@ -95,6 +110,15 @@ pub fn parse_ion(input: impl Into<IonInput>, options: ParseIonOptions) -> Result
     Ok(SampleFile::new(source))
 }
 
+/// **parse_mzml** · Files
+///
+/// Open an mzML file from a path or bytes. It is always loaded fully into memory. URLs are refused.
+///
+/// - `input`: Where the file is: a path or raw bytes.
+///
+/// Returns: The loaded sample.
+///
+/// [Documentation](https://phenological.github.io/quantion/?language=rust#parse_mzml)
 pub fn parse_mzml(input: impl Into<MzmlInput>) -> Result<SampleFile, QuantionError> {
     const FUNCTION: &str = "parse_mzml";
     let bytes = match input.into() {
@@ -108,6 +132,16 @@ pub fn parse_mzml(input: impl Into<MzmlInput>) -> Result<SampleFile, QuantionErr
     Ok(SampleFile::new(FileSource::Full(Box::new(mzml))))
 }
 
+/// **write_ion** · Files
+///
+/// Write a sample as .ion. With no out, it returns the bytes. A path writes a file; a URL uploads it in one PUT request.
+///
+/// - `file`: The sample to write.
+/// - `options`: Optional settings. Every field and default is listed in WriteIonOptions.
+///
+/// Returns: The bytes when out is left out; nothing when it is written or uploaded.
+///
+/// [Documentation](https://phenological.github.io/quantion/?language=rust#write_ion)
 pub fn write_ion(file: &mut SampleFile, options: WriteIonOptions) -> Result<Option<Vec<u8>>, QuantionError> {
     const FUNCTION: &str = "write_ion";
     let bytes = encode_ion(file, &options)?;
@@ -154,6 +188,16 @@ pub(crate) fn encode_ion(file: &mut SampleFile, options: &WriteIonOptions) -> Re
     })
 }
 
+/// **write_mzml** · Files
+///
+/// Write a sample as mzML. With no out, it returns the bytes. Only a path is allowed, no URL.
+///
+/// - `file`: The sample to write.
+/// - `options`: Optional settings. Every field and default is listed in WriteMzmlOptions.
+///
+/// Returns: The bytes when out is left out; nothing when it is written.
+///
+/// [Documentation](https://phenological.github.io/quantion/?language=rust#write_mzml)
 pub fn write_mzml(file: &mut SampleFile, options: WriteMzmlOptions) -> Result<Option<Vec<u8>>, QuantionError> {
     const FUNCTION: &str = "write_mzml";
     if let Some(path) = &options.out {
@@ -243,6 +287,18 @@ fn upload(function: &'static str, _url: &str, _headers: &[Header], _bytes: Vec<u
     Err(QuantionError::invalid(function, "out", "cannot be a URL: this build of quantion has no HTTP support"))
 }
 
+/// **get_scans** · Files
+///
+/// Read scans by retention time or precursor m/z. A range returns every scan in it; one number returns the closest scan, as a list of one.
+///
+/// - `file`: The sample to read, from parse_ion or parse_mzml.
+/// - `query`: Which scans, by retention time: a range or one value.
+/// - `query`: Or by precursor m/z: a range or one value. Give rt or mz, not both.
+/// - `options`: Optional settings. Every field and default is listed in GetScansOptions.
+///
+/// Returns: The scans found, in rt order.
+///
+/// [Documentation](https://phenological.github.io/quantion/?language=rust#get_scans)
 pub fn get_scans(file: &mut SampleFile, query: ScanQuery, options: GetScansOptions) -> Result<Vec<Scan>, QuantionError> {
     const FUNCTION: &str = "get_scans";
     match query {
@@ -266,6 +322,17 @@ pub fn get_scans(file: &mut SampleFile, query: ScanQuery, options: GetScansOptio
     Ok(scans.into_iter().map(Scan::from).collect())
 }
 
+/// **calculate_eic** · Files
+///
+/// Extract the ion chromatogram of one m/z.
+///
+/// - `file`: The sample to read, from parse_ion or parse_mzml.
+/// - `mz`: The m/z to extract (Da).
+/// - `options`: Optional settings. Every field and default is listed in CalculateEicOptions.
+///
+/// Returns: The chromatogram: x = retention times, y = summed intensities.
+///
+/// [Documentation](https://phenological.github.io/quantion/?language=rust#calculate_eic)
 pub fn calculate_eic(file: &mut SampleFile, mz: f64, options: CalculateEicOptions) -> Result<DataXY, QuantionError> {
     const FUNCTION: &str = "calculate_eic";
     check_positive(FUNCTION, "mz", mz)?;
@@ -273,6 +340,17 @@ pub fn calculate_eic(file: &mut SampleFile, mz: f64, options: CalculateEicOption
     read_eic(&mut file.reader(), mz, options.get_window(), options.in_minutes()).map_err(|error| from_fast_error(FUNCTION, error))
 }
 
+/// **get_ion_image** · Files
+///
+/// Build an imaging map of one m/z: summed intensity at each x, y position.
+///
+/// - `file`: The sample to read. Must come from parse_ion.
+/// - `mz`: The m/z to map (Da).
+/// - `options`: Optional settings. Every field and default is listed in GetIonImageOptions.
+///
+/// Returns: The image.
+///
+/// [Documentation](https://phenological.github.io/quantion/?language=rust#get_ion_image)
 pub fn get_ion_image(file: &mut SampleFile, mz: f64, options: GetIonImageOptions) -> Result<IonImage, QuantionError> {
     const FUNCTION: &str = "get_ion_image";
     if !file.is_ion() {

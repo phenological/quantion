@@ -17,6 +17,9 @@ calculate_eic_options(from = 0, to = Inf, ppm_tolerance = 20, mz_tolerance = 0.0
 \value{
 An options object for \code{\link{calculate_eic}()}.
 }
+\section{Documentation}{
+\url{https://phenological.github.io/quantion/?language=r#CalculateEicOptions}
+}
 \examples{
 calculate_eic_options(from = 0.5, to = 5, ppm_tolerance = 10)
 }

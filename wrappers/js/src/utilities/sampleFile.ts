@@ -4,9 +4,10 @@ import { fileHandleRegistry } from "./handleRegistry";
 type Cell = ReturnType<typeof fileHandleRegistry.register>;
 
 /**
- * A loaded sample file. Holds an internal handle to the native
- * file object. Cleanup is automatic, but call {@link dispose} when
- * you're done with large samples or tight processing loops to free memory sooner.
+ * SampleFile · Inputs
+ *
+ * An opened sample from parse_ion or parse_mzml. Free it with dispose when you are done.
+ * @see {@link https://phenological.github.io/quantion/?language=js#SampleFile | Documentation}
  */
 export class SampleFile {
   /** @internal */
@@ -31,7 +32,11 @@ export class SampleFile {
   }
 
   /**
-   * Release the native memory held by this sample.
+   * dispose · Models
+   *
+   * Free the memory held by a sample, model or warp model.
+   * @returns Nothing.
+   * @see {@link https://phenological.github.io/quantion/?language=js#dispose | Documentation}
    */
   dispose(): void {
     const cell = this._cell;

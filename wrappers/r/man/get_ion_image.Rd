@@ -15,6 +15,9 @@ get_ion_image(file, mz, options = get_ion_image_options())
 \value{
 A list with \code{width}, \code{height}, \code{min_x}, \code{min_y}, \code{min_z}, \code{max_z}, \code{data} (summed intensity per pixel, row by row) and \code{counts} (scans per pixel).
 }
+\section{Documentation}{
+\url{https://phenological.github.io/quantion/?language=r#get_ion_image}
+}
 \examples{
 \dontrun{
 sample <- parse_ion("sample.ion")

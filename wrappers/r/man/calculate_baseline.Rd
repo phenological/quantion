@@ -14,6 +14,9 @@ calculate_baseline(y, options = calculate_baseline_options())
 \value{
 A numeric vector, the same length as \code{y}.
 }
+\section{Documentation}{
+\url{https://phenological.github.io/quantion/?language=r#calculate_baseline}
+}
 \examples{
 trace <- draw_peaks(list(list(height = 1000, center = 2, fwhm = 0.05, tail = 0.01)),
                     draw_peaks_options(from = 1, to = 3, points = 400L))

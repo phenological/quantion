@@ -16,6 +16,9 @@ get_peak(x, y, rt, options = get_peak_options())
 \value{
 A list with \code{rt}, \code{from}, \code{to}, \code{intensity}, \code{integral}, \code{n_points}, \code{noise}, \code{r2}. Every field is 0 when no peak is found.
 }
+\section{Documentation}{
+\url{https://phenological.github.io/quantion/?language=r#get_peak}
+}
 \examples{
 trace <- draw_peaks(list(list(height = 1000, center = 2, fwhm = 0.05, tail = 0.01)),
                     draw_peaks_options(from = 1, to = 3, points = 400L))

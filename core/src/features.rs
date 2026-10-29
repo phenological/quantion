@@ -42,6 +42,16 @@ fn from_feature_error(function: &'static str, error: FeatureError) -> QuantionEr
     }
 }
 
+/// **find_features** · Features
+///
+/// Untargeted: find every feature in one file by scanning an m/z grid.
+///
+/// - `file`: The sample to read, from parse_ion or parse_mzml.
+/// - `options`: Optional settings. Every field and default is listed in FindFeaturesOptions.
+///
+/// Returns: Every feature found, without frequency.
+///
+/// [Documentation](https://phenological.github.io/quantion/?language=rust#find_features)
 pub fn find_features(file: &mut SampleFile, options: FindFeaturesOptions) -> Result<Vec<Feature>, QuantionError> {
     const FUNCTION: &str = "find_features";
     options.eic.check(FUNCTION, "eic.")?;
@@ -56,6 +66,16 @@ pub fn find_features(file: &mut SampleFile, options: FindFeaturesOptions) -> Res
     }
 }
 
+/// **match_features** · Features
+///
+/// Untargeted across samples: find features in every file of a folder and match them. Values are medians over the samples where a feature was found.
+///
+/// - `directory`: Folder with the .ion or mzML files.
+/// - `options`: Optional settings. Every field and default is listed in MatchFeaturesOptions.
+///
+/// Returns: One Feature per matched feature; frequency is the fraction of samples (0–1).
+///
+/// [Documentation](https://phenological.github.io/quantion/?language=rust#match_features)
 #[cfg(not(all(target_arch = "wasm32", not(target_os = "wasi"))))]
 pub fn match_features(directory: impl AsRef<Path>, options: MatchFeaturesOptions) -> Result<Vec<Feature>, QuantionError> {
     const FUNCTION: &str = "match_features";

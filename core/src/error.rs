@@ -1,5 +1,10 @@
 use std::fmt;
 
+/// **ErrorKind** · Errors
+///
+/// What went wrong, as a name and a fixed number code.
+///
+/// [Documentation](https://phenological.github.io/quantion/?language=rust#ErrorKind)
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ErrorKind {
     InvalidArgument = 1,
@@ -35,6 +40,11 @@ impl ErrorKind {
     }
 }
 
+/// **QuantionError** · Errors
+///
+/// The error every function raises, with its kind, code, function, argument and message.
+///
+/// [Documentation](https://phenological.github.io/quantion/?language=rust#QuantionError)
 #[derive(Clone, Debug, PartialEq)]
 pub struct QuantionError {
     pub kind: ErrorKind,

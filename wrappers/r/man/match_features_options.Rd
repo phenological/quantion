@@ -18,6 +18,9 @@ match_features_options(eic = calculate_eic_options(), grid = grid_options(), gro
 \value{
 An options object for \code{\link{match_features}()}.
 }
+\section{Documentation}{
+\url{https://phenological.github.io/quantion/?language=r#MatchFeaturesOptions}
+}
 \examples{
 match_features_options(grouping = grouping_options(min_frequency = 0.5), threads = 8L)
 }

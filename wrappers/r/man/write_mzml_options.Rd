@@ -14,6 +14,9 @@ write_mzml_options(out = NULL, overwrite = FALSE)
 \value{
 An options object for \code{\link{write_mzml}()}.
 }
+\section{Documentation}{
+\url{https://phenological.github.io/quantion/?language=r#WriteMzmlOptions}
+}
 \examples{
 write_mzml_options(out = "sample.mzML")
 }

@@ -14,6 +14,9 @@ draw_peaks(params, options = draw_peaks_options())
 \value{
 A list with \code{x} and \code{y}.
 }
+\section{Documentation}{
+\url{https://phenological.github.io/quantion/?language=r#draw_peaks}
+}
 \examples{
 peak_1 <- list(height = 9800, center = 2.38, fwhm = 0.021, tail = 0.006)
 peak_2 <- list(height = 4200, center = 2.45, fwhm = 0.018, tail = 0)

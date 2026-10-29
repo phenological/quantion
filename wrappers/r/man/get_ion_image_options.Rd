@@ -15,6 +15,9 @@ get_ion_image_options(tolerance = 0.125, level = 1L, on_progress = NULL)
 \value{
 An options object for \code{\link{get_ion_image}()}.
 }
+\section{Documentation}{
+\url{https://phenological.github.io/quantion/?language=r#GetIonImageOptions}
+}
 \examples{
 get_ion_image_options(tolerance = 0.05)
 }

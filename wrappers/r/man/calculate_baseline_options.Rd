@@ -14,6 +14,9 @@ calculate_baseline_options(lambda = 20, max_iterations = 4L)
 \value{
 An options object for \code{\link{calculate_baseline}()}.
 }
+\section{Documentation}{
+\url{https://phenological.github.io/quantion/?language=r#CalculateBaselineOptions}
+}
 \examples{
 calculate_baseline_options(lambda = 50)
 }

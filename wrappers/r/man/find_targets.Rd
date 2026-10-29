@@ -15,6 +15,9 @@ find_targets(file, targets, options = find_targets_options())
 \value{
 A data.frame with one row per target in the same order: \code{rt}, \code{from}, \code{to}, \code{intensity}, \code{integral}, \code{n_points}, \code{noise}, \code{r2}. A target with no peak gets a row of zeros.
 }
+\section{Documentation}{
+\url{https://phenological.github.io/quantion/?language=r#find_targets}
+}
 \examples{
 \dontrun{
 sample <- parse_ion("sample.ion")

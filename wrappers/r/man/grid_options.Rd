@@ -15,6 +15,9 @@ grid_options(start = 40, end = 1000, step_size = 0.005)
 \value{
 An options object for \code{\link{find_features_options}()}.
 }
+\section{Documentation}{
+\url{https://phenological.github.io/quantion/?language=r#GridOptions}
+}
 \examples{
 grid_options(start = 100, end = 600)
 }

@@ -17,6 +17,9 @@ find_features_options(eic = calculate_eic_options(), grid = grid_options(),
 \value{
 An options object for \code{\link{find_features}()}.
 }
+\section{Documentation}{
+\url{https://phenological.github.io/quantion/?language=r#FindFeaturesOptions}
+}
 \examples{
 find_features_options(grid = grid_options(start = 100, end = 600), threads = 4L)
 }

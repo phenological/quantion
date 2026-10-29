@@ -38,11 +38,14 @@ export class WarpModel extends Metadata {
   }
 
   /**
-   * Predict each target's RT in a file.
+   * predictRts · Models
    *
-   * @param file - The sample file.
-   * @param targets - Targets, each with `mz` and `rt`.
-   * @returns One `{ rt, uncertainty }` per target, in the same order.
+   * Predict where each target elutes in one sample.
+   *
+   * @param file - The sample to read, from parse_ion or parse_mzml.
+   * @param targets - Targets with mz and reference rt. id and range are optional and not used.
+   * @returns One PredictedRt per target, in the same order.
+   * @see {@link https://phenological.github.io/quantion/?language=js#predict_rts | Documentation}
    */
   async predictRts(
     file: SampleFile,
@@ -63,11 +66,14 @@ export class WarpModel extends Metadata {
   }
 
   /**
-   * Turn the RTs seen in anchor samples into targets for {@link predictRts}.
+   * calibrate · Models
    *
-   * @param anchorSamples - The samples where the targets were seen, like LTRs or QCs.
-   * @param targetLists - One list per sample, with `id`, `mz` and the `rt` seen in it.
-   * @returns One `{ id, mz, rt }` per id, with the median calibrated rt over the samples.
+   * Turn the retention times seen in anchor samples (LTRs, QCs) into targets for predict_rts. Each id gets the median rt over the anchors.
+   *
+   * @param anchorSamples - Anchor samples.
+   * @param targetLists - For each anchor sample, the targets seen in it with their observed rt.
+   * @returns One Target per id with the median rt.
+   * @see {@link https://phenological.github.io/quantion/?language=js#calibrate | Documentation}
    */
   async calibrate(
     anchorSamples: SampleFile[],
@@ -98,7 +104,11 @@ export class WarpModel extends Metadata {
   }
 
   /**
-   * Release the native memory held by this model.
+   * dispose · Models
+   *
+   * Free the memory held by a sample, model or warp model.
+   * @returns Nothing.
+   * @see {@link https://phenological.github.io/quantion/?language=js#dispose | Documentation}
    */
   dispose(): void {
     const cell = this._cell;

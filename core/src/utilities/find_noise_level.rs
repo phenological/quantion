@@ -5,6 +5,11 @@ use crate::utilities::cheminfo::{
     noise_san_plot::{NoiseSanPlotOptions, noise_san_plot},
 };
 
+/// **NoiseLevel** · Results
+///
+/// Result of find_noise_level.
+///
+/// [Documentation](https://phenological.github.io/quantion/?language=rust#NoiseLevel)
 #[derive(Clone, Copy, Debug)]
 pub struct NoiseLevel {
     pub width: usize,

@@ -15,6 +15,9 @@ calibrate(warp, anchor_samples, target_lists)
 \value{
 A data.frame with \code{id}, \code{mz} and \code{rt}.
 }
+\section{Documentation}{
+\url{https://phenological.github.io/quantion/?language=r#calibrate}
+}
 \examples{
 \dontrun{
 warp <- load_warp(load_model("model.onnx"))

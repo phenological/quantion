@@ -13,6 +13,9 @@ parse_mzml(source)
 \value{
 A sample (an external pointer of class \code{quantion_sample}).
 }
+\section{Documentation}{
+\url{https://phenological.github.io/quantion/?language=r#parse_mzml}
+}
 \examples{
 \dontrun{
 sample <- parse_mzml("sample.mzML")

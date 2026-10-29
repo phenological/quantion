@@ -15,6 +15,9 @@ calculate_eic(file, mz, options = calculate_eic_options())
 \value{
 A list with \code{x} (retention times in minutes) and \code{y} (summed intensities).
 }
+\section{Documentation}{
+\url{https://phenological.github.io/quantion/?language=r#calculate_eic}
+}
 \examples{
 \dontrun{
 sample <- parse_ion("sample.ion")
