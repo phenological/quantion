@@ -867,11 +867,6 @@ fn build_peaks_bridge(peaks: &[crate::utilities::structs::Peak]) -> Option<Box<[
         .iter()
         .map(|peak| count_as_u32(peak.n_points))
         .collect();
-    let noise: Vec<f64> = peaks.iter().map(|peak| peak.noise).collect();
-    let r2: Vec<f64> = peaks
-        .iter()
-        .map(|peak| peak.r2)
-        .collect();
 
     build_record_bridge(
         QUANTION_PAYLOAD_PEAKS,
@@ -900,14 +895,6 @@ fn build_peaks_bridge(peaks: &[crate::utilities::structs::Peak]) -> Option<Box<[
             Column::Counts {
                 id: QUANTION_SECTION_PEAK_POINT_COUNT,
                 values: &point_count,
-            },
-            Column::Numbers {
-                id: QUANTION_SECTION_PEAK_NOISE,
-                values: &noise,
-            },
-            Column::Numbers {
-                id: QUANTION_SECTION_PEAK_R2,
-                values: &r2,
             },
         ],
     )
@@ -966,7 +953,6 @@ fn build_features_bridge(
         .iter()
         .map(|item| count_as_u32(item.n_points))
         .collect();
-    let noise: Vec<f64> = features.iter().map(|item| item.noise).collect();
 
     build_record_bridge(
         QUANTION_PAYLOAD_FEATURES,
@@ -1000,10 +986,6 @@ fn build_features_bridge(
                 id: QUANTION_SECTION_FEATURE_POINT_COUNT,
                 values: &point_count,
             },
-            Column::Numbers {
-                id: QUANTION_SECTION_FEATURE_NOISE,
-                values: &noise,
-            },
         ],
     )
 }
@@ -1022,7 +1004,6 @@ fn build_consensus_bridge(
         .iter()
         .map(|item| count_as_u32(item.n_points))
         .collect();
-    let noise: Vec<f64> = features.iter().map(|item| item.noise).collect();
     let frequency: Vec<f64> = features
         .iter()
         .map(|item| item.frequency.unwrap_or(f64::NAN))
@@ -1059,10 +1040,6 @@ fn build_consensus_bridge(
             Column::Counts {
                 id: QUANTION_SECTION_CONSENSUS_POINT_COUNT,
                 values: &n_points,
-            },
-            Column::Numbers {
-                id: QUANTION_SECTION_CONSENSUS_NOISE,
-                values: &noise,
             },
             Column::Numbers {
                 id: QUANTION_SECTION_CONSENSUS_FREQUENCY,

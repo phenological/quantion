@@ -55,11 +55,9 @@ pub struct FromTo {
 /// - `intensity`: Apex intensity.
 /// - `integral`: Peak area.
 /// - `n_points`: Points across the peak.
-/// - `noise`: Noise level used for this peak.
-/// - `r2`: Fit quality of the peak shape (0–1).
 ///
 /// [Documentation](https://phenological.github.io/quantion/?language=rust#Peak)
-#[derive(Clone, Copy, Debug, Deserialize)]
+#[derive(Clone, Copy, Deserialize)]
 pub struct Peak {
     pub from: f64,
     pub to: f64,
@@ -67,8 +65,22 @@ pub struct Peak {
     pub integral: f64,
     pub intensity: f64,
     pub n_points: usize,
-    pub noise: f64,
-    pub r2: f64,
+    pub(crate) noise: f64,
+    pub(crate) r2: f64,
+}
+
+impl std::fmt::Debug for Peak {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("Peak")
+            .field("from", &self.from)
+            .field("to", &self.to)
+            .field("rt", &self.rt)
+            .field("integral", &self.integral)
+            .field("intensity", &self.intensity)
+            .field("n_points", &self.n_points)
+            .finish()
+    }
 }
 
 impl Default for Peak {

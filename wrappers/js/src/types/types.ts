@@ -465,8 +465,6 @@ export interface GetIonImageOptions {
  * - `intensity`: Apex intensity.
  * - `integral`: Peak area.
  * - `nPoints`: Points across the peak.
- * - `noise`: Noise level used for this peak.
- * - `r2`: Fit quality of the peak shape (0–1).
  * @see {@link https://phenological.github.io/quantion/?language=js#Peak | Documentation}
  */
 export interface Peak {
@@ -476,8 +474,6 @@ export interface Peak {
   intensity: number;
   integral: number;
   nPoints: number;
-  noise: number;
-  r2: number;
 }
 
 /**
@@ -493,7 +489,6 @@ export interface Peak {
  * - `intensity`: Apex intensity.
  * - `integral`: Peak area.
  * - `nPoints`: Points across the peak.
- * - `noise`: Noise level.
  * - `frequency`: match_features only: fraction of samples where it was found (0–1). Optional.
  * @see {@link https://phenological.github.io/quantion/?language=js#Feature | Documentation}
  */
@@ -505,7 +500,6 @@ export interface Feature {
   intensity: number;
   integral: number;
   nPoints: number;
-  noise: number;
   frequency?: number;
 }
 

@@ -396,12 +396,12 @@ _RECORD_COLUMNS = {
     PAYLOAD_PEAKS: [
         ("from", 18, _NUMBER), ("to", 19, _NUMBER), ("rt", 20, _NUMBER),
         ("integral", 21, _NUMBER), ("intensity", 22, _NUMBER),
-        ("n_points", 23, _COUNT), ("noise", 24, _NUMBER), ("r2", 25, _NUMBER),
+        ("n_points", 23, _COUNT),
     ],
     PAYLOAD_FEATURES: [
         ("mz", 26, _NUMBER), ("rt", 27, _NUMBER), ("from", 28, _NUMBER),
         ("to", 29, _NUMBER), ("intensity", 30, _NUMBER), ("integral", 31, _NUMBER),
-        ("n_points", 32, _COUNT), ("noise", 33, _NUMBER),
+        ("n_points", 32, _COUNT),
     ],
     PAYLOAD_FIT_RESULT: [
         ("height", 47, _NUMBER), ("center", 48, _NUMBER),
@@ -410,7 +410,7 @@ _RECORD_COLUMNS = {
     PAYLOAD_CONSENSUS_FEATURES: [
         ("mz", 62, _NUMBER), ("rt", 63, _NUMBER), ("from", 64, _NUMBER),
         ("to", 65, _NUMBER), ("intensity", 66, _NUMBER), ("integral", 67, _NUMBER),
-        ("n_points", 87, _COUNT), ("noise", 88, _NUMBER), ("frequency", 68, _NUMBER),
+        ("n_points", 87, _COUNT), ("frequency", 68, _NUMBER),
     ],
     PAYLOAD_WARP_TARGETS: [
         ("id", (79, 80), _TEXT), ("mz", 81, _NUMBER), ("rt", 82, _NUMBER),

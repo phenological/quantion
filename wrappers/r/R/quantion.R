@@ -303,8 +303,8 @@ match_features_options <- function(eic = calculate_eic_options(), grid = grid_op
   ))
 }
 
-.PEAK_COLUMNS <- c("rt", "from", "to", "intensity", "integral", "n_points", "noise", "r2")
-.FEATURE_COLUMNS <- c("mz", "rt", "from", "to", "intensity", "integral", "n_points", "noise")
+.PEAK_COLUMNS <- c("rt", "from", "to", "intensity", "integral", "n_points")
+.FEATURE_COLUMNS <- c("mz", "rt", "from", "to", "intensity", "integral", "n_points")
 
 .as_table <- function(rows, columns) {
   rows <- as.data.frame(rows)[, columns, drop = FALSE]

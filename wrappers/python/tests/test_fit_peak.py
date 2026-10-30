@@ -26,6 +26,14 @@ class FitAndDraw(unittest.TestCase):
     def test_the_fit_has_no_shape_field(self):
         self.assertNotIn("shape", self.fit())
 
+    def test_the_fit_has_its_fields_and_r2(self):
+        self.assertEqual(sorted(self.fit()), ["center", "fwhm", "height", "r2", "tail"])
+
+    def test_peaks_have_only_the_public_fields(self):
+        peaks = support.quantion.find_peaks(self.eic["x"], self.eic["y"])
+        self.assertGreater(len(peaks), 0)
+        self.assertEqual(sorted(peaks[0]), ["from", "integral", "intensity", "n_points", "rt", "to"])
+
     def test_the_enum_and_the_text_give_the_same_fit(self):
         self.assertEqual(self.fit({"shape": support.quantion.PeakShape.GAUSSIAN}), self.fit({"shape": "GAUSSIAN"}))
 

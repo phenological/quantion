@@ -4828,62 +4828,20 @@
               "type": "integer"
             }
           }
-        },
-        {
-          "meaning": "Noise level used for this peak.",
-          "languages": {
-            "rust": {
-              "name": "noise",
-              "type": "f64"
-            },
-            "python": {
-              "name": "noise",
-              "type": "float"
-            },
-            "js": {
-              "name": "noise",
-              "type": "number"
-            },
-            "r": {
-              "name": "noise",
-              "type": "numeric"
-            }
-          }
-        },
-        {
-          "meaning": "Fit quality of the peak shape (0–1).",
-          "languages": {
-            "rust": {
-              "name": "r2",
-              "type": "f64"
-            },
-            "python": {
-              "name": "r2",
-              "type": "float"
-            },
-            "js": {
-              "name": "r2",
-              "type": "number"
-            },
-            "r": {
-              "name": "r2",
-              "type": "numeric"
-            }
-          }
         }
       ],
       "languages": {
         "rust": {
-          "signature": "pub struct Peak {\n    pub rt: f64,\n    pub from: f64,\n    pub to: f64,\n    pub intensity: f64,\n    pub integral: f64,\n    pub n_points: usize,\n    pub noise: f64,\n    pub r2: f64,\n}"
+          "signature": "pub struct Peak {\n    pub rt: f64,\n    pub from: f64,\n    pub to: f64,\n    pub intensity: f64,\n    pub integral: f64,\n    pub n_points: usize,\n}"
         },
         "python": {
-          "signature": "Peak = TypedDict(\"Peak\", {\n    \"rt\": float, \"from\": float, \"to\": float,\n    \"intensity\": float, \"integral\": float,\n    \"n_points\": int, \"noise\": float, \"r2\": float,\n})"
+          "signature": "Peak = TypedDict(\"Peak\", {\n    \"rt\": float, \"from\": float, \"to\": float,\n    \"intensity\": float, \"integral\": float,\n    \"n_points\": int,\n})"
         },
         "js": {
-          "signature": "export interface Peak {\n  rt: number;\n  from: number;\n  to: number;\n  intensity: number;\n  integral: number;\n  nPoints: number;\n  noise: number;\n  r2: number;\n}"
+          "signature": "export interface Peak {\n  rt: number;\n  from: number;\n  to: number;\n  intensity: number;\n  integral: number;\n  nPoints: number;\n}"
         },
         "r": {
-          "signature": "data.frame(rt, from, to, intensity, integral, n_points, noise, r2)"
+          "signature": "data.frame(rt, from, to, intensity, integral, n_points)"
         }
       }
     },
@@ -5041,27 +4999,6 @@
           }
         },
         {
-          "meaning": "Noise level.",
-          "languages": {
-            "rust": {
-              "name": "noise",
-              "type": "f64"
-            },
-            "python": {
-              "name": "noise",
-              "type": "float"
-            },
-            "js": {
-              "name": "noise",
-              "type": "number"
-            },
-            "r": {
-              "name": "noise",
-              "type": "numeric"
-            }
-          }
-        },
-        {
           "meaning": "match_features only: fraction of samples where it was found (0–1).",
           "languages": {
             "rust": {
@@ -5085,16 +5022,16 @@
       ],
       "languages": {
         "rust": {
-          "signature": "pub struct Feature {\n    pub mz: f64,\n    pub rt: f64,\n    pub from: f64,\n    pub to: f64,\n    pub intensity: f64,\n    pub integral: f64,\n    pub n_points: usize,\n    pub noise: f64,\n    pub frequency: Option<f64>,\n}"
+          "signature": "pub struct Feature {\n    pub mz: f64,\n    pub rt: f64,\n    pub from: f64,\n    pub to: f64,\n    pub intensity: f64,\n    pub integral: f64,\n    pub n_points: usize,\n    pub frequency: Option<f64>,\n}"
         },
         "python": {
           "signature": "class Feature(_FeatureFields, total=False):\n    frequency: float"
         },
         "js": {
-          "signature": "export interface Feature {\n  mz: number;\n  rt: number;\n  from: number;\n  to: number;\n  intensity: number;\n  integral: number;\n  nPoints: number;\n  noise: number;\n  frequency?: number;\n}"
+          "signature": "export interface Feature {\n  mz: number;\n  rt: number;\n  from: number;\n  to: number;\n  intensity: number;\n  integral: number;\n  nPoints: number;\n  frequency?: number;\n}"
         },
         "r": {
-          "signature": "data.frame(mz, rt, from, to, intensity, integral, n_points, noise, frequency)"
+          "signature": "data.frame(mz, rt, from, to, intensity, integral, n_points, frequency)"
         }
       }
     },

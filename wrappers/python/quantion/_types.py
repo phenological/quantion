@@ -448,8 +448,6 @@ Peak = TypedDict("Peak", {
     "intensity": float,
     "integral": float,
     "n_points": int,
-    "noise": float,
-    "r2": float,
 })
 Peak.__doc__ = """Peak · Results
 
@@ -462,8 +460,6 @@ Fields:
     intensity: Apex intensity.
     integral: Peak area.
     n_points: Points across the peak.
-    noise: Noise level used for this peak.
-    r2: Fit quality of the peak shape (0–1).
 
 Documentation: https://phenological.github.io/quantion/?language=python#Peak
 """
@@ -477,7 +473,6 @@ _FeatureFields = TypedDict("_FeatureFields", {
     "intensity": float,
     "integral": float,
     "n_points": int,
-    "noise": float,
 })
 
 
@@ -494,7 +489,6 @@ class Feature(_FeatureFields, total=False):
         intensity: Apex intensity.
         integral: Peak area.
         n_points: Points across the peak.
-        noise: Noise level.
         frequency: match_features only: fraction of samples where it was found (0–1). Optional.
 
     Documentation: https://phenological.github.io/quantion/?language=python#Feature

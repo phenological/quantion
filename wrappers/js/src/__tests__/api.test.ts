@@ -72,11 +72,18 @@ describe.each(builds)("api on %s", (_name, load) => {
     expect(Array.from(seconds.x)).toEqual(Array.from(minutes.x));
   });
 
-  it("returns peaks with r2", async () => {
+  it("returns peaks with only the public fields", async () => {
     const eic = await quantion.calculateEic(file, ALANINE, { from: 0, to: 5 });
     const peaks = quantion.findPeaks(eic.x, eic.y);
     expect(peaks.length).toBeGreaterThan(0);
-    expect(typeof peaks[0].r2).toBe("number");
+    expect(Object.keys(peaks[0]).sort()).toEqual([
+      "from",
+      "integral",
+      "intensity",
+      "nPoints",
+      "rt",
+      "to",
+    ]);
   });
 
   it("finds a target without a range", async () => {
