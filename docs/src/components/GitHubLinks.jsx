@@ -16,9 +16,6 @@ export function GitHubLinks() {
         <GitHubIcon />
         phenological
       </a>
-      <a className="author" href="https://github.com/josoriom" target="_blank" rel="noreferrer">
-        authored by josoriom
-      </a>
     </div>
   );
 }

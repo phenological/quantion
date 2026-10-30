@@ -89,7 +89,6 @@ export function Sidebar() {
     <nav className="sidebar" aria-label="Functions and types">
       <div className="group">
         <PageButton name={pages.overview} label="Overview" />
-        <PageButton name={pages.versions} label="Versions" />
       </div>
       {state.document.groups.map((group) => (
         <SidebarGroup
@@ -100,6 +99,10 @@ export function Sidebar() {
           onOpen={openGroup}
         />
       ))}
+      <div className="group">
+        <PageButton name={pages.versions} label="Versions" />
+      </div>
+      <p className="author">authored by josoriom</p>
     </nav>
   );
 }

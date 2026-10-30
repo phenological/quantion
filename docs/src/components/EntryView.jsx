@@ -5,6 +5,7 @@ import { CodeBlock } from "./CodeBlock";
 import { DetailTable } from "./DetailTable";
 import { GitHubIcon } from "./GitHubLinks";
 import { GroupView } from "./GroupView";
+import { RegistryLink } from "./RegistryLink";
 import { ReturnsLine } from "./ReturnsLine";
 import { VersionsView } from "./VersionsView";
 import { IonicText } from "./IonicText";
@@ -23,12 +24,13 @@ function GroupBadge({ group }) {
   );
 }
 
-function EntryHeading({ title, group, summary }) {
+function EntryHeading({ title, group, summary, children }) {
   return (
     <>
       <div className="entry-heading">
         <h2>{title}</h2>
         {group && <GroupBadge group={group} />}
+        {children}
       </div>
       <p className="summary">
         <IonicText text={summary} />
@@ -46,7 +48,9 @@ function Overview({ overview, language }) {
   const languageLabel = findLanguage(useDocumentation().state.document, language).label;
   return (
     <>
-      <EntryHeading title={overview.title} summary={overview.summary} />
+      <EntryHeading title={overview.title} summary={overview.summary}>
+        <RegistryLink language={language} />
+      </EntryHeading>
       <CodeBlock title={`Install for ${languageLabel}`} code={overview.install[language]} language={getInstallLanguage(language)} />
       <section className="block">
         <h3>Projects</h3>
