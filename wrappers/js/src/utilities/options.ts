@@ -1,4 +1,4 @@
-import { QuantionError, invalidArgument } from "./errors";
+import { QuantionError, invalidArgument, missingArgument } from "./errors";
 import { PeakShape, TimeUnit } from "../types/types";
 import type {
   CalculateBaselineOptions,
@@ -102,7 +102,46 @@ function getObject(
   return value as Record<string, unknown>;
 }
 
-function checkKeys(
+export const TARGET_KEYS = ["mz", "rt", "id", "range"];
+export const TRANSITION_KEYS = ["precursor", "product", "rt", "range", "id"];
+export const PEAK_KEYS = ["height", "center", "fwhm", "tail", "r2"];
+export const RANGE_KEYS = ["from", "to"];
+
+export function checkItems(
+  items: object[],
+  allowed: string[],
+  functionName: string,
+  argument: string,
+): void {
+  for (let index = 0; index < items.length; index++) {
+    checkKeys(
+      items[index] as Record<string, unknown>,
+      allowed,
+      functionName,
+      `${argument}[${index}].`,
+    );
+  }
+}
+
+export function getRequiredNumber(
+  value: unknown,
+  functionName: string,
+  argument: string,
+): number {
+  if (value === undefined || value === null) {
+    throw missingArgument(functionName, argument);
+  }
+  if (typeof value !== "number") {
+    throw invalidArgument(
+      functionName,
+      argument,
+      `must be a number, got ${typeof value}`,
+    );
+  }
+  return value;
+}
+
+export function checkKeys(
   given: Record<string, unknown>,
   allowed: readonly string[],
   functionName: string,

@@ -45,7 +45,7 @@ describeWithBundle("warp model on wasm", () => {
     const file = await quantion.parseIon(readFixture("api/api.ion"));
     await expect(
       warp.predictRts(file, [targets[0], { mz: NaN, rt: 2 }]),
-    ).rejects.toThrow("predict_rts: target 2 has no valid m/z or rt");
+    ).rejects.toThrow("predictRts: target 2 has no valid m/z or rt");
     file.dispose();
     warp.dispose();
   });
@@ -56,7 +56,7 @@ describeWithBundle("warp model on wasm", () => {
     await expect(
       quantion.loadModel(path.join(fixtures, "shift_model.onnx")),
     ).rejects.toThrow(
-      "load_model: source must be a URL or bytes in the browser",
+      "loadModel: source must be a URL or bytes in the browser",
     );
   });
 });

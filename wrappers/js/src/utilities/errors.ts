@@ -78,7 +78,63 @@ export function readNativeError(text: string): QuantionError {
     );
   }
   const knownKind = (kind in ERROR_CODES ? kind : "internal") as ErrorKind;
-  return new QuantionError(knownKind, functionName, message, argument);
+  const jsArgument = toJsName(argument);
+  let jsMessage = message;
+  if (argument) jsMessage = jsMessage.split(argument).join(jsArgument);
+  for (const name of FUNCTION_NAMES) {
+    jsMessage = jsMessage.replace(
+      new RegExp(`\\b${name}\\b`, "g"),
+      toJsName(name),
+    );
+  }
+  return new QuantionError(
+    knownKind,
+    toJsName(functionName),
+    jsMessage,
+    jsArgument,
+  );
+}
+
+const FUNCTION_NAMES = [
+  "parse_ion",
+  "parse_mzml",
+  "write_ion",
+  "write_mzml",
+  "get_scans",
+  "calculate_eic",
+  "get_ion_image",
+  "find_peaks",
+  "get_peak",
+  "fit_peak",
+  "draw_peaks",
+  "find_noise_level",
+  "calculate_baseline",
+  "find_targets",
+  "find_transitions",
+  "find_features",
+  "match_features",
+  "load_model",
+  "load_warp",
+  "predict_rts",
+  "calibrate",
+];
+
+function toJsName(name: string): string {
+  return name.replace(/_([a-z0-9])/g, (_, letter: string) =>
+    letter.toUpperCase(),
+  );
+}
+
+export function missingArgument(
+  functionName: string,
+  argument: string,
+): QuantionError {
+  return new QuantionError(
+    "missing_argument",
+    functionName,
+    `${argument} is required`,
+    argument,
+  );
 }
 
 export function invalidArgument(

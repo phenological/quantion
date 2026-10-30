@@ -78,7 +78,7 @@ describe("parseIon dispatch to backend primitives", () => {
 
     test("parseIon rejects a file: URL", async () => {
       await expect(parseIon(new URL("file:///data/file.ion"))).rejects.toThrow(
-        "parse_ion: source must be an http(s) URL",
+        "parseIon: source must be an http(s) URL",
       );
       expect(mockBackend.parseIonRemote).not.toHaveBeenCalled();
       expect(mockBackend.parseIonPath).not.toHaveBeenCalled();

@@ -482,12 +482,13 @@ draw_peaks <- function(params, options = draw_peaks_options()) {
   options <- .check_options(function_name, "options", options, "draw_peaks_options", "draw_peaks_options")
   if (!is.list(params)) .invalid(function_name, "params", "must be a list of PeakParameters lists")
   if (!is.null(params$center) && !is.list(params$center)) params <- list(params)
+  for (index in seq_along(params)) .check_names(function_name, params[[index]], .PEAK_NAMES, sprintf("params[[%d]]", index))
   values <- function(name, required) {
     vapply(seq_along(params), function(index)
       .get_peak_value(function_name, params[[index]], index, name, required), numeric(1))
   }
   .Call("C_draw_peaks", values("height", TRUE), values("center", TRUE), values("fwhm", TRUE),
-        values("tail", FALSE), options$from, options$to, options$points, PACKAGE = "quantion")
+        values("tail", TRUE), options$from, options$to, options$points, PACKAGE = "quantion")
 }
 
 find_noise_level <- function(y) {
@@ -508,15 +509,30 @@ calculate_baseline <- function(y, options = calculate_baseline_options()) {
   rep(empty, nrow(table))
 }
 
-.check_table <- function(function_name, targets, argument = "targets") {
+.TARGET_NAMES <- c("mz", "rt", "id", "range")
+.TRANSITION_NAMES <- c("precursor", "product", "rt", "range", "id")
+.PEAK_NAMES <- c("height", "center", "fwhm", "tail", "r2")
+
+.check_names <- function(function_name, given, allowed, argument) {
+  for (name in names(given)) {
+    if (!(name %in% allowed)) {
+      path <- paste0(argument, "$", name)
+      .signal_error("unknown_option", function_name, path,
+                    sprintf("%s is not an option; the options are %s", path, paste(allowed, collapse = ", ")))
+    }
+  }
+}
+
+.check_table <- function(function_name, targets, allowed, argument = "targets") {
   if (!is.data.frame(targets)) .invalid(function_name, argument, "must be a data.frame")
+  .check_names(function_name, targets, allowed, argument)
   targets
 }
 
 find_targets <- function(file, targets, options = find_targets_options()) {
   function_name <- "find_targets"
   file <- .check_sample(function_name, file)
-  targets <- .check_table(function_name, targets)
+  targets <- .check_table(function_name, targets, .TARGET_NAMES)
   options <- .check_options(function_name, "options", options, "find_targets_options", "find_targets_options")
   mzs <- as.numeric(.get_column(function_name, targets, "mz", TRUE, NA))
   rts <- as.numeric(.get_column(function_name, targets, "rt", TRUE, NA))
@@ -533,7 +549,7 @@ find_targets <- function(file, targets, options = find_targets_options()) {
 find_transitions <- function(file, targets, options = find_transitions_options()) {
   function_name <- "find_transitions"
   file <- .check_sample(function_name, file)
-  targets <- .check_table(function_name, targets)
+  targets <- .check_table(function_name, targets, .TRANSITION_NAMES)
   options <- .check_options(function_name, "options", options, "find_transitions_options", "find_transitions_options")
   column <- function(name) as.numeric(.get_column(function_name, targets, name, TRUE, NA))
   ids <- as.character(.get_column(function_name, targets, "id", FALSE, NA))
@@ -642,7 +658,7 @@ predict_rts <- function(warp, file, targets) {
   function_name <- "predict_rts"
   warp <- .check_warp(function_name, warp)
   file <- .check_sample(function_name, file)
-  targets <- .check_table(function_name, targets)
+  targets <- .check_table(function_name, targets, .TARGET_NAMES)
   mzs <- as.numeric(.get_column(function_name, targets, "mz", TRUE, NA))
   rts <- as.numeric(.get_column(function_name, targets, "rt", TRUE, NA))
   if (length(mzs) == 0) return(data.frame(rt = numeric(0), uncertainty = numeric(0)))
@@ -661,7 +677,7 @@ calibrate <- function(warp, anchor_samples, target_lists) {
   for (index in seq_along(anchor_samples)) .check_sample(function_name, anchor_samples[[index]])
   for (index in seq_along(target_lists)) {
     argument <- sprintf("target_lists[[%d]]", index)
-    targets <- .check_table(function_name, target_lists[[index]], argument)
+    targets <- .check_table(function_name, target_lists[[index]], .TARGET_NAMES, argument)
     if (index <= length(anchor_samples)) {
       .prefetch_targets(warp, anchor_samples[[index]],
                         as.numeric(.get_column(function_name, targets, "mz", TRUE, NA, argument)),

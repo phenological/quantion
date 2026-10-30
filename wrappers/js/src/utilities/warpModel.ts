@@ -3,6 +3,7 @@ import { fileHandleRegistry } from "./handleRegistry";
 import { Metadata } from "./metadata";
 import { SampleFile } from "./sampleFile";
 import { invalidArgument } from "./errors";
+import { checkItems, getRequiredNumber, TARGET_KEYS } from "./options";
 import type { PredictedRt, Target } from "../types/types";
 import type { ModelEntry } from "../types/internal";
 
@@ -52,12 +53,17 @@ export class WarpModel extends Metadata {
     file: SampleFile,
     targets: Target[],
   ): Promise<PredictedRt[]> {
-    const warp = this.getHandle("predict_rts");
-    const handle = getFileHandle(file, "predict_rts");
+    checkItems(targets, TARGET_KEYS, "predictRts", "targets");
+    const warp = this.getHandle("predictRts");
+    const handle = getFileHandle(file, "predictRts");
     if (targets.length === 0) return [];
 
-    const mzs = Float64Array.from(targets, (target) => target.mz);
-    const rts = Float64Array.from(targets, (target) => target.rt);
+    const mzs = Float64Array.from(targets, (target, index) =>
+      getRequiredNumber(target.mz, "predictRts", `targets[${index}].mz`),
+    );
+    const rts = Float64Array.from(targets, (target, index) =>
+      getRequiredNumber(target.rt, "predictRts", `targets[${index}].rt`),
+    );
     await this._backend.prefetchRts(warp, handle, mzs, rts);
     const values = this._backend.predictRts(warp, handle, mzs, rts);
     return targets.map((_, index) => ({
@@ -81,6 +87,15 @@ export class WarpModel extends Metadata {
     anchorSamples: SampleFile[],
     targetLists: Target[][],
   ): Promise<Target[]> {
+    for (let index = 0; index < targetLists.length; index++) {
+      const argument = `targetLists[${index}]`;
+      checkItems(targetLists[index], TARGET_KEYS, "calibrate", argument);
+      for (let item = 0; item < targetLists[index].length; item++) {
+        const target = targetLists[index][item];
+        getRequiredNumber(target.mz, "calibrate", `${argument}[${item}].mz`);
+        getRequiredNumber(target.rt, "calibrate", `${argument}[${item}].rt`);
+      }
+    }
     const warp = this.getHandle("calibrate");
     const handles = anchorSamples.map((sample) =>
       getFileHandle(sample, "calibrate"),

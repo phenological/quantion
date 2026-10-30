@@ -972,7 +972,7 @@ export class WasmBackend implements Backend {
 
   parseMzmlPath(): FileHandle {
     throw invalidArgument(
-      "parse_mzml",
+      "parseMzml",
       "source",
       "must be bytes in the browser; paths need Node",
     );
@@ -980,7 +980,7 @@ export class WasmBackend implements Backend {
 
   parseIonPath(): FileHandle {
     throw invalidArgument(
-      "parse_ion",
+      "parseIon",
       "source",
       "must be a URL or bytes in the browser; paths need Node",
     );
@@ -1022,7 +1022,7 @@ export class WasmBackend implements Backend {
 
   loadModelPath(): ModelHandle {
     throw invalidArgument(
-      "load_model",
+      "loadModel",
       "source",
       "must be a URL or bytes in the browser; paths need Node",
     );

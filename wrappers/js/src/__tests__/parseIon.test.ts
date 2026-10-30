@@ -199,7 +199,7 @@ describe("parseIon URL support", () => {
     const { parseIon } = await import("../utilities/api");
     const file_url = new URL(`file://${test_ion_path}`);
     await expect(parseIon(file_url)).rejects.toThrow(
-      "parse_ion: source must be an http(s) URL",
+      "parseIon: source must be an http(s) URL",
     );
   });
 
@@ -260,7 +260,7 @@ describe("parseIon URL support", () => {
     expect(path_result).toBeInstanceOf(Promise);
     await drain(path_result);
     await expect(parseIon(new URL(`file://${test_ion_path}`))).rejects.toThrow(
-      "parse_ion: source must be an http(s) URL",
+      "parseIon: source must be an http(s) URL",
     );
   });
 

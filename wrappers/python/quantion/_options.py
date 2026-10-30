@@ -61,7 +61,7 @@ def read_options(
         raise _invalid(function, prefix.rstrip(".") or "options", "must be a dict")
     for key in given:
         if key not in defaults:
-            raise _unknown_option(function, f"{prefix}{key}")
+            raise _unknown_option(function, f"{prefix}{key}", list(defaults))
     result: Dict[str, Any] = {}
     for key, default in defaults.items():
         if isinstance(default, Mapping):

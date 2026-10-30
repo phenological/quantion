@@ -33,6 +33,18 @@ pub(crate) fn check_targets(function: &'static str, targets: &[Target]) -> Resul
     Ok(())
 }
 
+/// **find_targets** · Targeted
+///
+/// For each target, build its EIC at mz and find its peak near rt ± range.
+///
+/// - `file`: The sample to read, from parse_ion or parse_mzml.
+/// - `targets`: What to look for. A target without range searches its whole EIC. Each Target has `id`, `mz`, `rt`, `range`. See [Target](https://phenological.github.io/quantion/?language=rust#Target).
+///   Example: `let target = Target { id: Some("compound_1".into()), mz: 260.103, rt: 2.383, range: Some(0.05) };`
+/// - `options`: Optional settings: `eic`, `find_peaks`, `threads` = 1. See [FindTargetsOptions](https://phenological.github.io/quantion/?language=rust#FindTargetsOptions).
+///
+/// Returns: One Peak per target, in the same order. A target with no peak gets a Peak with every field 0.
+///
+/// [Documentation](https://phenological.github.io/quantion/?language=rust#find_targets)
 pub fn find_targets(file: &mut SampleFile, targets: &[Target], options: FindTargetsOptions) -> Result<Vec<Peak>, QuantionError> {
     const FUNCTION: &str = "find_targets";
     options.eic.check(FUNCTION, "eic.")?;
@@ -63,7 +75,7 @@ pub fn find_targets(file: &mut SampleFile, targets: &[Target], options: FindTarg
 ///
 /// - `file`: The sample to read, from parse_ion or parse_mzml.
 /// - `targets`: The transitions. Each Transition has `id`, `precursor`, `product`, `rt`, `range`. See [Transition](https://phenological.github.io/quantion/?language=rust#Transition).
-///   Example: `let transition = Transition { id: Some("compound_1".into()), precursor: 500.3, product: 184.1, rt: 3.2, range: 0.4 };`
+///   Example: `let transition = Transition { id: Some("compound_1".into()), precursor: 89.04768, product: 89.04768, rt: 2.385, range: 0.1 };`
 /// - `options`: Optional settings: `find_peaks`, `threads` = 1. See [FindTransitionsOptions](https://phenological.github.io/quantion/?language=rust#FindTransitionsOptions).
 ///
 /// Returns: One Peak per transition, in the same order. No match gives a Peak with every field 0.

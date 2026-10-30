@@ -337,6 +337,20 @@ pub(crate) fn check_scan_query(function: &'static str, query: ScanQuery) -> Resu
     }
 }
 
+/// **get_scans** · Files
+///
+/// Read scans by retention time or precursor m/z. A range returns every scan in it; one number returns the closest scan, as a list of one.
+///
+/// - `file`: The sample to read, from parse_ion or parse_mzml.
+/// - `query`: Which scans, by retention time: a range or one value. Each ScanQuery has `RtRange(FromTo)`, `Rt(f64)`, `MzRange(FromTo)`, `Mz(f64)`. See [ScanQuery](https://phenological.github.io/quantion/?language=rust#ScanQuery).
+///   Example: `let query = ScanQuery::RtRange(FromTo { from: 1.0, to: 2.5 });`
+/// - `query`: Or by precursor m/z: a range or one value. Give rt or mz, not both. Each ScanQuery has `RtRange(FromTo)`, `Rt(f64)`, `MzRange(FromTo)`, `Mz(f64)`. See [ScanQuery](https://phenological.github.io/quantion/?language=rust#ScanQuery).
+///   Example: `let query = ScanQuery::RtRange(FromTo { from: 1.0, to: 2.5 });`
+/// - `options`: Optional settings: `level` = 1, `time_unit` = MINUTES. See [GetScansOptions](https://phenological.github.io/quantion/?language=rust#GetScansOptions).
+///
+/// Returns: The scans found, in rt order.
+///
+/// [Documentation](https://phenological.github.io/quantion/?language=rust#get_scans)
 pub fn get_scans(file: &mut SampleFile, query: ScanQuery, options: GetScansOptions) -> Result<Vec<Scan>, QuantionError> {
     const FUNCTION: &str = "get_scans";
     check_scan_query(FUNCTION, query)?;
@@ -363,6 +377,17 @@ pub(crate) fn check_eic_request(function: &'static str, mz: f64, options: &Calcu
     options.check(function, "")
 }
 
+/// **calculate_eic** · Files
+///
+/// Extract the ion chromatogram of one m/z.
+///
+/// - `file`: The sample to read, from parse_ion or parse_mzml.
+/// - `mz`: The m/z to extract (Da).
+/// - `options`: Optional settings: `from` = 0.0, `to` = f64::INFINITY, `ppm_tolerance` = 20.0, `mz_tolerance` = 0.005, `time_unit` = MINUTES. See [CalculateEicOptions](https://phenological.github.io/quantion/?language=rust#CalculateEicOptions).
+///
+/// Returns: The chromatogram: x = retention times, y = summed intensities.
+///
+/// [Documentation](https://phenological.github.io/quantion/?language=rust#calculate_eic)
 pub fn calculate_eic(file: &mut SampleFile, mz: f64, options: CalculateEicOptions) -> Result<DataXY, QuantionError> {
     const FUNCTION: &str = "calculate_eic";
     check_eic_request(FUNCTION, mz, &options)?;

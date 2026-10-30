@@ -135,7 +135,7 @@ def _read_record(
         raise _invalid(function, argument, "must be a dict")
     for key in record:
         if key not in required and key not in optional:
-            raise _unknown_option(function, f"{argument}.{key}")
+            raise _unknown_option(function, f"{argument}.{key}", [*required, *optional])
     for key in required:
         if record.get(key) is None:
             raise _missing(function, f"{argument}.{key}")
@@ -771,7 +771,7 @@ def find_transitions(
     Args:
         file: The sample to read, from parse_ion or parse_mzml.
         targets: The transitions. Each Transition has id, precursor, product, rt, range. See Transition: https://phenological.github.io/quantion/?language=python#Transition
-            Example: transition: Transition = {"id": "compound_1", "precursor": 500.3, "product": 184.1, "rt": 3.2, "range": 0.4}
+            Example: transition: Transition = {"id": "compound_1", "precursor": 89.04768, "product": 89.04768, "rt": 2.385, "range": 0.1}
         options: Optional settings: find_peaks, threads = 1. See FindTransitionsOptions: https://phenological.github.io/quantion/?language=python#FindTransitionsOptions
 
     Returns:

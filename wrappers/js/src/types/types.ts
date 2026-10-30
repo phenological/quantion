@@ -85,7 +85,7 @@ export interface Target {
  *
  * @example
  * ```ts
- * const transition: Transition = { id: "compound_1", precursor: 500.3, product: 184.1, rt: 3.2, range: 0.4 };
+ * const transition: Transition = { id: "compound_1", precursor: 89.04768, product: 89.04768, rt: 2.385, range: 0.1 };
  * ```
  * @see {@link https://phenological.github.io/quantion/?language=js#Transition | Documentation}
  */

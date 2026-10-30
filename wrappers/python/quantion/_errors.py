@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import ctypes
-from typing import Optional
+from typing import Optional, Sequence
 
 _FIELD_SEPARATOR = "\x1f"
 
@@ -57,8 +57,9 @@ def _missing(function: str, argument: str) -> QuantionError:
     return QuantionError("missing_argument", function, f"{argument} is required", argument)
 
 
-def _unknown_option(function: str, argument: str) -> QuantionError:
-    return QuantionError("unknown_option", function, f"{argument} is not an option", argument)
+def _unknown_option(function: str, argument: str, allowed: Sequence[str]) -> QuantionError:
+    message = f"{argument} is not an option; the options are {', '.join(allowed)}"
+    return QuantionError("unknown_option", function, message, argument)
 
 
 def _read_last_error(abi, function: str, code: int) -> QuantionError:

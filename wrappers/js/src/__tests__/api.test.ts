@@ -132,7 +132,7 @@ describe.each(builds)("api on %s", (_name, load) => {
     expect(error.code).toBe(1);
     expect(error.argument).toBe("mz");
     expect(error.message).toBe(
-      "calculate_eic: mz must be greater than 0, got -1",
+      "calculateEic: mz must be greater than 0, got -1",
     );
   });
 
@@ -151,12 +151,85 @@ describe.each(builds)("api on %s", (_name, load) => {
     expect(caught.argument).toBe("findPeaks.minIntensty");
   });
 
+  it("refuses a target, transition, peak or range with an unknown key", async () => {
+    const cases: Array<[() => unknown, string]> = [
+      [
+        () =>
+          quantion.findTargets(file, [{ mz: ALANINE, rt: 2.385, rnage: 0.1 }]),
+        "findTargets: targets[0].rnage is not an option; the options are mz, rt, id, range",
+      ],
+      [
+        () =>
+          quantion.findTransitions(file, [
+            {
+              precursor: ALANINE,
+              product: ALANINE,
+              rt: 2.385,
+              range: 0.1,
+              prodcut: 1,
+            },
+          ]),
+        "findTransitions: targets[0].prodcut is not an option; the options are precursor, product, rt, range, id",
+      ],
+      [
+        () =>
+          quantion.drawPeaks([
+            { height: 1, center: 2, fwhm: 0.1, tail: 0, hieght: 5 },
+          ]),
+        "drawPeaks: params[0].hieght is not an option; the options are height, center, fwhm, tail, r2",
+      ],
+      [
+        () => quantion.getScans(file, { rt: { from: 1, too: 2 } }),
+        "getScans: rt.too is not an option; the options are from, to",
+      ],
+    ];
+    for (const [call, message] of cases) {
+      let caught: any;
+      try {
+        await call();
+      } catch (error) {
+        caught = error;
+      }
+      expect(caught).toBeInstanceOf(quantion.QuantionError);
+      expect(caught.kind).toBe("unknown_option");
+      expect(caught.message).toBe(message);
+    }
+  });
+
+  it("reports a missing required field as missing_argument", async () => {
+    const cases: Array<[() => unknown, string]> = [
+      [
+        () => quantion.drawPeaks([{ height: 1, center: 2, fwhm: 0.1 }]),
+        "drawPeaks: params[0].tail is required",
+      ],
+      [
+        () => quantion.findTargets(file, [{ rt: 2.385 }]),
+        "findTargets: targets[0].mz is required",
+      ],
+      [
+        () => quantion.getScans(file, { rt: { from: 1 } }),
+        "getScans: rt.to is required",
+      ],
+    ];
+    for (const [call, message] of cases) {
+      let caught: any;
+      try {
+        await call();
+      } catch (error) {
+        caught = error;
+      }
+      expect(caught).toBeInstanceOf(quantion.QuantionError);
+      expect(caught.kind).toBe("missing_argument");
+      expect(caught.message).toBe(message);
+    }
+  });
+
   it("refuses an enum value that is not uppercase", () => {
     expect(() =>
       quantion.findPeaks(new Float64Array(3), new Float64Array(3), {
         shape: "emg",
       }),
-    ).toThrow("find_peaks: shape must be one of GAUSSIAN, EMG, got emg");
+    ).toThrow("findPeaks: shape must be one of GAUSSIAN, EMG, got emg");
   });
 
   it("refuses headers without a URL", async () => {
@@ -171,7 +244,7 @@ describe.each(builds)("api on %s", (_name, load) => {
   it("refuses x and y of different lengths", () => {
     expect(() =>
       quantion.findPeaks(new Float64Array(5), new Float64Array(4)),
-    ).toThrow("find_peaks: y must have the same length as x (5), got 4");
+    ).toThrow("findPeaks: y must have the same length as x (5), got 4");
   });
 });
 
@@ -215,7 +288,7 @@ describeWithNode("node only", () => {
       .calculateEic(file, ALANINE)
       .catch((caught: unknown) => caught);
     expect(error.message).toBe(
-      "calculate_eic: file is not open; it was disposed or never opened",
+      "calculateEic: file is not open; it was disposed or never opened",
     );
   });
 });

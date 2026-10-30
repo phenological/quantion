@@ -117,7 +117,7 @@ describeWithNode("warp model", () => {
     const file = await parseIon(coveringFile);
     await expect(
       warp.predictRts(file, [targets[0], { id: "broken", mz: NaN, rt: 2 }]),
-    ).rejects.toThrow("predict_rts: target 2 has no valid m/z or rt");
+    ).rejects.toThrow("predictRts: target 2 has no valid m/z or rt");
     file.dispose();
   });
 
@@ -125,7 +125,7 @@ describeWithNode("warp model", () => {
     const warp = await getWarp(modelPath);
     const file = await parseIon(emptyFile);
     await expect(warp.predictRts(file, targets)).rejects.toThrow(
-      "predict_rts: the file has no scans, the warp model needs",
+      "predictRts: the file has no scans, the warp model needs",
     );
     file.dispose();
   });
@@ -133,7 +133,7 @@ describeWithNode("warp model", () => {
   it("refuses a model URL that answers with an HTTP error", async () => {
     await expect(
       loadModel(modelUrl.replace("shift_model.onnx", "missing.onnx")),
-    ).rejects.toThrow("load_model: the file could not be read: GET");
+    ).rejects.toThrow("loadModel: the file could not be read: GET");
   });
 
   it("gives the keys and values stored in the model", async () => {
@@ -212,13 +212,13 @@ describeWithNode("warp model", () => {
 
   it("needs a model to make a warp", () => {
     expect(() => loadWarp(modelPath as never)).toThrow(
-      "load_warp: model must be an open Model from loadModel",
+      "loadWarp: model must be an open Model from loadModel",
     );
   });
 
   it("refuses a missing model file", async () => {
     await expect(
       loadModel(path.join(fixtures, "missing.onnx")),
-    ).rejects.toThrow("load_model: the file could not be read");
+    ).rejects.toThrow("loadModel: the file could not be read");
   });
 });
