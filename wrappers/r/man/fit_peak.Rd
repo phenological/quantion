@@ -11,7 +11,9 @@ fit_peak(x, y, rt, options = fit_peak_options())
   \item{x}{Retention times in minutes, ascending. At least 3 points.}
   \item{y}{Intensities, the same length as \code{x}.}
   \item{rt}{Retention time of the peak to fit.}
-  \item{options}{Settings from \code{\link{fit_peak_options}()}.}
+  \item{options}{Settings from \code{\link{fit_peak_options}()}: \code{shape = "EMG"}, \code{intensity = 0}.
+    \href{https://phenological.github.io/quantion/?language=r#FitPeakOptions}{FitPeakOptions documentation}
+  }
 }
 \value{
 A list with \code{height}, \code{center}, \code{fwhm}, \code{tail} (0 for a Gaussian) and \code{r2}, or \code{NULL} when no peak is found or the fit fails.

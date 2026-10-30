@@ -9,7 +9,9 @@ find_features(file, options = find_features_options())
 }
 \arguments{
   \item{file}{A sample from \code{\link{parse_ion}()} or \code{\link{parse_mzml}()}.}
-  \item{options}{Settings from \code{\link{find_features_options}()}.}
+  \item{options}{Settings from \code{\link{find_features_options}()}: \code{eic}, \code{grid}, \code{find_peaks}, \code{threads = 1L}.
+    \href{https://phenological.github.io/quantion/?language=r#FindFeaturesOptions}{FindFeaturesOptions documentation}
+  }
 }
 \value{
 A data.frame with one row per feature: \code{mz}, \code{rt}, \code{from}, \code{to}, \code{intensity}, \code{integral}, \code{n_points}, \code{noise}.

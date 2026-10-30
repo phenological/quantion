@@ -10,7 +10,10 @@ predict_rts(warp, file, targets)
 \arguments{
   \item{warp}{A warp model from \code{\link{load_warp}()}.}
   \item{file}{A sample from \code{\link{parse_ion}()} or \code{\link{parse_mzml}()}.}
-  \item{targets}{A data.frame with columns \code{mz} and \code{rt}; \code{id} and \code{range} are optional and not used.}
+  \item{targets}{A data.frame with columns \code{mz} and \code{rt}; \code{id} and \code{range} are optional and not used.
+    Example: \code{targets <- data.frame(id = "compound_1", mz = 260.103, rt = 2.383, range = 0.05)}
+    \href{https://phenological.github.io/quantion/?language=r#Target}{Target documentation}
+  }
 }
 \value{
 A data.frame with \code{rt} and \code{uncertainty}, one row per target in the same order.

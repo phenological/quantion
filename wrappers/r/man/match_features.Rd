@@ -9,7 +9,9 @@ match_features(directory, options = match_features_options())
 }
 \arguments{
   \item{directory}{A folder with .ion or mzML files.}
-  \item{options}{Settings from \code{\link{match_features_options}()}.}
+  \item{options}{Settings from \code{\link{match_features_options}()}: \code{eic}, \code{grid}, \code{grouping}, \code{find_peaks}, \code{threads = 1L}.
+    \href{https://phenological.github.io/quantion/?language=r#MatchFeaturesOptions}{MatchFeaturesOptions documentation}
+  }
 }
 \value{
 A data.frame like \code{\link{find_features}()} plus \code{frequency}, the fraction of samples (0 to 1) where the feature was found.

@@ -9,8 +9,13 @@ find_transitions(file, targets, options = find_transitions_options())
 }
 \arguments{
   \item{file}{A sample from \code{\link{parse_ion}()} or \code{\link{parse_mzml}()}.}
-  \item{targets}{A data.frame with columns \code{precursor}, \code{product}, \code{rt} and \code{range}, and an optional \code{id}.}
-  \item{options}{Settings from \code{\link{find_transitions_options}()}.}
+  \item{targets}{A data.frame with columns \code{precursor}, \code{product}, \code{rt} and \code{range}, and an optional \code{id}.
+    Example: \code{transitions <- data.frame(id = "compound_1", precursor = 500.3, product = 184.1, rt = 3.2, range = 0.4)}
+    \href{https://phenological.github.io/quantion/?language=r#Transition}{Transition documentation}
+  }
+  \item{options}{Settings from \code{\link{find_transitions_options}()}: \code{find_peaks}, \code{threads = 1L}.
+    \href{https://phenological.github.io/quantion/?language=r#FindTransitionsOptions}{FindTransitionsOptions documentation}
+  }
 }
 \value{
 A data.frame with one row per transition, like \code{\link{find_targets}()}. No matching chromatogram gives a row of zeros.

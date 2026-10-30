@@ -87,6 +87,17 @@ impl From<FastError> for FeatureError {
 ///
 /// A peak at an m/z. match_features adds frequency.
 ///
+/// Fields:
+/// - `mz`: m/z (Da).
+/// - `rt`: Apex retention time (minutes).
+/// - `from`: Start of the peak.
+/// - `to`: End of the peak.
+/// - `intensity`: Apex intensity.
+/// - `integral`: Peak area.
+/// - `n_points`: Points across the peak.
+/// - `noise`: Noise level.
+/// - `frequency`: match_features only: fraction of samples where it was found (0–1). Optional.
+///
 /// [Documentation](https://phenological.github.io/quantion/?language=rust#Feature)
 #[derive(Clone, Debug, Default)]
 pub struct Feature {

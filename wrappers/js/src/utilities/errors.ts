@@ -17,6 +17,18 @@ export const ERROR_CODES = {
  * ErrorKind · Errors
  *
  * What went wrong, as a name and a fixed number code.
+ *
+ * Fields:
+ * - `"invalid_argument"`: A value is out of range or the wrong type.
+ * - `"missing_argument"`: A required value is missing.
+ * - `"unknown_option"`: An option key that does not exist.
+ * - `"remote_file"`: Needs the whole file, but a URL was given.
+ * - `"file_not_found"`: The path does not exist.
+ * - `"parse_failed"`: The file is not valid .ion, mzML or ONNX.
+ * - `"model_mismatch"`: The model has no warp, or a target is not in it.
+ * - `"file_exists"`: The output file exists and overwrite is false.
+ * - `"upload_failed"`: The upload was rejected, with the HTTP status.
+ * - `"internal"`: A bug in quantion. Please report it.
  * @see {@link https://phenological.github.io/quantion/?language=js#ErrorKind | Documentation}
  */
 export type ErrorKind = keyof typeof ERROR_CODES;
@@ -25,6 +37,13 @@ export type ErrorKind = keyof typeof ERROR_CODES;
  * QuantionError · Errors
  *
  * The error every function raises, with its kind, code, function, argument and message.
+ *
+ * Fields:
+ * - `kind`: What went wrong.
+ * - `code`: Fixed number for the kind.
+ * - `function`: Where: the public function that failed.
+ * - `argument`: Which input, such as targets[3].range.
+ * - `message`: Why, in plain words. Starts with the function name.
  * @see {@link https://phenological.github.io/quantion/?language=js#QuantionError | Documentation}
  */
 export class QuantionError extends Error {

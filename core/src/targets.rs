@@ -15,8 +15,9 @@ use crate::{
 /// For each target, build its EIC at mz and find its peak near rt ± range.
 ///
 /// - `file`: The sample to read, from parse_ion or parse_mzml.
-/// - `targets`: What to look for. A target without range searches its whole EIC.
-/// - `options`: Optional settings. Every field and default is listed in FindTargetsOptions.
+/// - `targets`: What to look for. A target without range searches its whole EIC. Each Target has `id`, `mz`, `rt`, `range`. See [Target](https://phenological.github.io/quantion/?language=rust#Target).
+///   Example: `let target = Target { id: Some("compound_1".into()), mz: 260.103, rt: 2.383, range: Some(0.05) };`
+/// - `options`: Optional settings: `eic`, `find_peaks`, `threads` = 1. See [FindTargetsOptions](https://phenological.github.io/quantion/?language=rust#FindTargetsOptions).
 ///
 /// Returns: One Peak per target, in the same order. A target with no peak gets a Peak with every field 0.
 ///
@@ -54,8 +55,9 @@ pub fn find_targets(file: &mut SampleFile, targets: &[Target], options: FindTarg
 /// For each SRM transition, take the stored chromatogram whose precursor (Q1) and product (Q3) are both within 0.005 m/z, and find its peak near rt ± range.
 ///
 /// - `file`: The sample to read, from parse_ion or parse_mzml.
-/// - `targets`: The transitions.
-/// - `options`: Optional settings. Every field and default is listed in FindTransitionsOptions.
+/// - `targets`: The transitions. Each Transition has `id`, `precursor`, `product`, `rt`, `range`. See [Transition](https://phenological.github.io/quantion/?language=rust#Transition).
+///   Example: `let transition = Transition { id: Some("compound_1".into()), precursor: 500.3, product: 184.1, rt: 3.2, range: 0.4 };`
+/// - `options`: Optional settings: `find_peaks`, `threads` = 1. See [FindTransitionsOptions](https://phenological.github.io/quantion/?language=rust#FindTransitionsOptions).
 ///
 /// Returns: One Peak per transition, in the same order. No match gives a Peak with every field 0.
 ///

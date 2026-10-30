@@ -10,7 +10,9 @@ find_peaks(x, y, options = find_peaks_options())
 \arguments{
   \item{x}{Retention times in minutes, ascending. At least 3 points.}
   \item{y}{Intensities, the same length as \code{x}.}
-  \item{options}{Settings from \code{\link{find_peaks_options}()}.}
+  \item{options}{Settings from \code{\link{find_peaks_options}()}: \code{min_integral = NA}, \code{min_intensity = 500}, \code{min_peak_width_points = 3L}, \code{noise = NA}, \code{auto_noise = TRUE}, \code{auto_baseline = TRUE}, \code{lambda = 20}, \code{max_iterations = 4L}, \code{allow_overlap = FALSE}, \code{min_snr = 2}, \code{min_r2 = 0}, \code{shape = "EMG"}, \code{kernel_size = 0L}.
+    \href{https://phenological.github.io/quantion/?language=r#FindPeaksOptions}{FindPeaksOptions documentation}
+  }
 }
 \value{
 A data.frame with one row per peak: \code{rt}, \code{from}, \code{to}, \code{intensity}, \code{integral}, \code{n_points}, \code{noise}, \code{r2}.

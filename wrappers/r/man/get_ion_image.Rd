@@ -10,7 +10,9 @@ get_ion_image(file, mz, options = get_ion_image_options())
 \arguments{
   \item{file}{A sample from \code{\link{parse_ion}()}.}
   \item{mz}{The m/z to map (Da).}
-  \item{options}{Settings from \code{\link{get_ion_image_options}()}.}
+  \item{options}{Settings from \code{\link{get_ion_image_options}()}: \code{tolerance = 0.125}, \code{level = 1L}, \code{on_progress = NULL}.
+    \href{https://phenological.github.io/quantion/?language=r#GetIonImageOptions}{GetIonImageOptions documentation}
+  }
 }
 \value{
 A list with \code{width}, \code{height}, \code{min_x}, \code{min_y}, \code{min_z}, \code{max_z}, \code{data} (summed intensity per pixel, row by row) and \code{counts} (scans per pixel).

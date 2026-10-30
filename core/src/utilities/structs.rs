@@ -4,6 +4,10 @@ use serde::Deserialize;
 ///
 /// A trace: x = retention times, y = intensities. Returned by calculate_eic, taken by find_peaks.
 ///
+/// Fields:
+/// - `x`: Retention times (minutes).
+/// - `y`: Intensities.
+///
 /// [Documentation](https://phenological.github.io/quantion/?language=rust#DataXY)
 #[derive(Clone, Debug, Default, Deserialize)]
 pub struct DataXY {
@@ -24,6 +28,15 @@ impl DataXY {
 ///
 /// A range: retention-time windows and m/z ranges.
 ///
+/// Fields:
+/// - `from`: Start of the range.
+/// - `to`: End of the range.
+///
+/// Example:
+/// ```ignore
+/// let window = FromTo { from: 1.0, to: 2.5 };
+/// ```
+///
 /// [Documentation](https://phenological.github.io/quantion/?language=rust#FromTo)
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct FromTo {
@@ -34,6 +47,16 @@ pub struct FromTo {
 /// **Peak** · Results
 ///
 /// One chromatographic peak. No peak gives every field 0.
+///
+/// Fields:
+/// - `rt`: Apex retention time (minutes).
+/// - `from`: Start of the peak.
+/// - `to`: End of the peak.
+/// - `intensity`: Apex intensity.
+/// - `integral`: Peak area.
+/// - `n_points`: Points across the peak.
+/// - `noise`: Noise level used for this peak.
+/// - `r2`: Fit quality of the peak shape (0–1).
 ///
 /// [Documentation](https://phenological.github.io/quantion/?language=rust#Peak)
 #[derive(Clone, Copy, Debug, Deserialize)]
@@ -73,6 +96,17 @@ pub struct Roi {
 ///
 /// One compound. range limits the search in find_targets; missing or 0 searches the whole EIC. predict_rts and calibrate do not use range.
 ///
+/// Fields:
+/// - `id`: Your name for it. Not used in the search. Optional.
+/// - `mz`: m/z (Da).
+/// - `rt`: Expected retention time.
+/// - `range`: Half-width of the search window around rt. Missing or 0 = search the whole EIC. Optional.
+///
+/// Example:
+/// ```ignore
+/// let target = Target { id: Some("compound_1".into()), mz: 260.103, rt: 2.383, range: Some(0.05) };
+/// ```
+///
 /// [Documentation](https://phenological.github.io/quantion/?language=rust#Target)
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Target {
@@ -95,6 +129,18 @@ impl Target {
 /// **Transition** · Inputs
 ///
 /// One SRM transition.
+///
+/// Fields:
+/// - `id`: Your name for it. Optional.
+/// - `precursor`: Precursor (Q1) m/z.
+/// - `product`: Product (Q3) m/z.
+/// - `rt`: Expected retention time.
+/// - `range`: Half-width of the search window around rt.
+///
+/// Example:
+/// ```ignore
+/// let transition = Transition { id: Some("compound_1".into()), precursor: 500.3, product: 184.1, rt: 3.2, range: 0.4 };
+/// ```
 ///
 /// [Documentation](https://phenological.github.io/quantion/?language=rust#Transition)
 #[derive(Clone, Debug, Default, PartialEq)]

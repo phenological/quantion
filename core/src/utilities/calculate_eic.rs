@@ -32,6 +32,10 @@ fn scan_in_minutes(mut summary: ScanSummary) -> ScanSummary {
 ///
 /// Unit of the retention times you give to a function. Results are always in minutes.
 ///
+/// Fields:
+/// - `MINUTES`: Minutes (default).
+/// - `SECONDS`: Seconds.
+///
 /// [Documentation](https://phenological.github.io/quantion/?language=rust#TimeUnit)
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 #[allow(clippy::upper_case_acronyms)]
@@ -488,6 +492,17 @@ pub fn get_eic_for_mz(
 /// **ScanQuery** · Inputs
 ///
 /// Which scans get_scans returns.
+///
+/// Fields:
+/// - `RtRange(FromTo)`: Every scan with rt in the range.
+/// - `Rt(f64)`: The scan closest to this rt.
+/// - `MzRange(FromTo)`: Every scan with precursor m/z in the range.
+/// - `Mz(f64)`: The scan whose precursor m/z is closest.
+///
+/// Example:
+/// ```ignore
+/// let query = ScanQuery::RtRange(FromTo { from: 1.0, to: 2.5 });
+/// ```
 ///
 /// [Documentation](https://phenological.github.io/quantion/?language=rust#ScanQuery)
 #[derive(Debug, Clone, Copy)]

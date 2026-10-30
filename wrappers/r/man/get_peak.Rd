@@ -11,7 +11,9 @@ get_peak(x, y, rt, options = get_peak_options())
   \item{x}{Retention times in minutes, ascending. At least 3 points.}
   \item{y}{Intensities, the same length as \code{x}.}
   \item{rt}{Expected retention time of the peak.}
-  \item{options}{Settings from \code{\link{get_peak_options}()}.}
+  \item{options}{Settings from \code{\link{get_peak_options}()}: \code{range = 0}, \code{find_peaks}.
+    \href{https://phenological.github.io/quantion/?language=r#GetPeakOptions}{GetPeakOptions documentation}
+  }
 }
 \value{
 A list with \code{rt}, \code{from}, \code{to}, \code{intensity}, \code{integral}, \code{n_points}, \code{noise}, \code{r2}. Every field is 0 when no peak is found.

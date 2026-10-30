@@ -8,8 +8,13 @@ Simulate a chromatogram from one or more peak curves. Every peak is drawn into t
 draw_peaks(params, options = draw_peaks_options())
 }
 \arguments{
-  \item{params}{A list of peaks, each a list with \code{height}, \code{center}, \code{fwhm} and an optional \code{tail}, as returned by \code{\link{fit_peak}()}.}
-  \item{options}{Settings from \code{\link{draw_peaks_options}()}.}
+  \item{params}{A list of peaks, each a list with \code{height}, \code{center}, \code{fwhm} and an optional \code{tail}, as returned by \code{\link{fit_peak}()}.
+    Example: \code{peak <- list(height = 9800, center = 2.38, fwhm = 0.021, tail = 0.006)}
+    \href{https://phenological.github.io/quantion/?language=r#PeakParameters}{PeakParameters documentation}
+  }
+  \item{options}{Settings from \code{\link{draw_peaks_options}()}: \code{from = 0}, \code{to = 0}, \code{points = 1000L}.
+    \href{https://phenological.github.io/quantion/?language=r#DrawPeaksOptions}{DrawPeaksOptions documentation}
+  }
 }
 \value{
 A list with \code{x} and \code{y}.

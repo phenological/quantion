@@ -24,6 +24,13 @@ class QuantionError(Exception):
 
     The error every function raises, with its kind, code, function, argument and message.
 
+    Fields:
+        kind: What went wrong.
+        code: Fixed number for the kind.
+        function: Where: the public function that failed.
+        argument: Which input, such as targets[3].range.
+        message: Why, in plain words. Starts with the function name.
+
     Documentation: https://phenological.github.io/quantion/?language=python#QuantionError
     """
     def __init__(

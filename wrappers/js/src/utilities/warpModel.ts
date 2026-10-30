@@ -43,7 +43,8 @@ export class WarpModel extends Metadata {
    * Predict where each target elutes in one sample.
    *
    * @param file - The sample to read, from parse_ion or parse_mzml.
-   * @param targets - Targets with mz and reference rt. id and range are optional and not used.
+   * @param targets - Targets with mz and reference rt. id and range are optional and not used. Each Target has `id`, `mz`, `rt`, `range`. See {@link https://phenological.github.io/quantion/?language=js#Target | Target}.
+   *   Example: `const target: Target = { id: "compound_1", mz: 260.103, rt: 2.383, range: 0.05 };`
    * @returns One PredictedRt per target, in the same order.
    * @see {@link https://phenological.github.io/quantion/?language=js#predict_rts | Documentation}
    */
@@ -71,7 +72,8 @@ export class WarpModel extends Metadata {
    * Turn the retention times seen in anchor samples (LTRs, QCs) into targets for predict_rts. Each id gets the median rt over the anchors.
    *
    * @param anchorSamples - Anchor samples.
-   * @param targetLists - For each anchor sample, the targets seen in it with their observed rt.
+   * @param targetLists - For each anchor sample, the targets seen in it with their observed rt. Each Target has `id`, `mz`, `rt`, `range`. See {@link https://phenological.github.io/quantion/?language=js#Target | Target}.
+   *   Example: `const target: Target = { id: "compound_1", mz: 260.103, rt: 2.383, range: 0.05 };`
    * @returns One Target per id with the median rt.
    * @see {@link https://phenological.github.io/quantion/?language=js#calibrate | Documentation}
    */

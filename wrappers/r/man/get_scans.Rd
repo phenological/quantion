@@ -11,7 +11,9 @@ get_scans(file, rt = NULL, mz = NULL, options = get_scans_options())
   \item{file}{A sample from \code{\link{parse_ion}()} or \code{\link{parse_mzml}()}.}
   \item{rt}{One retention time, or \code{c(from, to)}.}
   \item{mz}{One precursor m/z, or \code{c(from, to)}. Give \code{rt} or \code{mz}, not both.}
-  \item{options}{Settings from \code{\link{get_scans_options}()}.}
+  \item{options}{Settings from \code{\link{get_scans_options}()}: \code{level = 1L}, \code{time_unit = "MINUTES"}.
+    \href{https://phenological.github.io/quantion/?language=r#GetScansOptions}{GetScansOptions documentation}
+  }
 }
 \value{
 A data.frame with one row per scan: \code{rt}, \code{mz} and \code{intensity} (list columns), \code{level}, \code{precursor_mz}, \code{base_peak_mz}, \code{base_peak_intensity}, \code{total_ion_current}, \code{polarity}, \code{x}, \code{y}, \code{z}.

@@ -9,7 +9,9 @@ write_ion(file, options = write_ion_options())
 }
 \arguments{
   \item{file}{A sample from \code{\link{parse_ion}()} or \code{\link{parse_mzml}()}.}
-  \item{options}{Settings from \code{\link{write_ion_options}()}.}
+  \item{options}{Settings from \code{\link{write_ion_options}()}: \code{out = NULL}, \code{overwrite = FALSE}, \code{level = 12L}, \code{f32_compress = FALSE}, \code{headers}.
+    \href{https://phenological.github.io/quantion/?language=r#WriteIonOptions}{WriteIonOptions documentation}
+  }
 }
 \value{
 A raw vector when \code{out} is not given, otherwise \code{NULL} (invisible).

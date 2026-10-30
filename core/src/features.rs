@@ -47,7 +47,7 @@ fn from_feature_error(function: &'static str, error: FeatureError) -> QuantionEr
 /// Untargeted: find every feature in one file by scanning an m/z grid.
 ///
 /// - `file`: The sample to read, from parse_ion or parse_mzml.
-/// - `options`: Optional settings. Every field and default is listed in FindFeaturesOptions.
+/// - `options`: Optional settings: `eic`, `grid`, `find_peaks`, `threads` = 1. See [FindFeaturesOptions](https://phenological.github.io/quantion/?language=rust#FindFeaturesOptions).
 ///
 /// Returns: Every feature found, without frequency.
 ///
@@ -71,7 +71,7 @@ pub fn find_features(file: &mut SampleFile, options: FindFeaturesOptions) -> Res
 /// Untargeted across samples: find features in every file of a folder and match them. Values are medians over the samples where a feature was found.
 ///
 /// - `directory`: Folder with the .ion or mzML files.
-/// - `options`: Optional settings. Every field and default is listed in MatchFeaturesOptions.
+/// - `options`: Optional settings: `eic`, `grid`, `grouping`, `find_peaks`, `threads` = 1. See [MatchFeaturesOptions](https://phenological.github.io/quantion/?language=rust#MatchFeaturesOptions).
 ///
 /// Returns: One Feature per matched feature; frequency is the fraction of samples (0–1).
 ///

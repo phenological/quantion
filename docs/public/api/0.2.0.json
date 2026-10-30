@@ -2236,16 +2236,20 @@
       ],
       "languages": {
         "rust": {
-          "signature": "pub struct FromTo {\n    pub from: f64,\n    pub to: f64,\n}"
+          "signature": "pub struct FromTo {\n    pub from: f64,\n    pub to: f64,\n}",
+          "example": "use quantion::FromTo;\n\nlet window = FromTo { from: 1.0, to: 2.5 };"
         },
         "python": {
-          "signature": "FromTo = TypedDict(\"FromTo\", {\"from\": float, \"to\": float})"
+          "signature": "FromTo = TypedDict(\"FromTo\", {\"from\": float, \"to\": float})",
+          "example": "from quantion import FromTo\n\nwindow: FromTo = {\"from\": 1.0, \"to\": 2.5}"
         },
         "js": {
-          "signature": "export interface FromTo {\n  from: number;\n  to: number;\n}"
+          "signature": "export interface FromTo {\n  from: number;\n  to: number;\n}",
+          "example": "import type { FromTo } from \"quantion\";\n\nconst window: FromTo = { from: 1.0, to: 2.5 };"
         },
         "r": {
-          "signature": "calculate_eic_options(from = 0.5, to = 5)\nget_scans(sample, rt = c(1.0, 2.5))"
+          "signature": "calculate_eic_options(from = 0.5, to = 5)\nget_scans(sample, rt = c(1.0, 2.5))",
+          "example": "library(quantion)\n\nwindow <- c(1.0, 2.5)"
         }
       }
     },
@@ -2342,16 +2346,20 @@
       ],
       "languages": {
         "rust": {
-          "signature": "pub struct Target {\n    pub id: Option<String>,\n    pub mz: f64,\n    pub rt: f64,\n    pub range: Option<f64>,\n}"
+          "signature": "pub struct Target {\n    pub id: Option<String>,\n    pub mz: f64,\n    pub rt: f64,\n    pub range: Option<f64>,\n}",
+          "example": "use quantion::Target;\n\nlet target = Target { id: Some(\"compound_1\".into()), mz: 260.103, rt: 2.383, range: Some(0.05) };"
         },
         "python": {
-          "signature": "class Target(TypedDict):\n    id: NotRequired[str]\n    mz: float\n    rt: float\n    range: NotRequired[float]"
+          "signature": "class Target(TypedDict):\n    id: NotRequired[str]\n    mz: float\n    rt: float\n    range: NotRequired[float]",
+          "example": "from quantion import Target\n\ntarget: Target = {\"id\": \"compound_1\", \"mz\": 260.103, \"rt\": 2.383, \"range\": 0.05}"
         },
         "js": {
-          "signature": "export interface Target {\n  id?: string;\n  mz: number;\n  rt: number;\n  range?: number;\n}"
+          "signature": "export interface Target {\n  id?: string;\n  mz: number;\n  rt: number;\n  range?: number;\n}",
+          "example": "import type { Target } from \"quantion\";\n\nconst target: Target = { id: \"compound_1\", mz: 260.103, rt: 2.383, range: 0.05 };"
         },
         "r": {
-          "signature": "data.frame(id = character(), mz = numeric(), rt = numeric(), range = numeric())"
+          "signature": "data.frame(id = character(), mz = numeric(), rt = numeric(), range = numeric())",
+          "example": "library(quantion)\n\ntargets <- data.frame(id = \"compound_1\", mz = 260.103, rt = 2.383, range = 0.05)"
         }
       }
     },
@@ -2469,16 +2477,20 @@
       ],
       "languages": {
         "rust": {
-          "signature": "pub struct Transition {\n    pub id: Option<String>,\n    pub precursor: f64,\n    pub product: f64,\n    pub rt: f64,\n    pub range: f64,\n}"
+          "signature": "pub struct Transition {\n    pub id: Option<String>,\n    pub precursor: f64,\n    pub product: f64,\n    pub rt: f64,\n    pub range: f64,\n}",
+          "example": "use quantion::Transition;\n\nlet transition = Transition { id: Some(\"compound_1\".into()), precursor: 500.3, product: 184.1, rt: 3.2, range: 0.4 };"
         },
         "python": {
-          "signature": "class Transition(TypedDict):\n    id: NotRequired[str]\n    precursor: float\n    product: float\n    rt: float\n    range: float"
+          "signature": "class Transition(TypedDict):\n    id: NotRequired[str]\n    precursor: float\n    product: float\n    rt: float\n    range: float",
+          "example": "from quantion import Transition\n\ntransition: Transition = {\"id\": \"compound_1\", \"precursor\": 500.3, \"product\": 184.1, \"rt\": 3.2, \"range\": 0.4}"
         },
         "js": {
-          "signature": "export interface Transition {\n  id?: string;\n  precursor: number;\n  product: number;\n  rt: number;\n  range: number;\n}"
+          "signature": "export interface Transition {\n  id?: string;\n  precursor: number;\n  product: number;\n  rt: number;\n  range: number;\n}",
+          "example": "import type { Transition } from \"quantion\";\n\nconst transition: Transition = { id: \"compound_1\", precursor: 500.3, product: 184.1, rt: 3.2, range: 0.4 };"
         },
         "r": {
-          "signature": "data.frame(id = character(), precursor = numeric(), product = numeric(), rt = numeric(), range = numeric())"
+          "signature": "data.frame(id = character(), precursor = numeric(), product = numeric(), rt = numeric(), range = numeric())",
+          "example": "library(quantion)\n\ntransitions <- data.frame(id = \"compound_1\", precursor = 500.3, product = 184.1, rt = 3.2, range = 0.4)"
         }
       }
     },
@@ -2533,16 +2545,20 @@
       ],
       "languages": {
         "rust": {
-          "signature": "pub struct Header {\n    pub name: String,\n    pub value: String,\n}"
+          "signature": "pub struct Header {\n    pub name: String,\n    pub value: String,\n}",
+          "example": "use quantion::Header;\n\nlet header = Header { name: \"Authorization\".into(), value: \"Bearer <token>\".into() };"
         },
         "python": {
-          "signature": "class Header(TypedDict):\n    name: str\n    value: str"
+          "signature": "class Header(TypedDict):\n    name: str\n    value: str",
+          "example": "from quantion import Header\n\nheader: Header = {\"name\": \"Authorization\", \"value\": \"Bearer <token>\"}"
         },
         "js": {
-          "signature": "export interface Header {\n  name: string;\n  value: string;\n}"
+          "signature": "export interface Header {\n  name: string;\n  value: string;\n}",
+          "example": "import type { Header } from \"quantion\";\n\nconst header: Header = { name: \"Authorization\", value: \"Bearer <token>\" };"
         },
         "r": {
-          "signature": "header(name, value)"
+          "signature": "header(name, value)",
+          "example": "library(quantion)\n\nauthorization <- header(\"Authorization\", \"Bearer <token>\")"
         }
       }
     },
@@ -2639,13 +2655,15 @@
       ],
       "languages": {
         "rust": {
-          "signature": "pub enum ScanQuery {\n    RtRange(FromTo),\n    Rt(f64),\n    MzRange(FromTo),\n    Mz(f64),\n}"
+          "signature": "pub enum ScanQuery {\n    RtRange(FromTo),\n    Rt(f64),\n    MzRange(FromTo),\n    Mz(f64),\n}",
+          "example": "use quantion::{FromTo, ScanQuery};\n\nlet query = ScanQuery::RtRange(FromTo { from: 1.0, to: 2.5 });"
         },
         "python": {
           "signature": "get_scans(file, *, rt: float | FromTo | None = None, mz: float | FromTo | None = None, options=None)"
         },
         "js": {
-          "signature": "export interface RtQuery { rt: number | FromTo }\nexport interface MzQuery { mz: number | FromTo }\nexport type ScanQuery = RtQuery | MzQuery;"
+          "signature": "export interface RtQuery { rt: number | FromTo }\nexport interface MzQuery { mz: number | FromTo }\nexport type ScanQuery = RtQuery | MzQuery;",
+          "example": "import type { ScanQuery } from \"quantion\";\n\nconst query: ScanQuery = { rt: { from: 1.0, to: 2.5 } };"
         },
         "r": {
           "signature": "get_scans(file, rt = NULL, mz = NULL, options = get_scans_options())"
@@ -5322,16 +5340,20 @@
       ],
       "languages": {
         "rust": {
-          "signature": "pub struct PeakParameters {\n    pub height: f64,\n    pub center: f64,\n    pub fwhm: f64,\n    pub tail: f64,\n    pub r2: f64,\n}"
+          "signature": "pub struct PeakParameters {\n    pub height: f64,\n    pub center: f64,\n    pub fwhm: f64,\n    pub tail: f64,\n    pub r2: f64,\n}",
+          "example": "use quantion::PeakParameters;\n\nlet peak = PeakParameters { height: 9800.0, center: 2.38, fwhm: 0.021, tail: 0.006, r2: 0.0 };"
         },
         "python": {
-          "signature": "class PeakParameters(TypedDict):\n    height: float\n    center: float\n    fwhm: float\n    tail: float\n    r2: NotRequired[float]"
+          "signature": "class PeakParameters(TypedDict):\n    height: float\n    center: float\n    fwhm: float\n    tail: float\n    r2: NotRequired[float]",
+          "example": "from quantion import PeakParameters\n\npeak: PeakParameters = {\"height\": 9800, \"center\": 2.38, \"fwhm\": 0.021, \"tail\": 0.006}"
         },
         "js": {
-          "signature": "export interface PeakParameters {\n  height: number;\n  center: number;\n  fwhm: number;\n  tail: number;\n  r2?: number;\n}"
+          "signature": "export interface PeakParameters {\n  height: number;\n  center: number;\n  fwhm: number;\n  tail: number;\n  r2?: number;\n}",
+          "example": "import type { PeakParameters } from \"quantion\";\n\nconst peak: PeakParameters = { height: 9800, center: 2.38, fwhm: 0.021, tail: 0.006 };"
         },
         "r": {
-          "signature": "list(height, center, fwhm, tail, r2)"
+          "signature": "list(height, center, fwhm, tail, r2)",
+          "example": "library(quantion)\n\npeak <- list(height = 9800, center = 2.38, fwhm = 0.021, tail = 0.006)"
         }
       }
     },

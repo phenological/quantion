@@ -33,6 +33,79 @@ function getArguments(entry, language) {
     .filter(({ cell }) => cell && !skippedArguments.has(cell.name));
 }
 
+const optionsEntries = [];
+for (const entry of documentation.entries) {
+  if (entry.group === "Options") optionsEntries.push(entry);
+}
+
+function findOptionsEntry(cell) {
+  if (!cell) return null;
+  for (const entry of optionsEntries) {
+    if (new RegExp(`\\b${entry.name}\\b`).test(cell.type)) return entry;
+    if (cell.type === `${toSnakeCase(entry.name)}()`) return entry;
+  }
+  return null;
+}
+
+function endWithPeriod(text) {
+  if (text.endsWith(".")) return text;
+  return `${text}.`;
+}
+
+function hasPlainDefault(defaultValue) {
+  if (!defaultValue) return false;
+  if (defaultValue === "default" || defaultValue === "—") return false;
+  if (defaultValue.endsWith("()")) return false;
+  return true;
+}
+
+function getOptionFields(optionsEntry, language) {
+  const fields = [];
+  for (const field of optionsEntry.fields ?? []) {
+    const cell = field.languages[language];
+    if (!cell) continue;
+    let defaultValue = null;
+    if (hasPlainDefault(cell.default)) defaultValue = cell.default;
+    fields.push({ name: cell.name, meaning: endWithPeriod(field.meaning), defaultValue, nested: findOptionsEntry(cell) });
+  }
+  return fields;
+}
+
+const inputEntries = [];
+for (const entry of documentation.entries) {
+  if (entry.kind === "type" && entry.group !== "Options" && entry.fields?.length) inputEntries.push(entry);
+}
+
+function findInputEntry(cell, language) {
+  if (!cell) return null;
+  for (const entry of inputEntries) {
+    if (!entry.languages[language]?.example) continue;
+    if (new RegExp(`\\b${entry.name}\\b`).test(cell.type)) return entry;
+  }
+  return null;
+}
+
+function getExampleLine(entry, language) {
+  const lines = entry.languages[language].example.split("\n");
+  return lines[lines.length - 1];
+}
+
+function isOptionalField(cell) {
+  return /optional|^Option<|NotRequired|\?$/.test(cell.type) || cell.name.endsWith("?");
+}
+
+function getInputFields(inputEntry, language) {
+  const fields = [];
+  for (const field of inputEntry.fields) {
+    const cell = field.languages[language];
+    if (!cell) continue;
+    let meaning = endWithPeriod(field.meaning);
+    if (isOptionalField(cell)) meaning += " Optional.";
+    fields.push({ name: cell.name, meaning });
+  }
+  return fields;
+}
+
 function getReturns(entry, language) {
   return entry.returns?.languages[language] ? entry.returns.meaning : null;
 }
@@ -49,12 +122,97 @@ function getIndent(line) {
   return line.slice(0, line.length - line.trimStart().length);
 }
 
+function formatName(name, language) {
+  if (language === "python") return name;
+  return `\`${name}\``;
+}
+
+function formatTypeLink(typeEntry, language) {
+  const link = getLink(typeEntry, language);
+  if (language === "rust") return `See [${typeEntry.name}](${link}).`;
+  if (language === "js") return `See {@link ${link} | ${typeEntry.name}}.`;
+  return `See ${typeEntry.name}: ${link}`;
+}
+
+function joinNames(fields, language) {
+  const names = [];
+  for (const field of fields) names.push(formatName(field.name, language));
+  return names.join(", ");
+}
+
+function joinNamesWithDefaults(fields, language) {
+  const names = [];
+  for (const field of fields) {
+    let name = formatName(field.name, language);
+    if (field.defaultValue) name += ` = ${field.defaultValue}`;
+    names.push(name);
+  }
+  return names.join(", ");
+}
+
+function getArgumentText(cell, meaning, language) {
+  const optionsEntry = findOptionsEntry(cell);
+  if (optionsEntry) {
+    const names = joinNamesWithDefaults(getOptionFields(optionsEntry, language), language);
+    return { text: `Optional settings: ${names}. ${formatTypeLink(optionsEntry, language)}`, example: null };
+  }
+  const inputEntry = findInputEntry(cell, language);
+  if (inputEntry) {
+    const names = joinNames(getInputFields(inputEntry, language), language);
+    return {
+      text: `${meaning} Each ${inputEntry.name} has ${names}. ${formatTypeLink(inputEntry, language)}`,
+      example: getExampleLine(inputEntry, language),
+    };
+  }
+  return { text: meaning, example: null };
+}
+
+function escapeRustText(text) {
+  return text.replace(/\[(?=[^\]]*\](?!\())/g, "\\[").replace(/(?<=\\\[[^\]]*)\]/g, "\\]");
+}
+
+function getFieldLines(entry, language) {
+  const lines = [];
+  for (const field of entry.fields ?? []) {
+    const cell = field.languages[language];
+    if (!cell) continue;
+    let meaning = endWithPeriod(field.meaning);
+    if (language === "rust") meaning = escapeRustText(meaning);
+    let line = `${formatName(cell.name, language)}: ${meaning}`;
+    if (entry.group === "Options" && hasPlainDefault(cell.default)) line += ` Default ${formatName(cell.default, language)}.`;
+    if (entry.group !== "Options" && isOptionalField(cell)) line += " Optional.";
+    const nested = findOptionsEntry(cell);
+    if (nested) line += ` ${formatTypeLink(nested, language)}`;
+    lines.push(line);
+  }
+  return lines;
+}
+
+function getTypeExample(entry, language) {
+  const cell = entry.languages[language];
+  if (!cell?.example) return null;
+  return getExampleLine(entry, language);
+}
+
 function getRustBlock(entry) {
   const lines = [`**${entry.name}** · ${entry.group}`, "", entry.summary];
   const argumentsList = getArguments(entry, "rust");
   if (argumentsList.length) {
     lines.push("");
-    argumentsList.forEach(({ cell, meaning }) => lines.push(`- \`${cell.name}\`: ${meaning}`));
+    for (const { cell, meaning } of argumentsList) {
+      const argument = getArgumentText(cell, meaning, "rust");
+      lines.push(`- \`${cell.name}\`: ${argument.text}`);
+      if (argument.example) lines.push(`  Example: \`${argument.example}\``);
+    }
+  }
+  if (entry.kind === "type") {
+    const fieldLines = getFieldLines(entry, "rust");
+    if (fieldLines.length) {
+      lines.push("", "Fields:");
+      for (const line of fieldLines) lines.push(`- ${line}`);
+    }
+    const example = getTypeExample(entry, "rust");
+    if (example) lines.push("", "Example:", "```ignore", example, "```");
   }
   const returns = getReturns(entry, "rust");
   if (returns) lines.push("", `Returns: ${returns}`);
@@ -84,7 +242,20 @@ function getPythonBlock(entry) {
   const argumentsList = getArguments(entry, "python");
   if (argumentsList.length) {
     lines.push("", "Args:");
-    argumentsList.forEach(({ cell, meaning }) => lines.push(`    ${cell.name}: ${meaning}`));
+    for (const { cell, meaning } of argumentsList) {
+      const argument = getArgumentText(cell, meaning, "python");
+      lines.push(`    ${cell.name}: ${argument.text}`);
+      if (argument.example) lines.push(`        Example: ${argument.example}`);
+    }
+  }
+  if (entry.kind === "type") {
+    const fieldLines = getFieldLines(entry, "python");
+    if (fieldLines.length) {
+      lines.push("", "Fields:");
+      for (const line of fieldLines) lines.push(`    ${line}`);
+    }
+    const example = getTypeExample(entry, "python");
+    if (example) lines.push("", "Example:", `    ${example}`);
   }
   const returns = getReturns(entry, "python");
   if (returns) lines.push("", "Returns:", `    ${returns}`);
@@ -140,12 +311,31 @@ function getJsBlock(entry, indent) {
   const argumentsList = getArguments(entry, "js");
   if (argumentsList.length) {
     lines.push("");
-    argumentsList.forEach(({ cell, meaning }) => lines.push(`@param ${cell.name} - ${meaning}`));
+    for (const { cell, meaning } of argumentsList) {
+      const argument = getArgumentText(cell, meaning, "js");
+      lines.push(`@param ${cell.name} - ${argument.text}`);
+      if (argument.example) lines.push(`  Example: \`${argument.example}\``);
+    }
+  }
+  if (entry.kind === "type") {
+    const fieldLines = getFieldLines(entry, "js");
+    if (fieldLines.length) {
+      lines.push("", "Fields:");
+      for (const line of fieldLines) lines.push(`- ${line}`);
+    }
+    const example = getTypeExample(entry, "js");
+    if (example) lines.push("", "@example", "```ts", example, "```");
   }
   const returns = getReturns(entry, "js");
   if (returns) lines.push(`@returns ${returns}`);
   lines.push(`@see {@link ${getLink(entry, "js")} | Documentation}`);
-  return [`${indent}/**`, ...lines.map((line) => `${indent} *${line ? ` ${line}` : ""}`), `${indent} */`];
+  const output = [`${indent}/**`];
+  for (const line of lines) {
+    if (line) output.push(`${indent} * ${line}`);
+    else output.push(`${indent} *`);
+  }
+  output.push(`${indent} */`);
+  return output;
 }
 
 function writeJs(entry, relativePaths, pattern) {
@@ -167,9 +357,67 @@ function writeJs(entry, relativePaths, pattern) {
   return false;
 }
 
+function escapeRd(text) {
+  const escaped = text
+    .replace(/\\/g, "\\\\")
+    .replace(/%/g, "\\%")
+    .replace(/\{/g, "\\{")
+    .replace(/\}/g, "\\}")
+    .replace(/–/g, "-")
+    .replace(/±/g, "+/-");
+  if (/[^\x00-\x7F]/.test(escaped)) throw new Error(`R help pages must be ASCII: ${escaped}`);
+  return escaped;
+}
+
+function getROptionsItem(entry) {
+  for (const row of entry.arguments ?? []) {
+    const cell = row.languages.r;
+    if (!cell || cell.name !== "options") continue;
+    const optionsEntry = findOptionsEntry(cell);
+    if (!optionsEntry) return null;
+    const names = [];
+    for (const field of getOptionFields(optionsEntry, "r")) {
+      let name = `\\code{${field.name}}`;
+      if (field.defaultValue) name = `\\code{${field.name} = ${escapeRd(field.defaultValue)}}`;
+      names.push(name);
+    }
+    const lines = [
+      `  \\item{options}{Settings from \\code{\\link{${toSnakeCase(optionsEntry.name)}}()}: ${names.join(", ")}.`,
+      `    \\href{${getLink(optionsEntry, "r")}}{${optionsEntry.name} documentation}`,
+      "  }",
+    ];
+    return `${lines.join("\n")}\n`;
+  }
+  return null;
+}
+
+function addRInputExamples(entry, text) {
+  for (const row of entry.arguments ?? []) {
+    const cell = row.languages.r;
+    const inputEntry = findInputEntry(cell, "r");
+    if (!inputEntry) continue;
+    const itemPattern = new RegExp(`  \\\\item\\{${cell.name}\\}\\{([^\\n]*?)\\}?\\n(?:    [^\\n]*\\n)*(?:  \\}\\n)?`);
+    const match = text.match(itemPattern);
+    if (!match) continue;
+    const lines = [
+      `  \\item{${cell.name}}{${match[1]}`,
+      `    Example: \\code{${escapeRd(getExampleLine(inputEntry, "r"))}}`,
+      `    \\href{${getLink(inputEntry, "r")}}{${inputEntry.name} documentation}`,
+      "  }",
+    ];
+    text = text.replace(itemPattern, `${lines.join("\n")}\n`);
+  }
+  return text;
+}
+
 function writeR(entry, relativePath) {
   if (!existsSync(path.join(root, relativePath))) return false;
   let text = readFileSync(path.join(root, relativePath), "utf8");
+  text = addRInputExamples(entry, text);
+  const optionsItem = getROptionsItem(entry);
+  if (optionsItem) {
+    text = text.replace(/  \\item\{options\}\{[\s\S]*?\n(?=  \\item\{|\}\n)/, optionsItem);
+  }
   const section = `\\section{Documentation}{\n\\url{${getLink(entry, "r")}}\n}\n`;
   text = text.replace(/\\section\{Documentation\}\{\n[^\n]*\n\}\n/, "");
   text = text.includes("\\examples{") ? text.replace("\\examples{", `${section}\\examples{`) : `${text.trimEnd()}\n${section}`;

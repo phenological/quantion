@@ -98,3 +98,55 @@ fn real_peaks_fit_emg() {
         assert_eq!(drawn.x, data.x);
     }
 }
+
+#[test]
+fn emg_is_finite_far_from_the_center() {
+    let sigma = sigma_from_fwhm(0.024);
+    for rt in linspace(0.0, 5.0, 1000) {
+        let value = emg_fn(rt, 164_000.0, 2.38, sigma, 0.0025);
+        assert!(value.is_finite(), "emg at rt {rt} is {value}");
+        assert!(value >= 0.0, "emg at rt {rt} is {value}");
+    }
+    assert!(emg_fn(0.0, 164_000.0, 2.38, sigma, 0.0025) < 1e-12);
+    assert!(emg_fn(5.0, 164_000.0, 2.38, sigma, 0.0025) < 1e-12);
+}
+
+#[test]
+fn emg_matches_the_direct_formula_near_the_center() {
+    let sigma = 0.01;
+    let tau = 0.02;
+    for rt in linspace(2.3, 2.6, 61) {
+        let a = sigma / tau;
+        let direct = a
+            * (std::f64::consts::PI / 2.0).sqrt()
+            * (0.5 * a * a - (rt - 2.38) / tau).exp()
+            * crate::utilities::math::erfc_approx((a - (rt - 2.38) / sigma) / std::f64::consts::SQRT_2);
+        let stable = emg_fn(rt, 1.0, 2.38, sigma, tau);
+        assert!((direct - stable).abs() < 1e-12, "rt {rt}: direct {direct}, stable {stable}");
+    }
+}
+
+#[test]
+fn erfcx_matches_its_definition() {
+    for x in linspace(0.0, 20.0, 201) {
+        let expected = (x * x).exp() * crate::utilities::math::erfc_approx(x);
+        let actual = crate::utilities::math::erfcx_approx(x);
+        assert!((expected - actual).abs() <= 1e-12 * expected.max(1.0), "x {x}: {expected} vs {actual}");
+    }
+    assert!(crate::utilities::math::erfcx_approx(1e6).is_finite());
+}
+
+#[test]
+fn draw_peaks_has_no_nan_far_from_the_peak() {
+    let peaks = [crate::utilities::fit_peak::PeakParameters {
+        height: 164_309.66,
+        center: 2.3794,
+        fwhm: 0.02387,
+        tail: 0.002507,
+        r2: 0.98,
+    }];
+    let drawn = crate::utilities::fit_peak::draw_peaks(&peaks, 0.0, 5.0, 1000);
+    for (x, y) in drawn.x.iter().zip(drawn.y.iter()) {
+        assert!(y.is_finite(), "y at x {x} is {y}");
+    }
+}

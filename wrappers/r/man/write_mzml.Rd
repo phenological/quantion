@@ -9,7 +9,9 @@ write_mzml(file, options = write_mzml_options())
 }
 \arguments{
   \item{file}{A sample from \code{\link{parse_ion}()} or \code{\link{parse_mzml}()}.}
-  \item{options}{Settings from \code{\link{write_mzml_options}()}.}
+  \item{options}{Settings from \code{\link{write_mzml_options}()}: \code{out = NULL}, \code{overwrite = FALSE}.
+    \href{https://phenological.github.io/quantion/?language=r#WriteMzmlOptions}{WriteMzmlOptions documentation}
+  }
 }
 \value{
 A raw vector when \code{out} is not given, otherwise \code{NULL} (invisible).

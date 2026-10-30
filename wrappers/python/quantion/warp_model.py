@@ -30,7 +30,8 @@ class WarpModel(Metadata):
 
         Args:
             file: The sample to read, from parse_ion or parse_mzml.
-            targets: Targets with mz and reference rt. id and range are optional and not used.
+            targets: Targets with mz and reference rt. id and range are optional and not used. Each Target has id, mz, rt, range. See Target: https://phenological.github.io/quantion/?language=python#Target
+                Example: target: Target = {"id": "compound_1", "mz": 260.103, "rt": 2.383, "range": 0.05}
 
         Returns:
             One PredictedRt per target, in the same order.
@@ -52,7 +53,8 @@ class WarpModel(Metadata):
 
         Args:
             anchor_samples: Anchor samples.
-            target_lists: For each anchor sample, the targets seen in it with their observed rt.
+            target_lists: For each anchor sample, the targets seen in it with their observed rt. Each Target has id, mz, rt, range. See Target: https://phenological.github.io/quantion/?language=python#Target
+                Example: target: Target = {"id": "compound_1", "mz": 260.103, "rt": 2.383, "range": 0.05}
 
         Returns:
             One Target per id with the median rt.

@@ -9,7 +9,9 @@ calculate_baseline(y, options = calculate_baseline_options())
 }
 \arguments{
   \item{y}{Intensities.}
-  \item{options}{Settings from \code{\link{calculate_baseline_options}()}.}
+  \item{options}{Settings from \code{\link{calculate_baseline_options}()}: \code{lambda = 20}, \code{max_iterations = 4L}.
+    \href{https://phenological.github.io/quantion/?language=r#CalculateBaselineOptions}{CalculateBaselineOptions documentation}
+  }
 }
 \value{
 A numeric vector, the same length as \code{y}.

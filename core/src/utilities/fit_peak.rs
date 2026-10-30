@@ -12,6 +12,10 @@ const MIN_POINTS: usize = 5;
 ///
 /// Curve used to fit a peak.
 ///
+/// Fields:
+/// - `GAUSSIAN`: Symmetric Gaussian.
+/// - `EMG`: Exponentially modified Gaussian: a Gaussian with a tail on the right (default).
+///
 /// [Documentation](https://phenological.github.io/quantion/?language=rust#PeakShape)
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[allow(clippy::upper_case_acronyms)]
@@ -38,6 +42,18 @@ impl From<&Peak> for PeakSeed {
 /// **PeakParameters** · Results
 ///
 /// One peak curve: returned by fit_peak, or written by hand to simulate. draw_peaks takes a list of them. tail = 0 is a Gaussian, tail above 0 an EMG.
+///
+/// Fields:
+/// - `height`: Height of the curve.
+/// - `center`: Centre of the curve (minutes).
+/// - `fwhm`: Full width at half maximum (minutes).
+/// - `tail`: Length of the right-hand tail. 0 = Gaussian, above 0 = EMG.
+/// - `r2`: Fit quality (0–1), set by fit_peak. Not needed to draw.
+///
+/// Example:
+/// ```ignore
+/// let peak = PeakParameters { height: 9800.0, center: 2.38, fwhm: 0.021, tail: 0.006, r2: 0.0 };
+/// ```
 ///
 /// [Documentation](https://phenological.github.io/quantion/?language=rust#PeakParameters)
 #[derive(Clone, Debug)]

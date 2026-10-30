@@ -9,7 +9,9 @@ parse_ion(source, options = parse_ion_options())
 }
 \arguments{
   \item{source}{A path, an http(s) URL, or a raw vector of .ion bytes.}
-  \item{options}{Settings from \code{\link{parse_ion_options}()}.}
+  \item{options}{Settings from \code{\link{parse_ion_options}()}: \code{max_cache_size = 0}.
+    \href{https://phenological.github.io/quantion/?language=r#ParseIonOptions}{ParseIonOptions documentation}
+  }
 }
 \value{
 A sample (an external pointer of class \code{quantion_sample}).

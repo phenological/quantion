@@ -218,7 +218,7 @@ function openIon(
  * Open an .ion file from a path, a URL or bytes. Paths and URLs are read lazily: only the bytes a query needs are fetched.
  *
  * @param source - Where the file is: a path, an http(s) URL, or raw bytes.
- * @param options - Optional settings. Every field and default is listed in ParseIonOptions.
+ * @param options - Optional settings: `maxCacheSize` = 0. See {@link https://phenological.github.io/quantion/?language=js#ParseIonOptions | ParseIonOptions}.
  * @returns The opened sample.
  * @see {@link https://phenological.github.io/quantion/?language=js#parse_ion | Documentation}
  */
@@ -275,7 +275,7 @@ export async function parseMzml(
  * Write a sample as .ion. With no out, it returns the bytes. A path writes a file; a URL uploads it in one PUT request.
  *
  * @param file - The sample to write.
- * @param options - Optional settings. Every field and default is listed in WriteIonOptions.
+ * @param options - Optional settings: `out` = undefined, `overwrite` = false, `level` = 12, `f32Compress` = false, `headers` = []. See {@link https://phenological.github.io/quantion/?language=js#WriteIonOptions | WriteIonOptions}.
  * @returns The bytes when out is left out; nothing when it is written or uploaded.
  * @see {@link https://phenological.github.io/quantion/?language=js#write_ion | Documentation}
  */
@@ -316,7 +316,7 @@ export async function writeIon(
  * Write a sample as mzML. With no out, it returns the bytes. Only a path is allowed, no URL.
  *
  * @param file - The sample to write.
- * @param options - Optional settings. Every field and default is listed in WriteMzmlOptions.
+ * @param options - Optional settings: `out` = undefined, `overwrite` = false. See {@link https://phenological.github.io/quantion/?language=js#WriteMzmlOptions | WriteMzmlOptions}.
  * @returns The bytes when out is left out; nothing when it is written.
  * @see {@link https://phenological.github.io/quantion/?language=js#write_mzml | Documentation}
  */
@@ -440,9 +440,11 @@ function getScanQuery(query: ScanQuery): [number, number, number] {
  * Read scans by retention time or precursor m/z. A range returns every scan in it; one number returns the closest scan, as a list of one.
  *
  * @param file - The sample to read, from parse_ion or parse_mzml.
- * @param query.rt - Which scans, by retention time: a range or one value.
- * @param query.mz - Or by precursor m/z: a range or one value. Give rt or mz, not both.
- * @param options - Optional settings. Every field and default is listed in GetScansOptions.
+ * @param query.rt - Which scans, by retention time: a range or one value. Each FromTo has `from`, `to`. See {@link https://phenological.github.io/quantion/?language=js#FromTo | FromTo}.
+ *   Example: `const window: FromTo = { from: 1.0, to: 2.5 };`
+ * @param query.mz - Or by precursor m/z: a range or one value. Give rt or mz, not both. Each FromTo has `from`, `to`. See {@link https://phenological.github.io/quantion/?language=js#FromTo | FromTo}.
+ *   Example: `const window: FromTo = { from: 1.0, to: 2.5 };`
+ * @param options - Optional settings: `level` = 1, `timeUnit` = "MINUTES". See {@link https://phenological.github.io/quantion/?language=js#GetScansOptions | GetScansOptions}.
  * @returns The scans found, in rt order.
  * @see {@link https://phenological.github.io/quantion/?language=js#get_scans | Documentation}
  */
@@ -471,7 +473,7 @@ export async function getScans(
  *
  * @param file - The sample to read, from parse_ion or parse_mzml.
  * @param mz - The m/z to extract (Da).
- * @param options - Optional settings. Every field and default is listed in CalculateEicOptions.
+ * @param options - Optional settings: `from` = 0, `to` = Infinity, `ppmTolerance` = 20, `mzTolerance` = 0.005, `timeUnit` = "MINUTES". See {@link https://phenological.github.io/quantion/?language=js#CalculateEicOptions | CalculateEicOptions}.
  * @returns The chromatogram: x = retention times, y = summed intensities.
  * @see {@link https://phenological.github.io/quantion/?language=js#calculate_eic | Documentation}
  */
@@ -496,7 +498,7 @@ export async function calculateEic(
  *
  * @param file - The sample to read. Must come from parse_ion.
  * @param mz - The m/z to map (Da).
- * @param options - Optional settings. Every field and default is listed in GetIonImageOptions.
+ * @param options - Optional settings: `tolerance` = 0.125, `level` = 1, `onProgress` = undefined. See {@link https://phenological.github.io/quantion/?language=js#GetIonImageOptions | GetIonImageOptions}.
  * @returns The image.
  * @see {@link https://phenological.github.io/quantion/?language=js#get_ion_image | Documentation}
  */
@@ -523,7 +525,7 @@ export async function getIonImage(
  *
  * @param x - Retention times, ascending. At least 3 points.
  * @param y - Intensities, same length as x.
- * @param options - Optional settings. Every field and default is listed in FindPeaksOptions.
+ * @param options - Optional settings: `minIntegral` = off, `minIntensity` = 500, `minPeakWidthPoints` = 3, `noise` = off, `autoNoise` = true, `autoBaseline` = true, `lambda` = 20, `maxIterations` = 4, `allowOverlap` = false, `minSnr` = 2, `minR2` = 0, `shape` = "EMG", `kernelSize` = 0. See {@link https://phenological.github.io/quantion/?language=js#FindPeaksOptions | FindPeaksOptions}.
  * @returns Every peak that passes the filters.
  * @see {@link https://phenological.github.io/quantion/?language=js#find_peaks | Documentation}
  */
@@ -545,7 +547,7 @@ export function findPeaks(
  * @param x - Retention times, ascending. At least 3 points.
  * @param y - Intensities, same length as x.
  * @param rt - Expected retention time of the peak.
- * @param options - Optional settings. Every field and default is listed in GetPeakOptions.
+ * @param options - Optional settings: `range` = 0, `findPeaks`. See {@link https://phenological.github.io/quantion/?language=js#GetPeakOptions | GetPeakOptions}.
  * @returns The best peak near rt. No peak gives a Peak with every field 0.
  * @see {@link https://phenological.github.io/quantion/?language=js#get_peak | Documentation}
  */
@@ -574,7 +576,7 @@ export function getPeak(
  * @param x - Retention times, ascending. At least 3 points.
  * @param y - Intensities, same length as x.
  * @param rt - Expected retention time of the peak.
- * @param options - Optional settings. Every field and default is listed in FitPeakOptions.
+ * @param options - Optional settings: `shape` = "EMG", `intensity` = 0. See {@link https://phenological.github.io/quantion/?language=js#FitPeakOptions | FitPeakOptions}.
  * @returns The fitted curve, or none when no peak is found or the fit fails.
  * @see {@link https://phenological.github.io/quantion/?language=js#fit_peak | Documentation}
  */
@@ -600,8 +602,9 @@ export function fitPeak(
  *
  * Simulate a chromatogram from one or more peak shapes. Every peak is drawn into the same chromatogram; where they overlap, intensities add up. No real data is needed.
  *
- * @param params - The peaks to draw, one PeakParameters per peak.
- * @param options - Optional settings. Every field and default is listed in DrawPeaksOptions.
+ * @param params - The peaks to draw, one PeakParameters per peak. Each PeakParameters has `height`, `center`, `fwhm`, `tail`, `r2`. See {@link https://phenological.github.io/quantion/?language=js#PeakParameters | PeakParameters}.
+ *   Example: `const peak: PeakParameters = { height: 9800, center: 2.38, fwhm: 0.021, tail: 0.006 };`
+ * @param options - Optional settings: `from` = 0, `to` = 0, `points` = 1000. See {@link https://phenological.github.io/quantion/?language=js#DrawPeaksOptions | DrawPeaksOptions}.
  * @returns The simulated chromatogram: x = retention times, y = summed intensities.
  * @see {@link https://phenological.github.io/quantion/?language=js#draw_peaks | Documentation}
  */
@@ -664,7 +667,7 @@ export function findNoiseLevel(y: Float64Array | Float32Array): NoiseLevel {
  * Estimate a signal's baseline with airPLS.
  *
  * @param y - Intensities.
- * @param options - Optional settings. Every field and default is listed in CalculateBaselineOptions.
+ * @param options - Optional settings: `lambda` = 20, `maxIterations` = 4. See {@link https://phenological.github.io/quantion/?language=js#CalculateBaselineOptions | CalculateBaselineOptions}.
  * @returns The baseline, same length as y.
  * @see {@link https://phenological.github.io/quantion/?language=js#calculate_baseline | Documentation}
  */
@@ -689,8 +692,9 @@ export function calculateBaseline(
  * For each target, build its EIC at mz and find its peak near rt ± range.
  *
  * @param file - The sample to read, from parse_ion or parse_mzml.
- * @param targets - What to look for. A target without range searches its whole EIC.
- * @param options - Optional settings. Every field and default is listed in FindTargetsOptions.
+ * @param targets - What to look for. A target without range searches its whole EIC. Each Target has `id`, `mz`, `rt`, `range`. See {@link https://phenological.github.io/quantion/?language=js#Target | Target}.
+ *   Example: `const target: Target = { id: "compound_1", mz: 260.103, rt: 2.383, range: 0.05 };`
+ * @param options - Optional settings: `eic`, `findPeaks`, `threads` = 1. See {@link https://phenological.github.io/quantion/?language=js#FindTargetsOptions | FindTargetsOptions}.
  * @returns One Peak per target, in the same order. A target with no peak gets a Peak with every field 0.
  * @see {@link https://phenological.github.io/quantion/?language=js#find_targets | Documentation}
  */
@@ -716,8 +720,9 @@ export async function findTargets(
  * For each SRM transition, take the stored chromatogram whose precursor (Q1) and product (Q3) are both within 0.005 m/z, and find its peak near rt ± range.
  *
  * @param file - The sample to read, from parse_ion or parse_mzml.
- * @param targets - The transitions.
- * @param options - Optional settings. Every field and default is listed in FindTransitionsOptions.
+ * @param targets - The transitions. Each Transition has `id`, `precursor`, `product`, `rt`, `range`. See {@link https://phenological.github.io/quantion/?language=js#Transition | Transition}.
+ *   Example: `const transition: Transition = { id: "compound_1", precursor: 500.3, product: 184.1, rt: 3.2, range: 0.4 };`
+ * @param options - Optional settings: `findPeaks`, `threads` = 1. See {@link https://phenological.github.io/quantion/?language=js#FindTransitionsOptions | FindTransitionsOptions}.
  * @returns One Peak per transition, in the same order. No match gives a Peak with every field 0.
  * @see {@link https://phenological.github.io/quantion/?language=js#find_transitions | Documentation}
  */
@@ -742,7 +747,7 @@ export function findTransitions(
  * Untargeted: find every feature in one file by scanning an m/z grid.
  *
  * @param file - The sample to read, from parse_ion or parse_mzml.
- * @param options - Optional settings. Every field and default is listed in FindFeaturesOptions.
+ * @param options - Optional settings: `eic`, `grid`, `findPeaks`, `threads` = 1. See {@link https://phenological.github.io/quantion/?language=js#FindFeaturesOptions | FindFeaturesOptions}.
  * @returns Every feature found, without frequency.
  * @see {@link https://phenological.github.io/quantion/?language=js#find_features | Documentation}
  */
@@ -774,7 +779,7 @@ export async function findFeatures(
  * Untargeted across samples: find features in every file of a folder and match them. Values are medians over the samples where a feature was found.
  *
  * @param directory - Folder with the .ion or mzML files.
- * @param options - Optional settings. Every field and default is listed in MatchFeaturesOptions.
+ * @param options - Optional settings: `eic`, `grid`, `grouping`, `findPeaks`, `threads` = 1. See {@link https://phenological.github.io/quantion/?language=js#MatchFeaturesOptions | MatchFeaturesOptions}.
  * @returns One Feature per matched feature; frequency is the fraction of samples (0–1).
  * @see {@link https://phenological.github.io/quantion/?language=js#match_features | Documentation}
  */
