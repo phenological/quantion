@@ -8,6 +8,11 @@ JavaScript wrappers for the quantion library for LC-MS data processing.
 npm install quantion
 ```
 
+The package includes a prebuilt native build for macOS (Apple silicon and Intel), Linux (x64 and arm64) and Windows (x64), so no compiler is needed.
+
+- In the browser, quantion uses its WASM build, with the same install.
+- Linux with musl (for example Alpine) has no native build: use the WASM build, or set `QUANTION_LIB` to a libquantion built for that system.
+
 ## Concepts
 
 **Sample**: an opened `.ion` or mzML file. Open it with `parseIon()` or `parseMzml()`. It is freed when no longer referenced, or call `dispose()` to free it sooner.

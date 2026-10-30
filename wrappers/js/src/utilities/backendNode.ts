@@ -76,46 +76,110 @@ function artifactsRoot(): string | null {
   }
 }
 
-function platformLibPath(proc: NodeJS.Process): string {
+function findDevelopmentLibrary(proc: NodeJS.Process): string | null {
   const fromEnv = proc.env.QUANTION_LIB;
   if (fromEnv) return fromEnv;
 
   const root = artifactsRoot();
-  const wanted = platformDirName(proc.platform, proc.arch);
+  if (!root) return null;
+  let wanted: string;
+  try {
+    wanted = platformDirName(proc.platform, proc.arch);
+  } catch {
+    return null;
+  }
   const file = libraryFileName(proc.platform);
 
-  if (root) {
-    const direct = path.join(root, wanted, file);
-    if (fs.existsSync(direct)) return direct;
+  const direct = path.join(root, wanted, file);
+  if (fs.existsSync(direct)) return direct;
 
-    const own = require("../../package.json").version as string;
-    const preferred = path.join(root, own, wanted, file);
-    if (fs.existsSync(preferred)) return preferred;
+  const own = require("../../package.json").version as string;
+  const preferred = path.join(root, own, wanted, file);
+  if (fs.existsSync(preferred)) return preferred;
 
-    const parts = (name: string) => name.split(".").map((p) => Number(p) || 0);
-    const newest = fs
-      .readdirSync(root)
-      .filter((entry) => fs.existsSync(path.join(root, entry, wanted, file)))
-      .filter((entry) => fs.existsSync(path.join(root, entry, "manifest.json")))
-      .sort((left, right) => {
-        const a = parts(left);
-        const b = parts(right);
-        for (let i = 0; i < Math.max(a.length, b.length); i++) {
-          if ((a[i] ?? 0) !== (b[i] ?? 0)) return (b[i] ?? 0) - (a[i] ?? 0);
-        }
-        return 0;
-      })[0];
-    if (newest) return path.join(root, newest, wanted, file);
+  const parts = (name: string) => name.split(".").map((p) => Number(p) || 0);
+  const newest = fs
+    .readdirSync(root)
+    .filter((entry) => fs.existsSync(path.join(root, entry, wanted, file)))
+    .filter((entry) => fs.existsSync(path.join(root, entry, "manifest.json")))
+    .sort((left, right) => {
+      const a = parts(left);
+      const b = parts(right);
+      for (let i = 0; i < Math.max(a.length, b.length); i++) {
+        if ((a[i] ?? 0) !== (b[i] ?? 0)) return (b[i] ?? 0) - (a[i] ?? 0);
+      }
+      return 0;
+    })[0];
+  if (newest) return path.join(root, newest, wanted, file);
+  return null;
+}
+
+const DEVELOPMENT_ADDON = path.join(
+  __dirname,
+  "..",
+  "..",
+  "build",
+  "Release",
+  "quantion.node",
+);
+
+const BUNDLED_FOLDER = path.join(__dirname, "..", "..", "native");
+
+export function isMusl(proc: NodeJS.Process): boolean {
+  if (proc.platform !== "linux") return false;
+  const report = proc.report?.getReport() as
+    { header?: { glibcVersionRuntime?: string } } | undefined;
+  return !report?.header?.glibcVersionRuntime;
+}
+
+export function findBundledFiles(
+  proc: NodeJS.Process,
+  folder: string = BUNDLED_FOLDER,
+  exists: (file: string) => boolean = fs.existsSync,
+): { addon: string; library: string } {
+  if (isMusl(proc)) {
+    throw new Error(
+      "quantion: there is no native build for Linux with musl (for example Alpine). " +
+        "Use the WASM build, or set QUANTION_LIB to a libquantion built for this system.",
+    );
   }
+  let platform: string;
+  try {
+    platform = platformDirName(proc.platform, proc.arch);
+  } catch {
+    platform = "";
+  }
+  const addon = path.join(folder, platform, "quantion.node");
+  const library = path.join(folder, platform, libraryFileName(proc.platform));
+  if (!platform || !exists(addon) || !exists(library)) {
+    throw new Error(
+      `quantion: there is no native build for ${proc.platform}-${proc.arch}. ` +
+        "Use the WASM build, or set QUANTION_LIB to a libquantion built for this system.",
+    );
+  }
+  return { addon, library };
+}
 
-  const bundled = path.join(__dirname, "..", "..", "native", wanted, file);
-  if (fs.existsSync(bundled)) return bundled;
-
-  throw new Error(
-    `quantion: no library for ${wanted}. Build one with 'make ${wanted}', ` +
-      `or set QUANTION_LIB to a library file, ` +
-      `or QUANTION_ARTIFACTS_ROOT to the artifacts folder.`,
-  );
+function findNativeFiles(proc: NodeJS.Process): {
+  addon: string;
+  library: string;
+} {
+  const developmentLibrary = findDevelopmentLibrary(proc);
+  if (developmentLibrary && fs.existsSync(DEVELOPMENT_ADDON)) {
+    return { addon: DEVELOPMENT_ADDON, library: developmentLibrary };
+  }
+  const artifactsFolder = proc.env.QUANTION_ARTIFACTS_ROOT;
+  if (artifactsFolder && !developmentLibrary) {
+    throw new Error(
+      `quantion: QUANTION_ARTIFACTS_ROOT is ${artifactsFolder}, but it has no library for ${proc.platform}-${proc.arch}. ` +
+        "Build one with 'make native', or unset QUANTION_ARTIFACTS_ROOT to use the bundled build.",
+    );
+  }
+  const bundled = findBundledFiles(proc);
+  return {
+    addon: bundled.addon,
+    library: developmentLibrary ?? bundled.library,
+  };
 }
 
 function toNodeBuffer(data: Uint8Array): Buffer {
@@ -149,19 +213,12 @@ export class NodeBackend implements Backend {
   readonly canReadPaths = true;
 
   constructor(proc: NodeJS.Process) {
-    const addonPath = path.join(
-      __dirname,
-      "..",
-      "..",
-      "build",
-      "Release",
-      "quantion.node",
-    );
-    const native = require(addonPath);
+    const files = findNativeFiles(proc);
+    const native = require(files.addon);
     if (typeof native.bind !== "function") {
       throw new Error("quantion: the native addon does not expose bind");
     }
-    native.bind(platformLibPath(proc));
+    native.bind(files.library);
     this.native = catchNativeErrors(native);
     this.ready = true;
   }

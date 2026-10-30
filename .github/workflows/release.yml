@@ -74,12 +74,23 @@ jobs:
       - name: Build the native library
         run: make native
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Build the Node addon
+        working-directory: wrappers/js
+        run: |
+          npm install --ignore-scripts
+          npx node-gyp rebuild
+
       - name: Name the asset after its platform
         run: |
           version="$(sed -n 's/^version = "\(.*\)"/\1/p' core/Cargo.toml | head -1)"
           mkdir -p upload
           cp "artifacts/$version/${{ matrix.platform }}/libquantion${{ matrix.extension }}" \
              "upload/libquantion-${{ matrix.platform }}${{ matrix.extension }}"
+          cp wrappers/js/build/Release/quantion.node "upload/quantion-${{ matrix.platform }}.node"
 
       - name: Keep the asset for the publish job
         uses: actions/upload-artifact@v4
@@ -128,7 +139,7 @@ jobs:
           merge-multiple: true
 
       - name: Write checksums
-        run: cd upload && sha256sum libquantion-* quantion.wasm quantion.h > SHA256SUMS.txt
+        run: cd upload && sha256sum libquantion-* quantion-*.node quantion.wasm quantion.h > SHA256SUMS.txt
 
       - name: Create or update the GitHub release
         uses: softprops/action-gh-release@v2

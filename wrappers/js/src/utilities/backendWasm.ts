@@ -926,20 +926,8 @@ async function loadWasm(): Promise<WasmApi> {
     return load_and_instantiate(bytes);
   }
 
-  if (typeof process !== "undefined" && (process as any).versions?.node) {
-    const nfs = require("node:fs");
-    const npath = require("node:path");
-    const nurl = require("node:url");
-    const dir =
-      typeof __dirname !== "undefined"
-        ? __dirname
-        : npath.dirname(nurl.fileURLToPath((0, eval)("import.meta").url));
-    const bytes = nfs.readFileSync(npath.join(dir, "quantion.wasm"));
-    return load_and_instantiate(bytes);
-  }
-
   throw new Error(
-    "Browser ESM build requires the UMD inline bundle (quantion.js)",
+    "quantion: the WASM build must be loaded from the bundle (quantion.js)",
   );
 }
 
