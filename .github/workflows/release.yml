@@ -137,3 +137,48 @@ jobs:
           files: upload/*
           fail_on_unmatched_files: true
           generate_release_notes: true
+
+  cran:
+    name: CRAN package
+    needs: publish
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.RELEASE_TAG }}
+
+      - name: Use the Rust that ships with the runner
+        run: rustup update stable && rustup default stable
+
+      - uses: r-lib/actions/setup-r@v2
+        with:
+          r-version: "release"
+          use-public-rspm: true
+
+      - uses: r-lib/actions/setup-pandoc@v2
+
+      - name: Install checkbashisms
+        run: sudo apt-get update && sudo apt-get install -y devscripts
+
+      - name: Install the R packages the wrapper declares
+        uses: r-lib/actions/setup-r-dependencies@v2
+        with:
+          working-directory: wrappers/r
+
+      - name: Build the package and run R CMD check --as-cran
+        run: scripts/build-r-package.sh dist
+
+      - name: Keep the check log
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: r-check-log
+          path: dist/check.log
+          if-no-files-found: ignore
+
+      - name: Attach the CRAN package to the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "$RELEASE_TAG" dist/quantion_*.tar.gz --clobber

@@ -3,6 +3,9 @@
 <img src="assets/icon.svg" align="right" width="200" alt="Quantion icon">
 
 [![test](https://github.com/phenological/quantion/actions/workflows/test.yml/badge.svg)](https://github.com/phenological/quantion/actions/workflows/test.yml)
+[![crates.io](https://img.shields.io/crates/v/quantion)](https://crates.io/crates/quantion)
+[![PyPI](https://img.shields.io/pypi/v/quantion)](https://pypi.org/project/quantion/)
+[![CRAN](https://www.r-pkg.org/badges/version/quantion)](https://CRAN.R-project.org/package=quantion)
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.22700673.svg)](https://doi.org/10.5281/zenodo.22700673)
 
 **Ionic Toolkit for LCMS data processing.**

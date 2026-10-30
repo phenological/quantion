@@ -2,6 +2,15 @@
 name = "quantion"
 version = "0.2.0"
 edition = "2024"
+description = "Read Ionic (.ion) and mzML files and turn chromatograms into numbers: noise, baseline, peaks, targets and features."
+license = "MIT"
+repository = "https://github.com/phenological/quantion"
+homepage = "https://phenological.github.io/quantion/"
+documentation = "https://phenological.github.io/quantion/?language=rust"
+readme = "../README.md"
+keywords = ["mass-spectrometry", "chromatography", "mzml", "lcms", "ionic"]
+categories = ["science"]
+exclude = ["tests/**", "examples/**", ".cargo/**"]
 
 [lib]
 name = "quantion"
