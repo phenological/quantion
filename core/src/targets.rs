@@ -22,18 +22,23 @@ use crate::{
 /// Returns: One Peak per target, in the same order. A target with no peak gets a Peak with every field 0.
 ///
 /// [Documentation](https://phenological.github.io/quantion/?language=rust#find_targets)
+pub(crate) fn check_targets(function: &'static str, targets: &[Target]) -> Result<(), QuantionError> {
+    for (index, target) in targets.iter().enumerate() {
+        check_positive(function, &format!("targets[{index}].mz"), target.mz)?;
+        check_finite(function, &format!("targets[{index}].rt"), target.rt)?;
+        if let Some(range) = target.range {
+            check_not_negative(function, &format!("targets[{index}].range"), range)?;
+        }
+    }
+    Ok(())
+}
+
 pub fn find_targets(file: &mut SampleFile, targets: &[Target], options: FindTargetsOptions) -> Result<Vec<Peak>, QuantionError> {
     const FUNCTION: &str = "find_targets";
     options.eic.check(FUNCTION, "eic.")?;
     options.find_peaks.check(FUNCTION)?;
     check_threads(FUNCTION, options.threads)?;
-    for (index, target) in targets.iter().enumerate() {
-        check_positive(FUNCTION, &format!("targets[{index}].mz"), target.mz)?;
-        check_finite(FUNCTION, &format!("targets[{index}].rt"), target.rt)?;
-        if let Some(range) = target.range {
-            check_not_negative(FUNCTION, &format!("targets[{index}].range"), range)?;
-        }
-    }
+    check_targets(FUNCTION, targets)?;
     let targets_in_minutes: Vec<Target> = targets
         .iter()
         .map(|target| Target {

@@ -465,7 +465,7 @@ pub unsafe extern "C" fn plan_eic(
     clear_buf(out);
     run_on_file(FUNCTION, handle, |file| {
         let options = get_eic_options(from, to, ppm_tolerance, mz_tolerance, time_unit);
-        options.check(FUNCTION, "")?;
+        crate::files::check_eic_request(FUNCTION, mz, &options)?;
         let window = options.get_window();
         if let FileSource::Lazy(ion) | FileSource::Remote(ion) = &mut file.source {
             let ranges = plan_eic_ranges(ion, mz, window.from, window.to, ppm_tolerance, mz_tolerance)
@@ -523,6 +523,7 @@ pub unsafe extern "C" fn plan_scans(handle: *mut ParsedFile, query_type: u8, fro
     clear_buf(out);
     run_on_file(FUNCTION, handle, |file| {
         let query = get_scan_query(query_type, from, to).ok_or_else(|| QuantionError::internal(FUNCTION, "unknown query type"))?;
+        crate::files::check_scan_query(FUNCTION, query)?;
         if let FileSource::Lazy(ion) | FileSource::Remote(ion) = &mut file.source {
             let ranges = crate::utilities::calculate_eic::plan_scan_ranges(ion.as_mut(), query, get_time_unit(time_unit), level)
                 .map_err(|error| from_fast_error(FUNCTION, error))?;
@@ -651,6 +652,7 @@ pub unsafe extern "C" fn plan_find_targets(
                 ..Default::default()
             })
             .collect();
+        crate::targets::check_targets(FUNCTION, &targets)?;
         if let FileSource::Lazy(ion) | FileSource::Remote(ion) = &mut file.source {
             let ranges = plan_targets_ranges(ion, &targets, window.from, window.to, eic.in_minutes())
                 .map_err(|error| from_fast_error(FUNCTION, error))?;

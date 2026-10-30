@@ -1463,6 +1463,53 @@ mod tests {
         unsafe { free_mzml(handle) };
     }
 
+    fn get_last_error() -> (String, String, String) {
+        let out = new_buf_out();
+        unsafe { quantion_last_error(out) };
+        let bytes = unsafe { std::slice::from_raw_parts((*out).ptr, (*out).len) }.to_vec();
+        drop_buf_out(out);
+        let text = String::from_utf8(bytes).expect("utf-8");
+        let fields: Vec<&str> = text.split('\u{1f}').collect();
+        (fields[1].to_string(), fields[2].to_string(), fields[4].to_string())
+    }
+
+    #[test]
+    fn plan_eic_gives_the_same_error_as_calculate_eic() {
+        let handle = open_windowed_ion();
+        let out = new_buf_out();
+        unsafe { plan_eic(handle, -1.0, 0.0, 10.0, 20.0, 0.005, 0, out) };
+        let (kind, function, message) = get_last_error();
+        assert_eq!((kind.as_str(), function.as_str()), ("invalid_argument", "calculate_eic"));
+        assert_eq!(message, "mz must be greater than 0, got -1");
+        drop_buf_out(out);
+        unsafe { free_mzml(handle) };
+    }
+
+    #[test]
+    fn plan_scans_gives_the_same_error_as_get_scans() {
+        let handle = open_windowed_ion();
+        let out = new_buf_out();
+        unsafe { plan_scans(handle, 0, 3.0, 1.0, 1, 0, out) };
+        let (kind, function, message) = get_last_error();
+        assert_eq!((kind.as_str(), function.as_str()), ("invalid_argument", "get_scans"));
+        assert_eq!(message, "to must be at least from (3), got 1");
+        drop_buf_out(out);
+        unsafe { free_mzml(handle) };
+    }
+
+    #[test]
+    fn plan_find_targets_gives_the_same_error_as_find_targets() {
+        let handle = open_windowed_ion();
+        let out = new_buf_out();
+        let mzs = [500.0, -1.0];
+        unsafe { plan_find_targets(handle, mzs.as_ptr(), mzs.len(), 0.0, 10.0, 20.0, 0.005, 0, out) };
+        let (kind, function, message) = get_last_error();
+        assert_eq!((kind.as_str(), function.as_str()), ("invalid_argument", "find_targets"));
+        assert_eq!(message, "targets[1].mz must be greater than 0, got -1");
+        drop_buf_out(out);
+        unsafe { free_mzml(handle) };
+    }
+
     #[test]
     fn plan_eic_rejects_zero_tolerance() {
         let handle = open_windowed_ion();

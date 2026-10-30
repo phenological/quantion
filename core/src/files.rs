@@ -319,22 +319,27 @@ fn upload(function: &'static str, _url: &str, _headers: &[Header], _bytes: Vec<u
 /// Returns: The scans found, in rt order.
 ///
 /// [Documentation](https://phenological.github.io/quantion/?language=rust#get_scans)
-pub fn get_scans(file: &mut SampleFile, query: ScanQuery, options: GetScansOptions) -> Result<Vec<Scan>, QuantionError> {
-    const FUNCTION: &str = "get_scans";
+pub(crate) fn check_scan_query(function: &'static str, query: ScanQuery) -> Result<(), QuantionError> {
     match query {
-        ScanQuery::Rt(rt) => check_finite(FUNCTION, "rt", rt)?,
-        ScanQuery::Mz(mz) => check_positive(FUNCTION, "mz", mz)?,
+        ScanQuery::Rt(rt) => check_finite(function, "rt", rt),
+        ScanQuery::Mz(mz) => check_positive(function, "mz", mz),
         ScanQuery::RtRange(range) | ScanQuery::MzRange(range) => {
-            check_finite(FUNCTION, "from", range.from)?;
+            check_finite(function, "from", range.from)?;
             if range.to.is_nan() || range.to < range.from {
                 return Err(QuantionError::invalid(
-                    FUNCTION,
+                    function,
                     "to",
                     format!("must be at least from ({}), got {}", range.from, range.to),
                 ));
             }
+            Ok(())
         }
     }
+}
+
+pub fn get_scans(file: &mut SampleFile, query: ScanQuery, options: GetScansOptions) -> Result<Vec<Scan>, QuantionError> {
+    const FUNCTION: &str = "get_scans";
+    check_scan_query(FUNCTION, query)?;
     let (_, scans) = match &mut file.source {
         FileSource::Full(mzml) => read_scans(mzml.as_mut(), query, options.time_unit, options.level),
         FileSource::Lazy(ion) | FileSource::Remote(ion) => read_scans(ion.as_mut(), query, options.time_unit, options.level),
@@ -353,10 +358,14 @@ pub fn get_scans(file: &mut SampleFile, query: ScanQuery, options: GetScansOptio
 /// Returns: The chromatogram: x = retention times, y = summed intensities.
 ///
 /// [Documentation](https://phenological.github.io/quantion/?language=rust#calculate_eic)
+pub(crate) fn check_eic_request(function: &'static str, mz: f64, options: &CalculateEicOptions) -> Result<(), QuantionError> {
+    check_positive(function, "mz", mz)?;
+    options.check(function, "")
+}
+
 pub fn calculate_eic(file: &mut SampleFile, mz: f64, options: CalculateEicOptions) -> Result<DataXY, QuantionError> {
     const FUNCTION: &str = "calculate_eic";
-    check_positive(FUNCTION, "mz", mz)?;
-    options.check(FUNCTION, "")?;
+    check_eic_request(FUNCTION, mz, &options)?;
     read_eic(&mut file.reader(), mz, options.get_window(), options.in_minutes()).map_err(|error| from_fast_error(FUNCTION, error))
 }
 
