@@ -1,6 +1,7 @@
 import iconAddress from "../../../assets/icon.svg";
 import { GitHubLinks } from "./GitHubLinks";
 import { VersionMenu } from "./VersionMenu";
+import { IonicText } from "./IonicText";
 
 export function Header() {
   return (
@@ -10,7 +11,9 @@ export function Header() {
         <h1 className="brand">
           Quant<span className="dot">·</span>ion
         </h1>
-        <p className="tagline">The toolkit for Ionic files (.ion) · API documentation</p>
+        <p className="tagline">
+          <IonicText text="The toolkit for Ionic files (.ion) · API documentation" />
+        </p>
       </div>
       <VersionMenu />
       <GitHubLinks />

@@ -24,7 +24,7 @@ export const ERROR_CODES = {
  * - `"unknown_option"`: An option key that does not exist.
  * - `"remote_file"`: Needs the whole file, but a URL was given.
  * - `"file_not_found"`: The path does not exist.
- * - `"parse_failed"`: The file is not valid .ion, mzML or ONNX.
+ * - `"parse_failed"`: The file is not a valid Ionic (.ion), mzML or ONNX file.
  * - `"model_mismatch"`: The model has no warp, or a target is not in it.
  * - `"file_exists"`: The output file exists and overwrite is false.
  * - `"upload_failed"`: The upload was rejected, with the HTTP status.

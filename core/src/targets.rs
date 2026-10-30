@@ -54,6 +54,8 @@ pub fn find_targets(file: &mut SampleFile, targets: &[Target], options: FindTarg
 ///
 /// For each SRM transition, take the stored chromatogram whose precursor (Q1) and product (Q3) are both within 0.005 m/z, and find its peak near rt ± range.
 ///
+/// **Warning:** Needs the whole file. A sample opened from a URL gives a remote_file error; open it from a path or bytes.
+///
 /// - `file`: The sample to read, from parse_ion or parse_mzml.
 /// - `targets`: The transitions. Each Transition has `id`, `precursor`, `product`, `rt`, `range`. See [Transition](https://phenological.github.io/quantion/?language=rust#Transition).
 ///   Example: `let transition = Transition { id: Some("compound_1".into()), precursor: 500.3, product: 184.1, rt: 3.2, range: 0.4 };`

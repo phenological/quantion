@@ -70,7 +70,7 @@ pub fn find_features(file: &mut SampleFile, options: FindFeaturesOptions) -> Res
 ///
 /// Untargeted across samples: find features in every file of a folder and match them. Values are medians over the samples where a feature was found.
 ///
-/// - `directory`: Folder with the .ion or mzML files.
+/// - `directory`: Folder with the Ionic (.ion) or mzML files.
 /// - `options`: Optional settings: `eic`, `grid`, `grouping`, `find_peaks`, `threads` = 1. See [MatchFeaturesOptions](https://phenological.github.io/quantion/?language=rust#MatchFeaturesOptions).
 ///
 /// Returns: One Feature per matched feature; frequency is the fraction of samples (0–1).

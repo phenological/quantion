@@ -539,9 +539,9 @@ export interface NoiseLevel {
  * One peak curve: returned by fit_peak, or written by hand to simulate. draw_peaks takes a list of them. tail = 0 is a Gaussian, tail above 0 an EMG.
  *
  * Fields:
- * - `height`: Height of the curve.
- * - `center`: Centre of the curve (minutes).
- * - `fwhm`: Full width at half maximum (minutes).
+ * - `height`: Height of the curve at its apex.
+ * - `center`: Retention time of the apex (minutes).
+ * - `fwhm`: Full width at half maximum of the Gaussian part (minutes). With a tail, the drawn peak is a little wider.
  * - `tail`: Length of the right-hand tail. 0 = Gaussian, above 0 = EMG.
  * - `r2`: Fit quality (0–1), set by fit_peak. Not needed to draw. Optional.
  *

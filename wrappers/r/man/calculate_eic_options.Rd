@@ -2,17 +2,17 @@
 \alias{calculate_eic_options}
 \title{Settings for an EIC}
 \description{
-Which scans are read and how wide the m/z window is. Used by \code{\link{calculate_eic}()}, and as the \code{eic} group of \code{\link{find_targets_options}()}, \code{\link{find_features_options}()} and \code{\link{match_features_options}()}. The wider of the ppm and absolute m/z windows is used. Every field is checked when the object is built; a misspelt name or a wrong type gives an error.
+Which scans are read and how wide the m/z window is. Used by calculate_eic, and as the eic group of find_targets, find_features and match_features. The wider of the ppm and absolute m/z windows is used.
 }
 \usage{
 calculate_eic_options(from = 0, to = Inf, ppm_tolerance = 20, mz_tolerance = 0.005, time_unit = "MINUTES")
 }
 \arguments{
   \item{from}{Start of the retention-time range read.}
-  \item{to}{End of the retention-time range read; \code{Inf} reads to the end of the run.}
+  \item{to}{End of the retention-time range read. The default reads to the end of the run.}
   \item{ppm_tolerance}{Tolerance in ppm.}
   \item{mz_tolerance}{Absolute tolerance in Da.}
-  \item{time_unit}{\code{"MINUTES"} or \code{"SECONDS"}: the unit of \code{from}, \code{to} and target retention times.}
+  \item{time_unit}{Unit of from, to and rt values given.}
 }
 \value{
 An options object for \code{\link{calculate_eic}()}.

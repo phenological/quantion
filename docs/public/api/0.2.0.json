@@ -51,7 +51,7 @@
     },
     {
       "name": "Traces",
-      "description": "Functions that work on one trace: a chromatogram given as x, the retention times, and y, the intensities. They need no file. To make a trace from a raw .ion or .mzML file, use calculate_eic."
+      "description": "Functions that work on one trace: a chromatogram given as x, the retention times, and y, the intensities. They need no file. To make a trace from a raw Ionic (.ion) or mzML file, use calculate_eic."
     },
     {
       "name": "Targeted",
@@ -93,7 +93,7 @@
       "name": "parse_ion",
       "group": "Files",
       "kind": "function",
-      "summary": "Open an .ion file from a path, a URL or bytes. Paths and URLs are read lazily: only the bytes a query needs are fetched.",
+      "summary": "Open an Ionic file (.ion) from a path, a URL or bytes. Paths and URLs are read lazily: only the bytes a query needs are fetched.",
       "arguments": [
         {
           "meaning": "Where the file is: a path, an http(s) URL, or raw bytes.",
@@ -158,21 +158,23 @@
       "languages": {
         "rust": {
           "signature": "pub fn parse_ion(input: impl Into<IonInput>, options: ParseIonOptions) -> Result<SampleFile, QuantionError>",
-          "example": "use quantion::{ParseIonOptions, parse_ion};\n\nlet mut file = parse_ion(\"sample.ion\", ParseIonOptions::default())?;\nlet mut remote = parse_ion(\"https://example.org/sample.ion\", ParseIonOptions { max_cache_size: 64_000_000 })?;"
+          "example": "use quantion::{ParseIonOptions, parse_ion};\n\nlet mut file = parse_ion(\"sample.ion\", ParseIonOptions::default())?;\nlet mut remote = parse_ion(\"https://example.org/sample.ion\", ParseIonOptions { max_cache_size: 64_000_000 })?;\n\ndrop(file);\ndrop(remote);",
+          "warning": "The sample is freed when it goes out of scope, so nothing else is needed in normal use. When processing many samples, drop each one after using it, with drop(file), so its memory is freed right away instead of piling up."
         },
         "python": {
           "signature": "def parse_ion(source, options: ParseIonOptions | None = None) -> SampleFile",
-          "example": "from quantion import parse_ion\n\nfile = parse_ion(\"sample.ion\")\nremote = parse_ion(\"https://example.org/sample.ion\", {\"max_cache_size\": 64_000_000})"
+          "example": "from quantion import parse_ion\n\nfile = parse_ion(\"sample.ion\")\nremote = parse_ion(\"https://example.org/sample.ion\", {\"max_cache_size\": 64_000_000})\n\nfile.dispose()\nremote.dispose()"
         },
         "js": {
           "signature": "async function parseIon(source: IonInput, options?: ParseIonOptions): Promise<SampleFile>",
-          "example": "import { parseIon } from \"quantion\";\n\nconst file = await parseIon(\"sample.ion\");\nconst remote = await parseIon(\"https://example.org/sample.ion\", { maxCacheSize: 64_000_000 });"
+          "example": "import { parseIon } from \"quantion\";\n\nconst file = await parseIon(\"sample.ion\");\nconst remote = await parseIon(\"https://example.org/sample.ion\", { maxCacheSize: 64_000_000 });\n\nfile.dispose();\nremote.dispose();"
         },
         "r": {
           "signature": "parse_ion(source, options = parse_ion_options())",
-          "example": "library(quantion)\n\nsample <- parse_ion(\"sample.ion\")\nremote <- parse_ion(\"https://example.org/sample.ion\",\n                    options = parse_ion_options(max_cache_size = 64e6))"
+          "example": "library(quantion)\n\nurl <- \"https://raw.githubusercontent.com/phenological/ion-files/main/data/p21_LTR_20_b1_w20.ion\"\nsample <- parse_ion(url)\ncached <- parse_ion(url, options = parse_ion_options(max_cache_size = 64e6))\nprint(sample)\n\ndispose(sample)\ndispose(cached)"
         }
-      }
+      },
+      "warning": "The sample is freed by the library once it is no longer used, so dispose is not needed in normal use. When processing many samples, dispose each one after using it, so its memory is freed right away instead of piling up."
     },
     {
       "name": "parse_mzml",
@@ -218,7 +220,8 @@
       "languages": {
         "rust": {
           "signature": "pub fn parse_mzml(input: impl Into<MzmlInput>) -> Result<SampleFile, QuantionError>",
-          "example": "use quantion::parse_mzml;\n\nlet mut file = parse_mzml(\"sample.mzML\")?;"
+          "example": "use quantion::parse_mzml;\n\nlet mut file = parse_mzml(\"sample.mzML\")?;",
+          "warning": "The sample is freed when it goes out of scope, so nothing else is needed in normal use. When processing many samples, drop each one after using it, with drop(file), so its memory is freed right away instead of piling up."
         },
         "python": {
           "signature": "def parse_mzml(source) -> SampleFile",
@@ -230,15 +233,16 @@
         },
         "r": {
           "signature": "parse_mzml(source)",
-          "example": "library(quantion)\n\nsample <- parse_mzml(\"sample.mzML\")"
+          "example": "library(quantion)\n\nurl <- \"https://raw.githubusercontent.com/phenological/quantion/main/core/tests/fixtures/api/api.ion\"\ndata <- curl::curl_fetch_memory(url)$content\npath <- tempfile(fileext = \".mzML\")\nwrite_mzml(parse_ion(data), options = write_mzml_options(out = path))\nsample <- parse_mzml(path)\nprint(sample)"
         }
-      }
+      },
+      "warning": "The sample is freed by the library once it is no longer used, so dispose is not needed in normal use. When processing many samples, dispose each one after using it, so its memory is freed right away instead of piling up."
     },
     {
       "name": "write_ion",
       "group": "Files",
       "kind": "function",
-      "summary": "Write a sample as .ion. With no out, it returns the bytes. A path writes a file; a URL uploads it in one PUT request.",
+      "summary": "Write a sample as an Ionic file (.ion). With no out, it returns the bytes. A path writes a file; a URL uploads it in one PUT request.",
       "arguments": [
         {
           "meaning": "The sample to write.",
@@ -315,7 +319,7 @@
         },
         "r": {
           "signature": "write_ion(file, options = write_ion_options())",
-          "example": "library(quantion)\n\nsample <- parse_mzml(\"sample.mzML\")\n\ndata <- write_ion(sample)\n\nwrite_ion(sample, options = write_ion_options(out = \"sample.ion\"))\n\nwrite_ion(sample, options = write_ion_options(\n  out = \"https://example.org/upload/sample.ion\",\n  headers = list(header(\"Authorization\", \"Bearer <token>\"))\n))"
+          "example": "library(quantion)\n\nurl <- \"https://raw.githubusercontent.com/phenological/quantion/main/core/tests/fixtures/api/api.ion\"\ndata <- curl::curl_fetch_memory(url)$content\nsample <- parse_ion(data)\n\nbytes <- write_ion(sample)\n\nwrite_ion(sample, options = write_ion_options(out = tempfile(fileext = \".ion\")))\nprint(length(bytes))"
         }
       }
     },
@@ -400,7 +404,7 @@
         },
         "r": {
           "signature": "write_mzml(file, options = write_mzml_options())",
-          "example": "library(quantion)\n\nsample <- parse_ion(\"sample.ion\")\nwrite_mzml(sample, options = write_mzml_options(out = \"sample.mzML\"))"
+          "example": "library(quantion)\n\nurl <- \"https://raw.githubusercontent.com/phenological/quantion/main/core/tests/fixtures/api/api.ion\"\ndata <- curl::curl_fetch_memory(url)$content\nsample <- parse_ion(data)\npath <- tempfile(fileext = \".mzML\")\nwrite_mzml(sample, options = write_mzml_options(out = path))\nprint(file.size(path))"
         }
       }
     },
@@ -517,7 +521,7 @@
           "rust": "Result<Vec<Scan>, QuantionError>",
           "python": "list[Scan]",
           "js": "Promise<Scan[]>",
-          "r": "data.frame"
+          "r": "data.frame of Scan"
         }
       },
       "languages": {
@@ -535,7 +539,7 @@
         },
         "r": {
           "signature": "get_scans(file, rt = NULL, mz = NULL, options = get_scans_options())",
-          "example": "library(quantion)\n\nsample <- parse_ion(\"sample.ion\")\nscans <- get_scans(sample, rt = c(1.0, 2.5))\nclosest <- get_scans(sample, rt = 108, options = get_scans_options(time_unit = \"SECONDS\"))"
+          "example": "library(quantion)\n\nurl <- \"https://raw.githubusercontent.com/phenological/ion-files/main/data/p21_LTR_20_b1_w20.ion\"\nsample <- parse_ion(url)\nscans <- get_scans(sample, rt = c(2.3, 2.4))\nclosest <- get_scans(sample, rt = 143, options = get_scans_options(time_unit = \"SECONDS\"))\nprint(nrow(scans))\nprint(closest$rt)"
         }
       }
     },
@@ -645,7 +649,7 @@
         },
         "r": {
           "signature": "calculate_eic(file, mz, options = calculate_eic_options())",
-          "example": "library(quantion)\n\nsample <- parse_ion(\"sample.ion\")\neic <- calculate_eic(sample, 260.103, options = calculate_eic_options(from = 0.5, to = 5, ppm_tolerance = 10))\nwhole_run <- calculate_eic(sample, 260.103)"
+          "example": "library(quantion)\n\nurl <- \"https://raw.githubusercontent.com/phenological/ion-files/main/data/p21_LTR_20_b1_w20.ion\"\nsample <- parse_ion(url)\neic <- calculate_eic(sample, 260.103, options = calculate_eic_options(from = 2, to = 3, ppm_tolerance = 10))\nprint(head(data.frame(rt = eic$x, intensity = eic$y)))"
         }
       }
     },
@@ -654,7 +658,7 @@
       "group": "Files",
       "kind": "function",
       "summary": "Build an imaging map of one m/z: summed intensity at each x, y position.",
-      "warning": "Only .ion files. The sample must come from parse_ion; a sample from parse_mzml gives an invalid_argument error.",
+      "warning": "Only Ionic files (.ion). The sample must come from parse_ion; a sample from parse_mzml gives an invalid_argument error.",
       "arguments": [
         {
           "meaning": "The sample to read. Must come from parse_ion.",
@@ -756,7 +760,7 @@
         },
         "r": {
           "signature": "get_ion_image(file, mz, options = get_ion_image_options())",
-          "example": "library(quantion)\n\nsample <- parse_ion(\"imaging.ion\")\nimage <- get_ion_image(sample, 760.585, options = get_ion_image_options(tolerance = 0.05))"
+          "example": "library(quantion)\n\nurl <- \"https://raw.githubusercontent.com/phenological/ion-files/main/data/p21_LTR_20_b1_w20.ion\"\nsample <- parse_ion(url)\nimage <- get_ion_image(sample, 260.103, options = get_ion_image_options(tolerance = 0.05))\nprint(c(image$width, image$height))"
         }
       }
     },
@@ -866,7 +870,7 @@
         },
         "r": {
           "signature": "find_peaks(x, y, options = find_peaks_options())",
-          "example": "library(quantion)\n\nsample <- parse_ion(\"sample.ion\")\neic <- calculate_eic(sample, 260.103)\npeaks <- find_peaks(eic$x, eic$y, options = find_peaks_options(min_snr = 3))"
+          "example": "library(quantion)\n\nurl <- \"https://raw.githubusercontent.com/phenological/ion-files/main/data/p21_LTR_20_b1_w20.ion\"\nsample <- parse_ion(url)\neic <- calculate_eic(sample, 260.103, options = calculate_eic_options(from = 2, to = 3))\npeaks <- find_peaks(eic$x, eic$y, options = find_peaks_options(min_snr = 3))\nprint(peaks)"
         }
       }
     },
@@ -1001,7 +1005,7 @@
         },
         "r": {
           "signature": "get_peak(x, y, rt, options = get_peak_options())",
-          "example": "library(quantion)\n\nsample <- parse_ion(\"sample.ion\")\neic <- calculate_eic(sample, 260.103)\npeak <- get_peak(eic$x, eic$y, rt = 2.383, options = get_peak_options(range = 0.05))\nanywhere <- get_peak(eic$x, eic$y, rt = 2.383)"
+          "example": "library(quantion)\n\nurl <- \"https://raw.githubusercontent.com/phenological/ion-files/main/data/p21_LTR_20_b1_w20.ion\"\nsample <- parse_ion(url)\neic <- calculate_eic(sample, 260.103, options = calculate_eic_options(from = 2, to = 3))\npeak <- get_peak(eic$x, eic$y, rt = 2.383, options = get_peak_options(range = 0.05))\nanywhere <- get_peak(eic$x, eic$y, rt = 2.383)\nprint(peak)\nprint(anywhere)"
         }
       }
     },
@@ -1136,7 +1140,7 @@
         },
         "r": {
           "signature": "fit_peak(x, y, rt, options = fit_peak_options())",
-          "example": "library(quantion)\n\nsample <- parse_ion(\"sample.ion\")\neic <- calculate_eic(sample, 260.103)\nparams <- fit_peak(eic$x, eic$y, rt = 2.383)\ngaussian <- fit_peak(eic$x, eic$y, rt = 2.383, options = fit_peak_options(shape = \"GAUSSIAN\"))"
+          "example": "library(quantion)\n\nurl <- \"https://raw.githubusercontent.com/phenological/ion-files/main/data/p21_LTR_20_b1_w20.ion\"\nsample <- parse_ion(url)\neic <- calculate_eic(sample, 260.103, options = calculate_eic_options(from = 2, to = 3))\nparams <- fit_peak(eic$x, eic$y, rt = 2.383)\ngaussian <- fit_peak(eic$x, eic$y, rt = 2.383, options = fit_peak_options(shape = \"GAUSSIAN\"))\nprint(params)\nprint(gaussian)"
         }
       }
     },
@@ -1221,7 +1225,7 @@
         },
         "r": {
           "signature": "draw_peaks(params, options = draw_peaks_options())",
-          "example": "library(quantion)\n\npeaks <- list(\n  list(height = 9800, center = 2.38, fwhm = 0.021, tail = 0.006),\n  list(height = 4200, center = 2.45, fwhm = 0.018, tail = 0),\n  list(height = 1500, center = 2.60, fwhm = 0.030, tail = 0.010)\n)\nchromatogram <- draw_peaks(peaks, options = draw_peaks_options(from = 2, to = 3, points = 2000L))\nfitted <- draw_peaks(peaks)"
+          "example": "library(quantion)\n\npeaks <- list(\n  list(height = 9800, center = 2.38, fwhm = 0.021, tail = 0.006),\n  list(height = 4200, center = 2.45, fwhm = 0.018, tail = 0),\n  list(height = 1500, center = 2.60, fwhm = 0.030, tail = 0.010)\n)\nchromatogram <- draw_peaks(peaks, options = draw_peaks_options(from = 2, to = 3, points = 2000L))\nfitted <- draw_peaks(peaks)\nprint(head(data.frame(rt = chromatogram$x, intensity = chromatogram$y)))"
         }
       }
     },
@@ -1281,7 +1285,7 @@
         },
         "r": {
           "signature": "find_noise_level(y)",
-          "example": "library(quantion)\n\nsample <- parse_ion(\"sample.ion\")\neic <- calculate_eic(sample, 260.103)\nnoise <- find_noise_level(eic$y)$intensity"
+          "example": "library(quantion)\n\nurl <- \"https://raw.githubusercontent.com/phenological/ion-files/main/data/p21_LTR_20_b1_w20.ion\"\nsample <- parse_ion(url)\neic <- calculate_eic(sample, 260.103, options = calculate_eic_options(from = 2, to = 3))\nnoise <- find_noise_level(eic$y)$intensity\nprint(noise)"
         }
       }
     },
@@ -1366,7 +1370,7 @@
         },
         "r": {
           "signature": "calculate_baseline(y, options = calculate_baseline_options())",
-          "example": "library(quantion)\n\nsample <- parse_ion(\"sample.ion\")\neic <- calculate_eic(sample, 260.103)\nbaseline <- calculate_baseline(eic$y, options = calculate_baseline_options(lambda = 50))"
+          "example": "library(quantion)\n\nurl <- \"https://raw.githubusercontent.com/phenological/ion-files/main/data/p21_LTR_20_b1_w20.ion\"\nsample <- parse_ion(url)\neic <- calculate_eic(sample, 260.103, options = calculate_eic_options(from = 2, to = 3))\nbaseline <- calculate_baseline(eic$y, options = calculate_baseline_options(lambda = 50))\nprint(head(baseline))"
         }
       }
     },
@@ -1464,26 +1468,26 @@
       "languages": {
         "rust": {
           "signature": "pub fn find_targets(file: &mut SampleFile, targets: &[Target], options: FindTargetsOptions) -> Result<Vec<Peak>, QuantionError>",
-          "example": "use quantion::{\n    CalculateEicOptions, FindPeaksOptions, FindTargetsOptions, ParseIonOptions, QuantionError, Target, find_targets,\n    parse_ion,\n};\n\nfn main() -> Result<(), QuantionError> {\n    let ids = [\"compound_1\", \"compound_2\", \"compound_3\"];\n    let targets = vec![\n        Target { id: Some(ids[0].to_string()), mz: 260.103, rt: 2.383, range: Some(0.05) },\n        Target { id: Some(ids[1].to_string()), mz: 304.155, rt: 3.120, range: Some(0.05) },\n        Target { id: Some(ids[2].to_string()), mz: 412.210, rt: 4.050, range: Some(0.05) },\n    ];\n\n    let mut file = parse_ion(\"sample.ion\", ParseIonOptions::default())?;\n    let options = FindTargetsOptions {\n        eic: CalculateEicOptions { from: 0.5, to: 5.0, ..Default::default() },\n        find_peaks: FindPeaksOptions { min_intensity: 1000.0, ..Default::default() },\n        threads: 4,\n    };\n    let peaks = find_targets(&mut file, &targets, options)?;\n\n    for index in 0..peaks.len() {\n        let peak = &peaks[index];\n        println!(\"{}: rt {:.3}  intensity {:.0}  integral {:.0}\", ids[index], peak.rt, peak.intensity, peak.integral);\n    }\n    Ok(())\n}",
-          "output": "compound_1: rt 2.381  intensity 12040  integral 15230\ncompound_2: rt 3.118  intensity 6310  integral 8420\ncompound_3: rt 0.000  intensity 0  integral 0"
+          "example": "use quantion::{\n    CalculateEicOptions, FindPeaksOptions, FindTargetsOptions, ParseIonOptions, QuantionError, Target, find_targets,\n    parse_ion,\n};\n\nfn main() -> Result<(), QuantionError> {\n    let ids = [\"compound_1\", \"compound_2\", \"compound_3\"];\n    let targets = vec![\n        Target { id: Some(ids[0].to_string()), mz: 260.1034, rt: 2.383, range: Some(0.05) },\n        Target { id: Some(ids[1].to_string()), mz: 317.1250, rt: 1.903, range: Some(0.05) },\n        Target { id: Some(ids[2].to_string()), mz: 188.0818, rt: 3.060, range: Some(0.05) },\n    ];\n\n    let mut file = parse_ion(\"sample.ion\", ParseIonOptions::default())?;\n    let options = FindTargetsOptions {\n        eic: CalculateEicOptions { from: 1.5, to: 3.5, ..Default::default() },\n        find_peaks: FindPeaksOptions { min_intensity: 1000.0, ..Default::default() },\n        threads: 4,\n    };\n    let peaks = find_targets(&mut file, &targets, options)?;\n\n    for index in 0..peaks.len() {\n        let peak = &peaks[index];\n        println!(\"{}: rt {:.3}  intensity {:.0}  integral {:.0}\", ids[index], peak.rt, peak.intensity, peak.integral);\n    }\n    Ok(())\n}",
+          "output": "compound_1: rt 2.383  intensity 168984  integral 274621\ncompound_2: rt 1.903  intensity 136686  integral 193667\ncompound_3: rt 3.060  intensity 397468  integral 1105423"
         },
         "python": {
           "signature": "def find_targets(file, targets: Sequence[Target], options: FindTargetsOptions | None = None) -> list[Peak]",
-          "example": "from quantion import find_targets, parse_ion\n\ntargets = [\n    {\"id\": \"compound_1\", \"mz\": 260.103, \"rt\": 2.383, \"range\": 0.05},\n    {\"id\": \"compound_2\", \"mz\": 304.155, \"rt\": 3.120, \"range\": 0.05},\n    {\"id\": \"compound_3\", \"mz\": 412.210, \"rt\": 4.050, \"range\": 0.05},\n]\noptions = {\n    \"eic\": {\"from\": 0.5, \"to\": 5.0},\n    \"find_peaks\": {\"min_intensity\": 1000},\n    \"threads\": 4,\n}\n\nfile = parse_ion(\"sample.ion\")\npeaks = find_targets(file, targets, options)\nfile.dispose()\n\nfor index in range(len(peaks)):\n    peak = peaks[index]\n    print(f\"{targets[index]['id']}: rt {peak['rt']:.3f}  intensity {peak['intensity']:.0f}  integral {peak['integral']:.0f}\")",
-          "output": "compound_1: rt 2.381  intensity 12040  integral 15230\ncompound_2: rt 3.118  intensity 6310  integral 8420\ncompound_3: rt 0.000  intensity 0  integral 0"
+          "example": "from quantion import find_targets, parse_ion\n\ntargets = [\n    {\"id\": \"compound_1\", \"mz\": 260.1034, \"rt\": 2.383, \"range\": 0.05},\n    {\"id\": \"compound_2\", \"mz\": 317.1250, \"rt\": 1.903, \"range\": 0.05},\n    {\"id\": \"compound_3\", \"mz\": 188.0818, \"rt\": 3.060, \"range\": 0.05},\n]\noptions = {\n    \"eic\": {\"from\": 1.5, \"to\": 3.5},\n    \"find_peaks\": {\"min_intensity\": 1000},\n    \"threads\": 4,\n}\n\nfile = parse_ion(\"sample.ion\")\npeaks = find_targets(file, targets, options)\n\nfor index in range(len(peaks)):\n    peak = peaks[index]\n    print(f\"{targets[index]['id']}: rt {peak['rt']:.3f}  intensity {peak['intensity']:.0f}  integral {peak['integral']:.0f}\")",
+          "output": "compound_1: rt 2.383  intensity 168984  integral 274621\ncompound_2: rt 1.903  intensity 136686  integral 193667\ncompound_3: rt 3.060  intensity 397468  integral 1105423"
         },
         "js": {
           "signature": "async function findTargets(file: SampleFile, targets: Target[], options?: FindTargetsOptions): Promise<Peak[]>",
-          "example": "import { findTargets, parseIon } from \"quantion\";\n\nconst targets = [\n  { id: \"compound_1\", mz: 260.103, rt: 2.383, range: 0.05 },\n  { id: \"compound_2\", mz: 304.155, rt: 3.12, range: 0.05 },\n  { id: \"compound_3\", mz: 412.21, rt: 4.05, range: 0.05 },\n];\nconst options = {\n  eic: { from: 0.5, to: 5 },\n  findPeaks: { minIntensity: 1000 },\n  threads: 4,\n};\n\nconst file = await parseIon(\"sample.ion\");\nconst peaks = await findTargets(file, targets, options);\nfile.dispose();\n\nfor (let index = 0; index < peaks.length; index++) {\n  const peak = peaks[index];\n  console.log(`${targets[index].id}: rt ${peak.rt.toFixed(3)}  intensity ${peak.intensity.toFixed(0)}  integral ${peak.integral.toFixed(0)}`);\n}",
-          "output": "compound_1: rt 2.381  intensity 12040  integral 15230\ncompound_2: rt 3.118  intensity 6310  integral 8420\ncompound_3: rt 0.000  intensity 0  integral 0"
+          "example": "import { findTargets, parseIon } from \"quantion\";\n\nconst targets = [\n  { id: \"compound_1\", mz: 260.1034, rt: 2.383, range: 0.05 },\n  { id: \"compound_2\", mz: 317.125, rt: 1.903, range: 0.05 },\n  { id: \"compound_3\", mz: 188.0818, rt: 3.06, range: 0.05 },\n];\nconst options = {\n  eic: { from: 1.5, to: 3.5 },\n  findPeaks: { minIntensity: 1000 },\n  threads: 4,\n};\n\nconst file = await parseIon(\"sample.ion\");\nconst peaks = await findTargets(file, targets, options);\n\nfor (let index = 0; index < peaks.length; index++) {\n  const peak = peaks[index];\n  console.log(`${targets[index].id}: rt ${peak.rt.toFixed(3)}  intensity ${peak.intensity.toFixed(0)}  integral ${peak.integral.toFixed(0)}`);\n}",
+          "output": "compound_1: rt 2.383  intensity 168984  integral 274621\ncompound_2: rt 1.903  intensity 136686  integral 193667\ncompound_3: rt 3.060  intensity 397468  integral 1105423"
         },
         "r": {
           "signature": "find_targets(file, targets, options = find_targets_options())",
-          "example": "library(quantion)\n\ntargets <- data.frame(\n  id    = c(\"compound_1\", \"compound_2\", \"compound_3\"),\n  mz    = c(260.103, 304.155, 412.210),\n  rt    = c(2.383, 3.120, 4.050),\n  range = c(0.05, 0.05, 0.05)\n)\noptions <- find_targets_options(\n  eic        = calculate_eic_options(from = 0.5, to = 5),\n  find_peaks = find_peaks_options(min_intensity = 1000),\n  threads    = 4L\n)\n\nsample <- parse_ion(\"sample.ion\")\npeaks <- find_targets(sample, targets, options = options)\ndispose(sample)\n\nfor (index in seq_len(nrow(peaks))) {\n  peak <- peaks[index, ]\n  cat(sprintf(\"%s: rt %.3f  intensity %.0f  integral %.0f\\n\", targets$id[index], peak$rt, peak$intensity, peak$integral))\n}",
-          "output": "compound_1: rt 2.381  intensity 12040  integral 15230\ncompound_2: rt 3.118  intensity 6310  integral 8420\ncompound_3: rt 0.000  intensity 0  integral 0"
+          "example": "library(quantion)\n\nurl <- \"https://raw.githubusercontent.com/phenological/ion-files/main/data/p21_LTR_20_b1_w20.ion\"\ntargets <- data.frame(\n  id    = c(\"compound_1\", \"compound_2\", \"compound_3\"),\n  mz    = c(260.1034, 317.1250, 188.0818),\n  rt    = c(2.383, 1.903, 3.060),\n  range = c(0.05, 0.05, 0.05)\n)\noptions <- find_targets_options(\n  eic        = calculate_eic_options(from = 1.5, to = 3.5),\n  find_peaks = find_peaks_options(min_intensity = 1000),\n  threads    = 2L\n)\n\nsample <- parse_ion(url)\npeaks <- find_targets(sample, targets, options = options)\n\nfor (index in seq_len(nrow(peaks))) {\n  peak <- peaks[index, ]\n  cat(sprintf(\"%s: rt %.3f  intensity %.0f  integral %.0f\\n\", targets$id[index], peak$rt, peak$intensity, peak$integral))\n}",
+          "output": "compound_1: rt 2.383  intensity 168984  integral 274621\ncompound_2: rt 1.903  intensity 136686  integral 193667\ncompound_3: rt 3.060  intensity 397468  integral 1105423"
         }
       },
-      "expect": "One peak per target, in the same order as the targets. A target with no peak in its window gets a peak with every field 0, like compound_3 here. The values above are only an illustration."
+      "expect": "One peak per target, in the same order as the targets. A target with no peak in its window gets a peak with every field 0."
     },
     {
       "name": "find_transitions",
@@ -1592,7 +1596,7 @@
         },
         "r": {
           "signature": "find_transitions(file, targets, options = find_transitions_options())",
-          "example": "library(quantion)\n\nsample <- parse_mzml(\"srm.mzML\")\ntransitions <- data.frame(id = \"compound_1\", precursor = 500.3, product = 184.1, rt = 3.2, range = 0.4)\npeaks <- find_transitions(sample, transitions, options = find_transitions_options(threads = 2L))"
+          "example": "library(quantion)\n\nurl <- \"https://raw.githubusercontent.com/phenological/quantion/main/core/tests/fixtures/srm.ion\"\ndata <- curl::curl_fetch_memory(url)$content\nsample <- parse_ion(data)\ntransitions <- data.frame(id = \"compound_1\", precursor = 500.3, product = 184.1, rt = 3.2, range = 0.4)\npeaks <- find_transitions(sample, transitions, options = find_transitions_options(threads = 2L))\nprint(peaks)"
         }
       }
     },
@@ -1670,17 +1674,17 @@
         },
         "python": {
           "signature": "def find_features(file, options: FindFeaturesOptions | None = None) -> list[Feature]",
-          "example": "from quantion import find_features, parse_ion\n\noptions = {\n    \"grid\": {\"start\": 100, \"end\": 600},\n    \"threads\": 4,\n}\n\nfile = parse_ion(\"sample.ion\")\nfeatures = find_features(file, options)\nfile.dispose()\n\nprint(f\"{len(features)} features\")\ncount = 3\nif len(features) < count:\n    count = len(features)\nfor index in range(count):\n    feature = features[index]\n    print(f\"m/z {feature['mz']:.4f}  rt {feature['rt']:.3f}  intensity {feature['intensity']:.0f}\")",
+          "example": "from quantion import find_features, parse_ion\n\noptions = {\n    \"grid\": {\"start\": 100, \"end\": 600},\n    \"threads\": 4,\n}\n\nfile = parse_ion(\"sample.ion\")\nfeatures = find_features(file, options)\n\nprint(f\"{len(features)} features\")\ncount = 3\nif len(features) < count:\n    count = len(features)\nfor index in range(count):\n    feature = features[index]\n    print(f\"m/z {feature['mz']:.4f}  rt {feature['rt']:.3f}  intensity {feature['intensity']:.0f}\")",
           "output": "412 features\nm/z 205.0974  rt 0.912  intensity 25310\nm/z 301.1410  rt 1.204  intensity 18760\nm/z 455.2903  rt 2.537  intensity 9420"
         },
         "js": {
           "signature": "async function findFeatures(file: SampleFile, options?: FindFeaturesOptions): Promise<Feature[]>",
-          "example": "import { findFeatures, parseIon } from \"quantion\";\n\nconst options = {\n  grid: { start: 100, end: 600 },\n  threads: 4,\n};\n\nconst file = await parseIon(\"sample.ion\");\nconst features = await findFeatures(file, options);\nfile.dispose();\n\nconsole.log(`${features.length} features`);\nlet count = 3;\nif (features.length < count) {\n  count = features.length;\n}\nfor (let index = 0; index < count; index++) {\n  const feature = features[index];\n  console.log(`m/z ${feature.mz.toFixed(4)}  rt ${feature.rt.toFixed(3)}  intensity ${feature.intensity.toFixed(0)}`);\n}",
+          "example": "import { findFeatures, parseIon } from \"quantion\";\n\nconst options = {\n  grid: { start: 100, end: 600 },\n  threads: 4,\n};\n\nconst file = await parseIon(\"sample.ion\");\nconst features = await findFeatures(file, options);\n\nconsole.log(`${features.length} features`);\nlet count = 3;\nif (features.length < count) {\n  count = features.length;\n}\nfor (let index = 0; index < count; index++) {\n  const feature = features[index];\n  console.log(`m/z ${feature.mz.toFixed(4)}  rt ${feature.rt.toFixed(3)}  intensity ${feature.intensity.toFixed(0)}`);\n}",
           "output": "412 features\nm/z 205.0974  rt 0.912  intensity 25310\nm/z 301.1410  rt 1.204  intensity 18760\nm/z 455.2903  rt 2.537  intensity 9420"
         },
         "r": {
           "signature": "find_features(file, options = find_features_options())",
-          "example": "library(quantion)\n\noptions <- find_features_options(\n  grid    = grid_options(start = 100, end = 600),\n  threads = 4L\n)\n\nsample <- parse_ion(\"sample.ion\")\nfeatures <- find_features(sample, options = options)\ndispose(sample)\n\ncat(sprintf(\"%d features\\n\", nrow(features)))\ncount <- 3\nif (nrow(features) < count) {\n  count <- nrow(features)\n}\nfor (index in seq_len(count)) {\n  feature <- features[index, ]\n  cat(sprintf(\"m/z %.4f  rt %.3f  intensity %.0f\\n\", feature$mz, feature$rt, feature$intensity))\n}",
+          "example": "library(quantion)\n\nurl <- \"https://raw.githubusercontent.com/phenological/ion-files/main/data/p21_LTR_20_b1_w20.ion\"\noptions <- find_features_options(\n  eic     = calculate_eic_options(from = 2.3, to = 2.45),\n  grid    = grid_options(start = 255, end = 265),\n  threads = 2L\n)\n\nsample <- parse_ion(url)\nfeatures <- find_features(sample, options = options)\n\ncat(sprintf(\"%d features\\n\", nrow(features)))\ncount <- 3\nif (nrow(features) < count) {\n  count <- nrow(features)\n}\nfor (index in seq_len(count)) {\n  feature <- features[index, ]\n  cat(sprintf(\"m/z %.4f  rt %.3f  intensity %.0f\\n\", feature$mz, feature$rt, feature$intensity))\n}",
           "output": "412 features\nm/z 205.0974  rt 0.912  intensity 25310\nm/z 301.1410  rt 1.204  intensity 18760\nm/z 455.2903  rt 2.537  intensity 9420"
         }
       },
@@ -1693,7 +1697,7 @@
       "summary": "Untargeted across samples: find features in every file of a folder and match them. Values are medians over the samples where a feature was found.",
       "arguments": [
         {
-          "meaning": "Folder with the .ion or mzML files.",
+          "meaning": "Folder with the Ionic (.ion) or mzML files.",
           "languages": {
             "rust": {
               "name": "directory",
@@ -1767,7 +1771,8 @@
         },
         "r": {
           "signature": "match_features(directory, options = match_features_options())",
-          "example": "library(quantion)\n\nfeatures <- match_features(\"samples/\", options = match_features_options(\n  grouping = grouping_options(min_frequency = 0.5),\n  threads  = 8L\n))"
+          "example": "library(quantion)\n\nfeatures <- match_features(\"samples/\", options = match_features_options(\n  grouping = grouping_options(min_frequency = 0.5),\n  threads  = 8L\n))\nprint(features)",
+          "exampleRuns": false
         }
       }
     },
@@ -1815,19 +1820,19 @@
       "languages": {
         "rust": {
           "signature": "pub fn load_model(input: impl Into<ModelInput>) -> Result<Model, QuantionError>",
-          "example": "use quantion::load_model;\n\nlet model = load_model(\"model.onnx\")?;\nlet points = model.get_value(\"points\");"
+          "example": "use quantion::load_model;\n\nlet model = load_model(\"model.onnx\")?;\nlet points = model.get_value(\"points\");\n\ndrop(model);"
         },
         "python": {
           "signature": "def load_model(source) -> Model",
-          "example": "from quantion import load_model\n\nmodel = load_model(\"model.onnx\")\npoints = model.get_value(\"points\")"
+          "example": "from quantion import load_model\n\nmodel = load_model(\"model.onnx\")\npoints = model.get_value(\"points\")\n\nmodel.dispose()"
         },
         "js": {
           "signature": "async function loadModel(source: IonInput): Promise<Model>",
-          "example": "import { loadModel } from \"quantion\";\n\nconst model = await loadModel(\"model.onnx\");\nconst points = model.getValue(\"points\");"
+          "example": "import { loadModel } from \"quantion\";\n\nconst model = await loadModel(\"model.onnx\");\nconst points = model.getValue(\"points\");\n\nmodel.dispose();"
         },
         "r": {
           "signature": "load_model(source)",
-          "example": "library(quantion)\n\nmodel <- load_model(\"model.onnx\")\npoints <- get_value(model, \"points\")"
+          "example": "library(quantion)\n\nmodel <- load_model(\"https://raw.githubusercontent.com/phenological/quantion/main/core/tests/fixtures/shift_model.onnx\")\npoints <- get_value(model, \"points\")\nprint(points)\n\ndispose(model)"
         }
       }
     },
@@ -1875,19 +1880,19 @@
       "languages": {
         "rust": {
           "signature": "pub fn load_warp(model: &Model) -> Result<WarpModel, QuantionError>",
-          "example": "use quantion::{load_model, load_warp};\n\nlet model = load_model(\"model.onnx\")?;\nlet warp = load_warp(&model)?;"
+          "example": "use quantion::{load_model, load_warp};\n\nlet model = load_model(\"model.onnx\")?;\nlet warp = load_warp(&model)?;\n\ndrop(warp);\ndrop(model);"
         },
         "python": {
           "signature": "def load_warp(model: Model) -> WarpModel",
-          "example": "from quantion import load_model, load_warp\n\nmodel = load_model(\"model.onnx\")\nwarp = load_warp(model)"
+          "example": "from quantion import load_model, load_warp\n\nmodel = load_model(\"model.onnx\")\nwarp = load_warp(model)\n\nwarp.dispose()\nmodel.dispose()"
         },
         "js": {
           "signature": "function loadWarp(model: Model): WarpModel",
-          "example": "import { loadModel, loadWarp } from \"quantion\";\n\nconst model = await loadModel(\"model.onnx\");\nconst warp = loadWarp(model);"
+          "example": "import { loadModel, loadWarp } from \"quantion\";\n\nconst model = await loadModel(\"model.onnx\");\nconst warp = loadWarp(model);\n\nwarp.dispose();\nmodel.dispose();"
         },
         "r": {
           "signature": "load_warp(model)",
-          "example": "library(quantion)\n\nmodel <- load_model(\"model.onnx\")\nwarp <- load_warp(model)"
+          "example": "library(quantion)\n\nmodel <- load_model(\"https://raw.githubusercontent.com/phenological/quantion/main/core/tests/fixtures/shift_model.onnx\")\nwarp <- load_warp(model)\nprint(warp)\n\ndispose(warp)\ndispose(model)"
         }
       }
     },
@@ -1997,7 +2002,7 @@
         },
         "r": {
           "signature": "predict_rts(warp, file, targets)",
-          "example": "library(quantion)\n\nmodel <- load_model(\"model.onnx\")\nwarp <- load_warp(model)\nsample <- parse_ion(\"sample.ion\")\npredicted <- predict_rts(warp, sample, data.frame(id = \"compound_1\", mz = 260.103, rt = 2.383))"
+          "example": "library(quantion)\n\nurl <- \"https://raw.githubusercontent.com/phenological/ion-files/main/data/p21_LTR_20_b1_w20.ion\"\nmodel <- load_model(\"https://raw.githubusercontent.com/phenological/quantion/main/core/tests/fixtures/shift_model.onnx\")\nwarp <- load_warp(model)\nsample <- parse_ion(url)\npredicted <- predict_rts(warp, sample, data.frame(id = \"compound_1\", mz = 260.103, rt = 2.383))\nprint(predicted)"
         }
       }
     },
@@ -2107,7 +2112,7 @@
         },
         "r": {
           "signature": "calibrate(warp, anchor_samples, target_lists)",
-          "example": "library(quantion)\n\nmodel <- load_model(\"model.onnx\")\nwarp <- load_warp(model)\nanchor_1 <- parse_ion(\"anchor_1.ion\")\nanchor_2 <- parse_ion(\"anchor_2.ion\")\nanchors <- list(anchor_1, anchor_2)\nseen <- list(\n  data.frame(id = \"compound_1\", mz = 260.103, rt = 2.381),\n  data.frame(id = \"compound_1\", mz = 260.103, rt = 2.392)\n)\ntargets <- calibrate(warp, anchors, seen)"
+          "example": "library(quantion)\n\nurl <- \"https://raw.githubusercontent.com/phenological/ion-files/main/data/p21_LTR_20_b1_w20.ion\"\nmodel <- load_model(\"https://raw.githubusercontent.com/phenological/quantion/main/core/tests/fixtures/shift_model.onnx\")\nwarp <- load_warp(model)\nanchor_1 <- parse_ion(url)\nanchor_2 <- parse_ion(url)\nanchors <- list(anchor_1, anchor_2)\nseen <- list(\n  data.frame(id = \"compound_1\", mz = 260.103, rt = 2.381),\n  data.frame(id = \"compound_1\", mz = 260.103, rt = 2.392)\n)\ntargets <- calibrate(warp, anchors, seen)\nprint(targets)"
         }
       }
     },
@@ -2160,9 +2165,10 @@
         },
         "r": {
           "signature": "dispose(object)",
-          "example": "library(quantion)\n\nsample <- parse_ion(\"sample.ion\")\ndispose(sample)"
+          "example": "library(quantion)\n\nurl <- \"https://raw.githubusercontent.com/phenological/ion-files/main/data/p21_LTR_20_b1_w20.ion\"\nsample <- parse_ion(url)\ndispose(sample)"
         }
-      }
+      },
+      "warning": "Not needed in normal use: the library frees a sample, model or warp model by itself once it is no longer used. When processing many samples, dispose each one after using it, so its memory is freed right away instead of piling up."
     },
     {
       "name": "SampleFile",
@@ -5170,7 +5176,7 @@
       "summary": "One peak curve: returned by fit_peak, or written by hand to simulate. draw_peaks takes a list of them. tail = 0 is a Gaussian, tail above 0 an EMG.",
       "fields": [
         {
-          "meaning": "Height of the curve.",
+          "meaning": "Height of the curve at its apex.",
           "languages": {
             "rust": {
               "name": "height",
@@ -5191,7 +5197,7 @@
           }
         },
         {
-          "meaning": "Centre of the curve (minutes).",
+          "meaning": "Retention time of the apex (minutes).",
           "languages": {
             "rust": {
               "name": "center",
@@ -5212,7 +5218,7 @@
           }
         },
         {
-          "meaning": "Full width at half maximum (minutes).",
+          "meaning": "Full width at half maximum of the Gaussian part (minutes). With a tail, the drawn peak is a little wider.",
           "languages": {
             "rust": {
               "name": "fwhm",
@@ -6061,7 +6067,7 @@
           }
         },
         {
-          "meaning": "The file is not valid .ion, mzML or ONNX.",
+          "meaning": "The file is not a valid Ionic (.ion), mzML or ONNX file.",
           "languages": {
             "rust": {
               "name": "ParseFailed",

@@ -10,7 +10,7 @@ use std::fmt;
 /// - `UnknownOption`: An option key that does not exist.
 /// - `RemoteFile`: Needs the whole file, but a URL was given.
 /// - `FileNotFound`: The path does not exist.
-/// - `ParseFailed`: The file is not valid .ion, mzML or ONNX.
+/// - `ParseFailed`: The file is not a valid Ionic (.ion), mzML or ONNX file.
 /// - `ModelMismatch`: The model has no warp, or a target is not in it.
 /// - `FileExists`: The output file exists and overwrite is false.
 /// - `UploadFailed`: The upload was rejected, with the HTTP status.

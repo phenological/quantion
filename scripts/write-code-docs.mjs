@@ -196,6 +196,8 @@ function getTypeExample(entry, language) {
 
 function getRustBlock(entry) {
   const lines = [`**${entry.name}** · ${entry.group}`, "", entry.summary];
+  const warning = entry.languages.rust?.warning ?? entry.warning;
+  if (warning) lines.push("", `**Warning:** ${escapeRustText(warning)}`);
   const argumentsList = getArguments(entry, "rust");
   if (argumentsList.length) {
     lines.push("");
@@ -239,6 +241,7 @@ function writeRust(entry, relativePaths, pattern) {
 
 function getPythonBlock(entry) {
   const lines = [`${entry.name} · ${entry.group}`, "", entry.summary];
+  if (entry.warning) lines.push("", "Warning:", `    ${entry.warning}`);
   const argumentsList = getArguments(entry, "python");
   if (argumentsList.length) {
     lines.push("", "Args:");
@@ -308,6 +311,7 @@ function writePythonAssignedDoc(entry, relativePath, name) {
 
 function getJsBlock(entry, indent) {
   const lines = [`${getDisplayName(entry, "js")} · ${entry.group}`, "", entry.summary];
+  if (entry.warning) lines.push("", `**Warning:** ${entry.warning}`);
   const argumentsList = getArguments(entry, "js");
   if (argumentsList.length) {
     lines.push("");
@@ -364,61 +368,146 @@ function escapeRd(text) {
     .replace(/\{/g, "\\{")
     .replace(/\}/g, "\\}")
     .replace(/–/g, "-")
+    .replace(/—/g, "-")
+    .replace(/…/g, "...")
+    .replace(/[‘’]/g, "'")
+    .replace(/[“”]/g, '"')
     .replace(/±/g, "+/-");
   if (/[^\x00-\x7F]/.test(escaped)) throw new Error(`R help pages must be ASCII: ${escaped}`);
   return escaped;
 }
 
-function getROptionsItem(entry) {
-  for (const row of entry.arguments ?? []) {
-    const cell = row.languages.r;
-    if (!cell || cell.name !== "options") continue;
-    const optionsEntry = findOptionsEntry(cell);
-    if (!optionsEntry) return null;
-    const names = [];
-    for (const field of getOptionFields(optionsEntry, "r")) {
-      let name = `\\code{${field.name}}`;
-      if (field.defaultValue) name = `\\code{${field.name} = ${escapeRd(field.defaultValue)}}`;
-      names.push(name);
+function findRdBlock(text, tag) {
+  const start = text.indexOf(`\\${tag}{`);
+  if (start < 0) return null;
+  let depth = 0;
+  for (let index = start + tag.length + 1; index < text.length; index += 1) {
+    const character = text[index];
+    if (character === "\\") {
+      index += 1;
+      continue;
     }
-    const lines = [
-      `  \\item{options}{Settings from \\code{\\link{${toSnakeCase(optionsEntry.name)}}()}: ${names.join(", ")}.`,
-      `    \\href{${getLink(optionsEntry, "r")}}{${optionsEntry.name} documentation}`,
-      "  }",
-    ];
-    return `${lines.join("\n")}\n`;
+    if (character === "{") depth += 1;
+    if (character === "}") {
+      depth -= 1;
+      if (depth === 0) return { start, end: index + 1 };
+    }
   }
   return null;
 }
 
-function addRInputExamples(entry, text) {
+function replaceRdBlock(text, tag, body) {
+  const block = findRdBlock(text, tag);
+  if (!block) return text;
+  return `${text.slice(0, block.start)}\\${tag}{\n${body}\n}${text.slice(block.end)}`;
+}
+
+function getRTypeEntry(type) {
+  for (const entry of documentation.entries) {
+    if (entry.kind !== "type" || !entry.fields?.length) continue;
+    if (new RegExp(`\\b${entry.name}\\b`).test(type)) return entry;
+  }
+  return null;
+}
+
+function getRFieldNames(entry) {
+  const names = [];
+  for (const field of entry.fields) {
+    const cell = field.languages.r;
+    if (cell) names.push(`\\code{${cell.name}}`);
+  }
+  return names.join(", ");
+}
+
+function getROptionsArgument(cell, optionsEntry) {
+  const names = [];
+  for (const field of getOptionFields(optionsEntry, "r")) {
+    if (field.defaultValue) names.push(`\\code{${field.name} = ${escapeRd(field.defaultValue)}}`);
+    else names.push(`\\code{${field.name}}`);
+  }
+  return [
+    `  \\item{${cell.name}}{Settings from \\code{\\link{${toSnakeCase(optionsEntry.name)}}()}: ${names.join(", ")}.`,
+    `    \\href{${getLink(optionsEntry, "r")}}{${optionsEntry.name} documentation}`,
+    "  }",
+  ];
+}
+
+function getRArgument(row, cell) {
+  const optionsEntry = findOptionsEntry(cell);
+  if (optionsEntry) return getROptionsArgument(cell, optionsEntry);
+  const text = `${escapeRd(endWithPeriod(row.meaning))} Type: \\code{${escapeRd(cell.type)}}.`;
+  const inputEntry = findInputEntry(cell, "r");
+  if (!inputEntry) return [`  \\item{${cell.name}}{${text}}`];
+  return [
+    `  \\item{${cell.name}}{${text} Each ${inputEntry.name} has ${getRFieldNames(inputEntry)}.`,
+    `    Example: \\code{${escapeRd(getExampleLine(inputEntry, "r"))}}`,
+    `    \\href{${getLink(inputEntry, "r")}}{${inputEntry.name} documentation}`,
+    "  }",
+  ];
+}
+
+function getRValue(entry) {
+  const type = entry.returns?.languages.r;
+  if (!type) return null;
+  let text = `${escapeRd(endWithPeriod(entry.returns.meaning))} Type: \\code{${escapeRd(type)}}.`;
+  const typeEntry = getRTypeEntry(type);
+  if (typeEntry) {
+    let label = "Fields";
+    if (type.includes("data.frame")) label = "Columns";
+    text += ` ${label}: ${getRFieldNames(typeEntry)}.`;
+  }
+  return text;
+}
+
+function getRExample(example, runs) {
+  const code = example.replace(/\\/g, "\\\\").replace(/%/g, "\\%");
+  if (!runs) return `\\dontrun{\n${code}\n}`;
+  const indented = [];
+  for (const line of code.split("\n")) {
+    if (line) indented.push(`  ${line}`);
+    else indented.push("");
+  }
+  return `\\donttest{\nif (curl::has_internet()) {\n${indented.join("\n")}\n}\n}`;
+}
+
+function writeRFunctionPage(entry, text) {
+  text = replaceRdBlock(text, "description", escapeRd(endWithPeriod(entry.summary)));
+  const argumentLines = [];
   for (const row of entry.arguments ?? []) {
     const cell = row.languages.r;
-    const inputEntry = findInputEntry(cell, "r");
-    if (!inputEntry) continue;
-    const itemPattern = new RegExp(`  \\\\item\\{${cell.name}\\}\\{([^\\n]*?)\\}?\\n(?:    [^\\n]*\\n)*(?:  \\}\\n)?`);
-    const match = text.match(itemPattern);
-    if (!match) continue;
-    const lines = [
-      `  \\item{${cell.name}}{${match[1]}`,
-      `    Example: \\code{${escapeRd(getExampleLine(inputEntry, "r"))}}`,
-      `    \\href{${getLink(inputEntry, "r")}}{${inputEntry.name} documentation}`,
-      "  }",
-    ];
-    text = text.replace(itemPattern, `${lines.join("\n")}\n`);
+    if (cell) argumentLines.push(...getRArgument(row, cell));
   }
+  if (argumentLines.length) text = replaceRdBlock(text, "arguments", argumentLines.join("\n"));
+  const value = getRValue(entry);
+  if (value) text = replaceRdBlock(text, "value", value);
+  const example = entry.languages.r.example;
+  if (example) text = replaceRdBlock(text, "examples", getRExample(example, entry.languages.r.exampleRuns !== false));
+  return text;
+}
+
+function writeROptionsPage(entry, text) {
+  text = replaceRdBlock(text, "description", escapeRd(endWithPeriod(entry.summary)));
+  const argumentLines = [];
+  for (const field of entry.fields ?? []) {
+    const cell = field.languages.r;
+    if (!cell) continue;
+    let line = `  \\item{${cell.name}}{${escapeRd(endWithPeriod(field.meaning))}`;
+    const nested = findOptionsEntry(cell);
+    if (nested) line += ` See \\code{\\link{${toSnakeCase(nested.name)}}()}.`;
+    argumentLines.push(`${line}}`);
+  }
+  if (argumentLines.length) text = replaceRdBlock(text, "arguments", argumentLines.join("\n"));
   return text;
 }
 
 function writeR(entry, relativePath) {
   if (!existsSync(path.join(root, relativePath))) return false;
   let text = readFileSync(path.join(root, relativePath), "utf8");
-  text = addRInputExamples(entry, text);
-  const optionsItem = getROptionsItem(entry);
-  if (optionsItem) {
-    text = text.replace(/  \\item\{options\}\{[\s\S]*?\n(?=  \\item\{|\}\n)/, optionsItem);
-  }
-  const section = `\\section{Documentation}{\n\\url{${getLink(entry, "r")}}\n}\n`;
+  if (entry.kind === "function") text = writeRFunctionPage(entry, text);
+  if (entry.group === "Options") text = writeROptionsPage(entry, text);
+  let section = `\\section{Documentation}{\n\\url{${getLink(entry, "r")}}\n}\n`;
+  if (entry.warning) section = `\\section{Warning}{\n${escapeRd(entry.warning)}\n}\n${section}`;
+  text = text.replace(/\\section\{Warning\}\{\n[^\n]*\n\}\n/, "");
   text = text.replace(/\\section\{Documentation\}\{\n[^\n]*\n\}\n/, "");
   text = text.includes("\\examples{") ? text.replace("\\examples{", `${section}\\examples{`) : `${text.trimEnd()}\n${section}`;
   writeFileSync(path.join(root, relativePath), text);

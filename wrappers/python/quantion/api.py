@@ -220,7 +220,10 @@ def _open_file(function: str, abi: _ABI, call: Callable[[Any], int], is_ion: boo
 def parse_ion(source, options: Optional[ParseIonOptions] = None) -> SampleFile:
     """parse_ion · Files
 
-    Open an .ion file from a path, a URL or bytes. Paths and URLs are read lazily: only the bytes a query needs are fetched.
+    Open an Ionic file (.ion) from a path, a URL or bytes. Paths and URLs are read lazily: only the bytes a query needs are fetched.
+
+    Warning:
+        The sample is freed by the library once it is no longer used, so dispose is not needed in normal use. When processing many samples, dispose each one after using it, so its memory is freed right away instead of piling up.
 
     Args:
         source: Where the file is: a path, an http(s) URL, or raw bytes.
@@ -252,6 +255,9 @@ def parse_mzml(source) -> SampleFile:
     """parse_mzml · Files
 
     Open an mzML file from a path or bytes. It is always loaded fully into memory. URLs are refused.
+
+    Warning:
+        The sample is freed by the library once it is no longer used, so dispose is not needed in normal use. When processing many samples, dispose each one after using it, so its memory is freed right away instead of piling up.
 
     Args:
         source: Where the file is: a path or raw bytes.
@@ -299,7 +305,7 @@ def _encode_headers(function: str, headers: Any) -> bytes:
 def write_ion(file: SampleFile, options: Optional[WriteIonOptions] = None) -> Optional[bytes]:
     """write_ion · Files
 
-    Write a sample as .ion. With no out, it returns the bytes. A path writes a file; a URL uploads it in one PUT request.
+    Write a sample as an Ionic file (.ion). With no out, it returns the bytes. A path writes a file; a URL uploads it in one PUT request.
 
     Args:
         file: The sample to write.
@@ -460,6 +466,9 @@ def get_ion_image(file: SampleFile, mz: float, options: Optional[GetIonImageOpti
     """get_ion_image · Files
 
     Build an imaging map of one m/z: summed intensity at each x, y position.
+
+    Warning:
+        Only Ionic files (.ion). The sample must come from parse_ion; a sample from parse_mzml gives an invalid_argument error.
 
     Args:
         file: The sample to read. Must come from parse_ion.
@@ -756,6 +765,9 @@ def find_transitions(
 
     For each SRM transition, take the stored chromatogram whose precursor (Q1) and product (Q3) are both within 0.005 m/z, and find its peak near rt ± range.
 
+    Warning:
+        Needs the whole file. A sample opened from a URL gives a remote_file error; open it from a path or bytes.
+
     Args:
         file: The sample to read, from parse_ion or parse_mzml.
         targets: The transitions. Each Transition has id, precursor, product, rt, range. See Transition: https://phenological.github.io/quantion/?language=python#Transition
@@ -827,7 +839,7 @@ def match_features(directory, options: Optional[MatchFeaturesOptions] = None) ->
     Untargeted across samples: find features in every file of a folder and match them. Values are medians over the samples where a feature was found.
 
     Args:
-        directory: Folder with the .ion or mzML files.
+        directory: Folder with the Ionic (.ion) or mzML files.
         options: Optional settings: eic, grid, grouping, find_peaks, threads = 1. See MatchFeaturesOptions: https://phenological.github.io/quantion/?language=python#MatchFeaturesOptions
 
     Returns:

@@ -90,7 +90,9 @@ pub(crate) fn from_fast_error(function: &'static str, error: FastError) -> Quant
 
 /// **parse_ion** · Files
 ///
-/// Open an .ion file from a path, a URL or bytes. Paths and URLs are read lazily: only the bytes a query needs are fetched.
+/// Open an Ionic file (.ion) from a path, a URL or bytes. Paths and URLs are read lazily: only the bytes a query needs are fetched.
+///
+/// **Warning:** The sample is freed when it goes out of scope, so nothing else is needed in normal use. When processing many samples, drop each one after using it, with drop(file), so its memory is freed right away instead of piling up.
 ///
 /// - `input`: Where the file is: a path, an http(s) URL, or raw bytes.
 /// - `options`: Optional settings: `max_cache_size` = 0. See [ParseIonOptions](https://phenological.github.io/quantion/?language=rust#ParseIonOptions).
@@ -128,6 +130,8 @@ pub fn parse_ion(input: impl Into<IonInput>, options: ParseIonOptions) -> Result
 ///
 /// Open an mzML file from a path or bytes. It is always loaded fully into memory. URLs are refused.
 ///
+/// **Warning:** The sample is freed when it goes out of scope, so nothing else is needed in normal use. When processing many samples, drop each one after using it, with drop(file), so its memory is freed right away instead of piling up.
+///
 /// - `input`: Where the file is: a path or raw bytes.
 ///
 /// Returns: The loaded sample.
@@ -148,7 +152,7 @@ pub fn parse_mzml(input: impl Into<MzmlInput>) -> Result<SampleFile, QuantionErr
 
 /// **write_ion** · Files
 ///
-/// Write a sample as .ion. With no out, it returns the bytes. A path writes a file; a URL uploads it in one PUT request.
+/// Write a sample as an Ionic file (.ion). With no out, it returns the bytes. A path writes a file; a URL uploads it in one PUT request.
 ///
 /// - `file`: The sample to write.
 /// - `options`: Optional settings: `out` = None, `overwrite` = false, `level` = 12, `f32_compress` = false, `headers` = empty. See [WriteIonOptions](https://phenological.github.io/quantion/?language=rust#WriteIonOptions).
@@ -359,6 +363,8 @@ pub fn calculate_eic(file: &mut SampleFile, mz: f64, options: CalculateEicOption
 /// **get_ion_image** · Files
 ///
 /// Build an imaging map of one m/z: summed intensity at each x, y position.
+///
+/// **Warning:** Only Ionic files (.ion). The sample must come from parse_ion; a sample from parse_mzml gives an invalid_argument error.
 ///
 /// - `file`: The sample to read. Must come from parse_ion.
 /// - `mz`: The m/z to map (Da).

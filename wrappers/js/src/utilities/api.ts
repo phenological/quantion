@@ -215,7 +215,9 @@ function openIon(
 /**
  * parseIon · Files
  *
- * Open an .ion file from a path, a URL or bytes. Paths and URLs are read lazily: only the bytes a query needs are fetched.
+ * Open an Ionic file (.ion) from a path, a URL or bytes. Paths and URLs are read lazily: only the bytes a query needs are fetched.
+ *
+ * **Warning:** The sample is freed by the library once it is no longer used, so dispose is not needed in normal use. When processing many samples, dispose each one after using it, so its memory is freed right away instead of piling up.
  *
  * @param source - Where the file is: a path, an http(s) URL, or raw bytes.
  * @param options - Optional settings: `maxCacheSize` = 0. See {@link https://phenological.github.io/quantion/?language=js#ParseIonOptions | ParseIonOptions}.
@@ -237,6 +239,8 @@ export async function parseIon(
  * parseMzml · Files
  *
  * Open an mzML file from a path or bytes. It is always loaded fully into memory. URLs are refused.
+ *
+ * **Warning:** The sample is freed by the library once it is no longer used, so dispose is not needed in normal use. When processing many samples, dispose each one after using it, so its memory is freed right away instead of piling up.
  *
  * @param source - Where the file is: a path or raw bytes.
  * @returns The loaded sample.
@@ -272,7 +276,7 @@ export async function parseMzml(
 /**
  * writeIon · Files
  *
- * Write a sample as .ion. With no out, it returns the bytes. A path writes a file; a URL uploads it in one PUT request.
+ * Write a sample as an Ionic file (.ion). With no out, it returns the bytes. A path writes a file; a URL uploads it in one PUT request.
  *
  * @param file - The sample to write.
  * @param options - Optional settings: `out` = undefined, `overwrite` = false, `level` = 12, `f32Compress` = false, `headers` = []. See {@link https://phenological.github.io/quantion/?language=js#WriteIonOptions | WriteIonOptions}.
@@ -495,6 +499,8 @@ export async function calculateEic(
  * getIonImage · Files
  *
  * Build an imaging map of one m/z: summed intensity at each x, y position.
+ *
+ * **Warning:** Only Ionic files (.ion). The sample must come from parse_ion; a sample from parse_mzml gives an invalid_argument error.
  *
  * @param file - The sample to read. Must come from parse_ion.
  * @param mz - The m/z to map (Da).
@@ -719,6 +725,8 @@ export async function findTargets(
  *
  * For each SRM transition, take the stored chromatogram whose precursor (Q1) and product (Q3) are both within 0.005 m/z, and find its peak near rt ± range.
  *
+ * **Warning:** Needs the whole file. A sample opened from a URL gives a remote_file error; open it from a path or bytes.
+ *
  * @param file - The sample to read, from parse_ion or parse_mzml.
  * @param targets - The transitions. Each Transition has `id`, `precursor`, `product`, `rt`, `range`. See {@link https://phenological.github.io/quantion/?language=js#Transition | Transition}.
  *   Example: `const transition: Transition = { id: "compound_1", precursor: 500.3, product: 184.1, rt: 3.2, range: 0.4 };`
@@ -778,7 +786,7 @@ export async function findFeatures(
  *
  * Untargeted across samples: find features in every file of a folder and match them. Values are medians over the samples where a feature was found.
  *
- * @param directory - Folder with the .ion or mzML files.
+ * @param directory - Folder with the Ionic (.ion) or mzML files.
  * @param options - Optional settings: `eic`, `grid`, `grouping`, `findPeaks`, `threads` = 1. See {@link https://phenological.github.io/quantion/?language=js#MatchFeaturesOptions | MatchFeaturesOptions}.
  * @returns One Feature per matched feature; frequency is the fraction of samples (0–1).
  * @see {@link https://phenological.github.io/quantion/?language=js#match_features | Documentation}

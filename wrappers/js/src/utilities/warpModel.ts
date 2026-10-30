@@ -109,6 +109,8 @@ export class WarpModel extends Metadata {
    * dispose · Models
    *
    * Free the memory held by a sample, model or warp model.
+   *
+   * **Warning:** Not needed in normal use: the library frees a sample, model or warp model by itself once it is no longer used. When processing many samples, dispose each one after using it, so its memory is freed right away instead of piling up.
    * @returns Nothing.
    * @see {@link https://phenological.github.io/quantion/?language=js#dispose | Documentation}
    */

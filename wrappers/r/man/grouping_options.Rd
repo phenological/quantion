@@ -2,16 +2,16 @@
 \alias{grouping_options}
 \title{How features are matched across samples}
 \description{
-How \code{\link{match_features}()} matches features across samples. Every field is checked when the object is built; a misspelt name or a wrong type gives an error.
+How match_features matches features across samples.
 }
 \usage{
 grouping_options(ppm_tolerance = 5, mz_tolerance = 0.0025, rt_tolerance = 0.05, min_frequency = 0)
 }
 \arguments{
-  \item{ppm_tolerance}{Same feature when m/z is within this ppm...}
-  \item{mz_tolerance}{...or within this absolute m/z (Da)...}
+  \item{ppm_tolerance}{Same feature when m/z is within this ppm....}
+  \item{mz_tolerance}{...or within this absolute m/z (Da).}
   \item{rt_tolerance}{...and rt is within this many minutes.}
-  \item{min_frequency}{Keep a feature only if found in at least this fraction of samples (0 to 1).}
+  \item{min_frequency}{Keep a feature only if found in at least this fraction of samples (0-1).}
 }
 \value{
 An options object for \code{\link{match_features_options}()}.

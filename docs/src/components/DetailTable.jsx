@@ -1,4 +1,5 @@
 import { TypeText } from "./TypeText";
+import { IonicText } from "./IonicText";
 
 function getVisibleRows(rows, language) {
   const visibleRows = [];
@@ -42,7 +43,9 @@ export function DetailTable({ title, rows, language }) {
                     <TypeText text={cell.type} />
                   </td>
                   {hasDefault && <td className="default">{cell.default ?? "—"}</td>}
-                  <td>{row.meaning}</td>
+                  <td>
+                    <IonicText text={row.meaning} />
+                  </td>
                 </tr>
               );
             })}

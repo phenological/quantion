@@ -2,7 +2,7 @@
 \alias{grid_options}
 \title{The m/z grid searched for features}
 \description{
-The m/z grid that \code{\link{find_features}()} and \code{\link{match_features}()} search. Every field is checked when the object is built; a misspelt name or a wrong type gives an error.
+The m/z grid that find_features and match_features search.
 }
 \usage{
 grid_options(start = 40, end = 1000, step_size = 0.005)

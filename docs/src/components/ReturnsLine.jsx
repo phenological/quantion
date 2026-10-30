@@ -1,4 +1,5 @@
 import { TypeText } from "./TypeText";
+import { IonicText } from "./IonicText";
 
 export function ReturnsLine({ returns, language }) {
   const type = returns?.languages[language];
@@ -10,7 +11,9 @@ export function ReturnsLine({ returns, language }) {
         <span className="type">
           <TypeText text={type} />
         </span>
-        <span>{returns.meaning}</span>
+        <span>
+          <IonicText text={returns.meaning} />
+        </span>
       </p>
     </section>
   );

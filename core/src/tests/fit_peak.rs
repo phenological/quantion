@@ -150,3 +150,34 @@ fn draw_peaks_has_no_nan_far_from_the_peak() {
         assert!(y.is_finite(), "y at x {x} is {y}");
     }
 }
+
+#[test]
+fn emg_fit_reports_the_apex_as_height_and_center() {
+    let x = linspace(4.0, 7.0, 3001);
+    let y: Vec<f64> = x
+        .iter()
+        .map(|&v| emg_fn(v, 1000.0, 4.9, sigma_from_fwhm(0.15), 0.1))
+        .collect();
+    let data = DataXY { x: x.clone(), y: y.clone() };
+    let params = fit_peak(&data, &apex(&data), PeakShape::EMG).expect("fit");
+    let drawn = draw_peak(&data, &params);
+    let mut top = 0;
+    for index in 0..drawn.y.len() {
+        if drawn.y[index] > drawn.y[top] {
+            top = index;
+        }
+    }
+    assert!((drawn.y[top] - params.height).abs() < 1e-4 * params.height, "max {} height {}", drawn.y[top], params.height);
+    assert!((drawn.x[top] - params.center).abs() < 2e-3, "apex at {} center {}", drawn.x[top], params.center);
+    let data_apex = apex(&data);
+    assert!((params.height - data_apex.intensity).abs() < 0.01 * data_apex.intensity, "height {} data apex {}", params.height, data_apex.intensity);
+    assert!((params.center - data_apex.rt).abs() < 2e-3, "center {} data apex {}", params.center, data_apex.rt);
+}
+
+#[test]
+fn gaussian_is_unchanged() {
+    let params = crate::utilities::fit_peak::PeakParameters { height: 500.0, center: 3.0, fwhm: 0.1, tail: 0.0, r2: 0.0 };
+    let drawn = crate::utilities::fit_peak::draw_peaks(&[params], 2.5, 3.5, 1001);
+    let middle = drawn.y[500];
+    assert!((middle - 500.0).abs() < 1e-9, "middle {middle}");
+}
