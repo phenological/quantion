@@ -24,7 +24,8 @@ The sample is freed by the library once it is no longer used, so dispose is not 
 if (curl::has_internet()) {
   library(quantion)
 
-  url <- "https://raw.githubusercontent.com/phenological/quantion/main/core/tests/fixtures/api/api.ion"
+  fixtures <- "https://raw.githubusercontent.com/phenological/quantion/main/core/tests/fixtures"
+  url <- paste0(fixtures, "/api/api.ion")
   data <- curl::curl_fetch_memory(url)$content
   path <- tempfile(fileext = ".mzML")
   write_mzml(parse_ion(data), options = write_mzml_options(out = path))

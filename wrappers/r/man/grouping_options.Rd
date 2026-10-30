@@ -5,7 +5,8 @@
 How match_features matches features across samples.
 }
 \usage{
-grouping_options(ppm_tolerance = 5, mz_tolerance = 0.0025, rt_tolerance = 0.05, min_frequency = 0)
+grouping_options(ppm_tolerance = 5, mz_tolerance = 0.0025, rt_tolerance = 0.05,
+                 min_frequency = 0)
 }
 \arguments{
   \item{ppm_tolerance}{Same feature when m/z is within this ppm....}

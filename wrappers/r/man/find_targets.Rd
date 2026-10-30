@@ -46,7 +46,9 @@ if (curl::has_internet()) {
 
   for (index in seq_len(nrow(peaks))) {
     peak <- peaks[index, ]
-    cat(sprintf("\%s: rt \%.3f  intensity \%.0f  integral \%.0f\\n", targets$id[index], peak$rt, peak$intensity, peak$integral))
+    line <- sprintf("\%s: rt \%.3f  intensity \%.0f  integral \%.0f",
+                    targets$id[index], peak$rt, peak$intensity, peak$integral)
+    cat(line, "\\n", sep = "")
   }
 }
 }

@@ -233,7 +233,7 @@
         },
         "r": {
           "signature": "parse_mzml(source)",
-          "example": "library(quantion)\n\nurl <- \"https://raw.githubusercontent.com/phenological/quantion/main/core/tests/fixtures/api/api.ion\"\ndata <- curl::curl_fetch_memory(url)$content\npath <- tempfile(fileext = \".mzML\")\nwrite_mzml(parse_ion(data), options = write_mzml_options(out = path))\nsample <- parse_mzml(path)\nprint(sample)"
+          "example": "library(quantion)\n\nfixtures <- \"https://raw.githubusercontent.com/phenological/quantion/main/core/tests/fixtures\"\nurl <- paste0(fixtures, \"/api/api.ion\")\ndata <- curl::curl_fetch_memory(url)$content\npath <- tempfile(fileext = \".mzML\")\nwrite_mzml(parse_ion(data), options = write_mzml_options(out = path))\nsample <- parse_mzml(path)\nprint(sample)"
         }
       },
       "warning": "The sample is freed by the library once it is no longer used, so dispose is not needed in normal use. When processing many samples, dispose each one after using it, so its memory is freed right away instead of piling up."
@@ -319,7 +319,7 @@
         },
         "r": {
           "signature": "write_ion(file, options = write_ion_options())",
-          "example": "library(quantion)\n\nurl <- \"https://raw.githubusercontent.com/phenological/quantion/main/core/tests/fixtures/api/api.ion\"\ndata <- curl::curl_fetch_memory(url)$content\nsample <- parse_ion(data)\n\nbytes <- write_ion(sample)\n\nwrite_ion(sample, options = write_ion_options(out = tempfile(fileext = \".ion\")))\nprint(length(bytes))"
+          "example": "library(quantion)\n\nfixtures <- \"https://raw.githubusercontent.com/phenological/quantion/main/core/tests/fixtures\"\nurl <- paste0(fixtures, \"/api/api.ion\")\ndata <- curl::curl_fetch_memory(url)$content\nsample <- parse_ion(data)\n\nbytes <- write_ion(sample)\n\nwrite_ion(sample, options = write_ion_options(out = tempfile(fileext = \".ion\")))\nprint(length(bytes))"
         }
       }
     },
@@ -404,7 +404,7 @@
         },
         "r": {
           "signature": "write_mzml(file, options = write_mzml_options())",
-          "example": "library(quantion)\n\nurl <- \"https://raw.githubusercontent.com/phenological/quantion/main/core/tests/fixtures/api/api.ion\"\ndata <- curl::curl_fetch_memory(url)$content\nsample <- parse_ion(data)\npath <- tempfile(fileext = \".mzML\")\nwrite_mzml(sample, options = write_mzml_options(out = path))\nprint(file.size(path))"
+          "example": "library(quantion)\n\nfixtures <- \"https://raw.githubusercontent.com/phenological/quantion/main/core/tests/fixtures\"\nurl <- paste0(fixtures, \"/api/api.ion\")\ndata <- curl::curl_fetch_memory(url)$content\nsample <- parse_ion(data)\npath <- tempfile(fileext = \".mzML\")\nwrite_mzml(sample, options = write_mzml_options(out = path))\nprint(file.size(path))"
         }
       }
     },
@@ -649,7 +649,7 @@
         },
         "r": {
           "signature": "calculate_eic(file, mz, options = calculate_eic_options())",
-          "example": "library(quantion)\n\nurl <- \"https://raw.githubusercontent.com/phenological/ion-files/main/data/p21_LTR_20_b1_w20.ion\"\nsample <- parse_ion(url)\neic <- calculate_eic(sample, 260.103, options = calculate_eic_options(from = 2, to = 3, ppm_tolerance = 10))\nprint(head(data.frame(rt = eic$x, intensity = eic$y)))"
+          "example": "library(quantion)\n\nurl <- \"https://raw.githubusercontent.com/phenological/ion-files/main/data/p21_LTR_20_b1_w20.ion\"\nsample <- parse_ion(url)\noptions <- calculate_eic_options(from = 2, to = 3, ppm_tolerance = 10)\neic <- calculate_eic(sample, 260.103, options = options)\nprint(head(data.frame(rt = eic$x, intensity = eic$y)))"
         }
       }
     },
@@ -1483,7 +1483,7 @@
         },
         "r": {
           "signature": "find_targets(file, targets, options = find_targets_options())",
-          "example": "library(quantion)\n\nurl <- \"https://raw.githubusercontent.com/phenological/ion-files/main/data/p21_LTR_20_b1_w20.ion\"\ntargets <- data.frame(\n  id    = c(\"compound_1\", \"compound_2\", \"compound_3\"),\n  mz    = c(260.1034, 317.1250, 188.0818),\n  rt    = c(2.383, 1.903, 3.060),\n  range = c(0.05, 0.05, 0.05)\n)\noptions <- find_targets_options(\n  eic        = calculate_eic_options(from = 1.5, to = 3.5),\n  find_peaks = find_peaks_options(min_intensity = 1000),\n  threads    = 2L\n)\n\nsample <- parse_ion(url)\npeaks <- find_targets(sample, targets, options = options)\n\nfor (index in seq_len(nrow(peaks))) {\n  peak <- peaks[index, ]\n  cat(sprintf(\"%s: rt %.3f  intensity %.0f  integral %.0f\\n\", targets$id[index], peak$rt, peak$intensity, peak$integral))\n}",
+          "example": "library(quantion)\n\nurl <- \"https://raw.githubusercontent.com/phenological/ion-files/main/data/p21_LTR_20_b1_w20.ion\"\ntargets <- data.frame(\n  id    = c(\"compound_1\", \"compound_2\", \"compound_3\"),\n  mz    = c(260.1034, 317.1250, 188.0818),\n  rt    = c(2.383, 1.903, 3.060),\n  range = c(0.05, 0.05, 0.05)\n)\noptions <- find_targets_options(\n  eic        = calculate_eic_options(from = 1.5, to = 3.5),\n  find_peaks = find_peaks_options(min_intensity = 1000),\n  threads    = 2L\n)\n\nsample <- parse_ion(url)\npeaks <- find_targets(sample, targets, options = options)\n\nfor (index in seq_len(nrow(peaks))) {\n  peak <- peaks[index, ]\n  line <- sprintf(\"%s: rt %.3f  intensity %.0f  integral %.0f\",\n                  targets$id[index], peak$rt, peak$intensity, peak$integral)\n  cat(line, \"\\n\", sep = \"\")\n}",
           "output": "compound_1: rt 2.383  intensity 168984  integral 274621\ncompound_2: rt 1.903  intensity 136686  integral 193667\ncompound_3: rt 3.060  intensity 397468  integral 1105423"
         }
       },
@@ -1596,7 +1596,7 @@
         },
         "r": {
           "signature": "find_transitions(file, targets, options = find_transitions_options())",
-          "example": "library(quantion)\n\nurl <- \"https://raw.githubusercontent.com/phenological/quantion/main/core/tests/fixtures/srm.ion\"\ndata <- curl::curl_fetch_memory(url)$content\nsample <- parse_ion(data)\ntransitions <- data.frame(id = \"compound_1\", precursor = 89.04768, product = 89.04768, rt = 2.385, range = 0.1)\npeaks <- find_transitions(sample, transitions, options = find_transitions_options(threads = 2L))\nprint(peaks)"
+          "example": "library(quantion)\n\nfixtures <- \"https://raw.githubusercontent.com/phenological/quantion/main/core/tests/fixtures\"\nurl <- paste0(fixtures, \"/srm.ion\")\ndata <- curl::curl_fetch_memory(url)$content\nsample <- parse_ion(data)\ntransitions <- data.frame(id = \"compound_1\", precursor = 89.04768, product = 89.04768,\n                          rt = 2.385, range = 0.1)\npeaks <- find_transitions(sample, transitions, options = find_transitions_options(threads = 2L))\nprint(peaks)"
         }
       }
     },
@@ -1684,7 +1684,7 @@
         },
         "r": {
           "signature": "find_features(file, options = find_features_options())",
-          "example": "library(quantion)\n\nurl <- \"https://raw.githubusercontent.com/phenological/ion-files/main/data/p21_LTR_20_b1_w20.ion\"\noptions <- find_features_options(\n  eic     = calculate_eic_options(from = 2.3, to = 2.45),\n  grid    = grid_options(start = 255, end = 265),\n  threads = 2L\n)\n\nsample <- parse_ion(url)\nfeatures <- find_features(sample, options = options)\n\ncat(sprintf(\"%d features\\n\", nrow(features)))\ncount <- 3\nif (nrow(features) < count) {\n  count <- nrow(features)\n}\nfor (index in seq_len(count)) {\n  feature <- features[index, ]\n  cat(sprintf(\"m/z %.4f  rt %.3f  intensity %.0f\\n\", feature$mz, feature$rt, feature$intensity))\n}",
+          "example": "library(quantion)\n\nurl <- \"https://raw.githubusercontent.com/phenological/ion-files/main/data/p21_LTR_20_b1_w20.ion\"\noptions <- find_features_options(\n  eic     = calculate_eic_options(from = 2.3, to = 2.45),\n  grid    = grid_options(start = 255, end = 265),\n  threads = 2L\n)\n\nsample <- parse_ion(url)\nfeatures <- find_features(sample, options = options)\n\ncat(sprintf(\"%d features\\n\", nrow(features)))\ncount <- 3\nif (nrow(features) < count) {\n  count <- nrow(features)\n}\nfor (index in seq_len(count)) {\n  feature <- features[index, ]\n  line <- sprintf(\"m/z %.4f  rt %.3f  intensity %.0f\",\n                  feature$mz, feature$rt, feature$intensity)\n  cat(line, \"\\n\", sep = \"\")\n}",
           "output": "6 features\nm/z 264.1105  rt 2.378  intensity 13816\nm/z 262.1092  rt 2.378  intensity 3380\nm/z 260.1034  rt 2.383  intensity 168984"
         }
       },
@@ -1832,7 +1832,7 @@
         },
         "r": {
           "signature": "load_model(source)",
-          "example": "library(quantion)\n\nmodel <- load_model(\"https://raw.githubusercontent.com/phenological/quantion/main/core/tests/fixtures/shift_model.onnx\")\npoints <- get_value(model, \"points\")\nprint(points)\n\ndispose(model)"
+          "example": "library(quantion)\n\nfixtures <- \"https://raw.githubusercontent.com/phenological/quantion/main/core/tests/fixtures\"\nmodel <- load_model(paste0(fixtures, \"/shift_model.onnx\"))\npoints <- get_value(model, \"points\")\nprint(points)\n\ndispose(model)"
         }
       }
     },
@@ -1892,7 +1892,7 @@
         },
         "r": {
           "signature": "load_warp(model)",
-          "example": "library(quantion)\n\nmodel <- load_model(\"https://raw.githubusercontent.com/phenological/quantion/main/core/tests/fixtures/shift_model.onnx\")\nwarp <- load_warp(model)\nprint(warp)\n\ndispose(warp)\ndispose(model)"
+          "example": "library(quantion)\n\nfixtures <- \"https://raw.githubusercontent.com/phenological/quantion/main/core/tests/fixtures\"\nmodel <- load_model(paste0(fixtures, \"/shift_model.onnx\"))\nwarp <- load_warp(model)\nprint(warp)\n\ndispose(warp)\ndispose(model)"
         }
       }
     },
@@ -2002,7 +2002,7 @@
         },
         "r": {
           "signature": "predict_rts(warp, file, targets)",
-          "example": "library(quantion)\n\nurl <- \"https://raw.githubusercontent.com/phenological/ion-files/main/data/p21_LTR_20_b1_w20.ion\"\nmodel <- load_model(\"https://raw.githubusercontent.com/phenological/quantion/main/core/tests/fixtures/shift_model.onnx\")\nwarp <- load_warp(model)\nsample <- parse_ion(url)\npredicted <- predict_rts(warp, sample, data.frame(id = \"compound_1\", mz = 260.103, rt = 2.383))\nprint(predicted)"
+          "example": "library(quantion)\n\nurl <- \"https://raw.githubusercontent.com/phenological/ion-files/main/data/p21_LTR_20_b1_w20.ion\"\nfixtures <- \"https://raw.githubusercontent.com/phenological/quantion/main/core/tests/fixtures\"\nmodel <- load_model(paste0(fixtures, \"/shift_model.onnx\"))\nwarp <- load_warp(model)\nsample <- parse_ion(url)\npredicted <- predict_rts(warp, sample, data.frame(id = \"compound_1\", mz = 260.103, rt = 2.383))\nprint(predicted)"
         }
       }
     },
@@ -2112,7 +2112,7 @@
         },
         "r": {
           "signature": "calibrate(warp, anchor_samples, target_lists)",
-          "example": "library(quantion)\n\nurl <- \"https://raw.githubusercontent.com/phenological/ion-files/main/data/p21_LTR_20_b1_w20.ion\"\nmodel <- load_model(\"https://raw.githubusercontent.com/phenological/quantion/main/core/tests/fixtures/shift_model.onnx\")\nwarp <- load_warp(model)\nanchor_1 <- parse_ion(url)\nanchor_2 <- parse_ion(url)\nanchors <- list(anchor_1, anchor_2)\nseen <- list(\n  data.frame(id = \"compound_1\", mz = 260.103, rt = 2.381),\n  data.frame(id = \"compound_1\", mz = 260.103, rt = 2.392)\n)\ntargets <- calibrate(warp, anchors, seen)\nprint(targets)"
+          "example": "library(quantion)\n\nurl <- \"https://raw.githubusercontent.com/phenological/ion-files/main/data/p21_LTR_20_b1_w20.ion\"\nfixtures <- \"https://raw.githubusercontent.com/phenological/quantion/main/core/tests/fixtures\"\nmodel <- load_model(paste0(fixtures, \"/shift_model.onnx\"))\nwarp <- load_warp(model)\nanchor_1 <- parse_ion(url)\nanchor_2 <- parse_ion(url)\nanchors <- list(anchor_1, anchor_2)\nseen <- list(\n  data.frame(id = \"compound_1\", mz = 260.103, rt = 2.381),\n  data.frame(id = \"compound_1\", mz = 260.103, rt = 2.392)\n)\ntargets <- calibrate(warp, anchors, seen)\nprint(targets)"
         }
       }
     },
@@ -2496,7 +2496,7 @@
         },
         "r": {
           "signature": "data.frame(id = character(), precursor = numeric(), product = numeric(), rt = numeric(), range = numeric())",
-          "example": "library(quantion)\n\ntransitions <- data.frame(id = \"compound_1\", precursor = 89.04768, product = 89.04768, rt = 2.385, range = 0.1)"
+          "example": "library(quantion)\n\ntransitions <- data.frame(id = \"compound_1\", precursor = 89.04768, product = 89.04768,\n                          rt = 2.385, range = 0.1)"
         }
       }
     },

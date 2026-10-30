@@ -24,7 +24,8 @@ if (curl::has_internet()) {
   library(quantion)
 
   url <- "https://raw.githubusercontent.com/phenological/ion-files/main/data/p21_LTR_20_b1_w20.ion"
-  model <- load_model("https://raw.githubusercontent.com/phenological/quantion/main/core/tests/fixtures/shift_model.onnx")
+  fixtures <- "https://raw.githubusercontent.com/phenological/quantion/main/core/tests/fixtures"
+  model <- load_model(paste0(fixtures, "/shift_model.onnx"))
   warp <- load_warp(model)
   anchor_1 <- parse_ion(url)
   anchor_2 <- parse_ion(url)

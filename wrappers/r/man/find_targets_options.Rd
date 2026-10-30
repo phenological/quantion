@@ -5,7 +5,8 @@
 Settings for find_targets.
 }
 \usage{
-find_targets_options(eic = calculate_eic_options(), find_peaks = find_peaks_options(), threads = 1L)
+find_targets_options(eic = calculate_eic_options(), find_peaks = find_peaks_options(),
+                     threads = 1L)
 }
 \arguments{
   \item{eic}{EIC retention-time range (from, to), tolerances and time unit. See \code{\link{calculate_eic_options}()}.}

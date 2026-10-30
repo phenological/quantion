@@ -41,7 +41,9 @@ if (curl::has_internet()) {
   }
   for (index in seq_len(count)) {
     feature <- features[index, ]
-    cat(sprintf("m/z \%.4f  rt \%.3f  intensity \%.0f\\n", feature$mz, feature$rt, feature$intensity))
+    line <- sprintf("m/z \%.4f  rt \%.3f  intensity \%.0f",
+                    feature$mz, feature$rt, feature$intensity)
+    cat(line, "\\n", sep = "")
   }
 }
 }

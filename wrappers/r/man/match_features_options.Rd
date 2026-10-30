@@ -5,8 +5,9 @@
 Settings for match_features: the find_features settings plus grouping.
 }
 \usage{
-match_features_options(eic = calculate_eic_options(), grid = grid_options(), grouping = grouping_options(),
-                       find_peaks = find_peaks_options(), threads = 1L)
+match_features_options(eic = calculate_eic_options(), grid = grid_options(),
+                       grouping = grouping_options(), find_peaks = find_peaks_options(),
+                       threads = 1L)
 }
 \arguments{
   \item{eic}{EIC retention-time range (from, to), tolerances and time unit. See \code{\link{calculate_eic_options}()}.}

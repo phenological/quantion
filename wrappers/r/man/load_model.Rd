@@ -21,7 +21,8 @@ The model, with get_keys(), get_values() and get_value(key). Type: \code{Model}.
 if (curl::has_internet()) {
   library(quantion)
 
-  model <- load_model("https://raw.githubusercontent.com/phenological/quantion/main/core/tests/fixtures/shift_model.onnx")
+  fixtures <- "https://raw.githubusercontent.com/phenological/quantion/main/core/tests/fixtures"
+  model <- load_model(paste0(fixtures, "/shift_model.onnx"))
   points <- get_value(model, "points")
   print(points)
 

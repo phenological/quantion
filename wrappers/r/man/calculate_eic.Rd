@@ -27,7 +27,8 @@ if (curl::has_internet()) {
 
   url <- "https://raw.githubusercontent.com/phenological/ion-files/main/data/p21_LTR_20_b1_w20.ion"
   sample <- parse_ion(url)
-  eic <- calculate_eic(sample, 260.103, options = calculate_eic_options(from = 2, to = 3, ppm_tolerance = 10))
+  options <- calculate_eic_options(from = 2, to = 3, ppm_tolerance = 10)
+  eic <- calculate_eic(sample, 260.103, options = options)
   print(head(data.frame(rt = eic$x, intensity = eic$y)))
 }
 }

@@ -17,8 +17,10 @@ rust_library:
 	  mkdir -p $(RUST_DIR)/.cargo && \
 	  cp $(RUST_DIR)/vendor-config.toml $(RUST_DIR)/.cargo/config.toml; \
 	fi
+	mkdir -p $(TARGET_DIR)/libgcc_mock && touch $(TARGET_DIR)/libgcc_mock/libgcc_eh.a
 	export PATH="$(PATH):$(USERPROFILE)/.cargo/bin" && \
-	  export CARGO_TARGET_X86_64_PC_WINDOWS_GNU_LINKER="$(CC)" && \
+	  export CARGO_TARGET_X86_64_PC_WINDOWS_GNU_LINKER="$(strip $(CC))" && \
+	  export LIBRARY_PATH="$${LIBRARY_PATH};$(TARGET_DIR)/libgcc_mock" && \
 	  rustc --version && cargo --version && \
 	  if [ -f $(RUST_DIR)/vendor.tar.xz ]; then \
 	    export CARGO_HOME=$(RUST_DIR)/.cargo-home && \

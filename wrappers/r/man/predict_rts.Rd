@@ -27,7 +27,8 @@ if (curl::has_internet()) {
   library(quantion)
 
   url <- "https://raw.githubusercontent.com/phenological/ion-files/main/data/p21_LTR_20_b1_w20.ion"
-  model <- load_model("https://raw.githubusercontent.com/phenological/quantion/main/core/tests/fixtures/shift_model.onnx")
+  fixtures <- "https://raw.githubusercontent.com/phenological/quantion/main/core/tests/fixtures"
+  model <- load_model(paste0(fixtures, "/shift_model.onnx"))
   warp <- load_warp(model)
   sample <- parse_ion(url)
   predicted <- predict_rts(warp, sample, data.frame(id = "compound_1", mz = 260.103, rt = 2.383))

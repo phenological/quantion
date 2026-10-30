@@ -24,7 +24,8 @@ The bytes when out is left out; nothing when it is written. Type: \code{raw | NU
 if (curl::has_internet()) {
   library(quantion)
 
-  url <- "https://raw.githubusercontent.com/phenological/quantion/main/core/tests/fixtures/api/api.ion"
+  fixtures <- "https://raw.githubusercontent.com/phenological/quantion/main/core/tests/fixtures"
+  url <- paste0(fixtures, "/api/api.ion")
   data <- curl::curl_fetch_memory(url)$content
   sample <- parse_ion(data)
   path <- tempfile(fileext = ".mzML")

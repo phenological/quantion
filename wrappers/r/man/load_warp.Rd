@@ -21,7 +21,8 @@ The warp model. Type: \code{WarpModel}.
 if (curl::has_internet()) {
   library(quantion)
 
-  model <- load_model("https://raw.githubusercontent.com/phenological/quantion/main/core/tests/fixtures/shift_model.onnx")
+  fixtures <- "https://raw.githubusercontent.com/phenological/quantion/main/core/tests/fixtures"
+  model <- load_model(paste0(fixtures, "/shift_model.onnx"))
   warp <- load_warp(model)
   print(warp)
 

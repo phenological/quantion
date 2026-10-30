@@ -5,7 +5,8 @@
 Settings for write_ion.
 }
 \usage{
-write_ion_options(out = NULL, overwrite = FALSE, level = 12L, f32_compress = FALSE, headers = list())
+write_ion_options(out = NULL, overwrite = FALSE, level = 12L, f32_compress = FALSE,
+                  headers = list())
 }
 \arguments{
   \item{out}{Path or URL to write to. Not given = return the bytes.}
