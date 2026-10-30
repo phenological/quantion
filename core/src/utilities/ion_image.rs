@@ -14,6 +14,16 @@ use super::{
 ///
 /// An imaging map of one m/z from get_ion_image.
 ///
+/// Fields:
+/// - `width`: Pixels across.
+/// - `height`: Pixels down.
+/// - `min_x`: x position of the first column.
+/// - `min_y`: y position of the first row.
+/// - `min_z`: Lowest z position.
+/// - `max_z`: Highest z position.
+/// - `data`: Summed intensity per pixel, row by row (width × height).
+/// - `counts`: Scans per pixel.
+///
 /// [Documentation](https://phenological.github.io/quantion/?language=rust#IonImage)
 #[derive(Clone, Debug)]
 pub struct IonImage {

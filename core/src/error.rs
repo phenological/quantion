@@ -4,6 +4,18 @@ use std::fmt;
 ///
 /// What went wrong, as a name and a fixed number code.
 ///
+/// Fields:
+/// - `InvalidArgument`: A value is out of range or the wrong type.
+/// - `MissingArgument`: A required value is missing.
+/// - `UnknownOption`: An option key that does not exist.
+/// - `RemoteFile`: Needs the whole file, but a URL was given.
+/// - `FileNotFound`: The path does not exist.
+/// - `ParseFailed`: The file is not a valid Ionic (.ion), mzML or ONNX file.
+/// - `ModelMismatch`: The model has no warp, or a target is not in it.
+/// - `FileExists`: The output file exists and overwrite is false.
+/// - `UploadFailed`: The upload was rejected, with the HTTP status.
+/// - `Internal`: A bug in quantion. Please report it.
+///
 /// [Documentation](https://phenological.github.io/quantion/?language=rust#ErrorKind)
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ErrorKind {
@@ -43,6 +55,13 @@ impl ErrorKind {
 /// **QuantionError** · Errors
 ///
 /// The error every function raises, with its kind, code, function, argument and message.
+///
+/// Fields:
+/// - `kind`: What went wrong.
+/// - `code`: Fixed number for the kind.
+/// - `function`: Where: the public function that failed.
+/// - `argument`: Which input, such as targets\[3\].range. Optional.
+/// - `message`: Why, in plain words. Starts with the function name.
 ///
 /// [Documentation](https://phenological.github.io/quantion/?language=rust#QuantionError)
 #[derive(Clone, Debug, PartialEq)]

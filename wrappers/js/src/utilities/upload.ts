@@ -15,14 +15,14 @@ export async function uploadIon(
   }).catch((error: Error) => {
     throw new QuantionError(
       "upload_failed",
-      "write_ion",
+      "writeIon",
       `PUT failed: ${error.message}`,
     );
   });
   if (!response.ok) {
     throw new QuantionError(
       "upload_failed",
-      "write_ion",
+      "writeIon",
       `PUT returned ${response.status}`,
     );
   }

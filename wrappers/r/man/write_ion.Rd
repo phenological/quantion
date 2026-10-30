@@ -1,31 +1,38 @@
 \name{write_ion}
 \alias{write_ion}
-\title{Write a sample as .ion}
+\title{Write a sample as an Ionic file (.ion)}
 \description{
-Write a sample as .ion. With no \code{out}, the bytes are returned. A path writes a file; a URL uploads it in one PUT request. A sample opened from a URL is refused, because writing needs the whole file.
+Write a sample as an Ionic file (.ion). With no out, it returns the bytes. A path writes a file; a URL uploads it in one PUT request.
 }
 \usage{
 write_ion(file, options = write_ion_options())
 }
 \arguments{
-  \item{file}{A sample from \code{\link{parse_ion}()} or \code{\link{parse_mzml}()}.}
-  \item{options}{Settings from \code{\link{write_ion_options}()}.}
+  \item{file}{The sample to write. Type: \code{SampleFile}.}
+  \item{options}{Settings from \code{\link{write_ion_options}()}: \code{out = NULL}, \code{overwrite = FALSE}, \code{level = 12L}, \code{f32_compress = FALSE}, \code{headers}.
+    \href{https://phenological.github.io/quantion/?language=r#WriteIonOptions}{WriteIonOptions documentation}
+  }
 }
 \value{
-A raw vector when \code{out} is not given, otherwise \code{NULL} (invisible).
+The bytes when out is left out; nothing when it is written or uploaded. Type: \code{raw | NULL (invisible)}.
 }
 \section{Documentation}{
 \url{https://phenological.github.io/quantion/?language=r#write_ion}
 }
 \examples{
-\dontrun{
-sample <- parse_ion("sample.ion")
-data <- write_ion(sample)
-write_ion(sample, options = write_ion_options(out = "sample.ion"))
-write_ion(sample, options = write_ion_options(
-  out = "https://example.org/upload/sample.ion",
-  headers = list(header("Authorization", "Bearer <token>"))
-))
+\donttest{
+if (curl::has_internet()) {
+  library(quantion)
+
+  url <- "https://raw.githubusercontent.com/phenological/quantion/main/core/tests/fixtures/api/api.ion"
+  data <- curl::curl_fetch_memory(url)$content
+  sample <- parse_ion(data)
+
+  bytes <- write_ion(sample)
+
+  write_ion(sample, options = write_ion_options(out = tempfile(fileext = ".ion")))
+  print(length(bytes))
+}
 }
 }
 \seealso{

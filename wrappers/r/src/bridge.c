@@ -347,14 +347,13 @@ typedef struct
 static const record_column PEAK_COLUMNS[] = {
     {"from", 18, 0, COLUMN_NUMBER}, {"to", 19, 0, COLUMN_NUMBER},
     {"rt", 20, 0, COLUMN_NUMBER}, {"integral", 21, 0, COLUMN_NUMBER},
-    {"intensity", 22, 0, COLUMN_NUMBER}, {"n_points", 23, 0, COLUMN_COUNT},
-    {"noise", 24, 0, COLUMN_NUMBER}, {"r2", 25, 0, COLUMN_NUMBER}};
+    {"intensity", 22, 0, COLUMN_NUMBER}, {"n_points", 23, 0, COLUMN_COUNT}};
 
 static const record_column FEATURE_COLUMNS[] = {
     {"mz", 26, 0, COLUMN_NUMBER}, {"rt", 27, 0, COLUMN_NUMBER},
     {"from", 28, 0, COLUMN_NUMBER}, {"to", 29, 0, COLUMN_NUMBER},
     {"intensity", 30, 0, COLUMN_NUMBER}, {"integral", 31, 0, COLUMN_NUMBER},
-    {"n_points", 32, 0, COLUMN_COUNT}, {"noise", 33, 0, COLUMN_NUMBER}};
+    {"n_points", 32, 0, COLUMN_COUNT}};
 
 static const record_column FIT_COLUMNS[] = {
     {"height", 47, 0, COLUMN_NUMBER},
@@ -365,8 +364,7 @@ static const record_column CONSENSUS_COLUMNS[] = {
     {"mz", 62, 0, COLUMN_NUMBER}, {"rt", 63, 0, COLUMN_NUMBER},
     {"from", 64, 0, COLUMN_NUMBER}, {"to", 65, 0, COLUMN_NUMBER},
     {"intensity", 66, 0, COLUMN_NUMBER}, {"integral", 67, 0, COLUMN_NUMBER},
-    {"n_points", 87, 0, COLUMN_COUNT}, {"noise", 88, 0, COLUMN_NUMBER},
-    {"frequency", 68, 0, COLUMN_NUMBER}};
+    {"n_points", 87, 0, COLUMN_COUNT}, {"frequency", 68, 0, COLUMN_NUMBER}};
 
 static const record_column WARP_TARGET_COLUMNS[] = {
     {"id", 79, 80, COLUMN_TEXT}, {"mz", 81, 0, COLUMN_NUMBER},

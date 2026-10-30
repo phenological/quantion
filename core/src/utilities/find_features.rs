@@ -87,8 +87,18 @@ impl From<FastError> for FeatureError {
 ///
 /// A peak at an m/z. match_features adds frequency.
 ///
+/// Fields:
+/// - `mz`: m/z (Da).
+/// - `rt`: Apex retention time (minutes).
+/// - `from`: Start of the peak.
+/// - `to`: End of the peak.
+/// - `intensity`: Apex intensity.
+/// - `integral`: Peak area.
+/// - `n_points`: Points across the peak.
+/// - `frequency`: match_features only: fraction of samples where it was found (0–1). Optional.
+///
 /// [Documentation](https://phenological.github.io/quantion/?language=rust#Feature)
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Default)]
 pub struct Feature {
     pub mz: f64,
     pub rt: f64,
@@ -97,8 +107,24 @@ pub struct Feature {
     pub intensity: f64,
     pub integral: f64,
     pub n_points: usize,
-    pub noise: f64,
+    pub(crate) noise: f64,
     pub frequency: Option<f64>,
+}
+
+impl std::fmt::Debug for Feature {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("Feature")
+            .field("mz", &self.mz)
+            .field("rt", &self.rt)
+            .field("from", &self.from)
+            .field("to", &self.to)
+            .field("intensity", &self.intensity)
+            .field("integral", &self.integral)
+            .field("n_points", &self.n_points)
+            .field("frequency", &self.frequency)
+            .finish()
+    }
 }
 
 #[derive(Clone, Copy, Debug)]

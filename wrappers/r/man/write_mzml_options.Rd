@@ -2,14 +2,14 @@
 \alias{write_mzml_options}
 \title{Settings for write_mzml}
 \description{
-Settings for \code{\link{write_mzml}()}. Every field is checked when the object is built; a misspelt name or a wrong type gives an error.
+Settings for write_mzml.
 }
 \usage{
 write_mzml_options(out = NULL, overwrite = FALSE)
 }
 \arguments{
-  \item{out}{A path. \code{NULL} returns the bytes.}
-  \item{overwrite}{Replace a file that already exists.}
+  \item{out}{Path to write to. Not given = return the bytes.}
+  \item{overwrite}{Replace an existing file.}
 }
 \value{
 An options object for \code{\link{write_mzml}()}.

@@ -2,14 +2,14 @@
 \alias{get_scans_options}
 \title{Settings for get_scans}
 \description{
-Settings for \code{\link{get_scans}()}. Every field is checked when the object is built; a misspelt name or a wrong type gives an error.
+Settings for get_scans.
 }
 \usage{
 get_scans_options(level = 1L, time_unit = "MINUTES")
 }
 \arguments{
-  \item{level}{MS level: 1 = MS1, 2 = MS2, 0 = every level.}
-  \item{time_unit}{\code{"MINUTES"} or \code{"SECONDS"}: the unit of \code{rt}.}
+  \item{level}{MS level. 0 = every level.}
+  \item{time_unit}{Unit of rt in the query.}
 }
 \value{
 An options object for \code{\link{get_scans}()}.

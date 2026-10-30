@@ -8,16 +8,27 @@ Make a retention-time warp model from a loaded model.
 load_warp(model)
 }
 \arguments{
-  \item{model}{A model from \code{\link{load_model}()} that holds a warp.}
+  \item{model}{A model from load_model that holds a warp. Type: \code{Model}.}
 }
 \value{
-A warp model (an external pointer of class \code{quantion_warp_model}).
+The warp model. Type: \code{WarpModel}.
 }
 \section{Documentation}{
 \url{https://phenological.github.io/quantion/?language=r#load_warp}
 }
 \examples{
-warp <- load_warp(load_model(system.file("extdata", "model.onnx", package = "quantion")))
+\donttest{
+if (curl::has_internet()) {
+  library(quantion)
+
+  model <- load_model("https://raw.githubusercontent.com/phenological/quantion/main/core/tests/fixtures/shift_model.onnx")
+  warp <- load_warp(model)
+  print(warp)
+
+  dispose(warp)
+  dispose(model)
+}
+}
 }
 \seealso{
 \code{\link{predict_rts}()}, \code{\link{calibrate}()}

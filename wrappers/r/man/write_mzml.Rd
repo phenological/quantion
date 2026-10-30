@@ -2,25 +2,35 @@
 \alias{write_mzml}
 \title{Write a sample as mzML}
 \description{
-Write a sample as mzML. With no \code{out}, the bytes are returned. Only a path is allowed, no URL.
+Write a sample as mzML. With no out, it returns the bytes. Only a path is allowed, no URL.
 }
 \usage{
 write_mzml(file, options = write_mzml_options())
 }
 \arguments{
-  \item{file}{A sample from \code{\link{parse_ion}()} or \code{\link{parse_mzml}()}.}
-  \item{options}{Settings from \code{\link{write_mzml_options}()}.}
+  \item{file}{The sample to write. Type: \code{SampleFile}.}
+  \item{options}{Settings from \code{\link{write_mzml_options}()}: \code{out = NULL}, \code{overwrite = FALSE}.
+    \href{https://phenological.github.io/quantion/?language=r#WriteMzmlOptions}{WriteMzmlOptions documentation}
+  }
 }
 \value{
-A raw vector when \code{out} is not given, otherwise \code{NULL} (invisible).
+The bytes when out is left out; nothing when it is written. Type: \code{raw | NULL (invisible)}.
 }
 \section{Documentation}{
 \url{https://phenological.github.io/quantion/?language=r#write_mzml}
 }
 \examples{
-\dontrun{
-sample <- parse_ion("sample.ion")
-write_mzml(sample, options = write_mzml_options(out = "sample.mzML"))
+\donttest{
+if (curl::has_internet()) {
+  library(quantion)
+
+  url <- "https://raw.githubusercontent.com/phenological/quantion/main/core/tests/fixtures/api/api.ion"
+  data <- curl::curl_fetch_memory(url)$content
+  sample <- parse_ion(data)
+  path <- tempfile(fileext = ".mzML")
+  write_mzml(sample, options = write_mzml_options(out = path))
+  print(file.size(path))
+}
 }
 }
 \seealso{

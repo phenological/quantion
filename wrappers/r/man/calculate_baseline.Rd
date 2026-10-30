@@ -8,19 +8,29 @@ Estimate a signal's baseline with airPLS.
 calculate_baseline(y, options = calculate_baseline_options())
 }
 \arguments{
-  \item{y}{Intensities.}
-  \item{options}{Settings from \code{\link{calculate_baseline_options}()}.}
+  \item{y}{Intensities. Type: \code{numeric}.}
+  \item{options}{Settings from \code{\link{calculate_baseline_options}()}: \code{lambda = 20}, \code{max_iterations = 4L}.
+    \href{https://phenological.github.io/quantion/?language=r#CalculateBaselineOptions}{CalculateBaselineOptions documentation}
+  }
 }
 \value{
-A numeric vector, the same length as \code{y}.
+The baseline, same length as y. Type: \code{numeric}.
 }
 \section{Documentation}{
 \url{https://phenological.github.io/quantion/?language=r#calculate_baseline}
 }
 \examples{
-trace <- draw_peaks(list(list(height = 1000, center = 2, fwhm = 0.05, tail = 0.01)),
-                    draw_peaks_options(from = 1, to = 3, points = 400L))
-baseline <- calculate_baseline(trace$y, options = calculate_baseline_options(lambda = 50))
+\donttest{
+if (curl::has_internet()) {
+  library(quantion)
+
+  url <- "https://raw.githubusercontent.com/phenological/ion-files/main/data/p21_LTR_20_b1_w20.ion"
+  sample <- parse_ion(url)
+  eic <- calculate_eic(sample, 260.103, options = calculate_eic_options(from = 2, to = 3))
+  baseline <- calculate_baseline(eic$y, options = calculate_baseline_options(lambda = 50))
+  print(head(baseline))
+}
+}
 }
 \seealso{
 \code{\link{calculate_baseline_options}()}

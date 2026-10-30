@@ -45,7 +45,7 @@ describeWithNode("getScans", () => {
       (caught) => caught,
     );
     expect(error).toBeInstanceOf(QuantionError);
-    expect(error.message).toBe("get_scans: mz must be greater than 0, got 0");
+    expect(error.message).toBe("getScans: mz must be greater than 0, got 0");
     expect(error.argument).toBe("mz");
   });
 });

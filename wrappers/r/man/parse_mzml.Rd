@@ -2,23 +2,35 @@
 \alias{parse_mzml}
 \title{Open an mzML file}
 \description{
-Open an mzML file from a path or raw bytes. It is always loaded fully into memory. URLs are refused.
+Open an mzML file from a path or bytes. It is always loaded fully into memory. URLs are refused.
 }
 \usage{
 parse_mzml(source)
 }
 \arguments{
-  \item{source}{A path or a raw vector of mzML bytes.}
+  \item{source}{Where the file is: a path or raw bytes. Type: \code{character | raw}.}
 }
 \value{
-A sample (an external pointer of class \code{quantion_sample}).
+The loaded sample. Type: \code{SampleFile}.
+}
+\section{Warning}{
+The sample is freed by the library once it is no longer used, so dispose is not needed in normal use. When processing many samples, dispose each one after using it, so its memory is freed right away instead of piling up.
 }
 \section{Documentation}{
 \url{https://phenological.github.io/quantion/?language=r#parse_mzml}
 }
 \examples{
-\dontrun{
-sample <- parse_mzml("sample.mzML")
+\donttest{
+if (curl::has_internet()) {
+  library(quantion)
+
+  url <- "https://raw.githubusercontent.com/phenological/quantion/main/core/tests/fixtures/api/api.ion"
+  data <- curl::curl_fetch_memory(url)$content
+  path <- tempfile(fileext = ".mzML")
+  write_mzml(parse_ion(data), options = write_mzml_options(out = path))
+  sample <- parse_mzml(path)
+  print(sample)
+}
 }
 }
 \seealso{

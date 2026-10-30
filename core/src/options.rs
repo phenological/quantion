@@ -13,6 +13,21 @@ use crate::{
 ///
 /// Peak-picking settings. Every field is optional.
 ///
+/// Fields:
+/// - `min_integral`: Drop peaks with a smaller area. Off when not given. Default `None`.
+/// - `min_intensity`: Drop peaks with a lower apex. Default `500.0`.
+/// - `min_peak_width_points`: Drop peaks with fewer points. Default `3`.
+/// - `noise`: Fixed noise level, used when auto_noise is false. Default `None`.
+/// - `auto_noise`: Estimate the noise from the trace. Default `true`.
+/// - `auto_baseline`: Subtract an airPLS baseline first. Default `true`.
+/// - `lambda`: airPLS smoothness. Default `20.0`.
+/// - `max_iterations`: Maximum airPLS iterations. Default `4`.
+/// - `allow_overlap`: Let neighbouring peaks share points. Default `false`.
+/// - `min_snr`: Minimum signal-to-noise ratio. Default `2.0`.
+/// - `min_r2`: Minimum fit quality of the peak shape (0–1). 0 keeps every peak. Default `0.0`.
+/// - `shape`: Curve used for the fit. Default `EMG`.
+/// - `kernel_size`: Smoothing window in points. 0 = no smoothing. Default `0`.
+///
 /// [Documentation](https://phenological.github.io/quantion/?language=rust#FindPeaksOptions)
 #[derive(Clone, Debug, PartialEq)]
 pub struct FindPeaksOptions {
@@ -80,6 +95,10 @@ impl FindPeaksOptions {
 ///
 /// Settings for get_peak.
 ///
+/// Fields:
+/// - `range`: Half-width of the search window around rt. 0 searches the whole trace. Default `0.0`.
+/// - `find_peaks`: Peak-picking settings. See [FindPeaksOptions](https://phenological.github.io/quantion/?language=rust#FindPeaksOptions).
+///
 /// [Documentation](https://phenological.github.io/quantion/?language=rust#GetPeakOptions)
 #[derive(Clone, Debug, PartialEq, Default)]
 pub struct GetPeakOptions {
@@ -97,6 +116,10 @@ impl GetPeakOptions {
 /// **FitPeakOptions** · Options
 ///
 /// Settings for fit_peak.
+///
+/// Fields:
+/// - `shape`: Curve to fit. Default `EMG`.
+/// - `intensity`: Apex intensity to start the fit from. 0 = take it from the peak at rt. Default `0.0`.
 ///
 /// [Documentation](https://phenological.github.io/quantion/?language=rust#FitPeakOptions)
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -123,6 +146,11 @@ impl FitPeakOptions {
 /// **DrawPeaksOptions** · Options
 ///
 /// Settings for draw_peaks.
+///
+/// Fields:
+/// - `from`: Start of the chromatogram. With to, 0 and 0 = fit the range around all the peaks. Default `0.0`.
+/// - `to`: End of the chromatogram. Default `0.0`.
+/// - `points`: Number of points drawn between from and to. Default `1000`.
 ///
 /// [Documentation](https://phenological.github.io/quantion/?language=rust#DrawPeaksOptions)
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -165,6 +193,10 @@ impl DrawPeaksOptions {
 ///
 /// airPLS baseline settings for calculate_baseline.
 ///
+/// Fields:
+/// - `lambda`: Smoothness. Larger = smoother. Default `20.0`.
+/// - `max_iterations`: Maximum iterations. Default `4`.
+///
 /// [Documentation](https://phenological.github.io/quantion/?language=rust#CalculateBaselineOptions)
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct CalculateBaselineOptions {
@@ -194,6 +226,13 @@ impl CalculateBaselineOptions {
 /// **CalculateEicOptions** · Options
 ///
 /// Which scans are read and how wide the m/z window is. Used by calculate_eic, and as the eic group of find_targets, find_features and match_features. The wider of the ppm and absolute m/z windows is used.
+///
+/// Fields:
+/// - `from`: Start of the retention-time range read. Default `0.0`.
+/// - `to`: End of the retention-time range read. The default reads to the end of the run. Default `f64::INFINITY`.
+/// - `ppm_tolerance`: Tolerance in ppm. Default `20.0`.
+/// - `mz_tolerance`: Absolute tolerance in Da. Default `0.005`.
+/// - `time_unit`: Unit of from, to and rt values given. Default `MINUTES`.
 ///
 /// [Documentation](https://phenological.github.io/quantion/?language=rust#CalculateEicOptions)
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -265,6 +304,11 @@ impl CalculateEicOptions {
 ///
 /// The m/z grid that find_features and match_features search.
 ///
+/// Fields:
+/// - `start`: Lowest m/z. Default `40.0`.
+/// - `end`: Highest m/z. Default `1000.0`.
+/// - `step_size`: Step between grid m/z values (Da). Default `0.005`.
+///
 /// [Documentation](https://phenological.github.io/quantion/?language=rust#GridOptions)
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct GridOptions {
@@ -300,6 +344,12 @@ impl GridOptions {
 /// **GroupingOptions** · Options
 ///
 /// How match_features matches features across samples.
+///
+/// Fields:
+/// - `ppm_tolerance`: Same feature when m/z is within this ppm…. Default `5.0`.
+/// - `mz_tolerance`: …or within this absolute m/z (Da). Default `0.0025`.
+/// - `rt_tolerance`: …and rt is within this many minutes. Default `0.05`.
+/// - `min_frequency`: Keep a feature only if found in at least this fraction of samples (0–1). Default `0.0`.
 ///
 /// [Documentation](https://phenological.github.io/quantion/?language=rust#GroupingOptions)
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -342,6 +392,11 @@ impl GroupingOptions {
 ///
 /// Settings for find_targets.
 ///
+/// Fields:
+/// - `eic`: EIC retention-time range (from, to), tolerances and time unit. See [CalculateEicOptions](https://phenological.github.io/quantion/?language=rust#CalculateEicOptions).
+/// - `find_peaks`: Peak-picking settings. See [FindPeaksOptions](https://phenological.github.io/quantion/?language=rust#FindPeaksOptions).
+/// - `threads`: Number of threads. Default `1`.
+///
 /// [Documentation](https://phenological.github.io/quantion/?language=rust#FindTargetsOptions)
 #[derive(Clone, Debug, PartialEq)]
 pub struct FindTargetsOptions {
@@ -364,6 +419,10 @@ impl Default for FindTargetsOptions {
 ///
 /// Settings for find_transitions.
 ///
+/// Fields:
+/// - `find_peaks`: Peak-picking settings. See [FindPeaksOptions](https://phenological.github.io/quantion/?language=rust#FindPeaksOptions).
+/// - `threads`: Number of threads. Default `1`.
+///
 /// [Documentation](https://phenological.github.io/quantion/?language=rust#FindTransitionsOptions)
 #[derive(Clone, Debug, PartialEq)]
 pub struct FindTransitionsOptions {
@@ -383,6 +442,12 @@ impl Default for FindTransitionsOptions {
 /// **FindFeaturesOptions** · Options
 ///
 /// Settings for find_features.
+///
+/// Fields:
+/// - `eic`: EIC retention-time range (from, to), tolerances and time unit. See [CalculateEicOptions](https://phenological.github.io/quantion/?language=rust#CalculateEicOptions).
+/// - `grid`: The m/z grid. See [GridOptions](https://phenological.github.io/quantion/?language=rust#GridOptions).
+/// - `find_peaks`: Peak-picking settings. See [FindPeaksOptions](https://phenological.github.io/quantion/?language=rust#FindPeaksOptions).
+/// - `threads`: Number of threads. Default `1`.
 ///
 /// [Documentation](https://phenological.github.io/quantion/?language=rust#FindFeaturesOptions)
 #[derive(Clone, Debug, PartialEq)]
@@ -407,6 +472,13 @@ impl Default for FindFeaturesOptions {
 /// **MatchFeaturesOptions** · Options
 ///
 /// Settings for match_features: the find_features settings plus grouping.
+///
+/// Fields:
+/// - `eic`: EIC retention-time range (from, to), tolerances and time unit. See [CalculateEicOptions](https://phenological.github.io/quantion/?language=rust#CalculateEicOptions).
+/// - `grid`: The m/z grid. See [GridOptions](https://phenological.github.io/quantion/?language=rust#GridOptions).
+/// - `grouping`: How features are matched across samples. See [GroupingOptions](https://phenological.github.io/quantion/?language=rust#GroupingOptions).
+/// - `find_peaks`: Peak-picking settings. See [FindPeaksOptions](https://phenological.github.io/quantion/?language=rust#FindPeaksOptions).
+/// - `threads`: Number of threads. Default `1`.
 ///
 /// [Documentation](https://phenological.github.io/quantion/?language=rust#MatchFeaturesOptions)
 #[derive(Clone, Debug, PartialEq)]
@@ -441,6 +513,10 @@ pub(crate) fn check_threads(function: &'static str, threads: usize) -> Result<()
 ///
 /// Settings for get_scans.
 ///
+/// Fields:
+/// - `level`: MS level. 0 = every level. Default `1`.
+/// - `time_unit`: Unit of rt in the query. Default `MINUTES`.
+///
 /// [Documentation](https://phenological.github.io/quantion/?language=rust#GetScansOptions)
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct GetScansOptions {
@@ -461,6 +537,9 @@ impl Default for GetScansOptions {
 ///
 /// Settings for parse_ion.
 ///
+/// Fields:
+/// - `max_cache_size`: Cache size in bytes. 0 = no limit. Default `0`.
+///
 /// [Documentation](https://phenological.github.io/quantion/?language=rust#ParseIonOptions)
 #[derive(Clone, Copy, Debug, PartialEq, Default)]
 pub struct ParseIonOptions {
@@ -470,6 +549,15 @@ pub struct ParseIonOptions {
 /// **Header** · Inputs
 ///
 /// One HTTP header sent with an upload in write_ion. Values are never printed. A line break, or Host, Content-Length or Transfer-Encoding, gives an invalid_argument error.
+///
+/// Fields:
+/// - `name`: Header name, such as Authorization.
+/// - `value`: Header value.
+///
+/// Example:
+/// ```ignore
+/// let header = Header { name: "Authorization".into(), value: "Bearer <token>".into() };
+/// ```
 ///
 /// [Documentation](https://phenological.github.io/quantion/?language=rust#Header)
 #[derive(Clone, Debug, PartialEq)]
@@ -510,6 +598,13 @@ impl From<PathBuf> for IonOutput {
 ///
 /// Settings for write_ion.
 ///
+/// Fields:
+/// - `out`: Path or URL to write to. Not given = return the bytes. Default `None`.
+/// - `overwrite`: Replace an existing file. Default `false`.
+/// - `level`: Compression level, 0 to 22. Default `12`.
+/// - `f32_compress`: Store intensities as 32-bit floats. Default `false`.
+/// - `headers`: Extra HTTP headers. Only with a URL. Default `empty`.
+///
 /// [Documentation](https://phenological.github.io/quantion/?language=rust#WriteIonOptions)
 #[derive(Clone, Debug, PartialEq)]
 pub struct WriteIonOptions {
@@ -536,6 +631,10 @@ impl Default for WriteIonOptions {
 ///
 /// Settings for write_mzml.
 ///
+/// Fields:
+/// - `out`: Path to write to. Not given = return the bytes. Default `None`.
+/// - `overwrite`: Replace an existing file. Default `false`.
+///
 /// [Documentation](https://phenological.github.io/quantion/?language=rust#WriteMzmlOptions)
 #[derive(Clone, Debug, PartialEq, Default)]
 pub struct WriteMzmlOptions {
@@ -546,6 +645,11 @@ pub struct WriteMzmlOptions {
 /// **GetIonImageOptions** · Options
 ///
 /// Settings for get_ion_image.
+///
+/// Fields:
+/// - `tolerance`: Absolute m/z tolerance (Da). Default `0.125`.
+/// - `level`: MS level. Default `1`.
+/// - `on_progress`: Progress callback: fetched bytes, total bytes, bytes held. Default `None`.
 ///
 /// [Documentation](https://phenological.github.io/quantion/?language=rust#GetIonImageOptions)
 #[derive(Clone, Copy, Debug)]

@@ -38,7 +38,7 @@ pub(crate) fn check_trace(function: &'static str, data: &DataXY) -> Result<(), Q
 ///
 /// - `data.x`: Retention times, ascending. At least 3 points.
 /// - `data.y`: Intensities, same length as x.
-/// - `options`: Optional settings. Every field and default is listed in FindPeaksOptions.
+/// - `options`: Optional settings: `min_integral` = None, `min_intensity` = 500.0, `min_peak_width_points` = 3, `noise` = None, `auto_noise` = true, `auto_baseline` = true, `lambda` = 20.0, `max_iterations` = 4, `allow_overlap` = false, `min_snr` = 2.0, `min_r2` = 0.0, `shape` = EMG, `kernel_size` = 0. See [FindPeaksOptions](https://phenological.github.io/quantion/?language=rust#FindPeaksOptions).
 ///
 /// Returns: Every peak that passes the filters.
 ///
@@ -57,7 +57,7 @@ pub fn find_peaks(data: &DataXY, options: FindPeaksOptions) -> Result<Vec<Peak>,
 /// - `data.x`: Retention times, ascending. At least 3 points.
 /// - `data.y`: Intensities, same length as x.
 /// - `rt`: Expected retention time of the peak.
-/// - `options`: Optional settings. Every field and default is listed in GetPeakOptions.
+/// - `options`: Optional settings: `range` = 0.0, `find_peaks`. See [GetPeakOptions](https://phenological.github.io/quantion/?language=rust#GetPeakOptions).
 ///
 /// Returns: The best peak near rt. No peak gives a Peak with every field 0.
 ///
@@ -78,7 +78,7 @@ pub fn get_peak(data: &DataXY, rt: f64, options: GetPeakOptions) -> Result<Peak,
 /// - `data.x`: Retention times, ascending. At least 3 points.
 /// - `data.y`: Intensities, same length as x.
 /// - `rt`: Expected retention time of the peak.
-/// - `options`: Optional settings. Every field and default is listed in FitPeakOptions.
+/// - `options`: Optional settings: `shape` = EMG, `intensity` = 0.0. See [FitPeakOptions](https://phenological.github.io/quantion/?language=rust#FitPeakOptions).
 ///
 /// Returns: The fitted curve, or none when no peak is found or the fit fails.
 ///
@@ -113,8 +113,9 @@ fn get_section(data: &DataXY, from: f64, to: f64) -> DataXY {
 ///
 /// Simulate a chromatogram from one or more peak shapes. Every peak is drawn into the same chromatogram; where they overlap, intensities add up. No real data is needed.
 ///
-/// - `params`: The peaks to draw, one PeakParameters per peak.
-/// - `options`: Optional settings. Every field and default is listed in DrawPeaksOptions.
+/// - `params`: The peaks to draw, one PeakParameters per peak. Each PeakParameters has `height`, `center`, `fwhm`, `tail`, `r2`. See [PeakParameters](https://phenological.github.io/quantion/?language=rust#PeakParameters).
+///   Example: `let peak = PeakParameters { height: 9800.0, center: 2.38, fwhm: 0.021, tail: 0.006, r2: 0.0 };`
+/// - `options`: Optional settings: `from` = 0.0, `to` = 0.0, `points` = 1000. See [DrawPeaksOptions](https://phenological.github.io/quantion/?language=rust#DrawPeaksOptions).
 ///
 /// Returns: The simulated chromatogram: x = retention times, y = summed intensities.
 ///
@@ -160,7 +161,7 @@ pub fn find_noise_level(y: &[f64]) -> NoiseLevel {
 /// Estimate a signal's baseline with airPLS.
 ///
 /// - `y`: Intensities.
-/// - `options`: Optional settings. Every field and default is listed in CalculateBaselineOptions.
+/// - `options`: Optional settings: `lambda` = 20.0, `max_iterations` = 4. See [CalculateBaselineOptions](https://phenological.github.io/quantion/?language=rust#CalculateBaselineOptions).
 ///
 /// Returns: The baseline, same length as y.
 ///

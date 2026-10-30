@@ -3,6 +3,7 @@ import { useMemo } from "react";
 import { getDisplayName } from "../names";
 import { actions, findEntry } from "../state/documentationState";
 import { useDocumentation } from "../state/DocumentationContext";
+import { IonicText } from "./IonicText";
 
 function getNamePattern(entries) {
   const names = [];
@@ -19,7 +20,7 @@ export function LinkedText({ text }) {
 
   return parts.map((part, index) => {
     const isName = index % 2 === 1;
-    if (!isName) return part;
+    if (!isName) return <IonicText key={index} text={part} />;
     const entry = findEntry(state.document, part);
     return (
       <button key={index} type="button" className="text-link" onClick={() => dispatch({ type: actions.entryChosen, entryName: part })}>

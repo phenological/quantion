@@ -42,8 +42,6 @@ export const SECTION_PEAK_RT = 20;
 export const SECTION_PEAK_INTEGRAL = 21;
 export const SECTION_PEAK_INTENSITY = 22;
 export const SECTION_PEAK_POINT_COUNT = 23;
-export const SECTION_PEAK_NOISE = 24;
-export const SECTION_PEAK_R2 = 25;
 
 export const SECTION_FEATURE_MZ = 26;
 export const SECTION_FEATURE_RT = 27;
@@ -52,7 +50,6 @@ export const SECTION_FEATURE_TO = 29;
 export const SECTION_FEATURE_INTENSITY = 30;
 export const SECTION_FEATURE_INTEGRAL = 31;
 export const SECTION_FEATURE_POINT_COUNT = 32;
-export const SECTION_FEATURE_NOISE = 33;
 
 export const SECTION_FIT_SHAPE = 46;
 export const SECTION_FIT_HEIGHT = 47;
@@ -69,7 +66,6 @@ export const SECTION_CONSENSUS_INTENSITY = 66;
 export const SECTION_CONSENSUS_INTEGRAL = 67;
 export const SECTION_CONSENSUS_FREQUENCY = 68;
 export const SECTION_CONSENSUS_POINT_COUNT = 87;
-export const SECTION_CONSENSUS_NOISE = 88;
 
 export const SECTION_WARP_TARGET_ID_STARTS = 79;
 export const SECTION_WARP_TARGET_ID_BYTES = 80;

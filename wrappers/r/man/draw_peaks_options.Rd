@@ -2,15 +2,15 @@
 \alias{draw_peaks_options}
 \title{Settings for draw_peaks}
 \description{
-Settings for \code{\link{draw_peaks}()}. Every field is checked when the object is built; a misspelt name or a wrong type gives an error.
+Settings for draw_peaks.
 }
 \usage{
 draw_peaks_options(from = 0, to = 0, points = 1000L)
 }
 \arguments{
-  \item{from}{Start of the chromatogram. With \code{to}, 0 and 0 fit the range around all the peaks.}
+  \item{from}{Start of the chromatogram. With to, 0 and 0 = fit the range around all the peaks.}
   \item{to}{End of the chromatogram.}
-  \item{points}{Number of points drawn.}
+  \item{points}{Number of points drawn between from and to.}
 }
 \value{
 An options object for \code{\link{draw_peaks}()}.

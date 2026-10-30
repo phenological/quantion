@@ -14,9 +14,14 @@ import { getIonSource, type IonSource } from "./ionSource";
 import { QuantionError, invalidArgument } from "./errors";
 import { uploadIon } from "./upload";
 import {
+  checkItems,
+  checkKeys,
+  getRequiredNumber,
   getShapeCode,
   getTimeUnitCode,
   packHeaders,
+  PEAK_KEYS,
+  RANGE_KEYS,
   readBaselineOptions,
   readDrawPeaksOptions,
   readEicOptions,
@@ -32,6 +37,8 @@ import {
   readParseIonOptions,
   readWriteIonOptions,
   readWriteMzmlOptions,
+  TARGET_KEYS,
+  TRANSITION_KEYS,
   type Complete,
 } from "./options";
 import type {
@@ -164,12 +171,13 @@ function getTargetColumns(
   if (!Array.isArray(targets)) {
     throw invalidArgument(functionName, "targets", "must be an array");
   }
+  checkItems(targets, TARGET_KEYS, functionName, "targets");
   return {
     rts: Float64Array.from(targets, (target, index) =>
-      getNumber(target.rt, functionName, `targets[${index}].rt`),
+      getRequiredNumber(target.rt, functionName, `targets[${index}].rt`),
     ),
     mzs: Float64Array.from(targets, (target, index) =>
-      getNumber(target.mz, functionName, `targets[${index}].mz`),
+      getRequiredNumber(target.mz, functionName, `targets[${index}].mz`),
     ),
     ranges: Float64Array.from(targets, (target, index) =>
       target.range === undefined
@@ -187,9 +195,10 @@ function getTransitionColumns(
   if (!Array.isArray(targets)) {
     throw invalidArgument(functionName, "targets", "must be an array");
   }
+  checkItems(targets, TRANSITION_KEYS, functionName, "targets");
   const read = (key: keyof Transition) =>
     Float64Array.from(targets, (target, index) =>
-      getNumber(target[key], functionName, `targets[${index}].${key}`),
+      getRequiredNumber(target[key], functionName, `targets[${index}].${key}`),
     );
   return {
     precursors: read("precursor"),
@@ -215,10 +224,12 @@ function openIon(
 /**
  * parseIon · Files
  *
- * Open an .ion file from a path, a URL or bytes. Paths and URLs are read lazily: only the bytes a query needs are fetched.
+ * Open an Ionic file (.ion) from a path, a URL or bytes. Paths and URLs are read lazily: only the bytes a query needs are fetched.
+ *
+ * **Warning:** The sample is freed by the library once it is no longer used, so dispose is not needed in normal use. When processing many samples, dispose each one after using it, so its memory is freed right away instead of piling up.
  *
  * @param source - Where the file is: a path, an http(s) URL, or raw bytes.
- * @param options - Optional settings. Every field and default is listed in ParseIonOptions.
+ * @param options - Optional settings: `maxCacheSize` = 0. See {@link https://phenological.github.io/quantion/?language=js#ParseIonOptions | ParseIonOptions}.
  * @returns The opened sample.
  * @see {@link https://phenological.github.io/quantion/?language=js#parse_ion | Documentation}
  */
@@ -226,8 +237,8 @@ export async function parseIon(
   source: IonInput,
   options?: ParseIonOptions,
 ): Promise<SampleFile> {
-  const settings = readParseIonOptions(options, "parse_ion");
-  const ionSource = getIonSource(source, "parse_ion");
+  const settings = readParseIonOptions(options, "parseIon");
+  const ionSource = getIonSource(source, "parseIon");
   const backend = await getBackendAsync();
   const handle = await openIon(backend, ionSource, settings.maxCacheSize);
   return new SampleFile(handle, backend);
@@ -237,6 +248,8 @@ export async function parseIon(
  * parseMzml · Files
  *
  * Open an mzML file from a path or bytes. It is always loaded fully into memory. URLs are refused.
+ *
+ * **Warning:** The sample is freed by the library once it is no longer used, so dispose is not needed in normal use. When processing many samples, dispose each one after using it, so its memory is freed right away instead of piling up.
  *
  * @param source - Where the file is: a path or raw bytes.
  * @returns The loaded sample.
@@ -250,13 +263,13 @@ export async function parseMzml(
     if (/^https?:/i.test(source)) {
       throw new QuantionError(
         "remote_file",
-        "parse_mzml",
+        "parseMzml",
         "this needs the whole file: open it from a path or bytes, not a URL",
       );
     }
     if (!backend.canReadPaths) {
       throw invalidArgument(
-        "parse_mzml",
+        "parseMzml",
         "source",
         "must be bytes in the browser; paths need Node",
       );
@@ -264,7 +277,7 @@ export async function parseMzml(
     return new SampleFile(backend.parseMzmlPath(source), backend);
   }
   if (!(source instanceof Uint8Array) && !(source instanceof ArrayBuffer)) {
-    throw invalidArgument("parse_mzml", "source", "must be a path or bytes");
+    throw invalidArgument("parseMzml", "source", "must be a path or bytes");
   }
   return new SampleFile(backend.parseMzmlBytes(toUint8(source)), backend);
 }
@@ -272,10 +285,10 @@ export async function parseMzml(
 /**
  * writeIon · Files
  *
- * Write a sample as .ion. With no out, it returns the bytes. A path writes a file; a URL uploads it in one PUT request.
+ * Write a sample as an Ionic file (.ion). With no out, it returns the bytes. A path writes a file; a URL uploads it in one PUT request.
  *
  * @param file - The sample to write.
- * @param options - Optional settings. Every field and default is listed in WriteIonOptions.
+ * @param options - Optional settings: `out` = undefined, `overwrite` = false, `level` = 12, `f32Compress` = false, `headers` = []. See {@link https://phenological.github.io/quantion/?language=js#WriteIonOptions | WriteIonOptions}.
  * @returns The bytes when out is left out; nothing when it is written or uploaded.
  * @see {@link https://phenological.github.io/quantion/?language=js#write_ion | Documentation}
  */
@@ -283,12 +296,12 @@ export async function writeIon(
   file: SampleFile,
   options?: WriteIonOptions,
 ): Promise<Uint8Array | undefined> {
-  const handle = getHandle(file, "write_ion");
-  const settings = readWriteIonOptions(options, "write_ion");
+  const handle = getHandle(file, "writeIon");
+  const settings = readWriteIonOptions(options, "writeIon");
   const isUrl = settings.out !== null && /^https?:/i.test(settings.out);
   if (settings.out !== null && !isUrl && !file._backend.canReadPaths) {
     throw invalidArgument(
-      "write_ion",
+      "writeIon",
       "out",
       "cannot be a path in the browser; use a URL or leave it out to get the bytes",
     );
@@ -316,7 +329,7 @@ export async function writeIon(
  * Write a sample as mzML. With no out, it returns the bytes. Only a path is allowed, no URL.
  *
  * @param file - The sample to write.
- * @param options - Optional settings. Every field and default is listed in WriteMzmlOptions.
+ * @param options - Optional settings: `out` = undefined, `overwrite` = false. See {@link https://phenological.github.io/quantion/?language=js#WriteMzmlOptions | WriteMzmlOptions}.
  * @returns The bytes when out is left out; nothing when it is written.
  * @see {@link https://phenological.github.io/quantion/?language=js#write_mzml | Documentation}
  */
@@ -324,11 +337,11 @@ export async function writeMzml(
   file: SampleFile,
   options?: WriteMzmlOptions,
 ): Promise<Uint8Array | undefined> {
-  const handle = getHandle(file, "write_mzml");
-  const settings = readWriteMzmlOptions(options, "write_mzml");
+  const handle = getHandle(file, "writeMzml");
+  const settings = readWriteMzmlOptions(options, "writeMzml");
   if (settings.out !== null && !file._backend.canReadPaths) {
     throw invalidArgument(
-      "write_mzml",
+      "writeMzml",
       "out",
       "cannot be a path in the browser; leave it out to get the bytes",
     );
@@ -346,7 +359,7 @@ export async function writeMzml(
  * @see {@link https://phenological.github.io/quantion/?language=js#load_model | Documentation}
  */
 export async function loadModel(source: IonInput): Promise<Model> {
-  const modelSource = getIonSource(source, "load_model");
+  const modelSource = getIonSource(source, "loadModel");
   const backend = await getBackendAsync();
   if (modelSource.kind === "path") {
     return new Model(backend.loadModelPath(modelSource.path), backend);
@@ -362,14 +375,14 @@ async function fetchModel(url: URL): Promise<Uint8Array> {
   const response = await fetch(url).catch((error: Error) => {
     throw new QuantionError(
       "parse_failed",
-      "load_model",
+      "loadModel",
       `the file could not be read: GET ${url} failed: ${error.message}`,
     );
   });
   if (!response.ok) {
     throw new QuantionError(
       "parse_failed",
-      "load_model",
+      "loadModel",
       `the file could not be read: GET ${url} answered ${response.status}`,
     );
   }
@@ -388,7 +401,7 @@ async function fetchModel(url: URL): Promise<Uint8Array> {
 export function loadWarp(model: Model): WarpModel {
   if (!(model instanceof Model) || !model._handle) {
     throw invalidArgument(
-      "load_warp",
+      "loadWarp",
       "model",
       "must be an open Model from loadModel",
     );
@@ -396,7 +409,7 @@ export function loadWarp(model: Model): WarpModel {
   return new WarpModel(
     model._backend.loadWarp(model._handle),
     model._backend,
-    model._getMetadata("load_warp"),
+    model._getMetadata("loadWarp"),
   );
 }
 
@@ -408,12 +421,12 @@ const QUERY_CLOSEST_MZ = 3;
 function getScanQuery(query: ScanQuery): [number, number, number] {
   const given = query as unknown as Record<string, unknown>;
   if (given === null || typeof given !== "object") {
-    throw invalidArgument("get_scans", "query", "must be { rt } or { mz }");
+    throw invalidArgument("getScans", "query", "must be { rt } or { mz }");
   }
   const keys = Object.keys(given);
   if (keys.length !== 1 || (keys[0] !== "rt" && keys[0] !== "mz")) {
     throw invalidArgument(
-      "get_scans",
+      "getScans",
       "query",
       "must have exactly one of rt or mz",
     );
@@ -425,12 +438,18 @@ function getScanQuery(query: ScanQuery): [number, number, number] {
   if (typeof value === "number") return [closest, value, NaN];
   const fromTo = value as FromTo;
   if (fromTo === null || typeof fromTo !== "object") {
-    throw invalidArgument("get_scans", key, "must be a number or { from, to }");
+    throw invalidArgument("getScans", key, "must be a number or { from, to }");
   }
+  checkKeys(
+    fromTo as unknown as Record<string, unknown>,
+    RANGE_KEYS,
+    "getScans",
+    `${key}.`,
+  );
   return [
     range,
-    getNumber(fromTo.from, "get_scans", "from"),
-    getNumber(fromTo.to, "get_scans", "to"),
+    getRequiredNumber(fromTo.from, "getScans", `${key}.from`),
+    getRequiredNumber(fromTo.to, "getScans", `${key}.to`),
   ];
 }
 
@@ -440,9 +459,11 @@ function getScanQuery(query: ScanQuery): [number, number, number] {
  * Read scans by retention time or precursor m/z. A range returns every scan in it; one number returns the closest scan, as a list of one.
  *
  * @param file - The sample to read, from parse_ion or parse_mzml.
- * @param query.rt - Which scans, by retention time: a range or one value.
- * @param query.mz - Or by precursor m/z: a range or one value. Give rt or mz, not both.
- * @param options - Optional settings. Every field and default is listed in GetScansOptions.
+ * @param query.rt - Which scans, by retention time: a range or one value. Each FromTo has `from`, `to`. See {@link https://phenological.github.io/quantion/?language=js#FromTo | FromTo}.
+ *   Example: `const window: FromTo = { from: 1.0, to: 2.5 };`
+ * @param query.mz - Or by precursor m/z: a range or one value. Give rt or mz, not both. Each FromTo has `from`, `to`. See {@link https://phenological.github.io/quantion/?language=js#FromTo | FromTo}.
+ *   Example: `const window: FromTo = { from: 1.0, to: 2.5 };`
+ * @param options - Optional settings: `level` = 1, `timeUnit` = "MINUTES". See {@link https://phenological.github.io/quantion/?language=js#GetScansOptions | GetScansOptions}.
  * @returns The scans found, in rt order.
  * @see {@link https://phenological.github.io/quantion/?language=js#get_scans | Documentation}
  */
@@ -451,8 +472,8 @@ export async function getScans(
   query: ScanQuery,
   options?: GetScansOptions,
 ): Promise<Scan[]> {
-  const handle = getHandle(file, "get_scans");
-  const settings = readGetScansOptions(options, "get_scans");
+  const handle = getHandle(file, "getScans");
+  const settings = readGetScansOptions(options, "getScans");
   const [queryType, from, to] = getScanQuery(query);
   return file._backend.getScans(
     handle,
@@ -471,7 +492,7 @@ export async function getScans(
  *
  * @param file - The sample to read, from parse_ion or parse_mzml.
  * @param mz - The m/z to extract (Da).
- * @param options - Optional settings. Every field and default is listed in CalculateEicOptions.
+ * @param options - Optional settings: `from` = 0, `to` = Infinity, `ppmTolerance` = 20, `mzTolerance` = 0.005, `timeUnit` = "MINUTES". See {@link https://phenological.github.io/quantion/?language=js#CalculateEicOptions | CalculateEicOptions}.
  * @returns The chromatogram: x = retention times, y = summed intensities.
  * @see {@link https://phenological.github.io/quantion/?language=js#calculate_eic | Documentation}
  */
@@ -480,11 +501,11 @@ export async function calculateEic(
   mz: number,
   options?: CalculateEicOptions,
 ): Promise<DataXY> {
-  const handle = getHandle(file, "calculate_eic");
-  const eic = readEicOptions(options, "calculate_eic", "");
+  const handle = getHandle(file, "calculateEic");
+  const eic = readEicOptions(options, "calculateEic", "");
   return file._backend.calculateEic(
     handle,
-    getNumber(mz, "calculate_eic", "mz"),
+    getNumber(mz, "calculateEic", "mz"),
     getEicSettings(eic),
   );
 }
@@ -494,9 +515,11 @@ export async function calculateEic(
  *
  * Build an imaging map of one m/z: summed intensity at each x, y position.
  *
+ * **Warning:** Only Ionic files (.ion). The sample must come from parse_ion; a sample from parse_mzml gives an invalid_argument error.
+ *
  * @param file - The sample to read. Must come from parse_ion.
  * @param mz - The m/z to map (Da).
- * @param options - Optional settings. Every field and default is listed in GetIonImageOptions.
+ * @param options - Optional settings: `tolerance` = 0.125, `level` = 1, `onProgress` = undefined. See {@link https://phenological.github.io/quantion/?language=js#GetIonImageOptions | GetIonImageOptions}.
  * @returns The image.
  * @see {@link https://phenological.github.io/quantion/?language=js#get_ion_image | Documentation}
  */
@@ -505,11 +528,11 @@ export async function getIonImage(
   mz: number,
   options?: GetIonImageOptions,
 ): Promise<IonImage> {
-  const handle = getHandle(file, "get_ion_image");
-  const settings = readIonImageOptions(options, "get_ion_image");
+  const handle = getHandle(file, "getIonImage");
+  const settings = readIonImageOptions(options, "getIonImage");
   return file._backend.getIonImage(
     handle,
-    getNumber(mz, "get_ion_image", "mz"),
+    getNumber(mz, "getIonImage", "mz"),
     settings.tolerance,
     settings.level,
     settings.onProgress,
@@ -523,7 +546,7 @@ export async function getIonImage(
  *
  * @param x - Retention times, ascending. At least 3 points.
  * @param y - Intensities, same length as x.
- * @param options - Optional settings. Every field and default is listed in FindPeaksOptions.
+ * @param options - Optional settings: `minIntegral` = off, `minIntensity` = 500, `minPeakWidthPoints` = 3, `noise` = off, `autoNoise` = true, `autoBaseline` = true, `lambda` = 20, `maxIterations` = 4, `allowOverlap` = false, `minSnr` = 2, `minR2` = 0, `shape` = "EMG", `kernelSize` = 0. See {@link https://phenological.github.io/quantion/?language=js#FindPeaksOptions | FindPeaksOptions}.
  * @returns Every peak that passes the filters.
  * @see {@link https://phenological.github.io/quantion/?language=js#find_peaks | Documentation}
  */
@@ -532,8 +555,8 @@ export function findPeaks(
   y: Float64Array,
   options?: FindPeaksOptions,
 ): Peak[] {
-  getTrace(x, y, "find_peaks");
-  const settings = readFindPeaksOptions(options, "find_peaks", "");
+  getTrace(x, y, "findPeaks");
+  const settings = readFindPeaksOptions(options, "findPeaks", "");
   return getBackend().findPeaks(x, y, settings);
 }
 
@@ -545,7 +568,7 @@ export function findPeaks(
  * @param x - Retention times, ascending. At least 3 points.
  * @param y - Intensities, same length as x.
  * @param rt - Expected retention time of the peak.
- * @param options - Optional settings. Every field and default is listed in GetPeakOptions.
+ * @param options - Optional settings: `range` = 0, `findPeaks`. See {@link https://phenological.github.io/quantion/?language=js#GetPeakOptions | GetPeakOptions}.
  * @returns The best peak near rt. No peak gives a Peak with every field 0.
  * @see {@link https://phenological.github.io/quantion/?language=js#get_peak | Documentation}
  */
@@ -555,12 +578,12 @@ export function getPeak(
   rt: number,
   options?: GetPeakOptions,
 ): Peak {
-  getTrace(x, y, "get_peak");
-  const settings = readGetPeakOptions(options, "get_peak");
+  getTrace(x, y, "getPeak");
+  const settings = readGetPeakOptions(options, "getPeak");
   return getBackend().getPeak(
     x,
     y,
-    getNumber(rt, "get_peak", "rt"),
+    getNumber(rt, "getPeak", "rt"),
     settings.range,
     settings.findPeaks,
   );
@@ -574,7 +597,7 @@ export function getPeak(
  * @param x - Retention times, ascending. At least 3 points.
  * @param y - Intensities, same length as x.
  * @param rt - Expected retention time of the peak.
- * @param options - Optional settings. Every field and default is listed in FitPeakOptions.
+ * @param options - Optional settings: `shape` = "EMG", `intensity` = 0. See {@link https://phenological.github.io/quantion/?language=js#FitPeakOptions | FitPeakOptions}.
  * @returns The fitted curve, or none when no peak is found or the fit fails.
  * @see {@link https://phenological.github.io/quantion/?language=js#fit_peak | Documentation}
  */
@@ -584,12 +607,12 @@ export function fitPeak(
   rt: number,
   options?: FitPeakOptions,
 ): PeakParameters | null {
-  getTrace(x, y, "fit_peak");
-  const settings = readFitPeakOptions(options, "fit_peak");
+  getTrace(x, y, "fitPeak");
+  const settings = readFitPeakOptions(options, "fitPeak");
   return getBackend().fitPeak(
     x,
     y,
-    getNumber(rt, "fit_peak", "rt"),
+    getNumber(rt, "fitPeak", "rt"),
     getShapeCode(settings.shape),
     settings.intensity,
   );
@@ -600,8 +623,9 @@ export function fitPeak(
  *
  * Simulate a chromatogram from one or more peak shapes. Every peak is drawn into the same chromatogram; where they overlap, intensities add up. No real data is needed.
  *
- * @param params - The peaks to draw, one PeakParameters per peak.
- * @param options - Optional settings. Every field and default is listed in DrawPeaksOptions.
+ * @param params - The peaks to draw, one PeakParameters per peak. Each PeakParameters has `height`, `center`, `fwhm`, `tail`, `r2`. See {@link https://phenological.github.io/quantion/?language=js#PeakParameters | PeakParameters}.
+ *   Example: `const peak: PeakParameters = { height: 9800, center: 2.38, fwhm: 0.021, tail: 0.006 };`
+ * @param options - Optional settings: `from` = 0, `to` = 0, `points` = 1000. See {@link https://phenological.github.io/quantion/?language=js#DrawPeaksOptions | DrawPeaksOptions}.
  * @returns The simulated chromatogram: x = retention times, y = summed intensities.
  * @see {@link https://phenological.github.io/quantion/?language=js#draw_peaks | Documentation}
  */
@@ -611,15 +635,16 @@ export function drawPeaks(
 ): DataXY {
   if (!Array.isArray(params)) {
     throw invalidArgument(
-      "draw_peaks",
+      "drawPeaks",
       "params",
       "must be an array of PeakParameters",
     );
   }
-  const settings = readDrawPeaksOptions(options, "draw_peaks");
+  checkItems(params, PEAK_KEYS, "drawPeaks", "params");
+  const settings = readDrawPeaksOptions(options, "drawPeaks");
   const read = (key: keyof PeakParameters) =>
     Float64Array.from(params, (peak, index) =>
-      getNumber(peak[key], "draw_peaks", `params[${index}].${key}`),
+      getRequiredNumber(peak[key], "drawPeaks", `params[${index}].${key}`),
     );
   const peaks: PeakColumns = {
     heights: read("height"),
@@ -649,7 +674,7 @@ export function findNoiseLevel(y: Float64Array | Float32Array): NoiseLevel {
     Object.prototype.toString.call(y) === "[object Float32Array]";
   if (!isFloat64Array(y) && !isFloat32Array) {
     throw invalidArgument(
-      "find_noise_level",
+      "findNoiseLevel",
       "y",
       "must be a Float64Array or Float32Array",
     );
@@ -664,7 +689,7 @@ export function findNoiseLevel(y: Float64Array | Float32Array): NoiseLevel {
  * Estimate a signal's baseline with airPLS.
  *
  * @param y - Intensities.
- * @param options - Optional settings. Every field and default is listed in CalculateBaselineOptions.
+ * @param options - Optional settings: `lambda` = 20, `maxIterations` = 4. See {@link https://phenological.github.io/quantion/?language=js#CalculateBaselineOptions | CalculateBaselineOptions}.
  * @returns The baseline, same length as y.
  * @see {@link https://phenological.github.io/quantion/?language=js#calculate_baseline | Documentation}
  */
@@ -673,9 +698,9 @@ export function calculateBaseline(
   options?: CalculateBaselineOptions,
 ): Float64Array {
   if (!isFloat64Array(y)) {
-    throw invalidArgument("calculate_baseline", "y", "must be a Float64Array");
+    throw invalidArgument("calculateBaseline", "y", "must be a Float64Array");
   }
-  const settings = readBaselineOptions(options, "calculate_baseline");
+  const settings = readBaselineOptions(options, "calculateBaseline");
   return getBackend().calculateBaseline(
     y,
     settings.lambda,
@@ -689,8 +714,9 @@ export function calculateBaseline(
  * For each target, build its EIC at mz and find its peak near rt ± range.
  *
  * @param file - The sample to read, from parse_ion or parse_mzml.
- * @param targets - What to look for. A target without range searches its whole EIC.
- * @param options - Optional settings. Every field and default is listed in FindTargetsOptions.
+ * @param targets - What to look for. A target without range searches its whole EIC. Each Target has `id`, `mz`, `rt`, `range`. See {@link https://phenological.github.io/quantion/?language=js#Target | Target}.
+ *   Example: `const target: Target = { id: "compound_1", mz: 260.103, rt: 2.383, range: 0.05 };`
+ * @param options - Optional settings: `eic`, `findPeaks`, `threads` = 1. See {@link https://phenological.github.io/quantion/?language=js#FindTargetsOptions | FindTargetsOptions}.
  * @returns One Peak per target, in the same order. A target with no peak gets a Peak with every field 0.
  * @see {@link https://phenological.github.io/quantion/?language=js#find_targets | Documentation}
  */
@@ -699,11 +725,11 @@ export async function findTargets(
   targets: Target[],
   options?: FindTargetsOptions,
 ): Promise<Peak[]> {
-  const handle = getHandle(file, "find_targets");
-  const settings = readFindTargetsOptions(options, "find_targets");
+  const handle = getHandle(file, "findTargets");
+  const settings = readFindTargetsOptions(options, "findTargets");
   return file._backend.findTargets(
     handle,
-    getTargetColumns(targets, "find_targets"),
+    getTargetColumns(targets, "findTargets"),
     getEicSettings(settings.eic),
     settings.findPeaks,
     settings.threads,
@@ -715,9 +741,12 @@ export async function findTargets(
  *
  * For each SRM transition, take the stored chromatogram whose precursor (Q1) and product (Q3) are both within 0.005 m/z, and find its peak near rt ± range.
  *
+ * **Warning:** Needs the whole file. A sample opened from a URL gives a remote_file error; open it from a path or bytes.
+ *
  * @param file - The sample to read, from parse_ion or parse_mzml.
- * @param targets - The transitions.
- * @param options - Optional settings. Every field and default is listed in FindTransitionsOptions.
+ * @param targets - The transitions. Each Transition has `id`, `precursor`, `product`, `rt`, `range`. See {@link https://phenological.github.io/quantion/?language=js#Transition | Transition}.
+ *   Example: `const transition: Transition = { id: "compound_1", precursor: 89.04768, product: 89.04768, rt: 2.385, range: 0.1 };`
+ * @param options - Optional settings: `findPeaks`, `threads` = 1. See {@link https://phenological.github.io/quantion/?language=js#FindTransitionsOptions | FindTransitionsOptions}.
  * @returns One Peak per transition, in the same order. No match gives a Peak with every field 0.
  * @see {@link https://phenological.github.io/quantion/?language=js#find_transitions | Documentation}
  */
@@ -726,11 +755,11 @@ export function findTransitions(
   targets: Transition[],
   options?: FindTransitionsOptions,
 ): Peak[] {
-  const handle = getHandle(file, "find_transitions");
-  const settings = readFindTransitionsOptions(options, "find_transitions");
+  const handle = getHandle(file, "findTransitions");
+  const settings = readFindTransitionsOptions(options, "findTransitions");
   return file._backend.findTransitions(
     handle,
-    getTransitionColumns(targets, "find_transitions"),
+    getTransitionColumns(targets, "findTransitions"),
     settings.findPeaks,
     settings.threads,
   );
@@ -742,7 +771,7 @@ export function findTransitions(
  * Untargeted: find every feature in one file by scanning an m/z grid.
  *
  * @param file - The sample to read, from parse_ion or parse_mzml.
- * @param options - Optional settings. Every field and default is listed in FindFeaturesOptions.
+ * @param options - Optional settings: `eic`, `grid`, `findPeaks`, `threads` = 1. See {@link https://phenological.github.io/quantion/?language=js#FindFeaturesOptions | FindFeaturesOptions}.
  * @returns Every feature found, without frequency.
  * @see {@link https://phenological.github.io/quantion/?language=js#find_features | Documentation}
  */
@@ -750,12 +779,12 @@ export async function findFeatures(
   file: SampleFile,
   options?: FindFeaturesOptions,
 ): Promise<Feature[]> {
-  const handle = getHandle(file, "find_features");
-  const settings = readFindFeaturesOptions(options, "find_features");
+  const handle = getHandle(file, "findFeatures");
+  const settings = readFindFeaturesOptions(options, "findFeatures");
   if (!file._backend.findFeatures) {
     throw new QuantionError(
       "invalid_argument",
-      "find_features",
+      "findFeatures",
       "is not available in the browser build",
     );
   }
@@ -773,8 +802,8 @@ export async function findFeatures(
  *
  * Untargeted across samples: find features in every file of a folder and match them. Values are medians over the samples where a feature was found.
  *
- * @param directory - Folder with the .ion or mzML files.
- * @param options - Optional settings. Every field and default is listed in MatchFeaturesOptions.
+ * @param directory - Folder with the Ionic (.ion) or mzML files.
+ * @param options - Optional settings: `eic`, `grid`, `grouping`, `findPeaks`, `threads` = 1. See {@link https://phenological.github.io/quantion/?language=js#MatchFeaturesOptions | MatchFeaturesOptions}.
  * @returns One Feature per matched feature; frequency is the fraction of samples (0–1).
  * @see {@link https://phenological.github.io/quantion/?language=js#match_features | Documentation}
  */
@@ -784,13 +813,13 @@ export function matchFeatures(
 ): Feature[] {
   const backend = getBackend();
   if (typeof directory !== "string") {
-    throw invalidArgument("match_features", "directory", "must be a path");
+    throw invalidArgument("matchFeatures", "directory", "must be a path");
   }
-  const settings = readMatchFeaturesOptions(options, "match_features");
+  const settings = readMatchFeaturesOptions(options, "matchFeatures");
   if (!backend.matchFeatures) {
     throw new QuantionError(
       "invalid_argument",
-      "match_features",
+      "matchFeatures",
       "is not available in the browser build",
     );
   }

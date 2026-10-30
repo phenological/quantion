@@ -2,13 +2,13 @@
 \alias{calculate_baseline_options}
 \title{Settings for calculate_baseline}
 \description{
-Settings for \code{\link{calculate_baseline}()}. Every field is checked when the object is built; a misspelt name or a wrong type gives an error.
+airPLS baseline settings for calculate_baseline.
 }
 \usage{
 calculate_baseline_options(lambda = 20, max_iterations = 4L)
 }
 \arguments{
-  \item{lambda}{Smoothness. Larger is smoother.}
+  \item{lambda}{Smoothness. Larger = smoother.}
   \item{max_iterations}{Maximum iterations.}
 }
 \value{

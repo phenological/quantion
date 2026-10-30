@@ -3,6 +3,7 @@ import { actions, getGroupEntries } from "../state/documentationState";
 import { useDocumentation } from "../state/DocumentationContext";
 import { ExperimentalBadge } from "./ExperimentalBadge";
 import { LinkedText } from "./LinkedText";
+import { IonicText } from "./IonicText";
 
 export function GroupView({ group }) {
   const { state, dispatch } = useDocumentation();
@@ -20,7 +21,7 @@ export function GroupView({ group }) {
       {group.warning && (
         <p className="warning" role="note">
           <strong>Warning: </strong>
-          {group.warning}
+          <IonicText text={group.warning} />
         </p>
       )}
       <section className="block">
@@ -31,7 +32,9 @@ export function GroupView({ group }) {
               <button type="button" className="group-list-name" onClick={() => dispatch({ type: actions.entryChosen, entryName: entry.name })}>
                 {getDisplayName(entry, state.language)}
               </button>
-              <span className="group-list-summary">{getFirstSentence(entry.summary)}</span>
+              <span className="group-list-summary">
+                <IonicText text={getFirstSentence(entry.summary)} />
+              </span>
             </li>
           ))}
         </ul>

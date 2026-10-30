@@ -39,7 +39,6 @@ interface Feature
     intensity: number
     mz: number
     nPoints: number
-    noise: number
     rt: number
     to: number
 
@@ -179,8 +178,6 @@ interface Peak
     integral: number
     intensity: number
     nPoints: number
-    noise: number
-    r2: number
     rt: number
     to: number
 
@@ -309,7 +306,6 @@ interface Feature
     intensity: number
     mz: number
     nPoints: number
-    noise: number
     rt: number
     to: number
 
@@ -449,8 +445,6 @@ interface Peak
     integral: number
     intensity: number
     nPoints: number
-    noise: number
-    r2: number
     rt: number
     to: number
 

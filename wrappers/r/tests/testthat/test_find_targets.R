@@ -9,7 +9,7 @@ test_that("targets give one peak per target", {
   options <- find_targets_options(eic = calculate_eic_options(from = 0, to = 5), threads = 2L)
   peaks <- find_targets(parse_ion(sample_file), get_targets(), options)
   expect_equal(nrow(peaks), 2)
-  expect_named(peaks, c("rt", "from", "to", "intensity", "integral", "n_points", "noise", "r2"))
+  expect_named(peaks, c("rt", "from", "to", "intensity", "integral", "n_points"))
   expect_true(all(peaks$intensity > 0))
 })
 

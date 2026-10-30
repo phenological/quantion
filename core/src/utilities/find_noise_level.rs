@@ -9,6 +9,10 @@ use crate::utilities::cheminfo::{
 ///
 /// Result of find_noise_level.
 ///
+/// Fields:
+/// - `width`: Window width (points) the estimate came from.
+/// - `intensity`: Noise intensity.
+///
 /// [Documentation](https://phenological.github.io/quantion/?language=rust#NoiseLevel)
 #[derive(Clone, Copy, Debug)]
 pub struct NoiseLevel {

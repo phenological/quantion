@@ -25,7 +25,6 @@ typeddict Feature total=False
     intensity: float
     mz: float
     n_points: int
-    noise: float
     rt: float
     to: float
 
@@ -131,8 +130,6 @@ typeddict Peak total=True
     integral: float
     intensity: float
     n_points: int
-    noise: float
-    r2: float
     rt: float
     to: float
 

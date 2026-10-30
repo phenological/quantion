@@ -1,14 +1,13 @@
 import { describe, test, expect } from "@jest/globals";
 import { getIonSource as readSource } from "../utilities/ionSource";
 
-const getIonSource = (input: unknown) =>
-  readSource(input as never, "parse_ion");
+const getIonSource = (input: unknown) => readSource(input as never, "parseIon");
 
 describe("ionSource classifier", () => {
   describe("path source", () => {
     test("empty string throws", () => {
       expect(() => getIonSource("")).toThrow(
-        "parse_ion: source must not be an empty path",
+        "parseIon: source must not be an empty path",
       );
     });
 
@@ -30,19 +29,19 @@ describe("ionSource classifier", () => {
 
     test("string with file scheme throws", () => {
       expect(() => getIonSource("file:///data/file.ion")).toThrow(
-        "parse_ion: source must be a path or an http(s) URL",
+        "parseIon: source must be a path or an http(s) URL",
       );
     });
 
     test("string with ftp scheme throws", () => {
       expect(() => getIonSource("ftp://example.com/file.ion")).toThrow(
-        "parse_ion: source must be a path or an http(s) URL",
+        "parseIon: source must be a path or an http(s) URL",
       );
     });
 
     test("string with s3 scheme throws", () => {
       expect(() => getIonSource("s3://bucket/file.ion")).toThrow(
-        "parse_ion: source must be a path or an http(s) URL",
+        "parseIon: source must be a path or an http(s) URL",
       );
     });
 
@@ -79,20 +78,20 @@ describe("ionSource classifier", () => {
 
     test("file URL throws", () => {
       expect(() => getIonSource(new URL("file:///data/file.ion"))).toThrow(
-        "parse_ion: source must be an http(s) URL",
+        "parseIon: source must be an http(s) URL",
       );
     });
 
     test("ftp URL throws", () => {
       expect(() => getIonSource(new URL("ftp://example.com/file.ion"))).toThrow(
-        "parse_ion: source must be an http(s) URL",
+        "parseIon: source must be an http(s) URL",
       );
     });
 
     test("data URL throws", () => {
       expect(() =>
         getIonSource(new URL("data:application/octet-stream,x")),
-      ).toThrow("parse_ion: source must be an http(s) URL");
+      ).toThrow("parseIon: source must be an http(s) URL");
     });
   });
 
@@ -119,25 +118,25 @@ describe("ionSource classifier", () => {
   describe("invalid input", () => {
     test("null throws", () => {
       expect(() => getIonSource(null as any)).toThrow(
-        "parse_ion: source must be a path, a URL or bytes",
+        "parseIon: source must be a path, a URL or bytes",
       );
     });
 
     test("undefined throws", () => {
       expect(() => getIonSource(undefined as any)).toThrow(
-        "parse_ion: source must be a path, a URL or bytes",
+        "parseIon: source must be a path, a URL or bytes",
       );
     });
 
     test("number throws", () => {
       expect(() => getIonSource(42 as any)).toThrow(
-        "parse_ion: source must be a path, a URL or bytes",
+        "parseIon: source must be a path, a URL or bytes",
       );
     });
 
     test("plain object throws", () => {
       expect(() => getIonSource({} as any)).toThrow(
-        "parse_ion: source must be a path, a URL or bytes",
+        "parseIon: source must be a path, a URL or bytes",
       );
     });
   });

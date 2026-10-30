@@ -379,6 +379,15 @@ a:focus-visible {
   color: var(--muted);
 }
 
+.prose-link {
+  color: var(--accent-strong);
+  text-decoration: none;
+}
+
+.prose-link:hover {
+  text-decoration: underline;
+}
+
 .text-link,
 .group-list-name {
   all: unset;

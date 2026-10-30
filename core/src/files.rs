@@ -26,6 +26,20 @@ const RESERVED_HEADERS: [&str; 3] = ["host", "content-length", "transfer-encodin
 ///
 /// One scan from get_scans: its retention time, centroided m/z and intensity values, and its details.
 ///
+/// Fields:
+/// - `rt`: Retention time (minutes).
+/// - `mz`: m/z values.
+/// - `intensity`: Intensities, same length as mz.
+/// - `level`: MS level.
+/// - `precursor_mz`: Precursor m/z (MS2 and higher).
+/// - `base_peak_mz`: Base peak m/z.
+/// - `base_peak_intensity`: Base peak intensity.
+/// - `total_ion_current`: Total ion current.
+/// - `polarity`: Polarity: 1 positive, 2 negative, 0 unknown.
+/// - `x`: Imaging x position. 0 in non-imaging files.
+/// - `y`: Imaging y position. 0 in non-imaging files.
+/// - `z`: Imaging z position. 0 in non-imaging files.
+///
 /// [Documentation](https://phenological.github.io/quantion/?language=rust#Scan)
 #[derive(Clone, Debug, PartialEq)]
 pub struct Scan {
@@ -76,10 +90,12 @@ pub(crate) fn from_fast_error(function: &'static str, error: FastError) -> Quant
 
 /// **parse_ion** · Files
 ///
-/// Open an .ion file from a path, a URL or bytes. Paths and URLs are read lazily: only the bytes a query needs are fetched.
+/// Open an Ionic file (.ion) from a path, a URL or bytes. Paths and URLs are read lazily: only the bytes a query needs are fetched.
+///
+/// **Warning:** The sample is freed when it goes out of scope, so nothing else is needed in normal use. When processing many samples, drop each one after using it, with drop(file), so its memory is freed right away instead of piling up.
 ///
 /// - `input`: Where the file is: a path, an http(s) URL, or raw bytes.
-/// - `options`: Optional settings. Every field and default is listed in ParseIonOptions.
+/// - `options`: Optional settings: `max_cache_size` = 0. See [ParseIonOptions](https://phenological.github.io/quantion/?language=rust#ParseIonOptions).
 ///
 /// Returns: The opened sample.
 ///
@@ -114,6 +130,8 @@ pub fn parse_ion(input: impl Into<IonInput>, options: ParseIonOptions) -> Result
 ///
 /// Open an mzML file from a path or bytes. It is always loaded fully into memory. URLs are refused.
 ///
+/// **Warning:** The sample is freed when it goes out of scope, so nothing else is needed in normal use. When processing many samples, drop each one after using it, with drop(file), so its memory is freed right away instead of piling up.
+///
 /// - `input`: Where the file is: a path or raw bytes.
 ///
 /// Returns: The loaded sample.
@@ -134,10 +152,10 @@ pub fn parse_mzml(input: impl Into<MzmlInput>) -> Result<SampleFile, QuantionErr
 
 /// **write_ion** · Files
 ///
-/// Write a sample as .ion. With no out, it returns the bytes. A path writes a file; a URL uploads it in one PUT request.
+/// Write a sample as an Ionic file (.ion). With no out, it returns the bytes. A path writes a file; a URL uploads it in one PUT request.
 ///
 /// - `file`: The sample to write.
-/// - `options`: Optional settings. Every field and default is listed in WriteIonOptions.
+/// - `options`: Optional settings: `out` = None, `overwrite` = false, `level` = 12, `f32_compress` = false, `headers` = empty. See [WriteIonOptions](https://phenological.github.io/quantion/?language=rust#WriteIonOptions).
 ///
 /// Returns: The bytes when out is left out; nothing when it is written or uploaded.
 ///
@@ -193,7 +211,7 @@ pub(crate) fn encode_ion(file: &mut SampleFile, options: &WriteIonOptions) -> Re
 /// Write a sample as mzML. With no out, it returns the bytes. Only a path is allowed, no URL.
 ///
 /// - `file`: The sample to write.
-/// - `options`: Optional settings. Every field and default is listed in WriteMzmlOptions.
+/// - `options`: Optional settings: `out` = None, `overwrite` = false. See [WriteMzmlOptions](https://phenological.github.io/quantion/?language=rust#WriteMzmlOptions).
 ///
 /// Returns: The bytes when out is left out; nothing when it is written.
 ///
@@ -292,29 +310,50 @@ fn upload(function: &'static str, _url: &str, _headers: &[Header], _bytes: Vec<u
 /// Read scans by retention time or precursor m/z. A range returns every scan in it; one number returns the closest scan, as a list of one.
 ///
 /// - `file`: The sample to read, from parse_ion or parse_mzml.
-/// - `query`: Which scans, by retention time: a range or one value.
-/// - `query`: Or by precursor m/z: a range or one value. Give rt or mz, not both.
-/// - `options`: Optional settings. Every field and default is listed in GetScansOptions.
+/// - `query`: Which scans, by retention time: a range or one value. Each ScanQuery has `RtRange(FromTo)`, `Rt(f64)`, `MzRange(FromTo)`, `Mz(f64)`. See [ScanQuery](https://phenological.github.io/quantion/?language=rust#ScanQuery).
+///   Example: `let query = ScanQuery::RtRange(FromTo { from: 1.0, to: 2.5 });`
+/// - `query`: Or by precursor m/z: a range or one value. Give rt or mz, not both. Each ScanQuery has `RtRange(FromTo)`, `Rt(f64)`, `MzRange(FromTo)`, `Mz(f64)`. See [ScanQuery](https://phenological.github.io/quantion/?language=rust#ScanQuery).
+///   Example: `let query = ScanQuery::RtRange(FromTo { from: 1.0, to: 2.5 });`
+/// - `options`: Optional settings: `level` = 1, `time_unit` = MINUTES. See [GetScansOptions](https://phenological.github.io/quantion/?language=rust#GetScansOptions).
+///
+/// Returns: The scans found, in rt order.
+///
+/// [Documentation](https://phenological.github.io/quantion/?language=rust#get_scans)
+pub(crate) fn check_scan_query(function: &'static str, query: ScanQuery) -> Result<(), QuantionError> {
+    match query {
+        ScanQuery::Rt(rt) => check_finite(function, "rt", rt),
+        ScanQuery::Mz(mz) => check_positive(function, "mz", mz),
+        ScanQuery::RtRange(range) | ScanQuery::MzRange(range) => {
+            check_finite(function, "from", range.from)?;
+            if range.to.is_nan() || range.to < range.from {
+                return Err(QuantionError::invalid(
+                    function,
+                    "to",
+                    format!("must be at least from ({}), got {}", range.from, range.to),
+                ));
+            }
+            Ok(())
+        }
+    }
+}
+
+/// **get_scans** · Files
+///
+/// Read scans by retention time or precursor m/z. A range returns every scan in it; one number returns the closest scan, as a list of one.
+///
+/// - `file`: The sample to read, from parse_ion or parse_mzml.
+/// - `query`: Which scans, by retention time: a range or one value. Each ScanQuery has `RtRange(FromTo)`, `Rt(f64)`, `MzRange(FromTo)`, `Mz(f64)`. See [ScanQuery](https://phenological.github.io/quantion/?language=rust#ScanQuery).
+///   Example: `let query = ScanQuery::RtRange(FromTo { from: 1.0, to: 2.5 });`
+/// - `query`: Or by precursor m/z: a range or one value. Give rt or mz, not both. Each ScanQuery has `RtRange(FromTo)`, `Rt(f64)`, `MzRange(FromTo)`, `Mz(f64)`. See [ScanQuery](https://phenological.github.io/quantion/?language=rust#ScanQuery).
+///   Example: `let query = ScanQuery::RtRange(FromTo { from: 1.0, to: 2.5 });`
+/// - `options`: Optional settings: `level` = 1, `time_unit` = MINUTES. See [GetScansOptions](https://phenological.github.io/quantion/?language=rust#GetScansOptions).
 ///
 /// Returns: The scans found, in rt order.
 ///
 /// [Documentation](https://phenological.github.io/quantion/?language=rust#get_scans)
 pub fn get_scans(file: &mut SampleFile, query: ScanQuery, options: GetScansOptions) -> Result<Vec<Scan>, QuantionError> {
     const FUNCTION: &str = "get_scans";
-    match query {
-        ScanQuery::Rt(rt) => check_finite(FUNCTION, "rt", rt)?,
-        ScanQuery::Mz(mz) => check_positive(FUNCTION, "mz", mz)?,
-        ScanQuery::RtRange(range) | ScanQuery::MzRange(range) => {
-            check_finite(FUNCTION, "from", range.from)?;
-            if range.to.is_nan() || range.to < range.from {
-                return Err(QuantionError::invalid(
-                    FUNCTION,
-                    "to",
-                    format!("must be at least from ({}), got {}", range.from, range.to),
-                ));
-            }
-        }
-    }
+    check_scan_query(FUNCTION, query)?;
     let (_, scans) = match &mut file.source {
         FileSource::Full(mzml) => read_scans(mzml.as_mut(), query, options.time_unit, options.level),
         FileSource::Lazy(ion) | FileSource::Remote(ion) => read_scans(ion.as_mut(), query, options.time_unit, options.level),
@@ -328,15 +367,30 @@ pub fn get_scans(file: &mut SampleFile, query: ScanQuery, options: GetScansOptio
 ///
 /// - `file`: The sample to read, from parse_ion or parse_mzml.
 /// - `mz`: The m/z to extract (Da).
-/// - `options`: Optional settings. Every field and default is listed in CalculateEicOptions.
+/// - `options`: Optional settings: `from` = 0.0, `to` = f64::INFINITY, `ppm_tolerance` = 20.0, `mz_tolerance` = 0.005, `time_unit` = MINUTES. See [CalculateEicOptions](https://phenological.github.io/quantion/?language=rust#CalculateEicOptions).
+///
+/// Returns: The chromatogram: x = retention times, y = summed intensities.
+///
+/// [Documentation](https://phenological.github.io/quantion/?language=rust#calculate_eic)
+pub(crate) fn check_eic_request(function: &'static str, mz: f64, options: &CalculateEicOptions) -> Result<(), QuantionError> {
+    check_positive(function, "mz", mz)?;
+    options.check(function, "")
+}
+
+/// **calculate_eic** · Files
+///
+/// Extract the ion chromatogram of one m/z.
+///
+/// - `file`: The sample to read, from parse_ion or parse_mzml.
+/// - `mz`: The m/z to extract (Da).
+/// - `options`: Optional settings: `from` = 0.0, `to` = f64::INFINITY, `ppm_tolerance` = 20.0, `mz_tolerance` = 0.005, `time_unit` = MINUTES. See [CalculateEicOptions](https://phenological.github.io/quantion/?language=rust#CalculateEicOptions).
 ///
 /// Returns: The chromatogram: x = retention times, y = summed intensities.
 ///
 /// [Documentation](https://phenological.github.io/quantion/?language=rust#calculate_eic)
 pub fn calculate_eic(file: &mut SampleFile, mz: f64, options: CalculateEicOptions) -> Result<DataXY, QuantionError> {
     const FUNCTION: &str = "calculate_eic";
-    check_positive(FUNCTION, "mz", mz)?;
-    options.check(FUNCTION, "")?;
+    check_eic_request(FUNCTION, mz, &options)?;
     read_eic(&mut file.reader(), mz, options.get_window(), options.in_minutes()).map_err(|error| from_fast_error(FUNCTION, error))
 }
 
@@ -344,9 +398,11 @@ pub fn calculate_eic(file: &mut SampleFile, mz: f64, options: CalculateEicOption
 ///
 /// Build an imaging map of one m/z: summed intensity at each x, y position.
 ///
+/// **Warning:** Only Ionic files (.ion). The sample must come from parse_ion; a sample from parse_mzml gives an invalid_argument error.
+///
 /// - `file`: The sample to read. Must come from parse_ion.
 /// - `mz`: The m/z to map (Da).
-/// - `options`: Optional settings. Every field and default is listed in GetIonImageOptions.
+/// - `options`: Optional settings: `tolerance` = 0.125, `level` = 1, `on_progress` = None. See [GetIonImageOptions](https://phenological.github.io/quantion/?language=rust#GetIonImageOptions).
 ///
 /// Returns: The image.
 ///

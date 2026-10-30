@@ -135,7 +135,7 @@ def _read_record(
         raise _invalid(function, argument, "must be a dict")
     for key in record:
         if key not in required and key not in optional:
-            raise _unknown_option(function, f"{argument}.{key}")
+            raise _unknown_option(function, f"{argument}.{key}", [*required, *optional])
     for key in required:
         if record.get(key) is None:
             raise _missing(function, f"{argument}.{key}")
@@ -220,11 +220,14 @@ def _open_file(function: str, abi: _ABI, call: Callable[[Any], int], is_ion: boo
 def parse_ion(source, options: Optional[ParseIonOptions] = None) -> SampleFile:
     """parse_ion · Files
 
-    Open an .ion file from a path, a URL or bytes. Paths and URLs are read lazily: only the bytes a query needs are fetched.
+    Open an Ionic file (.ion) from a path, a URL or bytes. Paths and URLs are read lazily: only the bytes a query needs are fetched.
+
+    Warning:
+        The sample is freed by the library once it is no longer used, so dispose is not needed in normal use. When processing many samples, dispose each one after using it, so its memory is freed right away instead of piling up.
 
     Args:
         source: Where the file is: a path, an http(s) URL, or raw bytes.
-        options: Optional settings. Every field and default is listed in ParseIonOptions.
+        options: Optional settings: max_cache_size = 0. See ParseIonOptions: https://phenological.github.io/quantion/?language=python#ParseIonOptions
 
     Returns:
         The opened sample.
@@ -252,6 +255,9 @@ def parse_mzml(source) -> SampleFile:
     """parse_mzml · Files
 
     Open an mzML file from a path or bytes. It is always loaded fully into memory. URLs are refused.
+
+    Warning:
+        The sample is freed by the library once it is no longer used, so dispose is not needed in normal use. When processing many samples, dispose each one after using it, so its memory is freed right away instead of piling up.
 
     Args:
         source: Where the file is: a path or raw bytes.
@@ -299,11 +305,11 @@ def _encode_headers(function: str, headers: Any) -> bytes:
 def write_ion(file: SampleFile, options: Optional[WriteIonOptions] = None) -> Optional[bytes]:
     """write_ion · Files
 
-    Write a sample as .ion. With no out, it returns the bytes. A path writes a file; a URL uploads it in one PUT request.
+    Write a sample as an Ionic file (.ion). With no out, it returns the bytes. A path writes a file; a URL uploads it in one PUT request.
 
     Args:
         file: The sample to write.
-        options: Optional settings. Every field and default is listed in WriteIonOptions.
+        options: Optional settings: out = None, overwrite = False, level = 12, f32_compress = False, headers = []. See WriteIonOptions: https://phenological.github.io/quantion/?language=python#WriteIonOptions
 
     Returns:
         The bytes when out is left out; nothing when it is written or uploaded.
@@ -353,7 +359,7 @@ def write_mzml(file: SampleFile, options: Optional[WriteMzmlOptions] = None) -> 
 
     Args:
         file: The sample to write.
-        options: Optional settings. Every field and default is listed in WriteMzmlOptions.
+        options: Optional settings: out = None, overwrite = False. See WriteMzmlOptions: https://phenological.github.io/quantion/?language=python#WriteMzmlOptions
 
     Returns:
         The bytes when out is left out; nothing when it is written.
@@ -392,9 +398,11 @@ def get_scans(
 
     Args:
         file: The sample to read, from parse_ion or parse_mzml.
-        rt: Which scans, by retention time: a range or one value.
-        mz: Or by precursor m/z: a range or one value. Give rt or mz, not both.
-        options: Optional settings. Every field and default is listed in GetScansOptions.
+        rt: Which scans, by retention time: a range or one value. Each FromTo has from, to. See FromTo: https://phenological.github.io/quantion/?language=python#FromTo
+            Example: window: FromTo = {"from": 1.0, "to": 2.5}
+        mz: Or by precursor m/z: a range or one value. Give rt or mz, not both. Each FromTo has from, to. See FromTo: https://phenological.github.io/quantion/?language=python#FromTo
+            Example: window: FromTo = {"from": 1.0, "to": 2.5}
+        options: Optional settings: level = 1, time_unit = MINUTES. See GetScansOptions: https://phenological.github.io/quantion/?language=python#GetScansOptions
 
     Returns:
         The scans found, in rt order.
@@ -431,7 +439,7 @@ def calculate_eic(file: SampleFile, mz: float, options: Optional[CalculateEicOpt
     Args:
         file: The sample to read, from parse_ion or parse_mzml.
         mz: The m/z to extract (Da).
-        options: Optional settings. Every field and default is listed in CalculateEicOptions.
+        options: Optional settings: from = 0, to = inf, ppm_tolerance = 20, mz_tolerance = 0.005, time_unit = MINUTES. See CalculateEicOptions: https://phenological.github.io/quantion/?language=python#CalculateEicOptions
 
     Returns:
         The chromatogram: x = retention times, y = summed intensities.
@@ -459,10 +467,13 @@ def get_ion_image(file: SampleFile, mz: float, options: Optional[GetIonImageOpti
 
     Build an imaging map of one m/z: summed intensity at each x, y position.
 
+    Warning:
+        Only Ionic files (.ion). The sample must come from parse_ion; a sample from parse_mzml gives an invalid_argument error.
+
     Args:
         file: The sample to read. Must come from parse_ion.
         mz: The m/z to map (Da).
-        options: Optional settings. Every field and default is listed in GetIonImageOptions.
+        options: Optional settings: tolerance = 0.125, level = 1, on_progress = None. See GetIonImageOptions: https://phenological.github.io/quantion/?language=python#GetIonImageOptions
 
     Returns:
         The image.
@@ -524,7 +535,7 @@ def find_peaks(x: Sequence, y: Sequence, options: Optional[FindPeaksOptions] = N
     Args:
         x: Retention times, ascending. At least 3 points.
         y: Intensities, same length as x.
-        options: Optional settings. Every field and default is listed in FindPeaksOptions.
+        options: Optional settings: min_integral = off, min_intensity = 500, min_peak_width_points = 3, noise = off, auto_noise = True, auto_baseline = True, lambda = 20, max_iterations = 4, allow_overlap = False, min_snr = 2, min_r2 = 0, shape = EMG, kernel_size = 0. See FindPeaksOptions: https://phenological.github.io/quantion/?language=python#FindPeaksOptions
 
     Returns:
         Every peak that passes the filters.
@@ -558,7 +569,7 @@ def get_peak(x: Sequence, y: Sequence, rt: float, options: Optional[GetPeakOptio
         x: Retention times, ascending. At least 3 points.
         y: Intensities, same length as x.
         rt: Expected retention time of the peak.
-        options: Optional settings. Every field and default is listed in GetPeakOptions.
+        options: Optional settings: range = 0, find_peaks. See GetPeakOptions: https://phenological.github.io/quantion/?language=python#GetPeakOptions
 
     Returns:
         The best peak near rt. No peak gives a Peak with every field 0.
@@ -588,7 +599,7 @@ def fit_peak(x: Sequence, y: Sequence, rt: float, options: Optional[FitPeakOptio
         x: Retention times, ascending. At least 3 points.
         y: Intensities, same length as x.
         rt: Expected retention time of the peak.
-        options: Optional settings. Every field and default is listed in FitPeakOptions.
+        options: Optional settings: shape = EMG, intensity = 0. See FitPeakOptions: https://phenological.github.io/quantion/?language=python#FitPeakOptions
 
     Returns:
         The fitted curve, or none when no peak is found or the fit fails.
@@ -617,8 +628,9 @@ def draw_peaks(params: Sequence[PeakParameters], options: Optional[DrawPeaksOpti
     Simulate a chromatogram from one or more peak shapes. Every peak is drawn into the same chromatogram; where they overlap, intensities add up. No real data is needed.
 
     Args:
-        params: The peaks to draw, one PeakParameters per peak.
-        options: Optional settings. Every field and default is listed in DrawPeaksOptions.
+        params: The peaks to draw, one PeakParameters per peak. Each PeakParameters has height, center, fwhm, tail, r2. See PeakParameters: https://phenological.github.io/quantion/?language=python#PeakParameters
+            Example: peak: PeakParameters = {"height": 9800, "center": 2.38, "fwhm": 0.021, "tail": 0.006}
+        options: Optional settings: from = 0, to = 0, points = 1000. See DrawPeaksOptions: https://phenological.github.io/quantion/?language=python#DrawPeaksOptions
 
     Returns:
         The simulated chromatogram: x = retention times, y = summed intensities.
@@ -675,7 +687,7 @@ def calculate_baseline(y: Sequence, options: Optional[CalculateBaselineOptions] 
 
     Args:
         y: Intensities.
-        options: Optional settings. Every field and default is listed in CalculateBaselineOptions.
+        options: Optional settings: lambda = 20, max_iterations = 4. See CalculateBaselineOptions: https://phenological.github.io/quantion/?language=python#CalculateBaselineOptions
 
     Returns:
         The baseline, same length as y.
@@ -717,8 +729,9 @@ def find_targets(file: SampleFile, targets: Sequence[Target], options: Optional[
 
     Args:
         file: The sample to read, from parse_ion or parse_mzml.
-        targets: What to look for. A target without range searches its whole EIC.
-        options: Optional settings. Every field and default is listed in FindTargetsOptions.
+        targets: What to look for. A target without range searches its whole EIC. Each Target has id, mz, rt, range. See Target: https://phenological.github.io/quantion/?language=python#Target
+            Example: target: Target = {"id": "compound_1", "mz": 260.103, "rt": 2.383, "range": 0.05}
+        options: Optional settings: eic, find_peaks, threads = 1. See FindTargetsOptions: https://phenological.github.io/quantion/?language=python#FindTargetsOptions
 
     Returns:
         One Peak per target, in the same order. A target with no peak gets a Peak with every field 0.
@@ -752,10 +765,14 @@ def find_transitions(
 
     For each SRM transition, take the stored chromatogram whose precursor (Q1) and product (Q3) are both within 0.005 m/z, and find its peak near rt ± range.
 
+    Warning:
+        Needs the whole file. A sample opened from a URL gives a remote_file error; open it from a path or bytes.
+
     Args:
         file: The sample to read, from parse_ion or parse_mzml.
-        targets: The transitions.
-        options: Optional settings. Every field and default is listed in FindTransitionsOptions.
+        targets: The transitions. Each Transition has id, precursor, product, rt, range. See Transition: https://phenological.github.io/quantion/?language=python#Transition
+            Example: transition: Transition = {"id": "compound_1", "precursor": 89.04768, "product": 89.04768, "rt": 2.385, "range": 0.1}
+        options: Optional settings: find_peaks, threads = 1. See FindTransitionsOptions: https://phenological.github.io/quantion/?language=python#FindTransitionsOptions
 
     Returns:
         One Peak per transition, in the same order. No match gives a Peak with every field 0.
@@ -791,7 +808,7 @@ def find_features(file: SampleFile, options: Optional[FindFeaturesOptions] = Non
 
     Args:
         file: The sample to read, from parse_ion or parse_mzml.
-        options: Optional settings. Every field and default is listed in FindFeaturesOptions.
+        options: Optional settings: eic, grid, find_peaks, threads = 1. See FindFeaturesOptions: https://phenological.github.io/quantion/?language=python#FindFeaturesOptions
 
     Returns:
         Every feature found, without frequency.
@@ -822,8 +839,8 @@ def match_features(directory, options: Optional[MatchFeaturesOptions] = None) ->
     Untargeted across samples: find features in every file of a folder and match them. Values are medians over the samples where a feature was found.
 
     Args:
-        directory: Folder with the .ion or mzML files.
-        options: Optional settings. Every field and default is listed in MatchFeaturesOptions.
+        directory: Folder with the Ionic (.ion) or mzML files.
+        options: Optional settings: eic, grid, grouping, find_peaks, threads = 1. See MatchFeaturesOptions: https://phenological.github.io/quantion/?language=python#MatchFeaturesOptions
 
     Returns:
         One Feature per matched feature; frequency is the fraction of samples (0–1).

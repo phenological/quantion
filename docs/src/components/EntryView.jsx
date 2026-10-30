@@ -7,6 +7,12 @@ import { GitHubIcon } from "./GitHubLinks";
 import { GroupView } from "./GroupView";
 import { ReturnsLine } from "./ReturnsLine";
 import { VersionsView } from "./VersionsView";
+import { IonicText } from "./IonicText";
+
+function getWarning(entry, code) {
+  if (code?.warning) return code.warning;
+  return entry.warning;
+}
 
 function GroupBadge({ group }) {
   const { dispatch } = useDocumentation();
@@ -24,7 +30,9 @@ function EntryHeading({ title, group, summary }) {
         <h2>{title}</h2>
         {group && <GroupBadge group={group} />}
       </div>
-      <p className="summary">{summary}</p>
+      <p className="summary">
+        <IonicText text={summary} />
+      </p>
     </>
   );
 }
@@ -65,10 +73,10 @@ function Entry({ entry, language }) {
   return (
     <>
       <EntryHeading title={getDisplayName(entry, language)} group={entry.group} summary={entry.summary} />
-      {entry.warning && (
+      {getWarning(entry, code) && (
         <p className="warning" role="note">
           <strong>Warning: </strong>
-          {entry.warning}
+          <IonicText text={getWarning(entry, code)} />
         </p>
       )}
       {!code ? (
