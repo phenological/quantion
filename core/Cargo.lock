@@ -373,9 +373,9 @@ dependencies = [
 
 [[package]]
 name = "ionic-rs"
-version = "0.2.0"
+version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "af66422debee2d98fabc7316cdc69391a5c26dbea50adb94b08c7ab16c0230af"
+checksum = "6af21f54d7ffcc97ac0719fb17828d30d8037f989ba56349c8073124be9e574b"
 dependencies = [
  "base64 0.22.1",
  "bytemuck",

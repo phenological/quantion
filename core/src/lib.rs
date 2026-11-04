@@ -20,7 +20,7 @@ pub use files::{Scan, calculate_eic, get_ion_image, get_scans, parse_ion, parse_
 pub use models::{load_model, load_warp};
 pub use options::{
     CalculateBaselineOptions, DrawPeaksOptions, CalculateEicOptions, FindFeaturesOptions, FindPeaksOptions, FindTargetsOptions,
-    FindTransitionsOptions, FitPeakOptions, GetPeakOptions, GetScansOptions, GridOptions, GroupingOptions, Header,
+    FindTransitionsOptions, FitPeakOptions, GetPeakOptions, GetScansOptions, GridOptions, ScanArray, GroupingOptions, Header,
     GetIonImageOptions, IonOutput, MatchFeaturesOptions, ParseIonOptions, WriteIonOptions, WriteMzmlOptions,
 };
 pub use sample_file::{MzmlInput, SampleFile};

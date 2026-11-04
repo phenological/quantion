@@ -5,7 +5,9 @@ use std::{
     slice,
 };
 
-use super::{Buf, CPeakOptions, ParsedFile, build_features_bridge, build_fit_bridge, build_image_bridge, build_peaks_bridge, build_scans_bridge, clear_buf, f64_to_u8, mark_file_broken, pack_byte_ranges, read_ids, write_buf};
+use ionic::ByteRangesOptions;
+
+use super::{Buf, CPeakOptions, ParsedFile, build_features_bridge, build_scan_arrays_bridge, build_fit_bridge, build_image_bridge, build_peaks_bridge, build_scans_bridge, clear_buf, f64_to_u8, mark_file_broken, pack_byte_ranges, read_ids, write_buf};
 use crate::{
     DataXY, CalculateEicOptions, ErrorKind, FindFeaturesOptions, FindPeaksOptions, FindTargetsOptions, FindTransitionsOptions,
     FitPeakOptions, GetPeakOptions, GetScansOptions, GridOptions, Header, GetIonImageOptions, PeakParameters, PeakShape,
@@ -503,9 +505,63 @@ pub unsafe extern "C" fn get_scans(handle: *mut ParsedFile, query_type: u8, from
         let options = GetScansOptions {
             level,
             time_unit: get_time_unit(time_unit),
+            ..Default::default()
         };
         let scans = crate::get_scans(file, query, options)?;
         write_buf(out, build_scans_bridge(&scans).ok_or_else(|| QuantionError::internal(FUNCTION, "the scans could not be packed"))?);
+        Ok(())
+    })
+}
+
+fn read_accessions<'a>(accessions: *const u32, array_count: usize) -> Result<&'a [u32], QuantionError> {
+    if accessions.is_null() || array_count == 0 {
+        return Err(QuantionError::invalid("get_scans", "arrays", "must have at least one array"));
+    }
+    Ok(unsafe { std::slice::from_raw_parts(accessions, array_count) })
+}
+
+/// Read chosen arrays of each scan. `accessions` holds the number of each array, such as 1000786.
+///
+/// # Safety
+/// `handle` must be a valid `ParsedFile`. `accessions` must hold `array_count` numbers. `out` must be a valid writable `Buf`.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn get_scans_with_arrays(handle: *mut ParsedFile, query_type: u8, from: f64, to: f64, level: u8, time_unit: u8, accessions: *const u32, array_count: usize, out: *mut Buf) -> c_int {
+    const FUNCTION: &str = "get_scans";
+    if out.is_null() {
+        return remember(QuantionError::internal(FUNCTION, "the output buffer is null"));
+    }
+    clear_buf(out);
+    run_on_file(FUNCTION, handle, |file| {
+        let query = get_scan_query(query_type, from, to).ok_or_else(|| QuantionError::internal(FUNCTION, "unknown query type"))?;
+        crate::files::check_scan_query(FUNCTION, query)?;
+        let accessions = read_accessions(accessions, array_count)?;
+        let options = GetScansOptions { level, time_unit: get_time_unit(time_unit), ..Default::default() };
+        let found = crate::files::read_scans_with_arrays(file, query, &options, accessions);
+        write_buf(out, build_scan_arrays_bridge(found).ok_or_else(|| QuantionError::internal(FUNCTION, "the scans could not be packed"))?);
+        Ok(())
+    })
+}
+
+/// Plan the byte ranges `get_scans_with_arrays` reads from an .ion file.
+///
+/// # Safety
+/// `handle` must be a valid `ParsedFile`. `accessions` must hold `array_count` numbers. `out` must be a valid writable `Buf`.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn plan_scans_with_arrays(handle: *mut ParsedFile, query_type: u8, from: f64, to: f64, level: u8, time_unit: u8, accessions: *const u32, array_count: usize, out: *mut Buf) -> c_int {
+    const FUNCTION: &str = "get_scans";
+    if out.is_null() {
+        return remember(QuantionError::internal(FUNCTION, "the output buffer is null"));
+    }
+    clear_buf(out);
+    run_on_file(FUNCTION, handle, |file| {
+        let query = get_scan_query(query_type, from, to).ok_or_else(|| QuantionError::internal(FUNCTION, "unknown query type"))?;
+        crate::files::check_scan_query(FUNCTION, query)?;
+        let arrays = ByteRangesOptions { arrays: read_accessions(accessions, array_count)?.to_vec() };
+        if let FileSource::Lazy(ion) | FileSource::Remote(ion) = &mut file.source {
+            let ranges = crate::utilities::calculate_eic::plan_scan_ranges(ion.as_mut(), query, get_time_unit(time_unit), level, &arrays)
+                .map_err(|error| from_fast_error(FUNCTION, error))?;
+            write_ranges(out, &ranges);
+        }
         Ok(())
     })
 }
@@ -525,7 +581,7 @@ pub unsafe extern "C" fn plan_scans(handle: *mut ParsedFile, query_type: u8, fro
         let query = get_scan_query(query_type, from, to).ok_or_else(|| QuantionError::internal(FUNCTION, "unknown query type"))?;
         crate::files::check_scan_query(FUNCTION, query)?;
         if let FileSource::Lazy(ion) | FileSource::Remote(ion) = &mut file.source {
-            let ranges = crate::utilities::calculate_eic::plan_scan_ranges(ion.as_mut(), query, get_time_unit(time_unit), level)
+            let ranges = crate::utilities::calculate_eic::plan_scan_ranges(ion.as_mut(), query, get_time_unit(time_unit), level, &ByteRangesOptions::default())
                 .map_err(|error| from_fast_error(FUNCTION, error))?;
             write_ranges(out, &ranges);
         }

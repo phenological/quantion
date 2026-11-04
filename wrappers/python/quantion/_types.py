@@ -116,8 +116,8 @@ class Header(TypedDict):
     One HTTP header sent with an upload in write_ion. Values are never printed. A line break, or Host, Content-Length or Transfer-Encoding, gives an invalid_argument error.
 
     Fields:
-        name: Header name, such as Authorization.
-        value: Header value.
+        name: Name of the header, such as Authorization.
+        value: Value of the header.
 
     Example:
         header: Header = {"name": "Authorization", "value": "Bearer <token>"}
@@ -173,7 +173,7 @@ class GetPeakOptions(TypedDict, total=False):
 
     Fields:
         range: Half-width of the search window around rt. 0 searches the whole trace. Default 0.
-        find_peaks: Peak-picking settings. See FindPeaksOptions: https://phenological.github.io/quantion/?language=python#FindPeaksOptions
+        find_peaks: Settings for peak picking. See FindPeaksOptions: https://phenological.github.io/quantion/?language=python#FindPeaksOptions
 
     Documentation: https://phenological.github.io/quantion/?language=python#GetPeakOptions
     """
@@ -295,7 +295,7 @@ class FindTargetsOptions(TypedDict, total=False):
 
     Fields:
         eic: EIC retention-time range (from, to), tolerances and time unit. See CalculateEicOptions: https://phenological.github.io/quantion/?language=python#CalculateEicOptions
-        find_peaks: Peak-picking settings. See FindPeaksOptions: https://phenological.github.io/quantion/?language=python#FindPeaksOptions
+        find_peaks: Settings for peak picking. See FindPeaksOptions: https://phenological.github.io/quantion/?language=python#FindPeaksOptions
         threads: Number of threads. Default 1.
 
     Documentation: https://phenological.github.io/quantion/?language=python#FindTargetsOptions
@@ -311,7 +311,7 @@ class FindTransitionsOptions(TypedDict, total=False):
     Settings for find_transitions.
 
     Fields:
-        find_peaks: Peak-picking settings. See FindPeaksOptions: https://phenological.github.io/quantion/?language=python#FindPeaksOptions
+        find_peaks: Settings for peak picking. See FindPeaksOptions: https://phenological.github.io/quantion/?language=python#FindPeaksOptions
         threads: Number of threads. Default 1.
 
     Documentation: https://phenological.github.io/quantion/?language=python#FindTransitionsOptions
@@ -328,7 +328,7 @@ class FindFeaturesOptions(TypedDict, total=False):
     Fields:
         eic: EIC retention-time range (from, to), tolerances and time unit. See CalculateEicOptions: https://phenological.github.io/quantion/?language=python#CalculateEicOptions
         grid: The m/z grid. See GridOptions: https://phenological.github.io/quantion/?language=python#GridOptions
-        find_peaks: Peak-picking settings. See FindPeaksOptions: https://phenological.github.io/quantion/?language=python#FindPeaksOptions
+        find_peaks: Settings for peak picking. See FindPeaksOptions: https://phenological.github.io/quantion/?language=python#FindPeaksOptions
         threads: Number of threads. Default 1.
 
     Documentation: https://phenological.github.io/quantion/?language=python#FindFeaturesOptions
@@ -348,7 +348,7 @@ class MatchFeaturesOptions(TypedDict, total=False):
         eic: EIC retention-time range (from, to), tolerances and time unit. See CalculateEicOptions: https://phenological.github.io/quantion/?language=python#CalculateEicOptions
         grid: The m/z grid. See GridOptions: https://phenological.github.io/quantion/?language=python#GridOptions
         grouping: How features are matched across samples. See GroupingOptions: https://phenological.github.io/quantion/?language=python#GroupingOptions
-        find_peaks: Peak-picking settings. See FindPeaksOptions: https://phenological.github.io/quantion/?language=python#FindPeaksOptions
+        find_peaks: Settings for peak picking. See FindPeaksOptions: https://phenological.github.io/quantion/?language=python#FindPeaksOptions
         threads: Number of threads. Default 1.
 
     Documentation: https://phenological.github.io/quantion/?language=python#MatchFeaturesOptions
@@ -360,6 +360,24 @@ class MatchFeaturesOptions(TypedDict, total=False):
     threads: int
 
 
+class ScanArray(TypedDict):
+    """ScanArray · Options
+
+    One array to read from each scan in get_scans.
+
+    Fields:
+        key: Name of the array in the result, as a field of the scan.
+        accession: Accession of the array in the file, such as MS:1000514 for m/z.
+
+    Example:
+        array: ScanArray = {"key": "mz", "accession": "MS:1000514"}
+
+    Documentation: https://phenological.github.io/quantion/?language=python#ScanArray
+    """
+    key: str
+    accession: str
+
+
 class GetScansOptions(TypedDict, total=False):
     """GetScansOptions · Options
 
@@ -368,11 +386,13 @@ class GetScansOptions(TypedDict, total=False):
     Fields:
         level: MS level. 0 = every level. Default 1.
         time_unit: Unit of rt in the query. Default MINUTES.
+        arrays: Which arrays to read from each scan, as keys with accessions. Every other field of Scan always comes back. Default {"key": "mz", "accession": "MS:1000514"}, {"key": "intensity", "accession": "MS:1000515"}. See ScanArray: https://phenological.github.io/quantion/?language=python#ScanArray
 
     Documentation: https://phenological.github.io/quantion/?language=python#GetScansOptions
     """
     level: int
     time_unit: Union[TimeUnit, str]
+    arrays: List[ScanArray]
 
 
 class ParseIonOptions(TypedDict, total=False):
@@ -458,7 +478,7 @@ Fields:
     from: Start of the peak.
     to: End of the peak.
     intensity: Apex intensity.
-    integral: Peak area.
+    integral: Area of the peak.
     n_points: Points across the peak.
 
 Documentation: https://phenological.github.io/quantion/?language=python#Peak
@@ -487,7 +507,7 @@ class Feature(_FeatureFields, total=False):
         from: Start of the peak.
         to: End of the peak.
         intensity: Apex intensity.
-        integral: Peak area.
+        integral: Area of the peak.
         n_points: Points across the peak.
         frequency: match_features only: fraction of samples where it was found (0–1). Optional.
 

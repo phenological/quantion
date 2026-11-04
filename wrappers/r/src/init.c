@@ -17,6 +17,8 @@ SEXP C_write_ion(SEXP file, SEXP out_path, SEXP overwrite, SEXP level, SEXP f32_
 SEXP C_write_mzml(SEXP file, SEXP out_path, SEXP overwrite);
 SEXP C_get_scans(SEXP file, SEXP query_type, SEXP from, SEXP to, SEXP level, SEXP time_unit);
 SEXP C_plan_scans(SEXP file, SEXP query_type, SEXP from, SEXP to, SEXP level, SEXP time_unit);
+SEXP C_get_scans_with_arrays(SEXP file, SEXP query_type, SEXP from, SEXP to, SEXP level, SEXP time_unit, SEXP accessions);
+SEXP C_plan_scans_with_arrays(SEXP file, SEXP query_type, SEXP from, SEXP to, SEXP level, SEXP time_unit, SEXP accessions);
 SEXP C_calculate_eic(SEXP file, SEXP mz, SEXP eic);
 SEXP C_plan_eic(SEXP file, SEXP mz, SEXP eic);
 SEXP C_get_ion_image(SEXP file, SEXP mz, SEXP tolerance, SEXP level);
@@ -59,6 +61,8 @@ static const R_CallMethodDef CallEntries[] = {
     {"C_write_mzml", (DL_FUNC)&C_write_mzml, 3},
     {"C_get_scans", (DL_FUNC)&C_get_scans, 6},
     {"C_plan_scans", (DL_FUNC)&C_plan_scans, 6},
+    {"C_get_scans_with_arrays", (DL_FUNC)&C_get_scans_with_arrays, 7},
+    {"C_plan_scans_with_arrays", (DL_FUNC)&C_plan_scans_with_arrays, 7},
     {"C_calculate_eic", (DL_FUNC)&C_calculate_eic, 3},
     {"C_plan_eic", (DL_FUNC)&C_plan_eic, 3},
     {"C_get_ion_image", (DL_FUNC)&C_get_ion_image, 4},

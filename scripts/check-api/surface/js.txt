@@ -108,6 +108,7 @@ interface GetPeakOptions
 function getScans(file: SampleFile, query: ScanQuery, options?: GetScansOptions): Promise<Scan[]>
 
 interface GetScansOptions
+    arrays?: ScanArray[] | undefined
     level?: number | undefined
     timeUnit?: TimeUnit | undefined
 
@@ -223,6 +224,10 @@ interface Scan
     x: number
     y: number
     z: number
+
+interface ScanArray
+    accession: string
+    key: string
 
 type ScanQuery = ScanQuery
 
@@ -375,6 +380,7 @@ interface GetPeakOptions
 function getScans(file: SampleFile, query: ScanQuery, options?: GetScansOptions): Promise<Scan[]>
 
 interface GetScansOptions
+    arrays?: ScanArray[] | undefined
     level?: number | undefined
     timeUnit?: TimeUnit | undefined
 
@@ -490,6 +496,10 @@ interface Scan
     x: number
     y: number
     z: number
+
+interface ScanArray
+    accession: string
+    key: string
 
 type ScanQuery = ScanQuery
 

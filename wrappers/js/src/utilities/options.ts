@@ -8,6 +8,7 @@ import type {
   FitPeakOptions,
   GetPeakOptions,
   GetScansOptions,
+  ScanArray,
   GridOptions,
   GroupingOptions,
   Header,
@@ -395,13 +396,122 @@ export function readMatchFeaturesOptions(
   };
 }
 
+const DEFAULT_SCAN_ARRAYS: ScanArray[] = [
+  { key: "mz", accession: "MS:1000514" },
+  { key: "intensity", accession: "MS:1000515" },
+];
+const RESERVED_SCAN_KEYS = new Set([
+  "rt",
+  "level",
+  "precursor_mz",
+  "precursorMz",
+  "base_peak_mz",
+  "basePeakMz",
+  "base_peak_intensity",
+  "basePeakIntensity",
+  "total_ion_current",
+  "totalIonCurrent",
+  "polarity",
+  "x",
+  "y",
+  "z",
+]);
+const SCAN_ARRAY_FIELDS = ["key", "accession"];
+const ACCESSION_PATTERN = /^MS:[0-9]+$/;
+const MAX_ACCESSION = 4294967295;
+
+export function hasDefaultScanArrays(arrays: ScanArray[]): boolean {
+  return (
+    arrays.length === DEFAULT_SCAN_ARRAYS.length &&
+    arrays.every(
+      (array, index) =>
+        array.key === DEFAULT_SCAN_ARRAYS[index].key &&
+        array.accession === DEFAULT_SCAN_ARRAYS[index].accession,
+    )
+  );
+}
+
+export function getAccessionNumbers(arrays: ScanArray[]): Uint32Array {
+  return Uint32Array.from(arrays, (array) => Number(array.accession.slice(3)));
+}
+
+function checkScanArray(
+  value: unknown,
+  seenKeys: Set<string>,
+  functionName: string,
+): ScanArray {
+  if (value === null || typeof value !== "object") {
+    throw invalidArgument(
+      functionName,
+      "arrays",
+      "must hold objects with key and accession",
+    );
+  }
+  const given = value as Record<string, unknown>;
+  checkKeys(given, SCAN_ARRAY_FIELDS, functionName, "arrays.");
+  const { key, accession } = given;
+  if (typeof key !== "string" || key === "") {
+    throw invalidArgument(functionName, "arrays.key", "must not be empty");
+  }
+  if (RESERVED_SCAN_KEYS.has(key)) {
+    throw invalidArgument(
+      functionName,
+      "arrays.key",
+      `cannot be ${JSON.stringify(key)}: a scan already has that field`,
+    );
+  }
+  if (
+    typeof accession !== "string" ||
+    !ACCESSION_PATTERN.test(accession) ||
+    Number(accession.slice(3)) > MAX_ACCESSION
+  ) {
+    throw invalidArgument(
+      functionName,
+      "arrays.accession",
+      `must look like MS:1000514, got ${JSON.stringify(accession)}`,
+    );
+  }
+  for (const pair of DEFAULT_SCAN_ARRAYS) {
+    if ((key === pair.key) !== (accession === pair.accession)) {
+      throw invalidArgument(
+        functionName,
+        "arrays",
+        `${pair.key} and ${pair.accession} must go together`,
+      );
+    }
+  }
+  if (seenKeys.has(key)) {
+    throw invalidArgument(
+      functionName,
+      "arrays.key",
+      `repeats ${JSON.stringify(key)}`,
+    );
+  }
+  seenKeys.add(key);
+  return { key, accession };
+}
+
+function readScanArrays(value: unknown, functionName: string): ScanArray[] {
+  if (value === undefined) return DEFAULT_SCAN_ARRAYS;
+  if (!Array.isArray(value) || value.length === 0) {
+    throw invalidArgument(
+      functionName,
+      "arrays",
+      "must have at least one array",
+    );
+  }
+  const seenKeys = new Set<string>();
+  return value.map((array) => checkScanArray(array, seenKeys, functionName));
+}
+
 export function readGetScansOptions(
   value: unknown,
   functionName: string,
 ): Complete<GetScansOptions> {
   const given = getObject(value, functionName, "");
-  checkKeys(given, ["level", "timeUnit"], functionName, "");
+  checkKeys(given, ["level", "timeUnit", "arrays"], functionName, "");
   return {
+    arrays: readScanArrays(given.arrays, functionName),
     level: getValue(given, "level", "number", 1, functionName, ""),
     timeUnit: getChoice(
       given,

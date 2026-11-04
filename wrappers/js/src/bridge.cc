@@ -94,6 +94,7 @@ typedef int32_t (*fn_plan_eic)(MzML *, double, double, double, double, double, u
 typedef int32_t (*fn_plan_find_targets)(MzML *, const double *, size_t, double, double, double, double, uint8_t, Buf *);
 typedef int32_t (*fn_plan_find_features)(MzML *, double, double, double, double, uint8_t, double, double, double, Buf *);
 typedef int32_t (*fn_plan_scans)(MzML *, uint8_t, double, double, uint8_t, uint8_t, Buf *);
+typedef int32_t (*fn_scans_with_arrays)(MzML *, uint8_t, double, double, uint8_t, uint8_t, const uint32_t *, size_t, Buf *);
 typedef int32_t (*fn_plan_image)(MzML *, double, double, uint8_t, Buf *);
 typedef int32_t (*fn_parse_ion_path)(const char *, size_t, MzML **);
 typedef void (*fn_free_mzml)(MzML *);
@@ -152,6 +153,8 @@ typedef struct
   fn_plan_find_targets plan_find_targets;
   fn_plan_find_features plan_find_features;
   fn_plan_scans plan_scans;
+  fn_scans_with_arrays plan_scans_with_arrays;
+  fn_scans_with_arrays get_scans_with_arrays;
   fn_plan_image plan_image;
   fn_parse_ion_path parse_ion_path;
   fn_free_ free_;
@@ -370,6 +373,8 @@ static int abi_load(const char *path, const char **err)
   ABI.plan_find_targets = (fn_plan_find_targets)DLSYM(LIB_HANDLE, "plan_find_targets");
   ABI.plan_find_features = (fn_plan_find_features)DLSYM(LIB_HANDLE, "plan_find_features");
   ABI.plan_scans = (fn_plan_scans)DLSYM(LIB_HANDLE, "plan_scans");
+  ABI.plan_scans_with_arrays = (fn_scans_with_arrays)DLSYM(LIB_HANDLE, "plan_scans_with_arrays");
+  ABI.get_scans_with_arrays = (fn_scans_with_arrays)DLSYM(LIB_HANDLE, "get_scans_with_arrays");
   ABI.plan_image = (fn_plan_image)DLSYM(LIB_HANDLE, "plan_image");
   if (resolve_required((void **)&ABI.parse_bin, "parse_bin"))
     goto fail;
@@ -1232,6 +1237,43 @@ static Napi::Value GetScans(const Napi::CallbackInfo &info)
   return TakeArrayBuffer(env, out.Out());
 }
 
+static int32_t CallScansWithArrays(const Napi::CallbackInfo &info, fn_scans_with_arrays call, MzML *handle, Buf *out)
+{
+  Napi::Uint32Array accessions = info[6].As<Napi::Uint32Array>();
+  return call(handle, Byte(info, 1), Number(info, 2), Number(info, 3), Byte(info, 4), Byte(info, 5),
+              accessions.Data(), accessions.ElementLength(), out);
+}
+
+static Napi::Value PlanScansWithArrays(const Napi::CallbackInfo &info)
+{
+  Napi::Env env = info.Env();
+  if (!ThrowIfMissing(env, (void *)ABI.plan_scans_with_arrays, "plan_scans_with_arrays"))
+    return env.Null();
+  MzML *handle = GetHandle(info[0]);
+  if (!handle)
+    return ThrowClosed(env, "get_scans");
+  OwnedBuf out;
+  int32_t rc = CallScansWithArrays(info, ABI.plan_scans_with_arrays, handle, out.Out());
+  if (rc != 0)
+    return ThrowRc(env, "get_scans", rc);
+  return RangesToArray(env, out.buf);
+}
+
+static Napi::Value GetScansWithArrays(const Napi::CallbackInfo &info)
+{
+  Napi::Env env = info.Env();
+  if (!ThrowIfMissing(env, (void *)ABI.get_scans_with_arrays, "get_scans_with_arrays"))
+    return env.Null();
+  MzML *handle = GetHandle(info[0]);
+  if (!handle)
+    return ThrowClosed(env, "get_scans");
+  OwnedBuf out;
+  int32_t rc = CallScansWithArrays(info, ABI.get_scans_with_arrays, handle, out.Out());
+  if (rc != 0)
+    return ThrowRc(env, "get_scans", rc);
+  return TakeArrayBuffer(env, out.Out());
+}
+
 static Napi::Value GetIonImage(const Napi::CallbackInfo &info)
 {
   Napi::Env env = info.Env();
@@ -1524,6 +1566,8 @@ static Napi::Object Init(Napi::Env env, Napi::Object exports)
   exports.Set("planOpen", Napi::Function::New(env, PlanOpen));
   exports.Set("planEic", Napi::Function::New(env, PlanEic));
   exports.Set("planScans", Napi::Function::New(env, PlanScans));
+  exports.Set("planScansWithArrays", Napi::Function::New(env, PlanScansWithArrays));
+  exports.Set("getScansWithArrays", Napi::Function::New(env, GetScansWithArrays));
   exports.Set("planFindTargets", Napi::Function::New(env, PlanFindTargets));
   exports.Set("planFindFeatures", Napi::Function::New(env, PlanFindFeatures));
   exports.Set("planImage", Napi::Function::New(env, PlanImage));

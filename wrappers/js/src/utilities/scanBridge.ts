@@ -12,6 +12,8 @@ import {
   SECTION_POSITION_Y,
   SECTION_POSITION_Z,
   SECTION_RT,
+  SECTION_SCAN_ARRAY_STARTS,
+  SECTION_SCAN_ARRAY_VALUES,
   SECTION_SELECTED_ION_MZ,
   SECTION_TOTAL_ION_CURRENT,
   expectKind,
@@ -73,6 +75,31 @@ export function readScans(buffer: ArrayBuffer): Scan[] {
       y: y[index],
       z: z[index],
     };
+  }
+  return scans;
+}
+
+export function readScanArrays(buffer: ArrayBuffer, keys: string[]): Scan[] {
+  const scans = readScans(buffer);
+  const bridge = readBridge(buffer);
+  const starts = readCountSection(bridge, SECTION_SCAN_ARRAY_STARTS);
+  const values = readF64Section(bridge, SECTION_SCAN_ARRAY_VALUES);
+  if (starts.length !== scans.length * keys.length + 1) {
+    throw new Error(
+      "quantion bridge: array starts do not match the scans and arrays",
+    );
+  }
+  if (starts[starts.length - 1] !== values.length) {
+    throw new Error(
+      "quantion bridge: array starts do not span the array values",
+    );
+  }
+  let position = 0;
+  for (const scan of scans) {
+    for (const key of keys) {
+      scan[key] = values.subarray(starts[position], starts[position + 1]);
+      position += 1;
+    }
   }
   return scans;
 }

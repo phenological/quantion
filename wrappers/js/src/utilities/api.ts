@@ -31,6 +31,8 @@ import {
   readFindTransitionsOptions,
   readFitPeakOptions,
   readGetPeakOptions,
+  getAccessionNumbers,
+  hasDefaultScanArrays,
   readGetScansOptions,
   readIonImageOptions,
   readMatchFeaturesOptions,
@@ -463,7 +465,7 @@ function getScanQuery(query: ScanQuery): [number, number, number] {
  *   Example: `const window: FromTo = { from: 1.0, to: 2.5 };`
  * @param query.mz - Or by precursor m/z: a range or one value. Give rt or mz, not both. Each FromTo has `from`, `to`. See {@link https://phenological.github.io/quantion/?language=js#FromTo | FromTo}.
  *   Example: `const window: FromTo = { from: 1.0, to: 2.5 };`
- * @param options - Optional settings: `level` = 1, `timeUnit` = "MINUTES". See {@link https://phenological.github.io/quantion/?language=js#GetScansOptions | GetScansOptions}.
+ * @param options - Optional settings: `level` = 1, `timeUnit` = "MINUTES", `arrays` = { key: "mz", accession: "MS:1000514" }, { key: "intensity", accession: "MS:1000515" }. See {@link https://phenological.github.io/quantion/?language=js#GetScansOptions | GetScansOptions}.
  * @returns The scans found, in rt order.
  * @see {@link https://phenological.github.io/quantion/?language=js#get_scans | Documentation}
  */
@@ -475,6 +477,18 @@ export async function getScans(
   const handle = getHandle(file, "getScans");
   const settings = readGetScansOptions(options, "getScans");
   const [queryType, from, to] = getScanQuery(query);
+  if (!hasDefaultScanArrays(settings.arrays)) {
+    return file._backend.getScansWithArrays(
+      handle,
+      queryType,
+      from,
+      to,
+      settings.level,
+      getTimeUnitCode(settings.timeUnit),
+      getAccessionNumbers(settings.arrays),
+      settings.arrays.map((array) => array.key),
+    );
+  }
   return file._backend.getScans(
     handle,
     queryType,

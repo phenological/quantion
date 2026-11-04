@@ -70,6 +70,10 @@ class _ABI:
              POINTER(_Buf)], c_int32),
         "plan_scans": ([c_void_p, c_uint8, c_double, c_double, c_uint8, c_uint8,
              POINTER(_Buf)], c_int32),
+        "plan_scans_with_arrays": ([c_void_p, c_uint8, c_double, c_double, c_uint8, c_uint8,
+             POINTER(c_uint32), c_size_t, POINTER(_Buf)], c_int32),
+        "get_scans_with_arrays": ([c_void_p, c_uint8, c_double, c_double, c_uint8, c_uint8,
+             POINTER(c_uint32), c_size_t, POINTER(_Buf)], c_int32),
         "plan_image": ([c_void_p, c_double, c_double, c_uint8, POINTER(_Buf)], c_int32),
         "plan_find_targets": ([c_void_p, POINTER(c_double), c_size_t, c_double, c_double,
              c_double, c_double, c_uint8, POINTER(_Buf)], c_int32),
@@ -203,6 +207,8 @@ SECTION_POSITION_Z = 14
 SECTION_IMAGE_SHAPE = 15
 SECTION_IMAGE_DATA = 16
 SECTION_IMAGE_COUNTS = 17
+SECTION_SCAN_ARRAY_STARTS = 88
+SECTION_SCAN_ARRAY_VALUES = 89
 
 _ELEMENT_SIZES = {ELEMENT_F64: 8, ELEMENT_U32: 4, ELEMENT_U64: 8, ELEMENT_U8: 1}
 
@@ -224,6 +230,8 @@ _SECTION_TYPES = {
     SECTION_IMAGE_SHAPE: ELEMENT_U32,
     SECTION_IMAGE_DATA: ELEMENT_F64,
     SECTION_IMAGE_COUNTS: ELEMENT_U32,
+    SECTION_SCAN_ARRAY_STARTS: ELEMENT_U64,
+    SECTION_SCAN_ARRAY_VALUES: ELEMENT_F64,
 }
 
 _SCAN_NUMBERS = (
@@ -358,6 +366,27 @@ def read_scans_bridge(raw: bytes) -> list:
 
 def buf_to_scans(abi: _ABI, buf: _Buf) -> list:
     return read_scans_bridge(_read_and_free(abi, buf))
+
+
+def read_scan_arrays_bridge(raw: bytes, keys: list) -> list:
+    scans = read_scans_bridge(raw)
+    bridge = read_bridge(raw)
+    starts = read_section(bridge, SECTION_SCAN_ARRAY_STARTS, np.uint64)
+    values = read_section(bridge, SECTION_SCAN_ARRAY_VALUES, np.float64)
+    if len(starts) != len(scans) * len(keys) + 1:
+        _fail("array starts do not match the scans and arrays")
+    if int(starts[-1]) != len(values):
+        _fail("array starts do not span the array values")
+    position = 0
+    for scan in scans:
+        for key in keys:
+            scan[key] = values[int(starts[position]):int(starts[position + 1])].copy()
+            position += 1
+    return scans
+
+
+def buf_to_scan_arrays(abi: _ABI, buf: _Buf, keys: list) -> list:
+    return read_scan_arrays_bridge(_read_and_free(abi, buf), keys)
 
 
 def read_image_bridge(raw: bytes) -> dict:

@@ -26,7 +26,7 @@ strip = "symbols"
 
 [dependencies]
 bytes = "1.12.1"
-ionic-rs = "0.2.0"
+ionic-rs = "0.2.1"
 memmap2 = "0.9.11"
 serde = { version = "1.0.229", features = ["derive", "rc"] }
 runnet = "0.1.1"

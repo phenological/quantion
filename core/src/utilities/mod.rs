@@ -7,6 +7,8 @@ pub mod parallel;
 
 pub mod find_features;
 
+pub mod deisotope_features;
+
 pub mod find_masses;
 
 pub mod bridge;

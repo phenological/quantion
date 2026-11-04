@@ -152,11 +152,57 @@ write_mzml_options <- function(out = NULL, overwrite = FALSE) {
   ))
 }
 
-get_scans_options <- function(level = 1L, time_unit = "MINUTES") {
+.DEFAULT_SCAN_ARRAYS <- list(
+  list(key = "mz", accession = "MS:1000514"),
+  list(key = "intensity", accession = "MS:1000515")
+)
+.MAX_ACCESSION <- 4294967295
+.RESERVED_SCAN_KEYS <- c("rt", "level", "precursor_mz", "precursorMz", "base_peak_mz", "basePeakMz", "base_peak_intensity", "basePeakIntensity", "total_ion_current", "totalIonCurrent", "polarity", "x", "y", "z")
+
+.check_scan_array <- function(function_name, array, seen_keys) {
+  if (!is.list(array) || is.null(names(array)))
+    .invalid(function_name, "arrays", "must hold lists with key and accession")
+  for (field in names(array)) {
+    if (!(field %in% c("key", "accession"))) .invalid(function_name, paste0("arrays.", field), "is not an option")
+  }
+  key <- array$key
+  accession <- array$accession
+  if (!is.character(key) || length(key) != 1 || is.na(key) || !nzchar(key))
+    .invalid(function_name, "arrays.key", "must not be empty")
+  if (key %in% .RESERVED_SCAN_KEYS)
+    .invalid(function_name, "arrays.key", sprintf("cannot be %s: a scan already has that field", key))
+  if (!is.character(accession) || length(accession) != 1 || is.na(accession) ||
+      !grepl("^MS:[0-9]+$", accession) || as.numeric(sub("MS:", "", accession)) > .MAX_ACCESSION)
+    .invalid(function_name, "arrays.accession", "must look like MS:1000514")
+  for (pair in .DEFAULT_SCAN_ARRAYS) {
+    if ((key == pair$key) != (accession == pair$accession))
+      .invalid(function_name, "arrays", sprintf("%s and %s must go together", pair$key, pair$accession))
+  }
+  if (key %in% seen_keys) .invalid(function_name, "arrays.key", sprintf("repeats %s", key))
+  list(key = key, accession = accession)
+}
+
+.check_scan_arrays <- function(function_name, arrays) {
+  if (!is.list(arrays) || length(arrays) == 0)
+    .invalid(function_name, "arrays", "must have at least one array")
+  seen_keys <- character()
+  checked <- list()
+  for (array in arrays) {
+    found <- .check_scan_array(function_name, array, seen_keys)
+    seen_keys <- c(seen_keys, found$key)
+    checked[[length(checked) + 1L]] <- found
+  }
+  checked
+}
+
+get_scans_options <- function(level = 1L, time_unit = "MINUTES",
+                              arrays = list(list(key = "mz", accession = "MS:1000514"),
+                                            list(key = "intensity", accession = "MS:1000515"))) {
   function_name <- "get_scans_options"
   .as_options("get_scans_options", list(
     level = .check_number(function_name, "level", level),
-    time_unit = .check_choice(function_name, "time_unit", time_unit, c("MINUTES", "SECONDS"))
+    time_unit = .check_choice(function_name, "time_unit", time_unit, c("MINUTES", "SECONDS")),
+    arrays = .check_scan_arrays(function_name, arrays)
   ))
 }
 
@@ -397,6 +443,24 @@ write_mzml <- function(file, options = write_mzml_options()) {
   list(type = closest_query, from = value, to = NaN)
 }
 
+.add_scan_arrays <- function(found, keys) {
+  scans <- found$scans
+  scan_count <- nrow(scans)
+  key_count <- length(keys)
+  if (length(found$starts) != scan_count * key_count + 1)
+    stop("quantion bridge: array starts do not match the scans and arrays")
+  read_values <- function(scan_index, key_index) {
+    position <- (scan_index - 1) * key_count + key_index
+    first <- found$starts[position] + 1
+    last <- found$starts[position + 1]
+    if (last < first) numeric() else found$values[first:last]
+  }
+  for (key_index in seq_along(keys)) {
+    scans[[keys[key_index]]] <- lapply(seq_len(scan_count), read_values, key_index = key_index)
+  }
+  scans
+}
+
 get_scans <- function(file, rt = NULL, mz = NULL, options = get_scans_options()) {
   function_name <- "get_scans"
   file <- .check_sample(function_name, file)
@@ -409,6 +473,17 @@ get_scans <- function(file, rt = NULL, mz = NULL, options = get_scans_options())
   }
   level <- as.integer(options$level)
   source <- .remote_source(file)
+  if (!identical(options$arrays, .DEFAULT_SCAN_ARRAYS)) {
+    keys <- vapply(options$arrays, function(array) array$key, character(1))
+    accessions <- vapply(options$arrays, function(array) as.numeric(sub("MS:", "", array$accession)), numeric(1))
+    if (!is.null(source)) {
+      .prefetch(source, .Call("C_plan_scans_with_arrays", file, query$type, query$from, query$to, level,
+                              options$time_unit, accessions, PACKAGE = "quantion"))
+    }
+    found <- .Call("C_get_scans_with_arrays", file, query$type, query$from, query$to, level,
+                   options$time_unit, accessions, PACKAGE = "quantion")
+    return(.add_scan_arrays(found, keys))
+  }
   if (!is.null(source)) {
     .prefetch(source, .Call("C_plan_scans", file, query$type, query$from, query$to, level,
                             options$time_unit, PACKAGE = "quantion"))

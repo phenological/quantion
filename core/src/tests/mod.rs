@@ -19,3 +19,4 @@ mod parse_ion;
 mod sgg;
 mod shape_filter;
 mod public_api;
+mod scan_arrays;

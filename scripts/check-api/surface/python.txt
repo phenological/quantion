@@ -76,6 +76,7 @@ typeddict GetPeakOptions total=False
     range?: float
 
 typeddict GetScansOptions total=False
+    arrays?: List[ScanArray]
     level?: int
     time_unit?: TimeUnit | str
 
@@ -193,6 +194,10 @@ typeddict Scan total=True
     x: int
     y: int
     z: int
+
+typeddict ScanArray total=True
+    accession: str
+    key: str
 
 typeddict Target total=False
     id?: str

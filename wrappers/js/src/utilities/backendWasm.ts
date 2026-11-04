@@ -31,7 +31,7 @@ import type { ModelEntry } from "../types/internal";
 import { readIonImage } from "./imageBridge";
 import { readRecords } from "./recordBridge";
 import { encodeTargetIds } from "./pack";
-import { readScans } from "./scanBridge";
+import { readScanArrays, readScans } from "./scanBridge";
 import { QuantionError, invalidArgument, readNativeError } from "./errors";
 import { getShapeCode } from "./options";
 import {
@@ -545,6 +545,42 @@ class WasmApi {
     );
     this.run("get_scans", handle, ...values, this.firstSlot);
     return readScans(this.heap.readBridgeFromSlot(this.firstSlot));
+  }
+
+  async getScansWithArrays(
+    handle: number,
+    queryType: number,
+    from: number,
+    to: number,
+    level: number,
+    timeUnit: number,
+    accessions: Uint32Array,
+    keys: string[],
+  ): Promise<Scan[]> {
+    const values = [queryType, from, to, level, timeUnit];
+    await this.prefetch(handle, () =>
+      this.withMemory([toUint8View(accessions)], ([pointer]) =>
+        this.run(
+          "plan_scans_with_arrays",
+          handle,
+          ...values,
+          pointer,
+          accessions.length,
+          this.firstSlot,
+        ),
+      ),
+    );
+    this.withMemory([toUint8View(accessions)], ([pointer]) =>
+      this.run(
+        "get_scans_with_arrays",
+        handle,
+        ...values,
+        pointer,
+        accessions.length,
+        this.firstSlot,
+      ),
+    );
+    return readScanArrays(this.heap.readBridgeFromSlot(this.firstSlot), keys);
   }
 
   private async computeImageStreaming(
@@ -1100,6 +1136,28 @@ export class WasmBackend implements Backend {
       to,
       level,
       timeUnit,
+    );
+  }
+
+  getScansWithArrays(
+    handle: FileHandle,
+    queryType: number,
+    from: number,
+    to: number,
+    level: number,
+    timeUnit: number,
+    accessions: Uint32Array,
+    keys: string[],
+  ): Promise<Scan[]> {
+    return this.getApi().getScansWithArrays(
+      handle as number,
+      queryType,
+      from,
+      to,
+      level,
+      timeUnit,
+      accessions,
+      keys,
     );
   }
 

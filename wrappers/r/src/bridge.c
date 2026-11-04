@@ -651,6 +651,40 @@ static SEXP scans_build(void *data)
   return columns;
 }
 
+static SEXP scan_arrays_build(void *data)
+{
+  struct scans_bridge_data *held = (struct scans_bridge_data *)data;
+  SEXP scans = PROTECT(scans_build(data));
+  bridge_view bridge;
+  read_bridge_view(&bridge, held->ptr, held->len);
+  const bridge_section *starts = find_section(&bridge, QUANTION_SECTION_SCAN_ARRAY_STARTS);
+  const bridge_section *values = find_section(&bridge, QUANTION_SECTION_SCAN_ARRAY_VALUES);
+  R_xlen_t start_count = (R_xlen_t)(starts->byte_length / 8);
+  SEXP array_starts = PROTECT(Rf_allocVector(REALSXP, start_count));
+  const unsigned char *starts_at = bridge.raw + starts->byte_offset;
+  for (R_xlen_t index = 0; index < start_count; index++)
+  {
+    uint64_t start;
+    memcpy(&start, starts_at + (size_t)index * 8, 8);
+    REAL(array_starts)[index] = (double)start;
+  }
+  R_xlen_t value_count = (R_xlen_t)(values->byte_length / 8);
+  SEXP array_values = PROTECT(Rf_allocVector(REALSXP, value_count));
+  if (value_count > 0)
+    memcpy(REAL(array_values), bridge.raw + values->byte_offset, (size_t)value_count * 8);
+  SEXP result = PROTECT(Rf_allocVector(VECSXP, 3));
+  SEXP names = PROTECT(Rf_allocVector(STRSXP, 3));
+  SET_VECTOR_ELT(result, 0, scans);
+  SET_STRING_ELT(names, 0, Rf_mkChar("scans"));
+  SET_VECTOR_ELT(result, 1, array_starts);
+  SET_STRING_ELT(names, 1, Rf_mkChar("starts"));
+  SET_VECTOR_ELT(result, 2, array_values);
+  SET_STRING_ELT(names, 2, Rf_mkChar("values"));
+  Rf_setAttrib(result, R_NamesSymbol, names);
+  UNPROTECT(5);
+  return result;
+}
+
 static SEXP image_build(void *data)
 {
   struct scans_bridge_data *held = (struct scans_bridge_data *)data;
@@ -954,6 +988,35 @@ SEXP C_plan_scans(SEXP file, SEXP query_type, SEXP from, SEXP to, SEXP level, SE
   Buf out = (Buf){0};
   check_code(plan_scans(get_sample(file), (uint8_t)asInteger(query_type), asReal(from), asReal(to),
                         (uint8_t)asInteger(level), get_time_unit(time_unit), &out));
+  return take_ranges(&out);
+}
+
+static uint32_t *get_accessions(SEXP accessions)
+{
+  R_xlen_t count = XLENGTH(accessions);
+  uint32_t *numbers = (uint32_t *)R_alloc((size_t)count, sizeof(uint32_t));
+  for (R_xlen_t index = 0; index < count; index++)
+    numbers[index] = (uint32_t)REAL(accessions)[index];
+  return numbers;
+}
+
+SEXP C_get_scans_with_arrays(SEXP file, SEXP query_type, SEXP from, SEXP to, SEXP level, SEXP time_unit, SEXP accessions)
+{
+  check_bound();
+  Buf out = (Buf){0};
+  check_code(get_scans_with_arrays(get_sample(file), (uint8_t)asInteger(query_type), asReal(from), asReal(to),
+                                   (uint8_t)asInteger(level), get_time_unit(time_unit),
+                                   get_accessions(accessions), (size_t)XLENGTH(accessions), &out));
+  return take_with(scan_arrays_build, &out);
+}
+
+SEXP C_plan_scans_with_arrays(SEXP file, SEXP query_type, SEXP from, SEXP to, SEXP level, SEXP time_unit, SEXP accessions)
+{
+  check_bound();
+  Buf out = (Buf){0};
+  check_code(plan_scans_with_arrays(get_sample(file), (uint8_t)asInteger(query_type), asReal(from), asReal(to),
+                                    (uint8_t)asInteger(level), get_time_unit(time_unit),
+                                    get_accessions(accessions), (size_t)XLENGTH(accessions), &out));
   return take_ranges(&out);
 }
 

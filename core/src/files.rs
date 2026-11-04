@@ -1,4 +1,4 @@
-use std::{fmt::Display, fs, path::Path};
+use std::{collections::BTreeMap, fmt::Display, fs, ops::Index, path::Path};
 
 use ionic::{
     ReadOptions, WriteOptions,
@@ -7,10 +7,10 @@ use ionic::{
 
 use crate::{
     error::{ErrorKind, QuantionError, check_finite, check_not_negative, check_positive},
-    options::{CalculateEicOptions, GetScansOptions, Header, GetIonImageOptions, IonOutput, ParseIonOptions, WriteIonOptions, WriteMzmlOptions},
+    options::{CalculateEicOptions, GetScansOptions, INTENSITY_KEY, MZ_KEY, ScanArray, Header, GetIonImageOptions, IonOutput, ParseIonOptions, WriteIonOptions, WriteMzmlOptions},
     sample_file::{FileSource, MzmlInput, SampleFile, is_url_path},
     utilities::{
-        calculate_eic::{CentroidScan, FastError, ScanQuery, calculate_eic as read_eic, get_scans as read_scans},
+        calculate_eic::{CentroidScan, FastError, ScanArrays, ScanQuery, calculate_eic as read_eic, get_scan_arrays as read_scan_arrays, get_scans as read_scans},
         ion::write_mzml_to_ion,
         ion_image::{IonImage, image_session_begin},
         parse_ion::{IonInput, parse_ion as open_ion},
@@ -55,6 +55,19 @@ pub struct Scan {
     pub x: u32,
     pub y: u32,
     pub z: u32,
+    arrays: BTreeMap<String, Vec<f64>>,
+}
+
+impl Index<&str> for Scan {
+    type Output = Vec<f64>;
+
+    fn index(&self, key: &str) -> &Vec<f64> {
+        match key {
+            MZ_KEY => &self.mz,
+            INTENSITY_KEY => &self.intensity,
+            _ => &self.arrays[key],
+        }
+    }
 }
 
 impl From<CentroidScan> for Scan {
@@ -73,8 +86,30 @@ impl From<CentroidScan> for Scan {
             x: details.position_x,
             y: details.position_y,
             z: details.position_z,
+            arrays: BTreeMap::new(),
         }
     }
+}
+
+pub(crate) fn read_scans_with_arrays(file: &mut SampleFile, query: ScanQuery, options: &GetScansOptions, accessions: &[u32]) -> Vec<ScanArrays> {
+    match &mut file.source {
+        FileSource::Full(mzml) => read_scan_arrays(mzml.as_mut(), query, options.time_unit, options.level, accessions),
+        FileSource::Lazy(ion) | FileSource::Remote(ion) => read_scan_arrays(ion.as_mut(), query, options.time_unit, options.level, accessions),
+    }
+}
+
+fn get_keyed_scan(found: ScanArrays, keys: &[ScanArray]) -> Scan {
+    let mut scan = Scan::from(found.scan);
+    for (array, values) in keys.iter().zip(found.arrays) {
+        match array.key.as_str() {
+            MZ_KEY => scan.mz = values,
+            INTENSITY_KEY => scan.intensity = values,
+            _ => {
+                scan.arrays.insert(array.key.clone(), values);
+            }
+        }
+    }
+    scan
 }
 
 pub(crate) fn read_error(function: &'static str, error: impl Display) -> QuantionError {
@@ -346,7 +381,7 @@ pub(crate) fn check_scan_query(function: &'static str, query: ScanQuery) -> Resu
 ///   Example: `let query = ScanQuery::RtRange(FromTo { from: 1.0, to: 2.5 });`
 /// - `query`: Or by precursor m/z: a range or one value. Give rt or mz, not both. Each ScanQuery has `RtRange(FromTo)`, `Rt(f64)`, `MzRange(FromTo)`, `Mz(f64)`. See [ScanQuery](https://phenological.github.io/quantion/?language=rust#ScanQuery).
 ///   Example: `let query = ScanQuery::RtRange(FromTo { from: 1.0, to: 2.5 });`
-/// - `options`: Optional settings: `level` = 1, `time_unit` = MINUTES. See [GetScansOptions](https://phenological.github.io/quantion/?language=rust#GetScansOptions).
+/// - `options`: Optional settings: `level` = 1, `time_unit` = MINUTES, `arrays` = { key: "mz", accession: "MS:1000514" }, { key: "intensity", accession: "MS:1000515" }. See [GetScansOptions](https://phenological.github.io/quantion/?language=rust#GetScansOptions).
 ///
 /// Returns: The scans found, in rt order.
 ///
@@ -354,6 +389,11 @@ pub(crate) fn check_scan_query(function: &'static str, query: ScanQuery) -> Resu
 pub fn get_scans(file: &mut SampleFile, query: ScanQuery, options: GetScansOptions) -> Result<Vec<Scan>, QuantionError> {
     const FUNCTION: &str = "get_scans";
     check_scan_query(FUNCTION, query)?;
+    let accessions = options.check_arrays(FUNCTION)?;
+    if !options.has_default_arrays() {
+        let found = read_scans_with_arrays(file, query, &options, &accessions);
+        return Ok(found.into_iter().map(|scan| get_keyed_scan(scan, &options.arrays)).collect());
+    }
     let (_, scans) = match &mut file.source {
         FileSource::Full(mzml) => read_scans(mzml.as_mut(), query, options.time_unit, options.level),
         FileSource::Lazy(ion) | FileSource::Remote(ion) => read_scans(ion.as_mut(), query, options.time_unit, options.level),

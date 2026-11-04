@@ -103,8 +103,8 @@ export interface Transition {
  * One HTTP header sent with an upload in write_ion. Values are never printed. A line break, or Host, Content-Length or Transfer-Encoding, gives an invalid_argument error.
  *
  * Fields:
- * - `name`: Header name, such as Authorization.
- * - `value`: Header value.
+ * - `name`: Name of the header, such as Authorization.
+ * - `value`: Value of the header.
  *
  * @example
  * ```ts
@@ -188,7 +188,7 @@ export interface FindPeaksOptions {
  *
  * Fields:
  * - `range`: Half-width of the search window around rt. 0 searches the whole trace. Default `0`.
- * - `findPeaks`: Peak-picking settings. See {@link https://phenological.github.io/quantion/?language=js#FindPeaksOptions | FindPeaksOptions}.
+ * - `findPeaks`: Settings for peak picking. See {@link https://phenological.github.io/quantion/?language=js#FindPeaksOptions | FindPeaksOptions}.
  * @see {@link https://phenological.github.io/quantion/?language=js#GetPeakOptions | Documentation}
  */
 export interface GetPeakOptions {
@@ -307,7 +307,7 @@ export interface GroupingOptions {
  *
  * Fields:
  * - `eic`: EIC retention-time range (from, to), tolerances and time unit. See {@link https://phenological.github.io/quantion/?language=js#CalculateEicOptions | CalculateEicOptions}.
- * - `findPeaks`: Peak-picking settings. See {@link https://phenological.github.io/quantion/?language=js#FindPeaksOptions | FindPeaksOptions}.
+ * - `findPeaks`: Settings for peak picking. See {@link https://phenological.github.io/quantion/?language=js#FindPeaksOptions | FindPeaksOptions}.
  * - `threads`: Number of threads. Default `1`.
  * @see {@link https://phenological.github.io/quantion/?language=js#FindTargetsOptions | Documentation}
  */
@@ -323,7 +323,7 @@ export interface FindTargetsOptions {
  * Settings for find_transitions.
  *
  * Fields:
- * - `findPeaks`: Peak-picking settings. See {@link https://phenological.github.io/quantion/?language=js#FindPeaksOptions | FindPeaksOptions}.
+ * - `findPeaks`: Settings for peak picking. See {@link https://phenological.github.io/quantion/?language=js#FindPeaksOptions | FindPeaksOptions}.
  * - `threads`: Number of threads. Default `1`.
  * @see {@link https://phenological.github.io/quantion/?language=js#FindTransitionsOptions | Documentation}
  */
@@ -340,7 +340,7 @@ export interface FindTransitionsOptions {
  * Fields:
  * - `eic`: EIC retention-time range (from, to), tolerances and time unit. See {@link https://phenological.github.io/quantion/?language=js#CalculateEicOptions | CalculateEicOptions}.
  * - `grid`: The m/z grid. See {@link https://phenological.github.io/quantion/?language=js#GridOptions | GridOptions}.
- * - `findPeaks`: Peak-picking settings. See {@link https://phenological.github.io/quantion/?language=js#FindPeaksOptions | FindPeaksOptions}.
+ * - `findPeaks`: Settings for peak picking. See {@link https://phenological.github.io/quantion/?language=js#FindPeaksOptions | FindPeaksOptions}.
  * - `threads`: Number of threads. Default `1`.
  * @see {@link https://phenological.github.io/quantion/?language=js#FindFeaturesOptions | Documentation}
  */
@@ -360,7 +360,7 @@ export interface FindFeaturesOptions {
  * - `eic`: EIC retention-time range (from, to), tolerances and time unit. See {@link https://phenological.github.io/quantion/?language=js#CalculateEicOptions | CalculateEicOptions}.
  * - `grid`: The m/z grid. See {@link https://phenological.github.io/quantion/?language=js#GridOptions | GridOptions}.
  * - `grouping`: How features are matched across samples. See {@link https://phenological.github.io/quantion/?language=js#GroupingOptions | GroupingOptions}.
- * - `findPeaks`: Peak-picking settings. See {@link https://phenological.github.io/quantion/?language=js#FindPeaksOptions | FindPeaksOptions}.
+ * - `findPeaks`: Settings for peak picking. See {@link https://phenological.github.io/quantion/?language=js#FindPeaksOptions | FindPeaksOptions}.
  * - `threads`: Number of threads. Default `1`.
  * @see {@link https://phenological.github.io/quantion/?language=js#MatchFeaturesOptions | Documentation}
  */
@@ -380,11 +380,33 @@ export interface MatchFeaturesOptions {
  * Fields:
  * - `level`: MS level. 0 = every level. Default `1`.
  * - `timeUnit`: Unit of rt in the query. Default `"MINUTES"`.
+ * - `arrays`: Which arrays to read from each scan, as keys with accessions. Every other field of Scan always comes back. Default `{ key: "mz", accession: "MS:1000514" }, { key: "intensity", accession: "MS:1000515" }`. See {@link https://phenological.github.io/quantion/?language=js#ScanArray | ScanArray}.
  * @see {@link https://phenological.github.io/quantion/?language=js#GetScansOptions | Documentation}
  */
 export interface GetScansOptions {
   level?: number;
   timeUnit?: TimeUnit;
+  arrays?: ScanArray[];
+}
+
+/**
+ * ScanArray · Options
+ *
+ * One array to read from each scan in get_scans.
+ *
+ * Fields:
+ * - `key`: Name of the array in the result, as a field of the scan.
+ * - `accession`: Accession of the array in the file, such as MS:1000514 for m/z.
+ *
+ * @example
+ * ```ts
+ * const array: ScanArray = { key: "mz", accession: "MS:1000514" };
+ * ```
+ * @see {@link https://phenological.github.io/quantion/?language=js#ScanArray | Documentation}
+ */
+export interface ScanArray {
+  key: string;
+  accession: string;
 }
 
 /**
@@ -463,7 +485,7 @@ export interface GetIonImageOptions {
  * - `from`: Start of the peak.
  * - `to`: End of the peak.
  * - `intensity`: Apex intensity.
- * - `integral`: Peak area.
+ * - `integral`: Area of the peak.
  * - `nPoints`: Points across the peak.
  * @see {@link https://phenological.github.io/quantion/?language=js#Peak | Documentation}
  */
@@ -487,7 +509,7 @@ export interface Peak {
  * - `from`: Start of the peak.
  * - `to`: End of the peak.
  * - `intensity`: Apex intensity.
- * - `integral`: Peak area.
+ * - `integral`: Area of the peak.
  * - `nPoints`: Points across the peak.
  * - `frequency`: match_features only: fraction of samples where it was found (0–1). Optional.
  * @see {@link https://phenological.github.io/quantion/?language=js#Feature | Documentation}
@@ -607,6 +629,7 @@ export interface Scan {
   x: number;
   y: number;
   z: number;
+  [array: string]: number | Float64Array;
 }
 
 /**

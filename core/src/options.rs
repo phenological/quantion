@@ -97,7 +97,7 @@ impl FindPeaksOptions {
 ///
 /// Fields:
 /// - `range`: Half-width of the search window around rt. 0 searches the whole trace. Default `0.0`.
-/// - `find_peaks`: Peak-picking settings. See [FindPeaksOptions](https://phenological.github.io/quantion/?language=rust#FindPeaksOptions).
+/// - `find_peaks`: Settings for peak picking. See [FindPeaksOptions](https://phenological.github.io/quantion/?language=rust#FindPeaksOptions).
 ///
 /// [Documentation](https://phenological.github.io/quantion/?language=rust#GetPeakOptions)
 #[derive(Clone, Debug, PartialEq, Default)]
@@ -394,7 +394,7 @@ impl GroupingOptions {
 ///
 /// Fields:
 /// - `eic`: EIC retention-time range (from, to), tolerances and time unit. See [CalculateEicOptions](https://phenological.github.io/quantion/?language=rust#CalculateEicOptions).
-/// - `find_peaks`: Peak-picking settings. See [FindPeaksOptions](https://phenological.github.io/quantion/?language=rust#FindPeaksOptions).
+/// - `find_peaks`: Settings for peak picking. See [FindPeaksOptions](https://phenological.github.io/quantion/?language=rust#FindPeaksOptions).
 /// - `threads`: Number of threads. Default `1`.
 ///
 /// [Documentation](https://phenological.github.io/quantion/?language=rust#FindTargetsOptions)
@@ -420,7 +420,7 @@ impl Default for FindTargetsOptions {
 /// Settings for find_transitions.
 ///
 /// Fields:
-/// - `find_peaks`: Peak-picking settings. See [FindPeaksOptions](https://phenological.github.io/quantion/?language=rust#FindPeaksOptions).
+/// - `find_peaks`: Settings for peak picking. See [FindPeaksOptions](https://phenological.github.io/quantion/?language=rust#FindPeaksOptions).
 /// - `threads`: Number of threads. Default `1`.
 ///
 /// [Documentation](https://phenological.github.io/quantion/?language=rust#FindTransitionsOptions)
@@ -446,7 +446,7 @@ impl Default for FindTransitionsOptions {
 /// Fields:
 /// - `eic`: EIC retention-time range (from, to), tolerances and time unit. See [CalculateEicOptions](https://phenological.github.io/quantion/?language=rust#CalculateEicOptions).
 /// - `grid`: The m/z grid. See [GridOptions](https://phenological.github.io/quantion/?language=rust#GridOptions).
-/// - `find_peaks`: Peak-picking settings. See [FindPeaksOptions](https://phenological.github.io/quantion/?language=rust#FindPeaksOptions).
+/// - `find_peaks`: Settings for peak picking. See [FindPeaksOptions](https://phenological.github.io/quantion/?language=rust#FindPeaksOptions).
 /// - `threads`: Number of threads. Default `1`.
 ///
 /// [Documentation](https://phenological.github.io/quantion/?language=rust#FindFeaturesOptions)
@@ -477,7 +477,7 @@ impl Default for FindFeaturesOptions {
 /// - `eic`: EIC retention-time range (from, to), tolerances and time unit. See [CalculateEicOptions](https://phenological.github.io/quantion/?language=rust#CalculateEicOptions).
 /// - `grid`: The m/z grid. See [GridOptions](https://phenological.github.io/quantion/?language=rust#GridOptions).
 /// - `grouping`: How features are matched across samples. See [GroupingOptions](https://phenological.github.io/quantion/?language=rust#GroupingOptions).
-/// - `find_peaks`: Peak-picking settings. See [FindPeaksOptions](https://phenological.github.io/quantion/?language=rust#FindPeaksOptions).
+/// - `find_peaks`: Settings for peak picking. See [FindPeaksOptions](https://phenological.github.io/quantion/?language=rust#FindPeaksOptions).
 /// - `threads`: Number of threads. Default `1`.
 ///
 /// [Documentation](https://phenological.github.io/quantion/?language=rust#MatchFeaturesOptions)
@@ -516,12 +516,14 @@ pub(crate) fn check_threads(function: &'static str, threads: usize) -> Result<()
 /// Fields:
 /// - `level`: MS level. 0 = every level. Default `1`.
 /// - `time_unit`: Unit of rt in the query. Default `MINUTES`.
+/// - `arrays`: Which arrays to read from each scan, as keys with accessions. Every other field of Scan always comes back. Default `{ key: "mz", accession: "MS:1000514" }, { key: "intensity", accession: "MS:1000515" }`. See [ScanArray](https://phenological.github.io/quantion/?language=rust#ScanArray).
 ///
 /// [Documentation](https://phenological.github.io/quantion/?language=rust#GetScansOptions)
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct GetScansOptions {
     pub level: u8,
     pub time_unit: TimeUnit,
+    pub arrays: Vec<ScanArray>,
 }
 
 impl Default for GetScansOptions {
@@ -529,8 +531,105 @@ impl Default for GetScansOptions {
         Self {
             level: 1,
             time_unit: TimeUnit::MINUTES,
+            arrays: default_scan_arrays(),
         }
     }
+}
+
+/// **ScanArray** · Options
+///
+/// One array to read from each scan in get_scans.
+///
+/// Fields:
+/// - `key`: Name of the array in the result, as a field of the scan.
+/// - `accession`: Accession of the array in the file, such as MS:1000514 for m/z.
+///
+/// Example:
+/// ```ignore
+/// let array = ScanArray { key: "mz".to_string(), accession: "MS:1000514".to_string() };
+/// ```
+///
+/// [Documentation](https://phenological.github.io/quantion/?language=rust#ScanArray)
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ScanArray {
+    pub key: String,
+    pub accession: String,
+}
+
+pub(crate) const MZ_KEY: &str = "mz";
+pub(crate) const INTENSITY_KEY: &str = "intensity";
+const MZ_ACCESSION: &str = "MS:1000514";
+const INTENSITY_ACCESSION: &str = "MS:1000515";
+const RESERVED_SCAN_KEYS: [&str; 14] = [
+    "rt",
+    "level",
+    "precursor_mz",
+    "precursorMz",
+    "base_peak_mz",
+    "basePeakMz",
+    "base_peak_intensity",
+    "basePeakIntensity",
+    "total_ion_current",
+    "totalIonCurrent",
+    "polarity",
+    "x",
+    "y",
+    "z",
+];
+
+fn default_scan_arrays() -> Vec<ScanArray> {
+    vec![
+        ScanArray { key: MZ_KEY.to_string(), accession: MZ_ACCESSION.to_string() },
+        ScanArray { key: INTENSITY_KEY.to_string(), accession: INTENSITY_ACCESSION.to_string() },
+    ]
+}
+
+pub(crate) fn read_accession_number(accession: &str) -> Option<u32> {
+    let digits = accession.strip_prefix("MS:")?;
+    if digits.is_empty() || !digits.bytes().all(|digit| digit.is_ascii_digit()) {
+        return None;
+    }
+    digits.parse().ok()
+}
+
+impl GetScansOptions {
+    pub(crate) fn has_default_arrays(&self) -> bool {
+        self.arrays == default_scan_arrays()
+    }
+
+    pub(crate) fn check_arrays(&self, function: &'static str) -> Result<Vec<u32>, QuantionError> {
+        if self.arrays.is_empty() {
+            return Err(QuantionError::invalid(function, "arrays", "must have at least one array"));
+        }
+        let mut accessions = Vec::with_capacity(self.arrays.len());
+        for (position, array) in self.arrays.iter().enumerate() {
+            let number = check_scan_array(function, array)?;
+            if self.arrays[..position].iter().any(|other| other.key == array.key) {
+                return Err(QuantionError::invalid(function, "arrays.key", format!("repeats {:?}", array.key)));
+            }
+            accessions.push(number);
+        }
+        Ok(accessions)
+    }
+}
+
+fn check_scan_array(function: &'static str, array: &ScanArray) -> Result<u32, QuantionError> {
+    if array.key.is_empty() {
+        return Err(QuantionError::invalid(function, "arrays.key", "must not be empty"));
+    }
+    if RESERVED_SCAN_KEYS.contains(&array.key.as_str()) {
+        return Err(QuantionError::invalid(function, "arrays.key", format!("cannot be {:?}: a scan already has that field", array.key)));
+    }
+    let Some(number) = read_accession_number(&array.accession) else {
+        return Err(QuantionError::invalid(function, "arrays.accession", format!("must look like MS:1000514, got {:?}", array.accession)));
+    };
+    let pairs = [(MZ_KEY, MZ_ACCESSION), (INTENSITY_KEY, INTENSITY_ACCESSION)];
+    for (key, accession) in pairs {
+        if (array.key == key) != (array.accession == accession) {
+            return Err(QuantionError::invalid(function, "arrays", format!("{key} and {accession} must go together")));
+        }
+    }
+    Ok(number)
 }
 
 /// **ParseIonOptions** · Options
@@ -551,8 +650,8 @@ pub struct ParseIonOptions {
 /// One HTTP header sent with an upload in write_ion. Values are never printed. A line break, or Host, Content-Length or Transfer-Encoding, gives an invalid_argument error.
 ///
 /// Fields:
-/// - `name`: Header name, such as Authorization.
-/// - `value`: Header value.
+/// - `name`: Name of the header, such as Authorization.
+/// - `value`: Value of the header.
 ///
 /// Example:
 /// ```ignore

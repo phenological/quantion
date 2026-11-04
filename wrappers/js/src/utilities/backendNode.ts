@@ -29,7 +29,7 @@ import type { ModelEntry } from "../types/internal";
 import { toQuantionError } from "./errors";
 import { readRecords } from "./recordBridge";
 import { readIonImage } from "./imageBridge";
-import { readScans } from "./scanBridge";
+import { readScanArrays, readScans } from "./scanBridge";
 import {
   ByteRangeResult,
   RemoteSource,
@@ -384,6 +384,26 @@ export class NodeBackend implements Backend {
     const values = [queryType, from, to, level, timeUnit];
     await this.prefetch(handle, () => this.native.planScans(handle, ...values));
     return readScans(this.native.getScans(handle, ...values));
+  }
+
+  async getScansWithArrays(
+    handle: FileHandle,
+    queryType: number,
+    from: number,
+    to: number,
+    level: number,
+    timeUnit: number,
+    accessions: Uint32Array,
+    keys: string[],
+  ): Promise<Scan[]> {
+    const values = [queryType, from, to, level, timeUnit, accessions];
+    await this.prefetch(handle, () =>
+      this.native.planScansWithArrays(handle, ...values),
+    );
+    return readScanArrays(
+      this.native.getScansWithArrays(handle, ...values),
+      keys,
+    );
   }
 
   async getIonImage(

@@ -167,6 +167,10 @@
 
 #define QUANTION_SECTION_CONSENSUS_POINT_COUNT 87
 
+#define QUANTION_SECTION_SCAN_ARRAY_STARTS 88
+
+#define QUANTION_SECTION_SCAN_ARRAY_VALUES 89
+
 typedef struct ImageSession ImageSession;
 
 typedef struct ModelHandle ModelHandle;
@@ -501,6 +505,38 @@ int get_scans(struct ParsedFile *handle,
               uint8_t level,
               uint8_t time_unit,
               struct Buf *out);
+
+/**
+ * Read chosen arrays of each scan. `accessions` holds the number of each array, such as 1000786.
+ *
+ * # Safety
+ * `handle` must be a valid `ParsedFile`. `accessions` must hold `array_count` numbers. `out` must be a valid writable `Buf`.
+ */
+int get_scans_with_arrays(struct ParsedFile *handle,
+                          uint8_t query_type,
+                          double from,
+                          double to,
+                          uint8_t level,
+                          uint8_t time_unit,
+                          const uint32_t *accessions,
+                          uintptr_t array_count,
+                          struct Buf *out);
+
+/**
+ * Plan the byte ranges `get_scans_with_arrays` reads from an .ion file.
+ *
+ * # Safety
+ * `handle` must be a valid `ParsedFile`. `accessions` must hold `array_count` numbers. `out` must be a valid writable `Buf`.
+ */
+int plan_scans_with_arrays(struct ParsedFile *handle,
+                           uint8_t query_type,
+                           double from,
+                           double to,
+                           uint8_t level,
+                           uint8_t time_unit,
+                           const uint32_t *accessions,
+                           uintptr_t array_count,
+                           struct Buf *out);
 
 /**
  * Plan the byte ranges `get_scans` reads from an .ion file.

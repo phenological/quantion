@@ -542,6 +542,10 @@ table.details th {
   border-bottom: 1px solid var(--line);
 }
 
+table.details td:last-child {
+  min-width: 240px;
+}
+
 table.details td {
   padding: 7px 12px 7px 0;
   vertical-align: top;
@@ -557,7 +561,7 @@ table.details td {
 
 .name { color: var(--token-function); white-space: nowrap; }
 .type { color: var(--token-type); }
-.default { color: var(--token-number); white-space: nowrap; }
+.default { color: var(--token-number); white-space: pre; }
 
 .returns {
   display: flex;

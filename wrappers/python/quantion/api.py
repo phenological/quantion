@@ -9,6 +9,7 @@ from typing import Any, Callable, Dict, List, Mapping, Optional, Sequence, Tuple
 import numpy as np
 
 from quantion._bridge import (
+    buf_to_scan_arrays,
     PeakOptions,
     READ_RANGE,
     _ABI,
@@ -21,6 +22,8 @@ from quantion._bridge import (
 )
 from quantion._errors import QuantionError, _check, _invalid, _missing, _unknown_option
 from quantion._options import (
+    DEFAULT_SCAN_ARRAYS,
+    read_scan_arrays,
     BASELINE,
     DRAW_PEAKS,
     EIC,
@@ -402,7 +405,7 @@ def get_scans(
             Example: window: FromTo = {"from": 1.0, "to": 2.5}
         mz: Or by precursor m/z: a range or one value. Give rt or mz, not both. Each FromTo has from, to. See FromTo: https://phenological.github.io/quantion/?language=python#FromTo
             Example: window: FromTo = {"from": 1.0, "to": 2.5}
-        options: Optional settings: level = 1, time_unit = MINUTES. See GetScansOptions: https://phenological.github.io/quantion/?language=python#GetScansOptions
+        options: Optional settings: level = 1, time_unit = MINUTES, arrays = {"key": "mz", "accession": "MS:1000514"}, {"key": "intensity", "accession": "MS:1000515"}. See GetScansOptions: https://phenological.github.io/quantion/?language=python#GetScansOptions
 
     Returns:
         The scans found, in rt order.
@@ -421,7 +424,19 @@ def get_scans(
         query, start, end = _get_scan_query(function, "mz", mz, _QUERY_MZ_RANGE, _QUERY_CLOSEST_MZ)
     level = _get_level(function, "level", settings["level"])
     time_unit = get_time_unit(function, "time_unit", settings["time_unit"])
+    keys, numbers = read_scan_arrays(function, settings["arrays"])
     abi = file._abi
+    if settings["arrays"] != DEFAULT_SCAN_ARRAYS:
+        accessions = (c_uint32 * len(numbers))(*numbers)
+        count = c_size_t(len(numbers))
+        _prefetch(file, function, lambda out: abi.plan_scans_with_arrays(
+            file.handle, c_uint8(query), c_double(start), c_double(end), c_uint8(level), c_uint8(time_unit),
+            accessions, count, out))
+        buffer = _Buf()
+        _check(abi, function, abi.get_scans_with_arrays(
+            file.handle, c_uint8(query), c_double(start), c_double(end), c_uint8(level), c_uint8(time_unit),
+            accessions, count, ctypes.byref(buffer)))
+        return buf_to_scan_arrays(abi, buffer, keys)
     _prefetch(file, function, lambda out: abi.plan_scans(
         file.handle, c_uint8(query), c_double(start), c_double(end), c_uint8(level), c_uint8(time_unit), out))
     buffer = _Buf()

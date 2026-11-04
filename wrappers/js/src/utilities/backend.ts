@@ -140,6 +140,17 @@ export interface Backend {
     timeUnit: number,
   ): MaybePromise<Scan[]>;
 
+  getScansWithArrays(
+    handle: FileHandle,
+    queryType: number,
+    from: number,
+    to: number,
+    level: number,
+    timeUnit: number,
+    accessions: Uint32Array,
+    keys: string[],
+  ): MaybePromise<Scan[]>;
+
   getIonImage(
     handle: FileHandle,
     mz: number,

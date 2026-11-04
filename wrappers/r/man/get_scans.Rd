@@ -11,7 +11,7 @@ get_scans(file, rt = NULL, mz = NULL, options = get_scans_options())
   \item{file}{The sample to read, from parse_ion or parse_mzml. Type: \code{SampleFile}.}
   \item{rt}{Which scans, by retention time: a range or one value. Type: \code{numeric(1) | c(from, to)}.}
   \item{mz}{Or by precursor m/z: a range or one value. Give rt or mz, not both. Type: \code{numeric(1) | c(from, to)}.}
-  \item{options}{Settings from \code{\link{get_scans_options}()}: \code{level = 1L}, \code{time_unit = "MINUTES"}.
+  \item{options}{Settings from \code{\link{get_scans_options}()}: \code{level = 1L}, \code{time_unit = "MINUTES"}, \code{arrays = list(key = "mz", accession = "MS:1000514"), list(key = "intensity", accession = "MS:1000515")}.
     \href{https://phenological.github.io/quantion/?language=r#GetScansOptions}{GetScansOptions documentation}
   }
 }
@@ -24,14 +24,21 @@ The scans found, in rt order. Type: \code{data.frame of Scan}. Columns: \code{rt
 \examples{
 \donttest{
 if (curl::has_internet()) {
+  # example 1
   library(quantion)
 
   url <- "https://raw.githubusercontent.com/phenological/ion-files/main/data/p21_LTR_20_b1_w20.ion"
+  # example 2
   sample <- parse_ion(url)
   scans <- get_scans(sample, rt = c(2.3, 2.4))
   closest <- get_scans(sample, rt = 143, options = get_scans_options(time_unit = "SECONDS"))
   print(nrow(scans))
-  print(closest$rt)
+  print(closest$mz)
+
+  sample <- parse_ion("sample.ion")
+  arrays <- list(list(key = "key1", accession = "MS:1000786"))
+  found <- get_scans(sample, mz = c(300.0, 300.01), options = get_scans_options(level = 2L, arrays = arrays))
+  print(found$key1)
 }
 }
 }
