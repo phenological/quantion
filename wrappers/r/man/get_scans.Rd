@@ -28,17 +28,17 @@ if (curl::has_internet()) {
   library(quantion)
 
   url <- "https://raw.githubusercontent.com/phenological/ion-files/main/data/p21_LTR_20_b1_w20.ion"
-  # example 2
   sample <- parse_ion(url)
   scans <- get_scans(sample, rt = c(2.3, 2.4))
   closest <- get_scans(sample, rt = 143, options = get_scans_options(time_unit = "SECONDS"))
   print(nrow(scans))
   print(closest$mz)
 
-  sample <- parse_ion("sample.ion")
-  arrays <- list(list(key = "key1", accession = "MS:1000786"))
-  found <- get_scans(sample, mz = c(300.0, 300.01), options = get_scans_options(level = 2L, arrays = arrays))
-  print(found$key1)
+  # example 2
+  arrays <- list(list(key = "intensity", accession = "MS:1000515"))
+  options <- get_scans_options(level = 2L, arrays = arrays)
+  found <- get_scans(sample, mz = c(515.0, 515.01), options = options)
+  print(found$intensity)
 }
 }
 }

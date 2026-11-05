@@ -543,7 +543,7 @@
         },
         "r": {
           "signature": "get_scans(file, rt = NULL, mz = NULL, options = get_scans_options())",
-          "example": "# example 1\nlibrary(quantion)\n\nurl <- \"https://raw.githubusercontent.com/phenological/ion-files/main/data/p21_LTR_20_b1_w20.ion\"\n# example 2\nsample <- parse_ion(url)\nscans <- get_scans(sample, rt = c(2.3, 2.4))\nclosest <- get_scans(sample, rt = 143, options = get_scans_options(time_unit = \"SECONDS\"))\nprint(nrow(scans))\nprint(closest$mz)\n\nsample <- parse_ion(\"sample.ion\")\narrays <- list(list(key = \"key1\", accession = \"MS:1000786\"))\nfound <- get_scans(sample, mz = c(300.0, 300.01), options = get_scans_options(level = 2L, arrays = arrays))\nprint(found$key1)"
+          "example": "# example 1\nlibrary(quantion)\n\nurl <- \"https://raw.githubusercontent.com/phenological/ion-files/main/data/p21_LTR_20_b1_w20.ion\"\nsample <- parse_ion(url)\nscans <- get_scans(sample, rt = c(2.3, 2.4))\nclosest <- get_scans(sample, rt = 143, options = get_scans_options(time_unit = \"SECONDS\"))\nprint(nrow(scans))\nprint(closest$mz)\n\n# example 2\narrays <- list(list(key = \"intensity\", accession = \"MS:1000515\"))\noptions <- get_scans_options(level = 2L, arrays = arrays)\nfound <- get_scans(sample, mz = c(515.0, 515.01), options = options)\nprint(found$intensity)"
         }
       }
     },
