@@ -352,6 +352,21 @@ export interface FindFeaturesOptions {
 }
 
 /**
+ * DeisotopeFeaturesOptions · Options
+ *
+ * How deisotope_features links isotope peaks.
+ *
+ * Fields:
+ * - `rtTolerance`: Same compound when rt is within this many minutes of M. Default `0.02`.
+ * - `mzTolerance`: Isotope peak when m/z is within this many Da of the expected position. Default `0.005`.
+ * @see {@link https://phenological.github.io/quantion/?language=js#DeisotopeFeaturesOptions | Documentation}
+ */
+export interface DeisotopeFeaturesOptions {
+  rtTolerance?: number;
+  mzTolerance?: number;
+}
+
+/**
  * MatchFeaturesOptions · Options
  *
  * Settings for match_features: the find_features settings plus grouping.
@@ -370,6 +385,19 @@ export interface MatchFeaturesOptions {
   grouping?: GroupingOptions;
   findPeaks?: FindPeaksOptions;
   threads?: number;
+}
+
+/**
+ * GetScanMetadataOptions · Options
+ *
+ * Settings for get_scan_metadata.
+ *
+ * Fields:
+ * - `tags`: Which tags to keep, by name. A row is kept when the last tag of its path matches, so scan keeps spectrum/scanList/scan[0] but not its scanWindow. Empty keeps every tag. The names are: spectrum, referenceableParamGroupRef, spectrumDescription, scanList, scan, scanWindowList, scanWindow, precursorList, precursor, isolationWindow, selectedIonList, selectedIon, activation, productList, product, binaryDataArrayList, binaryDataArray. Default `[]`.
+ * @see {@link https://phenological.github.io/quantion/?language=js#GetScanMetadataOptions | Documentation}
+ */
+export interface GetScanMetadataOptions {
+  tags?: string[];
 }
 
 /**
@@ -432,6 +460,8 @@ export interface ParseIonOptions {
  * - `overwrite`: Replace an existing file. Default `false`.
  * - `level`: Compression level, 0 to 22. Default `12`.
  * - `f32Compress`: Store intensities as 32-bit floats. Default `false`.
+ * - `blockSize`: Size of each data block before compression, in MB. A whole number, 1 or more. Default `8`.
+ * - `mzWindow`: Width of the m/z windows the spectra are split into, in Da, so a query reads only the windows it needs. A whole number, 0 or more; 0 keeps each spectrum whole. Default `20`.
  * - `headers`: Extra HTTP headers. Only with a URL. Default `[]`.
  * @see {@link https://phenological.github.io/quantion/?language=js#WriteIonOptions | Documentation}
  */
@@ -440,6 +470,8 @@ export interface WriteIonOptions {
   overwrite?: boolean;
   level?: number;
   f32Compress?: boolean;
+  blockSize?: number;
+  mzWindow?: number;
   headers?: Header[];
 }
 
@@ -597,11 +629,55 @@ export interface PredictedRt {
 }
 
 /**
+ * ScanParamKind · Enums
+ *
+ * What a row from get_scan_metadata holds.
+ *
+ * Fields:
+ * - `ATTRIBUTE`: An attribute of the tag, such as id or defaultArrayLength.
+ * - `CV`: A cvParam: a param from the controlled vocabulary, with an accession.
+ * - `USER`: A userParam: a param the software that wrote the file named itself.
+ * @see {@link https://phenological.github.io/quantion/?language=js#ScanParamKind | Documentation}
+ */
+export const ScanParamKind = {
+  ATTRIBUTE: "ATTRIBUTE",
+  CV: "CV",
+  USER: "USER",
+} as const;
+export type ScanParamKind = (typeof ScanParamKind)[keyof typeof ScanParamKind];
+
+/**
+ * ScanParam · Results
+ *
+ * One row from get_scan_metadata: an attribute, cvParam or userParam of one tag in a spectrum.
+ *
+ * Fields:
+ * - `path`: Where the tag sits, from spectrum down. Repeated tags carry their position from 0, such as spectrum/precursorList/precursor[0]/selectedIonList/selectedIon[0].
+ * - `kind`: What the row holds: ATTRIBUTE, CV or USER. See ScanParamKind.
+ * - `accession`: Accession of a cvParam, such as MS:1000511. Missing for attributes and userParams.
+ * - `name`: Name of the attribute or param, such as ms level.
+ * - `value`: Value as text, such as 2. Missing when the file gives none.
+ * - `unit`: Unit name, such as minute. Missing when there is none.
+ * - `unitAccession`: Unit accession, such as UO:0000031. Missing when there is none.
+ * @see {@link https://phenological.github.io/quantion/?language=js#ScanParam | Documentation}
+ */
+export interface ScanParam {
+  path: string;
+  kind: ScanParamKind;
+  accession: string | null;
+  name: string;
+  value: string | null;
+  unit: string | null;
+  unitAccession: string | null;
+}
+
+/**
  * Scan · Results
  *
  * One scan from get_scans: its retention time, centroided m/z and intensity values, and its details.
  *
  * Fields:
+ * - `index`: Position of the scan in the spectrum list, from 0. Use it with get_scan_metadata.
  * - `rt`: Retention time (minutes).
  * - `mz`: m/z values.
  * - `intensity`: Intensities, same length as mz.
@@ -617,6 +693,7 @@ export interface PredictedRt {
  * @see {@link https://phenological.github.io/quantion/?language=js#Scan | Documentation}
  */
 export interface Scan {
+  index: number;
   rt: number;
   mz: Float64Array;
   intensity: Float64Array;

@@ -16,7 +16,7 @@ get_scans(file, rt = NULL, mz = NULL, options = get_scans_options())
   }
 }
 \value{
-The scans found, in rt order. Type: \code{data.frame of Scan}. Columns: \code{rt}, \code{mz}, \code{intensity}, \code{level}, \code{precursor_mz}, \code{base_peak_mz}, \code{base_peak_intensity}, \code{total_ion_current}, \code{polarity}, \code{x}, \code{y}, \code{z}.
+The scans found, in rt order. Type: \code{data.frame of Scan}. Columns: \code{index}, \code{rt}, \code{mz}, \code{intensity}, \code{level}, \code{precursor_mz}, \code{base_peak_mz}, \code{base_peak_intensity}, \code{total_ion_current}, \code{polarity}, \code{x}, \code{y}, \code{z}.
 }
 \section{Documentation}{
 \url{https://phenological.github.io/quantion/?language=r#get_scans}

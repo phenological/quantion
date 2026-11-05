@@ -376,7 +376,8 @@ function escapeRd(text) {
     .replace(/…/g, "...")
     .replace(/[‘’]/g, "'")
     .replace(/[“”]/g, '"')
-    .replace(/±/g, "+/-");
+    .replace(/±/g, "+/-")
+    .replace(/×/g, "x");
   if (/[^\x00-\x7F]/.test(escaped)) throw new Error(`R help pages must be ASCII: ${escaped}`);
   return escaped;
 }
@@ -421,6 +422,10 @@ function getRFieldNames(entry) {
     if (cell) names.push(`\\code{${cell.name}}`);
   }
   return names.join(", ");
+}
+
+function hasRFunction(entry) {
+  return entry.languages.r.signature.startsWith(`${toSnakeCase(entry.name)}(`);
 }
 
 function getROptionsArgument(cell, optionsEntry) {
@@ -497,7 +502,7 @@ function writeROptionsPage(entry, text) {
     if (!cell) continue;
     let line = `  \\item{${cell.name}}{${escapeRd(endWithPeriod(field.meaning))}`;
     const nested = findOptionsEntry(cell);
-    if (nested) line += ` See \\code{\\link{${toSnakeCase(nested.name)}}()}.`;
+    if (nested) line += hasRFunction(nested) ? ` See \\code{\\link{${toSnakeCase(nested.name)}}()}.` : ` See \\href{${getLink(nested, "r")}}{${nested.name}}.`;
     argumentLines.push(`${line}}`);
   }
   if (argumentLines.length) text = replaceRdBlock(text, "arguments", argumentLines.join("\n"));

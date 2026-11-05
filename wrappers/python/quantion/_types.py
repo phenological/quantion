@@ -339,6 +339,21 @@ class FindFeaturesOptions(TypedDict, total=False):
     threads: int
 
 
+class DeisotopeFeaturesOptions(TypedDict, total=False):
+    """DeisotopeFeaturesOptions · Options
+
+    How deisotope_features links isotope peaks.
+
+    Fields:
+        rt_tolerance: Same compound when rt is within this many minutes of M. Default 0.02.
+        mz_tolerance: Isotope peak when m/z is within this many Da of the expected position. Default 0.005.
+
+    Documentation: https://phenological.github.io/quantion/?language=python#DeisotopeFeaturesOptions
+    """
+    rt_tolerance: float
+    mz_tolerance: float
+
+
 class MatchFeaturesOptions(TypedDict, total=False):
     """MatchFeaturesOptions · Options
 
@@ -376,6 +391,19 @@ class ScanArray(TypedDict):
     """
     key: str
     accession: str
+
+
+class GetScanMetadataOptions(TypedDict, total=False):
+    """GetScanMetadataOptions · Options
+
+    Settings for get_scan_metadata.
+
+    Fields:
+        tags: Which tags to keep, by name. A row is kept when the last tag of its path matches, so scan keeps spectrum/scanList/scan[0] but not its scanWindow. Empty keeps every tag. The names are: spectrum, referenceableParamGroupRef, spectrumDescription, scanList, scan, scanWindowList, scanWindow, precursorList, precursor, isolationWindow, selectedIonList, selectedIon, activation, productList, product, binaryDataArrayList, binaryDataArray. Default [].
+
+    Documentation: https://phenological.github.io/quantion/?language=python#GetScanMetadataOptions
+    """
+    tags: List[str]
 
 
 class GetScansOptions(TypedDict, total=False):
@@ -418,6 +446,8 @@ class WriteIonOptions(TypedDict, total=False):
         overwrite: Replace an existing file. Default False.
         level: Compression level, 0 to 22. Default 12.
         f32_compress: Store intensities as 32-bit floats. Default False.
+        block_size: Size of each data block before compression, in MB. A whole number, 1 or more. Default 8.
+        mz_window: Width of the m/z windows the spectra are split into, in Da, so a query reads only the windows it needs. A whole number, 0 or more; 0 keeps each spectrum whole. Default 20.
         headers: Extra HTTP headers. Only with a URL. Default [].
 
     Documentation: https://phenological.github.io/quantion/?language=python#WriteIonOptions
@@ -426,6 +456,8 @@ class WriteIonOptions(TypedDict, total=False):
     overwrite: bool
     level: int
     f32_compress: bool
+    block_size: int
+    mz_window: int
     headers: List[Header]
 
 
@@ -588,12 +620,55 @@ class PredictedRt(TypedDict):
     uncertainty: float
 
 
+class ScanParamKind(str, Enum):
+    """ScanParamKind · Enums
+
+    What a row from get_scan_metadata holds.
+
+    Fields:
+        ATTRIBUTE: An attribute of the tag, such as id or defaultArrayLength.
+        CV: A cvParam: a param from the controlled vocabulary, with an accession.
+        USER: A userParam: a param the software that wrote the file named itself.
+
+    Documentation: https://phenological.github.io/quantion/?language=python#ScanParamKind
+    """
+    ATTRIBUTE = "ATTRIBUTE"
+    CV = "CV"
+    USER = "USER"
+
+
+class ScanParam(TypedDict):
+    """ScanParam · Results
+
+    One row from get_scan_metadata: an attribute, cvParam or userParam of one tag in a spectrum.
+
+    Fields:
+        path: Where the tag sits, from spectrum down. Repeated tags carry their position from 0, such as spectrum/precursorList/precursor[0]/selectedIonList/selectedIon[0].
+        kind: What the row holds: ATTRIBUTE, CV or USER. See ScanParamKind.
+        accession: Accession of a cvParam, such as MS:1000511. Missing for attributes and userParams.
+        name: Name of the attribute or param, such as ms level.
+        value: Value as text, such as 2. Missing when the file gives none.
+        unit: Unit name, such as minute. Missing when there is none.
+        unit_accession: Unit accession, such as UO:0000031. Missing when there is none.
+
+    Documentation: https://phenological.github.io/quantion/?language=python#ScanParam
+    """
+    path: str
+    kind: ScanParamKind
+    accession: Optional[str]
+    name: str
+    value: Optional[str]
+    unit: Optional[str]
+    unit_accession: Optional[str]
+
+
 class Scan(TypedDict):
     """Scan · Results
 
     One scan from get_scans: its retention time, centroided m/z and intensity values, and its details.
 
     Fields:
+        index: Position of the scan in the spectrum list, from 0. Use it with get_scan_metadata.
         rt: Retention time (minutes).
         mz: m/z values.
         intensity: Intensities, same length as mz.
@@ -609,6 +684,7 @@ class Scan(TypedDict):
 
     Documentation: https://phenological.github.io/quantion/?language=python#Scan
     """
+    index: int
     rt: float
     mz: np.ndarray
     intensity: np.ndarray

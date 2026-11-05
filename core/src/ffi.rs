@@ -317,6 +317,14 @@ impl ScanSource for ParsedFile {
             FileSource::Remote(ion) => ion.load_array(index, accession, values),
         }
     }
+
+    fn load_metadata(&mut self, index: usize) -> ionic::IonResult<Vec<crate::files::ScanParam>> {
+        match &mut self.file.source {
+            FileSource::Full(mzml) => mzml.load_metadata(index),
+            FileSource::Lazy(file) => file.load_metadata(index),
+            FileSource::Remote(ion) => ion.load_metadata(index),
+        }
+    }
 }
 
 /// Free a `ParsedFile` handle.
@@ -784,6 +792,7 @@ fn build_scan_arrays_bridge(found: Vec<crate::utilities::calculate_eic::ScanArra
 
 fn write_scan_details(bridge: &mut Bridge, position: u64, scan: &crate::Scan) {
     let details = [
+        (QUANTION_SECTION_SCAN_INDEX, scan.index as f64),
         (QUANTION_SECTION_RT, scan.rt),
         (QUANTION_SECTION_MS_LEVEL, f64::from(scan.level)),
         (QUANTION_SECTION_SELECTED_ION_MZ, scan.precursor_mz),
@@ -1036,7 +1045,6 @@ fn build_features_bridge(
     )
 }
 
-#[cfg(not(all(target_arch = "wasm32", not(target_os = "wasi"))))]
 fn build_consensus_bridge(
     features: &[crate::utilities::find_features::Feature],
 ) -> Option<Box<[u8]>> {
@@ -1095,7 +1103,8 @@ fn build_consensus_bridge(
     )
 }
 
-const SCAN_DETAIL_SECTIONS: [u32; 10] = [
+const SCAN_DETAIL_SECTIONS: [u32; 11] = [
+    QUANTION_SECTION_SCAN_INDEX,
     QUANTION_SECTION_RT,
     QUANTION_SECTION_MS_LEVEL,
     QUANTION_SECTION_SELECTED_ION_MZ,

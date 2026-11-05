@@ -23,11 +23,13 @@ import type {
   Peak,
   PeakParameters,
   Scan,
+  ScanParam,
   Target,
 } from "../types/types";
 import type { ModelEntry } from "../types/internal";
+import { TAG_SEPARATOR } from "./options";
 import { toQuantionError } from "./errors";
-import { readRecords } from "./recordBridge";
+import { readRecords, readScanMetadata } from "./recordBridge";
 import { readIonImage } from "./imageBridge";
 import { readScanArrays, readScans } from "./scanBridge";
 import {
@@ -277,6 +279,8 @@ export class NodeBackend implements Backend {
     overwrite: boolean,
     level: number,
     f32Compress: boolean,
+    blockSize: number,
+    mzWindow: number,
     headers: Uint8Array,
   ): Uint8Array | undefined {
     return this.native.writeIon(
@@ -285,6 +289,8 @@ export class NodeBackend implements Backend {
       overwrite ? 1 : 0,
       level,
       f32Compress ? 1 : 0,
+      blockSize,
+      mzWindow,
       toNodeBuffer(headers),
     );
   }
@@ -406,6 +412,19 @@ export class NodeBackend implements Backend {
     );
   }
 
+  async getScanMetadata(
+    handle: FileHandle,
+    index: number,
+    tags: string[],
+  ): Promise<ScanParam[]> {
+    await this.prefetch(handle, () =>
+      this.native.planScanMetadata(handle, index),
+    );
+    return readScanMetadata(
+      this.native.getScanMetadata(handle, index, tags.join(TAG_SEPARATOR)),
+    );
+  }
+
   async getIonImage(
     handle: FileHandle,
     mz: number,
@@ -474,6 +493,17 @@ export class NodeBackend implements Backend {
     maxIterations: number,
   ): Float64Array {
     return this.native.calculateBaseline(y, lambda, maxIterations);
+  }
+
+  deisotopeFeatures(
+    values: Float64Array,
+    count: number,
+    rtTolerance: number,
+    mzTolerance: number,
+  ): Feature[] {
+    return readRecords(
+      this.native.deisotopeFeatures(values, count, rtTolerance, mzTolerance),
+    ) as unknown as Feature[];
   }
 
   async findTargets(

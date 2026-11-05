@@ -36,6 +36,7 @@ GET_PEAK = {"range": 0.0, "find_peaks": FIND_PEAKS}
 FIT_PEAK = {"shape": "EMG", "intensity": 0.0}
 DRAW_PEAKS = {"from": 0.0, "to": 0.0, "points": 1000}
 BASELINE = {"lambda": 20.0, "max_iterations": 4}
+DEISOTOPE_FEATURES = {"rt_tolerance": 0.02, "mz_tolerance": 0.005}
 FIND_TARGETS = {"eic": EIC, "find_peaks": FIND_PEAKS, "threads": 1}
 FIND_TRANSITIONS = {"find_peaks": FIND_PEAKS, "threads": 1}
 FIND_FEATURES = {"eic": EIC, "grid": GRID, "find_peaks": FIND_PEAKS, "threads": 1}
@@ -45,8 +46,9 @@ DEFAULT_SCAN_ARRAYS = [
     {"key": "intensity", "accession": "MS:1000515"},
 ]
 GET_SCANS = {"level": 1, "time_unit": "MINUTES", "arrays": DEFAULT_SCAN_ARRAYS}
+GET_SCAN_METADATA = {"tags": []}
 PARSE_ION = {"max_cache_size": 0}
-WRITE_ION = {"out": None, "overwrite": False, "level": 12, "f32_compress": False, "headers": []}
+WRITE_ION = {"out": None, "overwrite": False, "level": 12, "f32_compress": False, "block_size": 8, "mz_window": 20, "headers": []}
 WRITE_MZML = {"out": None, "overwrite": False}
 ION_IMAGE = {"tolerance": 0.125, "level": 1, "on_progress": None}
 
@@ -146,6 +148,7 @@ def pack_peak_options(function: str, options: Mapping[str, Any], prefix: str = "
 
 
 _RESERVED_SCAN_KEYS = {
+    "index",
     "rt",
     "level",
     "precursor_mz",
@@ -201,3 +204,20 @@ def read_scan_arrays(function: str, arrays: Any) -> "tuple[list[str], list[int]]
         keys.append(key)
         numbers.append(number)
     return keys, numbers
+
+
+SCAN_METADATA_TAGS = (
+    "spectrum", "referenceableParamGroupRef", "spectrumDescription", "scanList", "scan", "scanWindowList",
+    "scanWindow", "precursorList", "precursor", "isolationWindow", "selectedIonList", "selectedIon",
+    "activation", "productList", "product", "binaryDataArrayList", "binaryDataArray",
+)
+_TAG_SEPARATOR = "\x1f"
+
+
+def read_scan_metadata_tags(function: str, tags: Any) -> bytes:
+    if not isinstance(tags, (list, tuple)):
+        raise _invalid(function, "tags", f"must be a list of tag names, got {tags!r}")
+    for tag in tags:
+        if not isinstance(tag, str) or tag not in SCAN_METADATA_TAGS:
+            raise _invalid(function, "tags", f"must be one of {', '.join(SCAN_METADATA_TAGS)}, got {tag!r}")
+    return _TAG_SEPARATOR.join(tags).encode("utf-8")

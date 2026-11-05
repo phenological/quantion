@@ -4,6 +4,7 @@ use crate::{
     error::{QuantionError, check_finite, check_not_negative, check_positive},
     utilities::{
         calculate_eic::TimeUnit,
+        get_scan_metadata::{SCAN_METADATA_TAGS, get_tag},
         fit_peak::PeakShape,
         structs::FromTo,
     },
@@ -502,6 +503,37 @@ impl Default for MatchFeaturesOptions {
     }
 }
 
+/// **DeisotopeFeaturesOptions** · Options
+///
+/// How deisotope_features links isotope peaks.
+///
+/// Fields:
+/// - `rt_tolerance`: Same compound when rt is within this many minutes of M. Default `0.02`.
+/// - `mz_tolerance`: Isotope peak when m/z is within this many Da of the expected position. Default `0.005`.
+///
+/// [Documentation](https://phenological.github.io/quantion/?language=rust#DeisotopeFeaturesOptions)
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct DeisotopeFeaturesOptions {
+    pub rt_tolerance: f64,
+    pub mz_tolerance: f64,
+}
+
+impl Default for DeisotopeFeaturesOptions {
+    fn default() -> Self {
+        Self {
+            rt_tolerance: 0.02,
+            mz_tolerance: 0.005,
+        }
+    }
+}
+
+impl DeisotopeFeaturesOptions {
+    pub(crate) fn check(&self, function: &'static str) -> Result<(), QuantionError> {
+        check_not_negative(function, "rt_tolerance", self.rt_tolerance)?;
+        check_not_negative(function, "mz_tolerance", self.mz_tolerance)
+    }
+}
+
 pub(crate) fn check_threads(function: &'static str, threads: usize) -> Result<(), QuantionError> {
     if threads == 0 {
         return Err(QuantionError::invalid(function, "threads", "must be 1 or more, got 0"));
@@ -536,6 +568,34 @@ impl Default for GetScansOptions {
     }
 }
 
+/// **GetScanMetadataOptions** · Options
+///
+/// Settings for get_scan_metadata.
+///
+/// Fields:
+/// - `tags`: Which tags to keep, by name. A row is kept when the last tag of its path matches, so scan keeps spectrum/scanList/scan\[0\] but not its scanWindow. Empty keeps every tag. The names are: spectrum, referenceableParamGroupRef, spectrumDescription, scanList, scan, scanWindowList, scanWindow, precursorList, precursor, isolationWindow, selectedIonList, selectedIon, activation, productList, product, binaryDataArrayList, binaryDataArray. Default `[]`.
+///
+/// [Documentation](https://phenological.github.io/quantion/?language=rust#GetScanMetadataOptions)
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct GetScanMetadataOptions {
+    pub tags: Vec<String>,
+}
+
+impl GetScanMetadataOptions {
+    pub(crate) fn check(&self, function: &'static str) -> Result<(), QuantionError> {
+        for tag in &self.tags {
+            if !SCAN_METADATA_TAGS.contains(&tag.as_str()) {
+                return Err(QuantionError::invalid(function, "tags", format!("must be one of {}, got {tag:?}", SCAN_METADATA_TAGS.join(", "))));
+            }
+        }
+        Ok(())
+    }
+
+    pub(crate) fn keeps(&self, path: &str) -> bool {
+        self.tags.is_empty() || self.tags.iter().any(|tag| tag == get_tag(path))
+    }
+}
+
 /// **ScanArray** · Options
 ///
 /// One array to read from each scan in get_scans.
@@ -560,7 +620,8 @@ pub(crate) const MZ_KEY: &str = "mz";
 pub(crate) const INTENSITY_KEY: &str = "intensity";
 const MZ_ACCESSION: &str = "MS:1000514";
 const INTENSITY_ACCESSION: &str = "MS:1000515";
-const RESERVED_SCAN_KEYS: [&str; 14] = [
+const RESERVED_SCAN_KEYS: [&str; 15] = [
+    "index",
     "rt",
     "level",
     "precursor_mz",
@@ -702,6 +763,8 @@ impl From<PathBuf> for IonOutput {
 /// - `overwrite`: Replace an existing file. Default `false`.
 /// - `level`: Compression level, 0 to 22. Default `12`.
 /// - `f32_compress`: Store intensities as 32-bit floats. Default `false`.
+/// - `block_size`: Size of each data block before compression, in MB. A whole number, 1 or more. Default `8`.
+/// - `mz_window`: Width of the m/z windows the spectra are split into, in Da, so a query reads only the windows it needs. A whole number, 0 or more; 0 keeps each spectrum whole. Default `20`.
 /// - `headers`: Extra HTTP headers. Only with a URL. Default `empty`.
 ///
 /// [Documentation](https://phenological.github.io/quantion/?language=rust#WriteIonOptions)
@@ -711,6 +774,8 @@ pub struct WriteIonOptions {
     pub overwrite: bool,
     pub level: u8,
     pub f32_compress: bool,
+    pub block_size: u32,
+    pub mz_window: u32,
     pub headers: Vec<Header>,
 }
 
@@ -721,6 +786,8 @@ impl Default for WriteIonOptions {
             overwrite: false,
             level: 12,
             f32_compress: false,
+            block_size: 8,
+            mz_window: 20,
             headers: Vec::new(),
         }
     }

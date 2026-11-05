@@ -338,11 +338,13 @@ typedef struct
   uint32_t id;
   uint32_t second_id;
   int kind;
+  uint32_t missing_id;
 } record_column;
 
 #define COLUMN_NUMBER 0
 #define COLUMN_COUNT 1
 #define COLUMN_TEXT 2
+#define COLUMN_OPTIONAL_TEXT 3
 
 static const record_column PEAK_COLUMNS[] = {
     {"from", 18, 0, COLUMN_NUMBER}, {"to", 19, 0, COLUMN_NUMBER},
@@ -373,6 +375,12 @@ static const record_column WARP_TARGET_COLUMNS[] = {
 static const record_column MODEL_METADATA_COLUMNS[] = {
     {"key", 83, 84, COLUMN_TEXT}, {"value", 85, 86, COLUMN_TEXT}};
 
+static const record_column SCAN_METADATA_COLUMNS[] = {
+    {"path", 91, 92, COLUMN_TEXT}, {"kind", 93, 94, COLUMN_TEXT},
+    {"accession", 95, 96, COLUMN_OPTIONAL_TEXT, 97}, {"name", 98, 99, COLUMN_TEXT},
+    {"value", 100, 101, COLUMN_OPTIONAL_TEXT, 102}, {"unit", 103, 104, COLUMN_OPTIONAL_TEXT, 105},
+    {"unit_accession", 106, 107, COLUMN_OPTIONAL_TEXT, 108}};
+
 static const record_column *columns_for_kind(uint16_t kind, int *count)
 {
   switch (kind)
@@ -395,6 +403,9 @@ static const record_column *columns_for_kind(uint16_t kind, int *count)
   case QUANTION_PAYLOAD_MODEL_METADATA:
     *count = sizeof(MODEL_METADATA_COLUMNS) / sizeof(MODEL_METADATA_COLUMNS[0]);
     return MODEL_METADATA_COLUMNS;
+  case QUANTION_PAYLOAD_SCAN_METADATA:
+    *count = sizeof(SCAN_METADATA_COLUMNS) / sizeof(SCAN_METADATA_COLUMNS[0]);
+    return SCAN_METADATA_COLUMNS;
   default:
     *count = 0;
     return NULL;
@@ -438,6 +449,16 @@ static SEXP text_column(const bridge_view *bridge, uint32_t starts_id, uint32_t 
   return column;
 }
 
+static void mark_missing(SEXP column, const bridge_view *bridge, uint32_t missing_id, R_xlen_t rows)
+{
+  const bridge_section *section = find_section(bridge, missing_id);
+  if (section->byte_length != (uint64_t)rows)
+    error("quantion bridge: section %u does not match the record count", missing_id);
+  for (R_xlen_t index = 0; index < rows; index++)
+    if (bridge->raw[section->byte_offset + (uint64_t)index])
+      SET_STRING_ELT(column, index, NA_STRING);
+}
+
 static SEXP records_bridge_build(void *data)
 {
   struct scans_bridge_data *held = (struct scans_bridge_data *)data;
@@ -462,6 +483,8 @@ static SEXP records_bridge_build(void *data)
     else
       column = text_column(&bridge, spec[index].id, spec[index].second_id, rows);
     SET_VECTOR_ELT(columns, index, column);
+    if (spec[index].kind == COLUMN_OPTIONAL_TEXT)
+      mark_missing(column, &bridge, spec[index].missing_id, rows);
     SET_STRING_ELT(names, index, Rf_mkChar(spec[index].name));
   }
   set_data_frame(columns, names, rows);
@@ -632,19 +655,21 @@ static SEXP scans_build(void *data)
     error("quantion bridge: intensity length does not match m/z length");
   const unsigned char *starts_at = bridge.raw + starts->byte_offset;
 
-  int column_count = 3 + 9;
+  int column_count = 4 + 9;
   SEXP columns = PROTECT(Rf_allocVector(VECSXP, column_count));
   SEXP names = PROTECT(Rf_allocVector(STRSXP, column_count));
-  SET_VECTOR_ELT(columns, 0, number_column(&bridge, QUANTION_SECTION_RT, count));
-  SET_STRING_ELT(names, 0, Rf_mkChar("rt"));
-  SET_VECTOR_ELT(columns, 1, point_column(&bridge, QUANTION_SECTION_MZ, starts_at, count));
-  SET_STRING_ELT(names, 1, Rf_mkChar("mz"));
-  SET_VECTOR_ELT(columns, 2, point_column(&bridge, QUANTION_SECTION_INTENSITY, starts_at, count));
-  SET_STRING_ELT(names, 2, Rf_mkChar("intensity"));
+  SET_VECTOR_ELT(columns, 0, number_column(&bridge, QUANTION_SECTION_SCAN_INDEX, count));
+  SET_STRING_ELT(names, 0, Rf_mkChar("index"));
+  SET_VECTOR_ELT(columns, 1, number_column(&bridge, QUANTION_SECTION_RT, count));
+  SET_STRING_ELT(names, 1, Rf_mkChar("rt"));
+  SET_VECTOR_ELT(columns, 2, point_column(&bridge, QUANTION_SECTION_MZ, starts_at, count));
+  SET_STRING_ELT(names, 2, Rf_mkChar("mz"));
+  SET_VECTOR_ELT(columns, 3, point_column(&bridge, QUANTION_SECTION_INTENSITY, starts_at, count));
+  SET_STRING_ELT(names, 3, Rf_mkChar("intensity"));
   for (int index = 0; index < 9; index++)
   {
-    SET_VECTOR_ELT(columns, 3 + index, number_column(&bridge, SCAN_DETAIL_SECTIONS[index], count));
-    SET_STRING_ELT(names, 3 + index, Rf_mkChar(SCAN_DETAIL_NAMES[index]));
+    SET_VECTOR_ELT(columns, 4 + index, number_column(&bridge, SCAN_DETAIL_SECTIONS[index], count));
+    SET_STRING_ELT(names, 4 + index, Rf_mkChar(SCAN_DETAIL_NAMES[index]));
   }
   set_data_frame(columns, names, count);
   UNPROTECT(2);
@@ -936,7 +961,8 @@ SEXP C_store_add(SEXP store_pointer, SEXP offset, SEXP bytes)
   return R_NilValue;
 }
 
-SEXP C_write_ion(SEXP file, SEXP out_path, SEXP overwrite, SEXP level, SEXP f32_compress, SEXP headers)
+SEXP C_write_ion(SEXP file, SEXP out_path, SEXP overwrite, SEXP level, SEXP f32_compress, SEXP block_size,
+                 SEXP mz_window, SEXP headers)
 {
   check_bound();
   ParsedFile *handle = get_sample(file);
@@ -956,7 +982,8 @@ SEXP C_write_ion(SEXP file, SEXP out_path, SEXP overwrite, SEXP level, SEXP f32_
   }
   Buf out = (Buf){0};
   check_code(write_ion(handle, get_text_or_null(out_path), (uint8_t)asLogical(overwrite), (uint8_t)asInteger(level),
-                       (uint8_t)asLogical(f32_compress), header_bytes, headers_size, &out));
+                       (uint8_t)asLogical(f32_compress), (uint32_t)asReal(block_size), (uint32_t)asReal(mz_window),
+                       header_bytes, headers_size, &out));
   if (out_path != R_NilValue && out.ptr == NULL)
     return R_NilValue;
   return take_numbers(&out, NULL, 1);
@@ -988,6 +1015,22 @@ SEXP C_plan_scans(SEXP file, SEXP query_type, SEXP from, SEXP to, SEXP level, SE
   Buf out = (Buf){0};
   check_code(plan_scans(get_sample(file), (uint8_t)asInteger(query_type), asReal(from), asReal(to),
                         (uint8_t)asInteger(level), get_time_unit(time_unit), &out));
+  return take_ranges(&out);
+}
+
+SEXP C_get_scan_metadata(SEXP file, SEXP index, SEXP tags)
+{
+  check_bound();
+  Buf out = (Buf){0};
+  check_code(get_scan_metadata(get_sample(file), (size_t)asReal(index), CHAR(STRING_ELT(tags, 0)), &out));
+  return take_records(&out);
+}
+
+SEXP C_plan_scan_metadata(SEXP file, SEXP index)
+{
+  check_bound();
+  Buf out = (Buf){0};
+  check_code(plan_scan_metadata(get_sample(file), (size_t)asReal(index), &out));
   return take_ranges(&out);
 }
 
@@ -1179,6 +1222,14 @@ SEXP C_plan_find_features(SEXP file, SEXP eic, SEXP grid)
                                 get_time_unit(list_get(eic, "time_unit")), get_number(grid, "start"),
                                 get_number(grid, "end"), get_number(grid, "step_size"), &out));
   return take_ranges(&out);
+}
+
+SEXP C_deisotope_features(SEXP features, SEXP count, SEXP rt_tolerance, SEXP mz_tolerance)
+{
+  check_bound();
+  Buf out = (Buf){0};
+  check_code(deisotope_features(REAL(features), (size_t)asReal(count), asReal(rt_tolerance), asReal(mz_tolerance), &out));
+  return take_records(&out);
 }
 
 SEXP C_match_features(SEXP directory, SEXP eic, SEXP grid, SEXP grouping, SEXP options, SEXP threads)

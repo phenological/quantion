@@ -117,7 +117,7 @@ describeArrays("getScans arrays", () => {
     });
     expect(scans).toHaveLength(3);
     scans.forEach((scan, position) => {
-      expect(Array.from((scan.fingerprint as Float64Array))).toEqual(
+      expect(Array.from(scan.fingerprint as Float64Array)).toEqual(
         Array.from(getFingerprint(position)),
       );
       expect(scan.mz).toHaveLength(0);
@@ -141,7 +141,7 @@ describeArrays("getScans arrays", () => {
     );
     expect(scans).toHaveLength(1);
     expect(Array.from(scans[0].mz)).toEqual([100.5, 200.25, 300.125]);
-    expect(Array.from((scans[0].fingerprint as Float64Array))).toEqual(
+    expect(Array.from(scans[0].fingerprint as Float64Array)).toEqual(
       Array.from(getFingerprint(1)),
     );
   });

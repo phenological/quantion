@@ -50,6 +50,10 @@
       "description": "Open, read and write raw files: Ionic (.ion) and mzML."
     },
     {
+      "name": "Metadata",
+      "description": "Read every detail stored with a scan: the attributes, cvParams and userParams of each tag, one row each. Find the scan with get_scans, then pass its index."
+    },
+    {
       "name": "Traces",
       "description": "Functions that work on one trace: a chromatogram given as x, the retention times, and y, the intensities. They need no file. To make a trace from a raw Ionic (.ion) or mzML file, use calculate_eic."
     },
@@ -540,6 +544,116 @@
         "r": {
           "signature": "get_scans(file, rt = NULL, mz = NULL, options = get_scans_options())",
           "example": "# example 1\nlibrary(quantion)\n\nurl <- \"https://raw.githubusercontent.com/phenological/ion-files/main/data/p21_LTR_20_b1_w20.ion\"\n# example 2\nsample <- parse_ion(url)\nscans <- get_scans(sample, rt = c(2.3, 2.4))\nclosest <- get_scans(sample, rt = 143, options = get_scans_options(time_unit = \"SECONDS\"))\nprint(nrow(scans))\nprint(closest$mz)\n\nsample <- parse_ion(\"sample.ion\")\narrays <- list(list(key = \"key1\", accession = \"MS:1000786\"))\nfound <- get_scans(sample, mz = c(300.0, 300.01), options = get_scans_options(level = 2L, arrays = arrays))\nprint(found$key1)"
+        }
+      }
+    },
+    {
+      "name": "get_scan_metadata",
+      "group": "Metadata",
+      "kind": "function",
+      "summary": "Read the attributes, cvParams and userParams of one scan, one row each, parents before children. Find the scan with get_scans, then pass its index.",
+      "arguments": [
+        {
+          "meaning": "The sample to read, from parse_ion or parse_mzml.",
+          "languages": {
+            "rust": {
+              "name": "file",
+              "type": "&mut SampleFile",
+              "default": "—"
+            },
+            "python": {
+              "name": "file",
+              "type": "SampleFile",
+              "default": "—"
+            },
+            "js": {
+              "name": "file",
+              "type": "SampleFile",
+              "default": "—"
+            },
+            "r": {
+              "name": "file",
+              "type": "SampleFile",
+              "default": "—"
+            }
+          }
+        },
+        {
+          "meaning": "Position of the scan in the spectrum list, from 0: the index of a scan from get_scans.",
+          "languages": {
+            "rust": {
+              "name": "index",
+              "type": "usize",
+              "default": "—"
+            },
+            "python": {
+              "name": "index",
+              "type": "int",
+              "default": "—"
+            },
+            "js": {
+              "name": "index",
+              "type": "number",
+              "default": "—"
+            },
+            "r": {
+              "name": "index",
+              "type": "numeric(1)",
+              "default": "—"
+            }
+          }
+        },
+        {
+          "meaning": "Optional settings. Every field and default is listed in GetScanMetadataOptions.",
+          "languages": {
+            "rust": {
+              "name": "options",
+              "type": "GetScanMetadataOptions",
+              "default": "default"
+            },
+            "python": {
+              "name": "options",
+              "type": "GetScanMetadataOptions | None",
+              "default": "None"
+            },
+            "js": {
+              "name": "options",
+              "type": "GetScanMetadataOptions",
+              "default": "default"
+            },
+            "r": {
+              "name": "options",
+              "type": "GetScanMetadataOptions",
+              "default": "get_scan_metadata_options()"
+            }
+          }
+        }
+      ],
+      "returns": {
+        "meaning": "One row per attribute or param, in the order of the mzML tree. Values are text. A field the file does not give is missing: None in Rust and Python, null in JS, NA in R.",
+        "languages": {
+          "rust": "Result<Vec<ScanParam>, QuantionError>",
+          "python": "list[ScanParam]",
+          "js": "Promise<ScanParam[]>",
+          "r": "data.frame of ScanParam"
+        }
+      },
+      "languages": {
+        "rust": {
+          "signature": "pub fn get_scan_metadata(file: &mut SampleFile, index: usize, options: GetScanMetadataOptions) -> Result<Vec<ScanParam>, QuantionError>",
+          "example": "use quantion::{FromTo, GetScanMetadataOptions, GetScansOptions, ParseIonOptions, ScanQuery, get_scan_metadata, get_scans, parse_ion};\n\nlet url = \"https://raw.githubusercontent.com/phenological/ion-files/main/data/p21_LTR_20_b1_w20.ion\";\nlet mut file = parse_ion(url, ParseIonOptions::default())?;\nlet scans = get_scans(&mut file, ScanQuery::RtRange(FromTo { from: 2.3, to: 2.4 }), GetScansOptions::default())?;\nlet rows = get_scan_metadata(&mut file, scans[0].index, GetScanMetadataOptions::default())?;\nlet only_scan = get_scan_metadata(&mut file, scans[0].index, GetScanMetadataOptions { tags: vec![\"scan\".to_string()] })?;\nprintln!(\"{:?}\", rows[0]);\nprintln!(\"{}\", only_scan.len());"
+        },
+        "python": {
+          "signature": "def get_scan_metadata(file, index: int, options: GetScanMetadataOptions | None = None) -> list[ScanParam]",
+          "example": "from quantion import get_scan_metadata, get_scans, parse_ion\n\nurl = \"https://raw.githubusercontent.com/phenological/ion-files/main/data/p21_LTR_20_b1_w20.ion\"\nfile = parse_ion(url)\nscans = get_scans(file, rt={\"from\": 2.3, \"to\": 2.4})\nrows = get_scan_metadata(file, scans[0][\"index\"])\nonly_scan = get_scan_metadata(file, scans[0][\"index\"], {\"tags\": [\"scan\"]})\nprint(rows[0])\nprint(len(only_scan))"
+        },
+        "js": {
+          "signature": "async function getScanMetadata(file: SampleFile, index: number, options?: GetScanMetadataOptions): Promise<ScanParam[]>",
+          "example": "import { getScanMetadata, getScans, parseIon } from \"quantion\";\n\nconst url = \"https://raw.githubusercontent.com/phenological/ion-files/main/data/p21_LTR_20_b1_w20.ion\";\nconst file = await parseIon(url);\nconst scans = await getScans(file, { rt: { from: 2.3, to: 2.4 } });\nconst rows = await getScanMetadata(file, scans[0].index);\nconst onlyScan = await getScanMetadata(file, scans[0].index, { tags: [\"scan\"] });\nconsole.log(rows[0]);\nconsole.log(onlyScan.length);"
+        },
+        "r": {
+          "signature": "get_scan_metadata(file, index, options = get_scan_metadata_options())",
+          "example": "library(quantion)\n\nurl <- \"https://raw.githubusercontent.com/phenological/ion-files/main/data/p21_LTR_20_b1_w20.ion\"\nfile <- parse_ion(url)\nscans <- get_scans(file, rt = c(2.3, 2.4))\nrows <- get_scan_metadata(file, scans$index[1])\nonly_scan <- get_scan_metadata(file, scans$index[1], get_scan_metadata_options(tags = \"scan\"))\nprint(rows[1, ])\nprint(nrow(only_scan))"
         }
       }
     },
@@ -1777,6 +1891,91 @@
       }
     },
     {
+      "name": "deisotope_features",
+      "group": "Untargeted",
+      "kind": "function",
+      "summary": "Remove 13C isotope peaks from a feature list, keeping the monoisotopic peak (M) of each compound. A feature is an isotope when it sits 1.00335/charge above the previous peak (charge = 1 or 2), has the same rt as M, and its intensity is not too high: M+1 at most M × mz × charge / 12 × 0.0108157.",
+      "arguments": [
+        {
+          "meaning": "The features to clean, from find_features or match_features.",
+          "languages": {
+            "rust": {
+              "name": "features",
+              "type": "Vec<Feature>",
+              "default": "—"
+            },
+            "python": {
+              "name": "features",
+              "type": "list[Feature]",
+              "default": "—"
+            },
+            "js": {
+              "name": "features",
+              "type": "Feature[]",
+              "default": "—"
+            },
+            "r": {
+              "name": "features",
+              "type": "data.frame of Feature",
+              "default": "—"
+            }
+          }
+        },
+        {
+          "meaning": "Optional settings. Every field and default is listed in DeisotopeFeaturesOptions.",
+          "languages": {
+            "rust": {
+              "name": "options",
+              "type": "DeisotopeFeaturesOptions",
+              "default": "default"
+            },
+            "python": {
+              "name": "options",
+              "type": "DeisotopeFeaturesOptions | None",
+              "default": "None"
+            },
+            "js": {
+              "name": "options",
+              "type": "DeisotopeFeaturesOptions",
+              "default": "default"
+            },
+            "r": {
+              "name": "options",
+              "type": "DeisotopeFeaturesOptions",
+              "default": "deisotope_features_options()"
+            }
+          }
+        }
+      ],
+      "returns": {
+        "meaning": "The features that are not isotopes, sorted by m/z.",
+        "languages": {
+          "rust": "Result<Vec<Feature>, QuantionError>",
+          "python": "list[Feature]",
+          "js": "Feature[]",
+          "r": "data.frame of Feature"
+        }
+      },
+      "languages": {
+        "rust": {
+          "signature": "pub fn deisotope_features(features: Vec<Feature>, options: DeisotopeFeaturesOptions) -> Result<Vec<Feature>, QuantionError>",
+          "example": "use quantion::{CalculateEicOptions, DeisotopeFeaturesOptions, FindFeaturesOptions, GridOptions, ParseIonOptions, QuantionError, deisotope_features, find_features, parse_ion};\n\nfn main() -> Result<(), QuantionError> {\n    let mut file = parse_ion(\"https://raw.githubusercontent.com/phenological/ion-files/main/data/p21_LTR_20_b1_w20.ion\", ParseIonOptions::default())?;\n    let options = FindFeaturesOptions {\n        eic: CalculateEicOptions { from: 2.3, to: 2.45, ..Default::default() },\n        grid: GridOptions { start: 255.0, end: 265.0, ..Default::default() },\n        threads: 2,\n        ..Default::default()\n    };\n    let features = find_features(&mut file, options)?;\n    let found = features.len();\n    let cleaned = deisotope_features(features, DeisotopeFeaturesOptions { rt_tolerance: 0.02, ..Default::default() })?;\n\n    println!(\"{} features, {} without isotopes\", found, cleaned.len());\n    Ok(())\n}"
+        },
+        "python": {
+          "signature": "def deisotope_features(features, options: DeisotopeFeaturesOptions | None = None) -> list[Feature]",
+          "example": "from quantion import deisotope_features, find_features, parse_ion\n\nfile = parse_ion(\"https://raw.githubusercontent.com/phenological/ion-files/main/data/p21_LTR_20_b1_w20.ion\")\nfeatures = find_features(file, {\"eic\": {\"from\": 2.3, \"to\": 2.45}, \"grid\": {\"start\": 255, \"end\": 265}, \"threads\": 2})\ncleaned = deisotope_features(features, {\"rt_tolerance\": 0.02})\n\nprint(f\"{len(features)} features, {len(cleaned)} without isotopes\")"
+        },
+        "js": {
+          "signature": "function deisotopeFeatures(features: Feature[], options?: DeisotopeFeaturesOptions): Feature[]",
+          "example": "import { deisotopeFeatures, findFeatures, parseIon } from \"quantion\";\n\nconst file = await parseIon(\"https://raw.githubusercontent.com/phenological/ion-files/main/data/p21_LTR_20_b1_w20.ion\");\nconst features = await findFeatures(file, {\n  eic: { from: 2.3, to: 2.45 },\n  grid: { start: 255, end: 265 },\n  threads: 2,\n});\nconst cleaned = deisotopeFeatures(features, { rtTolerance: 0.02 });\n\nconsole.log(`${features.length} features, ${cleaned.length} without isotopes`);"
+        },
+        "r": {
+          "signature": "deisotope_features(features, options = deisotope_features_options())",
+          "example": "library(quantion)\n\nsample <- parse_ion(\"https://raw.githubusercontent.com/phenological/ion-files/main/data/p21_LTR_20_b1_w20.ion\")\nfeatures <- find_features(sample, options = find_features_options(\n  eic = calculate_eic_options(from = 2.3, to = 2.45),\n  grid = grid_options(start = 255, end = 265),\n  threads = 2L\n))\ncleaned <- deisotope_features(features, options = deisotope_features_options(rt_tolerance = 0.02))\n\ncat(nrow(features), \"features,\", nrow(cleaned), \"without isotopes\\n\")"
+        }
+      }
+    },
+    {
       "name": "load_model",
       "group": "Models",
       "kind": "function",
@@ -2801,6 +3000,91 @@
         },
         "r": {
           "signature": "fit_peak_options(shape = \"GAUSSIAN\")"
+        }
+      }
+    },
+    {
+      "name": "ScanParamKind",
+      "group": "Enums",
+      "kind": "type",
+      "summary": "What a row from get_scan_metadata holds.",
+      "fields": [
+        {
+          "meaning": "An attribute of the tag, such as id or defaultArrayLength.",
+          "languages": {
+            "rust": {
+              "name": "ATTRIBUTE",
+              "type": "variant"
+            },
+            "python": {
+              "name": "ATTRIBUTE",
+              "type": "\"ATTRIBUTE\""
+            },
+            "js": {
+              "name": "ATTRIBUTE",
+              "type": "\"ATTRIBUTE\""
+            },
+            "r": {
+              "name": "\"ATTRIBUTE\"",
+              "type": "character"
+            }
+          }
+        },
+        {
+          "meaning": "A cvParam: a param from the controlled vocabulary, with an accession.",
+          "languages": {
+            "rust": {
+              "name": "CV",
+              "type": "variant"
+            },
+            "python": {
+              "name": "CV",
+              "type": "\"CV\""
+            },
+            "js": {
+              "name": "CV",
+              "type": "\"CV\""
+            },
+            "r": {
+              "name": "\"CV\"",
+              "type": "character"
+            }
+          }
+        },
+        {
+          "meaning": "A userParam: a param the software that wrote the file named itself.",
+          "languages": {
+            "rust": {
+              "name": "USER",
+              "type": "variant"
+            },
+            "python": {
+              "name": "USER",
+              "type": "\"USER\""
+            },
+            "js": {
+              "name": "USER",
+              "type": "\"USER\""
+            },
+            "r": {
+              "name": "\"USER\"",
+              "type": "character"
+            }
+          }
+        }
+      ],
+      "languages": {
+        "rust": {
+          "signature": "#[allow(clippy::upper_case_acronyms)]\npub enum ScanParamKind {\n    ATTRIBUTE,\n    CV,\n    USER,\n}"
+        },
+        "python": {
+          "signature": "class ScanParamKind(str, Enum):\n    ATTRIBUTE = \"ATTRIBUTE\"\n    CV = \"CV\"\n    USER = \"USER\""
+        },
+        "js": {
+          "signature": "export const ScanParamKind = { ATTRIBUTE: \"ATTRIBUTE\", CV: \"CV\", USER: \"USER\" } as const;\nexport type ScanParamKind = (typeof ScanParamKind)[keyof typeof ScanParamKind];"
+        },
+        "r": {
+          "signature": "get_scan_metadata(file, index)$kind"
         }
       }
     },
@@ -4100,6 +4384,78 @@
       }
     },
     {
+      "name": "DeisotopeFeaturesOptions",
+      "group": "Options",
+      "kind": "type",
+      "summary": "How deisotope_features links isotope peaks.",
+      "fields": [
+        {
+          "meaning": "Same compound when rt is within this many minutes of M.",
+          "languages": {
+            "rust": {
+              "name": "rt_tolerance",
+              "type": "f64",
+              "default": "0.02"
+            },
+            "python": {
+              "name": "rt_tolerance",
+              "type": "float",
+              "default": "0.02"
+            },
+            "js": {
+              "name": "rtTolerance",
+              "type": "number",
+              "default": "0.02"
+            },
+            "r": {
+              "name": "rt_tolerance",
+              "type": "numeric",
+              "default": "0.02"
+            }
+          }
+        },
+        {
+          "meaning": "Isotope peak when m/z is within this many Da of the expected position.",
+          "languages": {
+            "rust": {
+              "name": "mz_tolerance",
+              "type": "f64",
+              "default": "0.005"
+            },
+            "python": {
+              "name": "mz_tolerance",
+              "type": "float",
+              "default": "0.005"
+            },
+            "js": {
+              "name": "mzTolerance",
+              "type": "number",
+              "default": "0.005"
+            },
+            "r": {
+              "name": "mz_tolerance",
+              "type": "numeric",
+              "default": "0.005"
+            }
+          }
+        }
+      ],
+      "languages": {
+        "rust": {
+          "signature": "pub struct DeisotopeFeaturesOptions {\n    pub rt_tolerance: f64,\n    pub mz_tolerance: f64,\n}"
+        },
+        "python": {
+          "signature": "class DeisotopeFeaturesOptions(TypedDict, total=False):\n    rt_tolerance: float\n    mz_tolerance: float"
+        },
+        "js": {
+          "signature": "export interface DeisotopeFeaturesOptions {\n  rtTolerance?: number;\n  mzTolerance?: number;\n}"
+        },
+        "r": {
+          "signature": "deisotope_features_options(rt_tolerance = 0.02, mz_tolerance = 0.005)"
+        }
+      }
+    },
+    {
       "name": "DrawPeaksOptions",
       "group": "Options",
       "kind": "type",
@@ -4265,6 +4621,53 @@
         },
         "r": {
           "signature": "calculate_baseline_options(lambda = 20, max_iterations = 4L)"
+        }
+      }
+    },
+    {
+      "name": "GetScanMetadataOptions",
+      "group": "Options",
+      "kind": "type",
+      "summary": "Settings for get_scan_metadata.",
+      "fields": [
+        {
+          "meaning": "Which tags to keep, by name. A row is kept when the last tag of its path matches, so scan keeps spectrum/scanList/scan[0] but not its scanWindow. Empty keeps every tag. The names are: spectrum, referenceableParamGroupRef, spectrumDescription, scanList, scan, scanWindowList, scanWindow, precursorList, precursor, isolationWindow, selectedIonList, selectedIon, activation, productList, product, binaryDataArrayList, binaryDataArray.",
+          "languages": {
+            "rust": {
+              "name": "tags",
+              "type": "Vec<String>",
+              "default": "[]"
+            },
+            "python": {
+              "name": "tags",
+              "type": "list[str]",
+              "default": "[]"
+            },
+            "js": {
+              "name": "tags",
+              "type": "string[]",
+              "default": "[]"
+            },
+            "r": {
+              "name": "tags",
+              "type": "character",
+              "default": "character(0)"
+            }
+          }
+        }
+      ],
+      "languages": {
+        "rust": {
+          "signature": "pub struct GetScanMetadataOptions {\n    pub tags: Vec<String>,\n}"
+        },
+        "python": {
+          "signature": "class GetScanMetadataOptions(TypedDict, total=False):\n    tags: list[str]"
+        },
+        "js": {
+          "signature": "export interface GetScanMetadataOptions {\n  tags?: string[];\n}"
+        },
+        "r": {
+          "signature": "get_scan_metadata_options(tags = character(0))"
         }
       }
     },
@@ -4587,6 +4990,56 @@
           }
         },
         {
+          "meaning": "Size of each data block before compression, in MB. A whole number, 1 or more.",
+          "languages": {
+            "rust": {
+              "name": "block_size",
+              "type": "u32",
+              "default": "8"
+            },
+            "python": {
+              "name": "block_size",
+              "type": "int",
+              "default": "8"
+            },
+            "js": {
+              "name": "blockSize",
+              "type": "number",
+              "default": "8"
+            },
+            "r": {
+              "name": "block_size",
+              "type": "numeric(1)",
+              "default": "8L"
+            }
+          }
+        },
+        {
+          "meaning": "Width of the m/z windows the spectra are split into, in Da, so a query reads only the windows it needs. A whole number, 0 or more; 0 keeps each spectrum whole.",
+          "languages": {
+            "rust": {
+              "name": "mz_window",
+              "type": "u32",
+              "default": "20"
+            },
+            "python": {
+              "name": "mz_window",
+              "type": "int",
+              "default": "20"
+            },
+            "js": {
+              "name": "mzWindow",
+              "type": "number",
+              "default": "20"
+            },
+            "r": {
+              "name": "mz_window",
+              "type": "numeric(1)",
+              "default": "20L"
+            }
+          }
+        },
+        {
           "meaning": "Extra HTTP headers. Only with a URL.",
           "languages": {
             "rust": {
@@ -4614,16 +5067,16 @@
       ],
       "languages": {
         "rust": {
-          "signature": "pub enum IonOutput {\n    Path(PathBuf),\n    Url(String),\n}\n\npub struct WriteIonOptions {\n    pub out: Option<IonOutput>,\n    pub overwrite: bool,\n    pub level: u8,\n    pub f32_compress: bool,\n    pub headers: Vec<Header>,\n}"
+          "signature": "pub enum IonOutput {\n    Path(PathBuf),\n    Url(String),\n}\n\npub struct WriteIonOptions {\n    pub out: Option<IonOutput>,\n    pub overwrite: bool,\n    pub level: u8,\n    pub f32_compress: bool,\n    pub block_size: u32,\n    pub mz_window: u32,\n    pub headers: Vec<Header>,\n}"
         },
         "python": {
-          "signature": "class WriteIonOptions(TypedDict, total=False):\n    out: str | os.PathLike\n    overwrite: bool\n    level: int\n    f32_compress: bool\n    headers: list[Header]"
+          "signature": "class WriteIonOptions(TypedDict, total=False):\n    out: str | os.PathLike\n    overwrite: bool\n    level: int\n    f32_compress: bool\n    block_size: int\n    mz_window: int\n    headers: list[Header]"
         },
         "js": {
-          "signature": "export interface WriteIonOptions {\n  out?: string | URL;\n  overwrite?: boolean;\n  level?: number;\n  f32Compress?: boolean;\n  headers?: Header[];\n}"
+          "signature": "export interface WriteIonOptions {\n  out?: string | URL;\n  overwrite?: boolean;\n  level?: number;\n  f32Compress?: boolean;\n  blockSize?: number;\n  mzWindow?: number;\n  headers?: Header[];\n}"
         },
         "r": {
-          "signature": "write_ion_options(out = NULL, overwrite = FALSE, level = 12L, f32_compress = FALSE, headers = list())"
+          "signature": "write_ion_options(out = NULL, overwrite = FALSE, level = 12L, f32_compress = FALSE,\n                  headers = list(), block_size = 8L, mz_window = 20L)"
         }
       }
     },
@@ -5464,6 +5917,27 @@
       "summary": "One scan from get_scans: its retention time, centroided m/z and intensity values, and its details.",
       "fields": [
         {
+          "meaning": "Position of the scan in the spectrum list, from 0. Use it with get_scan_metadata.",
+          "languages": {
+            "rust": {
+              "name": "index",
+              "type": "usize"
+            },
+            "python": {
+              "name": "index",
+              "type": "int"
+            },
+            "js": {
+              "name": "index",
+              "type": "number"
+            },
+            "r": {
+              "name": "index",
+              "type": "numeric"
+            }
+          }
+        },
+        {
           "meaning": "Retention time (minutes).",
           "languages": {
             "rust": {
@@ -5718,16 +6192,185 @@
       ],
       "languages": {
         "rust": {
-          "signature": "pub struct Scan {\n    pub rt: f64,\n    pub mz: Vec<f64>,\n    pub intensity: Vec<f64>,\n    pub level: u8,\n    pub precursor_mz: f64,\n    pub base_peak_mz: f64,\n    pub base_peak_intensity: f64,\n    pub total_ion_current: f64,\n    pub polarity: u8,\n    pub x: u32,\n    pub y: u32,\n    pub z: u32,\n}"
+          "signature": "pub struct Scan {\n    pub index: usize,\n    pub rt: f64,\n    pub mz: Vec<f64>,\n    pub intensity: Vec<f64>,\n    pub level: u8,\n    pub precursor_mz: f64,\n    pub base_peak_mz: f64,\n    pub base_peak_intensity: f64,\n    pub total_ion_current: f64,\n    pub polarity: u8,\n    pub x: u32,\n    pub y: u32,\n    pub z: u32,\n}"
         },
         "python": {
-          "signature": "class Scan(TypedDict):\n    rt: float\n    mz: np.ndarray\n    intensity: np.ndarray\n    level: int\n    precursor_mz: float\n    base_peak_mz: float\n    base_peak_intensity: float\n    total_ion_current: float\n    polarity: int\n    x: int\n    y: int\n    z: int"
+          "signature": "class Scan(TypedDict):\n    index: int\n    rt: float\n    mz: np.ndarray\n    intensity: np.ndarray\n    level: int\n    precursor_mz: float\n    base_peak_mz: float\n    base_peak_intensity: float\n    total_ion_current: float\n    polarity: int\n    x: int\n    y: int\n    z: int"
         },
         "js": {
-          "signature": "export interface Scan {\n  rt: number;\n  mz: Float64Array;\n  intensity: Float64Array;\n  level: number;\n  precursorMz: number;\n  basePeakMz: number;\n  basePeakIntensity: number;\n  totalIonCurrent: number;\n  polarity: number;\n  x: number;\n  y: number;\n  z: number;\n}"
+          "signature": "export interface Scan {\n  index: number;\n  rt: number;\n  mz: Float64Array;\n  intensity: Float64Array;\n  level: number;\n  precursorMz: number;\n  basePeakMz: number;\n  basePeakIntensity: number;\n  totalIonCurrent: number;\n  polarity: number;\n  x: number;\n  y: number;\n  z: number;\n}"
         },
         "r": {
-          "signature": "data.frame(rt, mz, intensity, level, precursor_mz, base_peak_mz, base_peak_intensity, total_ion_current, polarity, x, y, z)"
+          "signature": "data.frame(index, rt, mz, intensity, level, precursor_mz, base_peak_mz, base_peak_intensity, total_ion_current, polarity, x, y, z)"
+        }
+      }
+    },
+    {
+      "name": "ScanParam",
+      "group": "Results",
+      "kind": "type",
+      "summary": "One row from get_scan_metadata: an attribute, cvParam or userParam of one tag in a spectrum.",
+      "fields": [
+        {
+          "meaning": "Where the tag sits, from spectrum down. Repeated tags carry their position from 0, such as spectrum/precursorList/precursor[0]/selectedIonList/selectedIon[0].",
+          "languages": {
+            "rust": {
+              "name": "path",
+              "type": "String"
+            },
+            "python": {
+              "name": "path",
+              "type": "str"
+            },
+            "js": {
+              "name": "path",
+              "type": "string"
+            },
+            "r": {
+              "name": "path",
+              "type": "character"
+            }
+          }
+        },
+        {
+          "meaning": "What the row holds: ATTRIBUTE, CV or USER. See ScanParamKind.",
+          "languages": {
+            "rust": {
+              "name": "kind",
+              "type": "ScanParamKind"
+            },
+            "python": {
+              "name": "kind",
+              "type": "ScanParamKind"
+            },
+            "js": {
+              "name": "kind",
+              "type": "ScanParamKind"
+            },
+            "r": {
+              "name": "kind",
+              "type": "character"
+            }
+          }
+        },
+        {
+          "meaning": "Accession of a cvParam, such as MS:1000511. Missing for attributes and userParams.",
+          "languages": {
+            "rust": {
+              "name": "accession",
+              "type": "Option<String>"
+            },
+            "python": {
+              "name": "accession",
+              "type": "str | None"
+            },
+            "js": {
+              "name": "accession",
+              "type": "string | null"
+            },
+            "r": {
+              "name": "accession",
+              "type": "character"
+            }
+          }
+        },
+        {
+          "meaning": "Name of the attribute or param, such as ms level.",
+          "languages": {
+            "rust": {
+              "name": "name",
+              "type": "String"
+            },
+            "python": {
+              "name": "name",
+              "type": "str"
+            },
+            "js": {
+              "name": "name",
+              "type": "string"
+            },
+            "r": {
+              "name": "name",
+              "type": "character"
+            }
+          }
+        },
+        {
+          "meaning": "Value as text, such as 2. Missing when the file gives none.",
+          "languages": {
+            "rust": {
+              "name": "value",
+              "type": "Option<String>"
+            },
+            "python": {
+              "name": "value",
+              "type": "str | None"
+            },
+            "js": {
+              "name": "value",
+              "type": "string | null"
+            },
+            "r": {
+              "name": "value",
+              "type": "character"
+            }
+          }
+        },
+        {
+          "meaning": "Unit name, such as minute. Missing when there is none.",
+          "languages": {
+            "rust": {
+              "name": "unit",
+              "type": "Option<String>"
+            },
+            "python": {
+              "name": "unit",
+              "type": "str | None"
+            },
+            "js": {
+              "name": "unit",
+              "type": "string | null"
+            },
+            "r": {
+              "name": "unit",
+              "type": "character"
+            }
+          }
+        },
+        {
+          "meaning": "Unit accession, such as UO:0000031. Missing when there is none.",
+          "languages": {
+            "rust": {
+              "name": "unit_accession",
+              "type": "Option<String>"
+            },
+            "python": {
+              "name": "unit_accession",
+              "type": "str | None"
+            },
+            "js": {
+              "name": "unitAccession",
+              "type": "string | null"
+            },
+            "r": {
+              "name": "unit_accession",
+              "type": "character"
+            }
+          }
+        }
+      ],
+      "languages": {
+        "rust": {
+          "signature": "pub struct ScanParam {\n    pub path: String,\n    pub kind: ScanParamKind,\n    pub accession: Option<String>,\n    pub name: String,\n    pub value: Option<String>,\n    pub unit: Option<String>,\n    pub unit_accession: Option<String>,\n}"
+        },
+        "python": {
+          "signature": "class ScanParam(TypedDict):\n    path: str\n    kind: ScanParamKind\n    accession: str | None\n    name: str\n    value: str | None\n    unit: str | None\n    unit_accession: str | None"
+        },
+        "js": {
+          "signature": "export interface ScanParam {\n  path: string;\n  kind: ScanParamKind;\n  accession: string | null;\n  name: string;\n  value: string | null;\n  unit: string | null;\n  unitAccession: string | null;\n}"
+        },
+        "r": {
+          "signature": "data.frame(path, kind, accession, name, value, unit, unit_accession)"
         }
       }
     },

@@ -1,8 +1,10 @@
 use ionic::{
-    ArrayKind, IonReader, IonResult, IonWriter, SpectrumSummary, TimeUnit, WriteOptions,
+    ArrayKind, IonError, IonReader, IonResult, IonWriter, SpectrumSummary, TimeUnit, WriteOptions,
     mzml::structs::{CvParam, MzML, NumericArray, Spectrum},
     source::WriteBytes,
 };
+
+use crate::{files::ScanParam, utilities::get_scan_metadata::get_scan_params};
 
 const MZ_ARRAY: u32 = 1_000_514;
 const INTENSITY_ARRAY: u32 = 1_000_515;
@@ -40,6 +42,7 @@ pub trait ScanSource {
     fn for_each_summary(&mut self, callback: &mut dyn FnMut(usize, ScanSummary));
     fn load_scan(&mut self, index: usize, mz: &mut Vec<f64>, intensity: &mut Vec<f64>) -> bool;
     fn load_array(&mut self, index: usize, accession: u32, values: &mut Vec<f64>) -> bool;
+    fn load_metadata(&mut self, index: usize) -> IonResult<Vec<ScanParam>>;
 }
 
 impl ScanSource for IonReader {
@@ -70,6 +73,11 @@ impl ScanSource for IonReader {
     fn load_array(&mut self, index: usize, accession: u32, values: &mut Vec<f64>) -> bool {
         values.clear();
         self.spectrum_array_into(index, accession, values).is_ok() && !values.is_empty()
+    }
+
+    fn load_metadata(&mut self, index: usize) -> IonResult<Vec<ScanParam>> {
+        let spectrum = self.spectrum_metadata_at(index)?;
+        Ok(get_scan_params(&spectrum))
     }
 }
 
@@ -102,6 +110,20 @@ impl ScanSource for MzML {
             .map(|list| list.spectra.as_slice())
             .unwrap_or_default();
         load_array_from_spectra(spectra, index, accession, values)
+    }
+
+    fn load_metadata(&mut self, index: usize) -> IonResult<Vec<ScanParam>> {
+        let spectra = self
+            .run
+            .spectrum_list
+            .as_ref()
+            .map(|list| list.spectra.as_slice())
+            .unwrap_or_default();
+        let spectrum = spectra.get(index).ok_or(IonError::OutOfRange {
+            index,
+            count: spectra.len() as u64,
+        })?;
+        Ok(get_scan_params(spectrum))
     }
 }
 

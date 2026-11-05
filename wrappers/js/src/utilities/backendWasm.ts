@@ -25,15 +25,16 @@ import type {
   Peak,
   PeakParameters,
   Scan,
+  ScanParam,
   Target,
 } from "../types/types";
 import type { ModelEntry } from "../types/internal";
 import { readIonImage } from "./imageBridge";
-import { readRecords } from "./recordBridge";
+import { readRecords, readScanMetadata } from "./recordBridge";
 import { encodeTargetIds } from "./pack";
 import { readScanArrays, readScans } from "./scanBridge";
 import { QuantionError, invalidArgument, readNativeError } from "./errors";
-import { getShapeCode } from "./options";
+import { TAG_SEPARATOR, getShapeCode } from "./options";
 import {
   fetchHeader,
   newRemoteSource,
@@ -48,6 +49,7 @@ const NOISE_LEVEL_INTENSITY_OFFSET = 8;
 const PEAK_OPTIONS_STRUCT_BYTES = 80;
 const QUANTION_ABI_VERSION = 2;
 const IMAGE_BATCH_SCANS = 256;
+const LARGEST_WASM_SIZE = 4294967295;
 const IMAGE_BATCH_BUDGET_BYTES = 192 * 1024 * 1024;
 
 class RangeSourceRegistry {
@@ -360,6 +362,8 @@ class WasmApi {
     overwrite: boolean,
     level: number,
     f32Compress: boolean,
+    blockSize: number,
+    mzWindow: number,
     headers: Uint8Array,
   ): Uint8Array | undefined {
     const text =
@@ -372,6 +376,8 @@ class WasmApi {
         overwrite ? 1 : 0,
         level,
         f32Compress ? 1 : 0,
+        blockSize,
+        mzWindow,
         headers.length ? headersPointer : 0,
         headers.length,
         this.firstSlot,
@@ -631,6 +637,28 @@ class WasmApi {
     }
   }
 
+  async getScanMetadata(
+    handle: number,
+    index: number,
+    tags: string[],
+  ): Promise<ScanParam[]> {
+    if (index > LARGEST_WASM_SIZE) {
+      throw invalidArgument(
+        "getScanMetadata",
+        "index",
+        `must be at most ${LARGEST_WASM_SIZE} in the WebAssembly build, got ${index}`,
+      );
+    }
+    await this.prefetch(handle, () =>
+      this.run("plan_scan_metadata", handle, index, this.firstSlot),
+    );
+    const text = new TextEncoder().encode(`${tags.join(TAG_SEPARATOR)}\0`);
+    this.withMemory([text], ([tagsPointer]) => {
+      this.run("get_scan_metadata", handle, index, tagsPointer, this.firstSlot);
+    });
+    return readScanMetadata(this.heap.readBridgeFromSlot(this.firstSlot));
+  }
+
   async getIonImage(
     handle: number,
     mz: number,
@@ -780,6 +808,25 @@ class WasmApi {
       ),
     );
     return this.takeNumbers(this.firstSlot);
+  }
+
+  deisotopeFeatures(
+    values: Float64Array,
+    count: number,
+    rtTolerance: number,
+    mzTolerance: number,
+  ): Feature[] {
+    this.withMemory([toUint8View(values)], ([valuesPointer]) =>
+      this.run(
+        "deisotope_features",
+        valuesPointer,
+        count,
+        rtTolerance,
+        mzTolerance,
+        this.firstSlot,
+      ),
+    );
+    return this.takeRecords<Feature>(this.firstSlot);
   }
 
   async findTargets(
@@ -1028,6 +1075,8 @@ export class WasmBackend implements Backend {
     overwrite: boolean,
     level: number,
     f32Compress: boolean,
+    blockSize: number,
+    mzWindow: number,
     headers: Uint8Array,
   ): Uint8Array | undefined {
     return this.getApi().writeIon(
@@ -1036,6 +1085,8 @@ export class WasmBackend implements Backend {
       overwrite,
       level,
       f32Compress,
+      blockSize,
+      mzWindow,
       headers,
     );
   }
@@ -1161,6 +1212,14 @@ export class WasmBackend implements Backend {
     );
   }
 
+  getScanMetadata(
+    handle: FileHandle,
+    index: number,
+    tags: string[],
+  ): Promise<ScanParam[]> {
+    return this.getApi().getScanMetadata(handle as number, index, tags);
+  }
+
   getIonImage(
     handle: FileHandle,
     mz: number,
@@ -1220,6 +1279,20 @@ export class WasmBackend implements Backend {
     maxIterations: number,
   ): Float64Array {
     return this.getApi().calculateBaseline(y, lambda, maxIterations);
+  }
+
+  deisotopeFeatures(
+    values: Float64Array,
+    count: number,
+    rtTolerance: number,
+    mzTolerance: number,
+  ): Feature[] {
+    return this.getApi().deisotopeFeatures(
+      values,
+      count,
+      rtTolerance,
+      mzTolerance,
+    );
   }
 
   findTargets(

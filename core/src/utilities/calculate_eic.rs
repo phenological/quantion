@@ -197,6 +197,7 @@ impl SpectrumSummary {
 
 #[derive(Clone, Debug)]
 pub struct CentroidScan {
+    pub index: usize,
     pub rt: f64,
     pub mz: Arc<[f64]>,
     pub intensity: Arc<[f64]>,
@@ -561,6 +562,7 @@ pub fn get_scan_arrays(
         }
         scans.push(ScanArrays {
             scan: CentroidScan {
+                index,
                 rt: summary.rt,
                 mz: Arc::from(&[][..]),
                 intensity: Arc::from(&[][..]),
@@ -708,6 +710,7 @@ fn load_first(
         return (
             vec![summary.rt],
             vec![CentroidScan {
+                index,
                 rt: summary.rt,
                 mz: Arc::from(&mz_buf[..len]),
                 intensity: Arc::from(&int_buf[..len]),
@@ -733,6 +736,7 @@ fn load_selected(
         let len = mz_buf.len().min(int_buf.len());
         rts.push(summary.rt);
         scans.push(CentroidScan {
+            index,
             rt: summary.rt,
             mz: Arc::from(&mz_buf[..len]),
             intensity: Arc::from(&int_buf[..len]),
@@ -856,6 +860,10 @@ mod tests {
         fn load_array(&mut self, _index: usize, _accession: u32, values: &mut Vec<f64>) -> bool {
             values.clear();
             false
+        }
+
+        fn load_metadata(&mut self, index: usize) -> ionic::IonResult<Vec<crate::files::ScanParam>> {
+            Err(ionic::IonError::OutOfRange { index, count: self.scans.len() as u64 })
         }
     }
 

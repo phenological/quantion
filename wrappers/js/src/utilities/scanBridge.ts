@@ -14,6 +14,7 @@ import {
   SECTION_RT,
   SECTION_SCAN_ARRAY_STARTS,
   SECTION_SCAN_ARRAY_VALUES,
+  SECTION_SCAN_INDEX,
   SECTION_SELECTED_ION_MZ,
   SECTION_TOTAL_ION_CURRENT,
   expectKind,
@@ -29,6 +30,7 @@ export function readScans(buffer: ArrayBuffer): Scan[] {
   const pointStarts = readCountSection(bridge, SECTION_POINT_STARTS);
   const mz = readF64Section(bridge, SECTION_MZ);
   const intensity = readF64Section(bridge, SECTION_INTENSITY);
+  const scanIndex = readF64Section(bridge, SECTION_SCAN_INDEX);
   const rt = readF64Section(bridge, SECTION_RT);
   const level = readF64Section(bridge, SECTION_MS_LEVEL);
   const precursorMz = readF64Section(bridge, SECTION_SELECTED_ION_MZ);
@@ -62,6 +64,7 @@ export function readScans(buffer: ArrayBuffer): Scan[] {
     const from = pointStarts[index];
     const to = pointStarts[index + 1];
     scans[index] = {
+      index: scanIndex[index],
       rt: rt[index],
       mz: mz.subarray(from, to),
       intensity: intensity.subarray(from, to),

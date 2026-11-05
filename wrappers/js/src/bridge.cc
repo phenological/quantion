@@ -100,7 +100,7 @@ typedef int32_t (*fn_parse_ion_path)(const char *, size_t, MzML **);
 typedef void (*fn_free_mzml)(MzML *);
 typedef int32_t (*fn_quantion_last_error)(Buf *);
 typedef int32_t (*fn_parse_mzml_path)(const char *, MzML **);
-typedef int32_t (*fn_write_ion)(MzML *, const char *, uint8_t, uint8_t, uint8_t, const uint8_t *, size_t, Buf *);
+typedef int32_t (*fn_write_ion)(MzML *, const char *, uint8_t, uint8_t, uint8_t, uint32_t, uint32_t, const uint8_t *, size_t, Buf *);
 typedef int32_t (*fn_write_mzml)(MzML *, const char *, uint8_t, Buf *);
 typedef int32_t (*fn_fit_peak)(const double *, const double *, size_t, double, int32_t, double, Buf *);
 typedef int32_t (*fn_draw_peaks)(const double *, const double *, const double *, const double *, size_t, double, double, size_t, Buf *, Buf *);
@@ -111,9 +111,12 @@ typedef int32_t (*fn_find_targets)(const MzML *, const double *, const double *,
 typedef int32_t (*fn_find_transitions)(const MzML *, const double *, const double *, const double *, const double *, const uint32_t *, const uint32_t *, const uint8_t *, size_t, size_t, const CPeakOptions *, size_t, Buf *);
 typedef int32_t (*fn_find_peaks)(const double *, const double *, size_t, const CPeakOptions *, Buf *);
 typedef int32_t (*fn_calculate_baseline)(const double *, size_t, double, size_t, Buf *);
+typedef int32_t (*fn_deisotope_features)(const double *, size_t, double, double, Buf *);
 typedef int32_t (*fn_find_features)(const MzML *, double, double, double, double, uint8_t, double, double, double, const CPeakOptions *, size_t, Buf *);
 typedef int32_t (*fn_match_features)(const char *, double, double, double, double, uint8_t, double, double, double, double, double, double, double, const CPeakOptions *, size_t, Buf *);
 typedef int32_t (*fn_get_scans)(const MzML *, uint8_t, double, double, uint8_t, uint8_t, Buf *);
+typedef int32_t (*fn_scan_metadata)(MzML *, size_t, const char *, Buf *);
+typedef int32_t (*fn_plan_scan_metadata)(MzML *, size_t, Buf *);
 typedef int32_t (*fn_get_ion_image)(const MzML *, double, double, uint8_t, Buf *);
 typedef void (*fn_free_)(unsigned char *, size_t);
 typedef int32_t (*fn_model_load)(const uint8_t *, size_t, Model **, Buf *);
@@ -145,6 +148,7 @@ typedef struct
   fn_find_transitions find_transitions;
   fn_find_peaks find_peaks;
   fn_calculate_baseline calculate_baseline;
+  fn_deisotope_features deisotope_features;
   fn_find_features find_features;
   fn_parse_bin parse_bin;
   fn_parse_ion_source parse_ion_source;
@@ -161,6 +165,8 @@ typedef struct
   fn_free_mzml free_mzml;
   fn_match_features match_features;
   fn_get_scans get_scans;
+  fn_scan_metadata get_scan_metadata;
+  fn_plan_scan_metadata plan_scan_metadata;
   fn_get_ion_image get_ion_image;
   fn_model_load model_load_path;
   fn_model_load model_load_bytes;
@@ -364,6 +370,8 @@ static int abi_load(const char *path, const char **err)
     goto fail;
 
   ABI.calculate_baseline = (fn_calculate_baseline)DLSYM(LIB_HANDLE, "calculate_baseline");
+  if (resolve_required((void **)&ABI.deisotope_features, "deisotope_features"))
+    goto fail;
 
   if (resolve_required((void **)&ABI.find_features, "find_features"))
     goto fail;
@@ -382,6 +390,10 @@ static int abi_load(const char *path, const char **err)
   if (resolve_required((void **)&ABI.match_features, "match_features"))
     goto fail;
   if (resolve_required((void **)&ABI.get_scans, "get_scans"))
+    goto fail;
+  if (resolve_required((void **)&ABI.get_scan_metadata, "get_scan_metadata"))
+    goto fail;
+  if (resolve_required((void **)&ABI.plan_scan_metadata, "plan_scan_metadata"))
     goto fail;
 
   ABI.get_ion_image = (fn_get_ion_image)DLSYM(LIB_HANDLE, "get_ion_image");
@@ -680,10 +692,12 @@ static Napi::Value WriteIon(const Napi::CallbackInfo &info)
   bool has_out = info[1].IsString();
   if (has_out)
     out_path = info[1].As<Napi::String>().Utf8Value();
-  Napi::Buffer<uint8_t> headers = info[5].As<Napi::Buffer<uint8_t>>();
+  uint32_t block_size = info[5].As<Napi::Number>().Uint32Value();
+  uint32_t mz_window = info[6].As<Napi::Number>().Uint32Value();
+  Napi::Buffer<uint8_t> headers = info[7].As<Napi::Buffer<uint8_t>>();
   OwnedBuf out;
   int32_t rc = ABI.write_ion(handle, has_out ? out_path.c_str() : nullptr, Byte(info, 2), Byte(info, 3), Byte(info, 4),
-                             headers.Data(), headers.Length(), out.Out());
+                             block_size, mz_window, headers.Data(), headers.Length(), out.Out());
   if (rc != 0)
     return ThrowRc(env, "write_ion", rc);
   if (has_out && out.buf.ptr == nullptr)
@@ -993,6 +1007,17 @@ static Napi::Value CalculateBaseline(const Napi::CallbackInfo &info)
   return TakeNumbers(env, out.Out());
 }
 
+static Napi::Value DeisotopeFeatures(const Napi::CallbackInfo &info)
+{
+  Napi::Env env = info.Env();
+  Napi::Float64Array values = info[0].As<Napi::Float64Array>();
+  OwnedBuf out;
+  int32_t rc = ABI.deisotope_features(Float64Ptr(values), Count(info, 1), Number(info, 2), Number(info, 3), out.Out());
+  if (rc != 0)
+    return ThrowRc(env, "deisotope_features", rc);
+  return TakeArrayBuffer(env, out.Out());
+}
+
 static Napi::Value FindFeatures(const Napi::CallbackInfo &info)
 {
   Napi::Env env = info.Env();
@@ -1271,6 +1296,33 @@ static Napi::Value GetScansWithArrays(const Napi::CallbackInfo &info)
   int32_t rc = CallScansWithArrays(info, ABI.get_scans_with_arrays, handle, out.Out());
   if (rc != 0)
     return ThrowRc(env, "get_scans", rc);
+  return TakeArrayBuffer(env, out.Out());
+}
+
+static Napi::Value PlanScanMetadata(const Napi::CallbackInfo &info)
+{
+  Napi::Env env = info.Env();
+  MzML *handle = GetHandle(info[0]);
+  if (!handle)
+    return ThrowClosed(env, "get_scan_metadata");
+  OwnedBuf out;
+  int32_t rc = ABI.plan_scan_metadata(handle, Count(info, 1), out.Out());
+  if (rc != 0)
+    return ThrowRc(env, "get_scan_metadata", rc);
+  return RangesToArray(env, out.buf);
+}
+
+static Napi::Value GetScanMetadata(const Napi::CallbackInfo &info)
+{
+  Napi::Env env = info.Env();
+  MzML *handle = GetHandle(info[0]);
+  if (!handle)
+    return ThrowClosed(env, "get_scan_metadata");
+  std::string tags = info[2].As<Napi::String>().Utf8Value();
+  OwnedBuf out;
+  int32_t rc = ABI.get_scan_metadata(handle, Count(info, 1), tags.c_str(), out.Out());
+  if (rc != 0)
+    return ThrowRc(env, "get_scan_metadata", rc);
   return TakeArrayBuffer(env, out.Out());
 }
 
@@ -1579,12 +1631,15 @@ static Napi::Object Init(Napi::Env env, Napi::Object exports)
   exports.Set("findTransitions", Napi::Function::New(env, FindTransitions));
   exports.Set("findPeaks", Napi::Function::New(env, FindPeaks));
   exports.Set("calculateBaseline", Napi::Function::New(env, CalculateBaseline));
+  exports.Set("deisotopeFeatures", Napi::Function::New(env, DeisotopeFeatures));
   exports.Set("findFeatures", Napi::Function::New(env, FindFeatures));
   exports.Set("parseBin", Napi::Function::New(env, ParseBin));
   exports.Set("parseIonPath", Napi::Function::New(env, ParseIonPath));
   exports.Set("dispose", Napi::Function::New(env, DisposeMzML));
   exports.Set("matchFeatures", Napi::Function::New(env, MatchFeatures));
   exports.Set("getScans", Napi::Function::New(env, GetScans));
+  exports.Set("planScanMetadata", Napi::Function::New(env, PlanScanMetadata));
+  exports.Set("getScanMetadata", Napi::Function::New(env, GetScanMetadata));
   exports.Set("getIonImage", Napi::Function::New(env, GetIonImage));
   exports.Set("loadModelPath", Napi::Function::New(env, LoadModelPath));
   exports.Set("loadModelBytes", Napi::Function::New(env, LoadModelBytes));

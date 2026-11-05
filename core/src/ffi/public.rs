@@ -10,12 +10,24 @@ use ionic::ByteRangesOptions;
 use super::{Buf, CPeakOptions, ParsedFile, build_features_bridge, build_scan_arrays_bridge, build_fit_bridge, build_image_bridge, build_peaks_bridge, build_scans_bridge, clear_buf, f64_to_u8, mark_file_broken, pack_byte_ranges, read_ids, write_buf};
 use crate::{
     DataXY, CalculateEicOptions, ErrorKind, FindFeaturesOptions, FindPeaksOptions, FindTargetsOptions, FindTransitionsOptions,
-    FitPeakOptions, GetPeakOptions, GetScansOptions, GridOptions, Header, GetIonImageOptions, PeakParameters, PeakShape,
-    QuantionError, SampleFile, ScanQuery, Target, TimeUnit, Transition, WriteIonOptions, WriteMzmlOptions, FromTo,
-    files::from_fast_error,
+    FitPeakOptions, GetPeakOptions, GetScanMetadataOptions, GetScansOptions, GridOptions, Header, GetIonImageOptions, PeakParameters, PeakShape,
+    QuantionError, SampleFile, ScanParam, ScanQuery, Target, TimeUnit, Transition, WriteIonOptions, WriteMzmlOptions, FromTo,
+    files::{from_fast_error, scan_metadata_error},
     options::{CalculateBaselineOptions, DrawPeaksOptions, IonOutput},
     sample_file::FileSource,
     utilities::{
+        bridge::{
+            Column, QUANTION_PAYLOAD_SCAN_METADATA, QUANTION_SECTION_SCAN_METADATA_ACCESSION_BYTES,
+            QUANTION_SECTION_SCAN_METADATA_ACCESSION_MISSING, QUANTION_SECTION_SCAN_METADATA_ACCESSION_STARTS,
+            QUANTION_SECTION_SCAN_METADATA_KIND_BYTES, QUANTION_SECTION_SCAN_METADATA_KIND_STARTS,
+            QUANTION_SECTION_SCAN_METADATA_NAME_BYTES, QUANTION_SECTION_SCAN_METADATA_NAME_STARTS,
+            QUANTION_SECTION_SCAN_METADATA_PATH_BYTES, QUANTION_SECTION_SCAN_METADATA_PATH_STARTS,
+            QUANTION_SECTION_SCAN_METADATA_UNIT_ACCESSION_BYTES, QUANTION_SECTION_SCAN_METADATA_UNIT_ACCESSION_MISSING,
+            QUANTION_SECTION_SCAN_METADATA_UNIT_ACCESSION_STARTS, QUANTION_SECTION_SCAN_METADATA_UNIT_BYTES,
+            QUANTION_SECTION_SCAN_METADATA_UNIT_MISSING, QUANTION_SECTION_SCAN_METADATA_UNIT_STARTS,
+            QUANTION_SECTION_SCAN_METADATA_VALUE_BYTES, QUANTION_SECTION_SCAN_METADATA_VALUE_MISSING,
+            QUANTION_SECTION_SCAN_METADATA_VALUE_STARTS, build_record_bridge,
+        },
         calculate_eic::plan_eic_ranges,
         find_features::{FeatureSettings, plan_features_ranges},
         find_targets::plan_targets_ranges,
@@ -204,6 +216,8 @@ pub unsafe extern "C" fn write_ion(
     overwrite: u8,
     level: u8,
     f32_compress: u8,
+    block_size: u32,
+    mz_window: u32,
     headers: *const u8,
     headers_len: usize,
     out: *mut Buf,
@@ -220,6 +234,8 @@ pub unsafe extern "C" fn write_ion(
             overwrite: overwrite != 0,
             level,
             f32_compress: f32_compress != 0,
+            block_size,
+            mz_window,
             headers: read_headers(FUNCTION, headers, headers_len)?,
         };
         if let Some(IonOutput::Url(_)) = options.out {
@@ -589,6 +605,93 @@ pub unsafe extern "C" fn plan_scans(handle: *mut ParsedFile, query_type: u8, fro
     })
 }
 
+/// Read the attributes, cvParams and userParams of one scan, one row each. `tags` holds tag names split by the unit separator 0x1F; null or empty keeps every tag.
+///
+/// # Safety
+/// `handle` must be a valid `ParsedFile`. `tags` must be null or NUL-terminated text. `out` must be a valid writable `Buf`.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn get_scan_metadata(handle: *mut ParsedFile, index: usize, tags: *const core::ffi::c_char, out: *mut Buf) -> c_int {
+    const FUNCTION: &str = "get_scan_metadata";
+    if out.is_null() {
+        return remember(QuantionError::internal(FUNCTION, "the output buffer is null"));
+    }
+    clear_buf(out);
+    let tags = match read_text(FUNCTION, "tags", tags) {
+        Ok(text) => text.unwrap_or_default(),
+        Err(error) => return remember(error),
+    };
+    run_on_file(FUNCTION, handle, |file| {
+        let tags = tags.split(FIELD_SEPARATOR).filter(|tag| !tag.is_empty()).map(str::to_string).collect();
+        let rows = crate::get_scan_metadata(file, index, GetScanMetadataOptions { tags })?;
+        let bytes = build_scan_metadata_bridge(&rows).ok_or_else(|| QuantionError::internal(FUNCTION, "the metadata could not be packed"))?;
+        write_buf(out, bytes);
+        Ok(())
+    })
+}
+
+fn build_scan_metadata_bridge(rows: &[ScanParam]) -> Option<Box<[u8]>> {
+    let paths: Vec<&str> = rows.iter().map(|row| row.path.as_str()).collect();
+    let kinds: Vec<&str> = rows.iter().map(|row| row.kind.as_text()).collect();
+    let accessions: Vec<Option<&str>> = rows.iter().map(|row| row.accession.as_deref()).collect();
+    let names: Vec<&str> = rows.iter().map(|row| row.name.as_str()).collect();
+    let values: Vec<Option<&str>> = rows.iter().map(|row| row.value.as_deref()).collect();
+    let units: Vec<Option<&str>> = rows.iter().map(|row| row.unit.as_deref()).collect();
+    let unit_accessions: Vec<Option<&str>> = rows.iter().map(|row| row.unit_accession.as_deref()).collect();
+    build_record_bridge(
+        QUANTION_PAYLOAD_SCAN_METADATA,
+        rows.len() as u64,
+        &[
+            Column::Text { starts_id: QUANTION_SECTION_SCAN_METADATA_PATH_STARTS, bytes_id: QUANTION_SECTION_SCAN_METADATA_PATH_BYTES, values: &paths },
+            Column::Text { starts_id: QUANTION_SECTION_SCAN_METADATA_KIND_STARTS, bytes_id: QUANTION_SECTION_SCAN_METADATA_KIND_BYTES, values: &kinds },
+            Column::OptionalText {
+                starts_id: QUANTION_SECTION_SCAN_METADATA_ACCESSION_STARTS,
+                bytes_id: QUANTION_SECTION_SCAN_METADATA_ACCESSION_BYTES,
+                missing_id: QUANTION_SECTION_SCAN_METADATA_ACCESSION_MISSING,
+                values: &accessions,
+            },
+            Column::Text { starts_id: QUANTION_SECTION_SCAN_METADATA_NAME_STARTS, bytes_id: QUANTION_SECTION_SCAN_METADATA_NAME_BYTES, values: &names },
+            Column::OptionalText {
+                starts_id: QUANTION_SECTION_SCAN_METADATA_VALUE_STARTS,
+                bytes_id: QUANTION_SECTION_SCAN_METADATA_VALUE_BYTES,
+                missing_id: QUANTION_SECTION_SCAN_METADATA_VALUE_MISSING,
+                values: &values,
+            },
+            Column::OptionalText {
+                starts_id: QUANTION_SECTION_SCAN_METADATA_UNIT_STARTS,
+                bytes_id: QUANTION_SECTION_SCAN_METADATA_UNIT_BYTES,
+                missing_id: QUANTION_SECTION_SCAN_METADATA_UNIT_MISSING,
+                values: &units,
+            },
+            Column::OptionalText {
+                starts_id: QUANTION_SECTION_SCAN_METADATA_UNIT_ACCESSION_STARTS,
+                bytes_id: QUANTION_SECTION_SCAN_METADATA_UNIT_ACCESSION_BYTES,
+                missing_id: QUANTION_SECTION_SCAN_METADATA_UNIT_ACCESSION_MISSING,
+                values: &unit_accessions,
+            },
+        ],
+    )
+}
+
+/// Plan the byte ranges `get_scan_metadata` reads from an .ion file.
+///
+/// # Safety
+/// `handle` must be a valid `ParsedFile`. `out` must be a valid writable `Buf`.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn plan_scan_metadata(handle: *mut ParsedFile, index: usize, out: *mut Buf) -> c_int {
+    const FUNCTION: &str = "get_scan_metadata";
+    if out.is_null() {
+        return remember(QuantionError::internal(FUNCTION, "the output buffer is null"));
+    }
+    clear_buf(out);
+    run_on_file(FUNCTION, handle, |file| {
+        if let FileSource::Lazy(ion) | FileSource::Remote(ion) = &mut file.source {
+            let ranges = ion.spectrum_metadata_byte_ranges(index).map_err(|error| scan_metadata_error(index, error))?;
+            write_ranges(out, &ranges);
+        }
+        Ok(())
+    })
+}
+
 /// Build the ion image of one m/z. Only .ion files.
 ///
 /// # Safety
@@ -857,6 +960,54 @@ pub unsafe extern "C" fn plan_find_features(
             let ranges = plan_features_ranges(ion, eic.get_window(), &settings).map_err(|error| from_fast_error(FUNCTION, error))?;
             write_ranges(out, &ranges);
         }
+        Ok(())
+    })
+}
+
+fn read_feature(function: &'static str, index: usize, values: &[f64]) -> Result<crate::Feature, QuantionError> {
+    let n_points = values[6];
+    if !(n_points >= 0.0 && n_points.fract() == 0.0) {
+        return Err(QuantionError::invalid(function, format!("features[{index}].n_points"), format!("must be a count, got {n_points}")));
+    }
+    Ok(crate::Feature {
+        mz: values[0],
+        rt: values[1],
+        from: values[2],
+        to: values[3],
+        intensity: values[4],
+        integral: values[5],
+        n_points: n_points as usize,
+        frequency: (!values[7].is_nan()).then_some(values[7]),
+        ..Default::default()
+    })
+}
+
+/// Remove 13C isotope peaks from a feature list. `features` holds 8 values per feature, in this order:
+/// mz, rt, from, to, intensity, integral, n_points, frequency (NaN when there is none).
+///
+/// # Safety
+/// `features` must point to `count * 8` readable values. `out` must be a valid writable `Buf`.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn deisotope_features(features: *const f64, count: usize, rt_tolerance: f64, mz_tolerance: f64, out: *mut Buf) -> c_int {
+    const FUNCTION: &str = "deisotope_features";
+    const FEATURE_VALUES: usize = 8;
+    if out.is_null() {
+        return remember(QuantionError::internal(FUNCTION, "the output buffer is null"));
+    }
+    clear_buf(out);
+    run(FUNCTION, || {
+        let size = count.checked_mul(FEATURE_VALUES).ok_or_else(|| QuantionError::invalid(FUNCTION, "features", "has too many values"))?;
+        let (rows, _) = read_numbers(features, size).as_chunks::<FEATURE_VALUES>();
+        let features = rows
+            .iter()
+            .enumerate()
+            .map(|(index, values)| read_feature(FUNCTION, index, values))
+            .collect::<Result<Vec<_>, _>>()?;
+        let has_frequency = features.iter().any(|feature| feature.frequency.is_some());
+        let found = crate::deisotope_features(features, crate::DeisotopeFeaturesOptions { rt_tolerance, mz_tolerance })?;
+        let bytes = if has_frequency { super::build_consensus_bridge(&found) } else { super::build_features_bridge(&found) }
+            .ok_or_else(|| QuantionError::internal(FUNCTION, "the features are too large"))?;
+        write_buf(out, bytes);
         Ok(())
     })
 }

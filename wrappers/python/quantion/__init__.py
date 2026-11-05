@@ -8,6 +8,7 @@ from quantion.api import (
     write_ion,
     write_mzml,
     get_scans,
+    get_scan_metadata,
     calculate_eic,
     get_ion_image,
     find_peaks,
@@ -19,6 +20,7 @@ from quantion.api import (
     find_targets,
     find_transitions,
     find_features,
+    deisotope_features,
     match_features,
     load_model,
     load_warp,
@@ -29,6 +31,7 @@ from quantion.warp_model import WarpModel
 from quantion._errors import QuantionError
 from quantion._types import (
     TimeUnit,
+    ScanParamKind,
     PeakShape,
     FromTo,
     Target,
@@ -45,7 +48,9 @@ from quantion._types import (
     FindTargetsOptions,
     FindTransitionsOptions,
     FindFeaturesOptions,
+    DeisotopeFeaturesOptions,
     MatchFeaturesOptions,
+    GetScanMetadataOptions,
     GetScansOptions,
     ScanArray,
     ParseIonOptions,
@@ -59,6 +64,7 @@ from quantion._types import (
     PeakParameters,
     PredictedRt,
     Scan,
+    ScanParam,
     IonImage,
 )
 
@@ -75,6 +81,7 @@ __all__ = [
     "write_ion",
     "write_mzml",
     "get_scans",
+    "get_scan_metadata",
     "calculate_eic",
     "get_ion_image",
     "find_peaks",
@@ -86,10 +93,12 @@ __all__ = [
     "find_targets",
     "find_transitions",
     "find_features",
+    "deisotope_features",
     "match_features",
     "load_model",
     "load_warp",
     "TimeUnit",
+    "ScanParamKind",
     "PeakShape",
     "FromTo",
     "Target",
@@ -106,7 +115,9 @@ __all__ = [
     "FindTargetsOptions",
     "FindTransitionsOptions",
     "FindFeaturesOptions",
+    "DeisotopeFeaturesOptions",
     "MatchFeaturesOptions",
+    "GetScanMetadataOptions",
     "GetScansOptions",
     "ScanArray",
     "ParseIonOptions",
@@ -120,6 +131,7 @@ __all__ = [
     "PeakParameters",
     "PredictedRt",
     "Scan",
+    "ScanParam",
     "IonImage",
 ]
 
@@ -143,6 +155,9 @@ class Quantion:
 
     def get_scans(self, file: SampleFile, *, rt=None, mz=None, options=None):
         return get_scans(file, rt=rt, mz=mz, options=options)
+
+    def get_scan_metadata(self, file: SampleFile, index: int, options=None):
+        return get_scan_metadata(file, index, options)
 
     def calculate_eic(self, file: SampleFile, mz: float, options=None):
         return calculate_eic(file, mz, options)
@@ -179,6 +194,9 @@ class Quantion:
 
     def match_features(self, directory, options=None):
         return match_features(directory, options)
+
+    def deisotope_features(self, features, options=None):
+        return deisotope_features(features, options)
 
     def load_model(self, source) -> Model:
         return load_model(source)

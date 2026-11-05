@@ -1,4 +1,4 @@
-use crate::Feature;
+use crate::{Feature, options::DeisotopeFeaturesOptions};
 
 /// Mass of 13C minus 12C (Da), from https://en.wikipedia.org/wiki/Carbon-13
 const ISOTOPE_DIFF: f64 = 1.003354835;
@@ -6,40 +6,6 @@ const ISOTOPE_DIFF: f64 = 1.003354835;
 /// 13C abundance / 12C abundance = 1.07 / 98.93
 const CARBON_13_RATIO: f64 = 0.0108157;
 
-/// **DeisotopeFeaturesOptions** · Options
-///
-/// How deisotope_features links isotope peaks.
-///
-/// Fields:
-/// - `rt_tolerance`: Same compound when rt is within this many minutes of M. Default `0.02`.
-/// - `mz_tolerance`: Isotope peak when m/z is within this many Da of the expected position. Default `0.005`.
-///
-/// [Documentation](https://phenological.github.io/quantion/?language=rust#DeisotopeFeaturesOptions)
-pub struct DeisotopeFeaturesOptions {
-    pub rt_tolerance: f64,
-    pub mz_tolerance: f64
-}
-
-impl Default for DeisotopeFeaturesOptions {
-    fn default() -> Self {
-        Self {
-            rt_tolerance: 0.02,
-            mz_tolerance: 0.005
-        }
-    }
-}
-
-
-/// **deisotope_features** · Untargeted
-///
-/// Remove 13C isotope peaks from a feature list, keeping the monoisotopic peak (M) of each compound. A feature is an isotope when it sits 1.00335/charge above the previous peak (charge = 1 or 2), has the same rt as M, and its intensity is not too high: M+1 at most `M × mz × charge / 12 × 0.0108157`.
-///
-/// - `features`: The features to clean, from find_features or match_features.
-/// - `options`: Optional settings: `rt_tolerance` = 0.02, `mz_tolerance` = 0.005. See [DeisotopeFeaturesOptions](https://phenological.github.io/quantion/?language=rust#DeisotopeFeaturesOptions).
-///
-/// Returns: The features that are not isotopes, sorted by m/z.
-///
-/// [Documentation](https://phenological.github.io/quantion/?language=rust#deisotope_features)
 pub fn deisotope_features(mut features: Vec<Feature>, options: DeisotopeFeaturesOptions) -> Vec<Feature> {
     let DeisotopeFeaturesOptions {rt_tolerance, mz_tolerance} = options;
     features.sort_unstable_by(|a, b| a.mz.total_cmp(&b.mz));

@@ -32,7 +32,7 @@ class ScanQueries(unittest.TestCase):
         scan = support.quantion.get_scans(self.file, rt=2.385)[0]
         self.assertEqual(
             list(scan),
-            ["rt", "mz", "intensity", "level", "precursor_mz", "base_peak_mz", "base_peak_intensity",
+            ["index", "rt", "mz", "intensity", "level", "precursor_mz", "base_peak_mz", "base_peak_intensity",
              "total_ion_current", "polarity", "x", "y", "z"],
         )
         self.assertEqual(scan["level"], 1)

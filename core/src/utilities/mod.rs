@@ -1,5 +1,6 @@
 pub mod calculate_eic;
 pub mod ion;
+pub(crate) mod get_scan_metadata;
 pub mod ion_image;
 pub mod parse_ion;
 

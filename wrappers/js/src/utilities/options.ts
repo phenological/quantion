@@ -2,11 +2,13 @@ import { QuantionError, invalidArgument, missingArgument } from "./errors";
 import { PeakShape, TimeUnit } from "../types/types";
 import type {
   CalculateBaselineOptions,
+  DeisotopeFeaturesOptions,
   DrawPeaksOptions,
   CalculateEicOptions,
   FindPeaksOptions,
   FitPeakOptions,
   GetPeakOptions,
+  GetScanMetadataOptions,
   GetScansOptions,
   ScanArray,
   GridOptions,
@@ -104,6 +106,15 @@ function getObject(
 }
 
 export const TARGET_KEYS = ["mz", "rt", "id", "range"];
+export const FEATURE_NUMBER_KEYS = [
+  "mz",
+  "rt",
+  "from",
+  "to",
+  "intensity",
+  "integral",
+  "nPoints",
+] as const;
 export const TRANSITION_KEYS = ["precursor", "product", "rt", "range", "id"];
 export const PEAK_KEYS = ["height", "center", "fwhm", "tail", "r2"];
 export const RANGE_KEYS = ["from", "to"];
@@ -337,6 +348,18 @@ export function readBaselineOptions(
   return readNumbers(value, { lambda: 20, maxIterations: 4 }, functionName, "");
 }
 
+export function readDeisotopeFeaturesOptions(
+  value: unknown,
+  functionName: string,
+): Complete<DeisotopeFeaturesOptions> {
+  return readNumbers(
+    value,
+    { rtTolerance: 0.02, mzTolerance: 0.005 },
+    functionName,
+    "",
+  );
+}
+
 export function readFindTargetsOptions(
   value: unknown,
   functionName: string,
@@ -401,6 +424,7 @@ const DEFAULT_SCAN_ARRAYS: ScanArray[] = [
   { key: "intensity", accession: "MS:1000515" },
 ];
 const RESERVED_SCAN_KEYS = new Set([
+  "index",
   "rt",
   "level",
   "precursor_mz",
@@ -524,6 +548,54 @@ export function readGetScansOptions(
   };
 }
 
+export const TAG_SEPARATOR = "\x1f";
+
+export const SCAN_METADATA_TAGS = [
+  "spectrum",
+  "referenceableParamGroupRef",
+  "spectrumDescription",
+  "scanList",
+  "scan",
+  "scanWindowList",
+  "scanWindow",
+  "precursorList",
+  "precursor",
+  "isolationWindow",
+  "selectedIonList",
+  "selectedIon",
+  "activation",
+  "productList",
+  "product",
+  "binaryDataArrayList",
+  "binaryDataArray",
+] as const;
+
+export function readGetScanMetadataOptions(
+  value: unknown,
+  functionName: string,
+): Complete<GetScanMetadataOptions> {
+  const given = getObject(value, functionName, "");
+  checkKeys(given, ["tags"], functionName, "");
+  const tags = given.tags === undefined ? [] : given.tags;
+  if (!Array.isArray(tags)) {
+    throw invalidArgument(
+      functionName,
+      "tags",
+      `must be an array of tag names, got ${describe(tags)}`,
+    );
+  }
+  for (const tag of tags) {
+    if (!(SCAN_METADATA_TAGS as readonly unknown[]).includes(tag)) {
+      throw invalidArgument(
+        functionName,
+        "tags",
+        `must be one of ${SCAN_METADATA_TAGS.join(", ")}, got ${describe(tag)}`,
+      );
+    }
+  }
+  return { tags: tags as string[] };
+}
+
 export function readParseIonOptions(
   value: unknown,
   functionName: string,
@@ -545,7 +617,34 @@ export interface WriteIonSettings {
   overwrite: boolean;
   level: number;
   f32Compress: boolean;
+  blockSize: number;
+  mzWindow: number;
   headers: Header[];
+}
+
+const LARGEST_U32 = 4294967295;
+
+function getWholeNumber(
+  given: Record<string, unknown>,
+  key: string,
+  fallback: number,
+  smallest: number,
+  functionName: string,
+): number {
+  const value = given[key] === undefined ? fallback : given[key];
+  if (
+    typeof value !== "number" ||
+    !Number.isInteger(value) ||
+    value < smallest ||
+    value > LARGEST_U32
+  ) {
+    throw invalidArgument(
+      functionName,
+      key,
+      `must be a whole number from ${smallest} to ${LARGEST_U32}, got ${describe(value)}`,
+    );
+  }
+  return value;
 }
 
 function readOut(
@@ -592,7 +691,15 @@ export function readWriteIonOptions(
   const given = getObject(value, functionName, "");
   checkKeys(
     given,
-    ["out", "overwrite", "level", "f32Compress", "headers"],
+    [
+      "out",
+      "overwrite",
+      "level",
+      "f32Compress",
+      "blockSize",
+      "mzWindow",
+      "headers",
+    ],
     functionName,
     "",
   );
@@ -608,6 +715,8 @@ export function readWriteIonOptions(
       functionName,
       "",
     ),
+    blockSize: getWholeNumber(given, "blockSize", 8, 1, functionName),
+    mzWindow: getWholeNumber(given, "mzWindow", 20, 0, functionName),
     headers: readHeaders(given.headers, functionName),
   };
 }
