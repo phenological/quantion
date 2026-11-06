@@ -88,10 +88,9 @@ from quantion.warp_model import WarpModel
 
 _abi: Optional[_ABI] = None
 
-_QUERY_RT_RANGE = 0
-_QUERY_CLOSEST_RT = 1
-_QUERY_MZ_RANGE = 2
-_QUERY_CLOSEST_MZ = 3
+_POSITION_ANY = 0
+_POSITION_RANGE = 1
+_POSITION_CLOSEST = 2
 _IMAGE_SCANS_PER_STEP = 256
 _MAX_LEVEL = 255
 
@@ -406,31 +405,35 @@ def write_mzml(file: SampleFile, options: Optional[WriteMzmlOptions] = None) -> 
     return buf_to_bytes(abi, buffer) if out is None else None
 
 
-def _get_scan_query(function: str, name: str, value: Any, range_query: int, closest_query: int):
+def _get_position(function: str, name: str, value: Any) -> list:
+    if value is None:
+        return [c_uint8(_POSITION_ANY), c_double(math.nan), c_double(math.nan)]
     if isinstance(value, Mapping):
         window = _read_record(function, name, value, ("from", "to"))
-        return (range_query,
-                get_number(function, f"{name}.from", window["from"]),
-                get_number(function, f"{name}.to", window["to"]))
-    return closest_query, get_number(function, name, value), math.nan
+        return [c_uint8(_POSITION_RANGE),
+                c_double(get_number(function, f"{name}.from", window["from"])),
+                c_double(get_number(function, f"{name}.to", window["to"]))]
+    return [c_uint8(_POSITION_CLOSEST), c_double(get_number(function, name, value)), c_double(math.nan)]
 
 
 def get_scans(
     file: SampleFile,
-    *,
     rt: "float | FromTo | None" = None,
     mz: "float | FromTo | None" = None,
     options: Optional[GetScansOptions] = None,
 ) -> List[Scan]:
     """get_scans · Files
 
-    Read scans by retention time or precursor m/z. A range returns every scan in it; one number returns the closest scan, as a list of one.
+    Read scans by retention time, by precursor m/z, or by both. Ranges return every scan inside them; when rt or mz is one value, you get the closest scan, as a list of one.
+
+    Warning:
+        It is best to write the argument names rt and mz to avoid confusion. Without names, rt comes before mz, so a number given without a name is taken as rt.
 
     Args:
         file: The sample to read, from parse_ion or parse_mzml.
-        rt: Which scans, by retention time: a range or one value. Each FromTo has from, to. See FromTo: https://phenological.github.io/quantion/?language=python#FromTo
+        rt: Which scans by retention time: a range or one value. Optional when mz is given. Each FromTo has from, to. See FromTo: https://phenological.github.io/quantion/?language=python#FromTo
             Example: window: FromTo = {"from": 1.0, "to": 2.5}
-        mz: Or by precursor m/z: a range or one value. Give rt or mz, not both. Each FromTo has from, to. See FromTo: https://phenological.github.io/quantion/?language=python#FromTo
+        mz: Which scans by precursor m/z: a range or one value. Give rt, mz or both. Each FromTo has from, to. See FromTo: https://phenological.github.io/quantion/?language=python#FromTo
             Example: window: FromTo = {"from": 1.0, "to": 2.5}
         options: Optional settings: level = 1, time_unit = MINUTES, arrays = {"key": "mz", "accession": "MS:1000514"}, {"key": "intensity", "accession": "MS:1000515"}. See GetScansOptions: https://phenological.github.io/quantion/?language=python#GetScansOptions
 
@@ -443,12 +446,7 @@ def get_scans(
     settings = read_options(function, options, GET_SCANS)
     if rt is None and mz is None:
         raise _missing(function, "rt")
-    if rt is not None and mz is not None:
-        raise _invalid(function, "mz", "cannot be given together with rt")
-    if rt is not None:
-        query, start, end = _get_scan_query(function, "rt", rt, _QUERY_RT_RANGE, _QUERY_CLOSEST_RT)
-    else:
-        query, start, end = _get_scan_query(function, "mz", mz, _QUERY_MZ_RANGE, _QUERY_CLOSEST_MZ)
+    query = _get_position(function, "rt", rt) + _get_position(function, "mz", mz)
     level = _get_level(function, "level", settings["level"])
     time_unit = get_time_unit(function, "time_unit", settings["time_unit"])
     keys, numbers = read_scan_arrays(function, settings["arrays"])
@@ -457,19 +455,16 @@ def get_scans(
         accessions = (c_uint32 * len(numbers))(*numbers)
         count = c_size_t(len(numbers))
         _prefetch(file, function, lambda out: abi.plan_scans_with_arrays(
-            file.handle, c_uint8(query), c_double(start), c_double(end), c_uint8(level), c_uint8(time_unit),
-            accessions, count, out))
+            file.handle, *query, c_uint8(level), c_uint8(time_unit), accessions, count, out))
         buffer = _Buf()
         _check(abi, function, abi.get_scans_with_arrays(
-            file.handle, c_uint8(query), c_double(start), c_double(end), c_uint8(level), c_uint8(time_unit),
-            accessions, count, ctypes.byref(buffer)))
+            file.handle, *query, c_uint8(level), c_uint8(time_unit), accessions, count, ctypes.byref(buffer)))
         return buf_to_scan_arrays(abi, buffer, keys)
     _prefetch(file, function, lambda out: abi.plan_scans(
-        file.handle, c_uint8(query), c_double(start), c_double(end), c_uint8(level), c_uint8(time_unit), out))
+        file.handle, *query, c_uint8(level), c_uint8(time_unit), out))
     buffer = _Buf()
     _check(abi, function, abi.get_scans(
-        file.handle, c_uint8(query), c_double(start), c_double(end), c_uint8(level), c_uint8(time_unit),
-        ctypes.byref(buffer)))
+        file.handle, *query, c_uint8(level), c_uint8(time_unit), ctypes.byref(buffer)))
     return buf_to_scans(abi, buffer)
 
 

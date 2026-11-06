@@ -5,11 +5,12 @@
 // the far one 6.33% taller, at the default max_drift of 0.5.
 // Fully synthetic (no fixture) so it runs identically here and in bugs-quantion/tests/.
 
-use crate::options::FindPeaksOptions;
-use crate::utilities::{
-    
-    get_peak::get_peak,
-    structs::{DataXY, Roi},
+use crate::{
+    traces::FindPeaksOptions,
+    utilities::{
+        get_peak::get_peak,
+        structs::{DataXY, Roi},
+    },
 };
 
 const SCAN_STEP: f64 = 0.0043;
@@ -53,7 +54,10 @@ fn peak_at(target: f64) -> f64 {
     let data = two_peaks();
     let peak = get_peak(
         &data,
-        &Roi { rt: target, range: DEFAULT_MAX_DRIFT },
+        &Roi {
+            rt: target,
+            range: DEFAULT_MAX_DRIFT,
+        },
         &options(),
     );
     peak.rt

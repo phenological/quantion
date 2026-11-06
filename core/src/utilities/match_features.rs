@@ -1,4 +1,3 @@
-use crate::options::FindPeaksOptions;
 use std::{
     cmp::Ordering,
     collections::HashMap,
@@ -13,19 +12,22 @@ use rayon::prelude::*;
 
 #[cfg(not(all(target_arch = "wasm32", not(target_os = "wasi"))))]
 use crate::utilities::parallel::run_with_threads;
-use crate::options::CalculateEicOptions;
-use crate::utilities::{
-    calculate_eic::{
-        CentroidScan, EicReader, MS1_LEVEL, SpectrumKind, get_scan_times,
-        get_spectrum_kind, lower_bound, mz_tolerance_for, read_mz_window,
-        summed_intensity_in_window, upper_bound,
+use crate::{
+    files::CalculateEicOptions,
+    traces::FindPeaksOptions,
+    utilities::{
+        calculate_eic::{
+            EicReader, MS1_LEVEL, SpectrumKind, get_scan_times, get_spectrum_kind, lower_bound,
+            mz_tolerance_for, read_mz_window, summed_intensity_in_window, upper_bound,
+        },
+        find_features::{Feature, FeatureError, FeatureSettings, MzTolerance, find_features},
+        find_masses::find_masses,
+        get_peak::get_peak,
+        get_scans::CentroidScan,
+        math::median,
+        mz_estimator::{MzEstimator, MzEstimatorKind, SampleMz, make_estimator, same_mass_gap},
+        structs::{DataXY, FromTo, Peak, Roi},
     },
-    find_features::{Feature, FeatureError, FeatureSettings, MzTolerance, find_features},
-    find_masses::find_masses,
-    get_peak::get_peak,
-    math::median,
-    mz_estimator::{MzEstimator, MzEstimatorKind, SampleMz, make_estimator, same_mass_gap},
-    structs::{DataXY, FromTo, Peak, Roi},
 };
 
 #[cfg(not(all(target_arch = "wasm32", not(target_os = "wasi"))))]

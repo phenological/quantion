@@ -93,8 +93,8 @@ typedef int32_t (*fn_plan_open)(const uint8_t *, size_t, Buf *);
 typedef int32_t (*fn_plan_eic)(MzML *, double, double, double, double, double, uint8_t, Buf *);
 typedef int32_t (*fn_plan_find_targets)(MzML *, const double *, size_t, double, double, double, double, uint8_t, Buf *);
 typedef int32_t (*fn_plan_find_features)(MzML *, double, double, double, double, uint8_t, double, double, double, Buf *);
-typedef int32_t (*fn_plan_scans)(MzML *, uint8_t, double, double, uint8_t, uint8_t, Buf *);
-typedef int32_t (*fn_scans_with_arrays)(MzML *, uint8_t, double, double, uint8_t, uint8_t, const uint32_t *, size_t, Buf *);
+typedef int32_t (*fn_plan_scans)(MzML *, uint8_t, double, double, uint8_t, double, double, uint8_t, uint8_t, Buf *);
+typedef int32_t (*fn_scans_with_arrays)(MzML *, uint8_t, double, double, uint8_t, double, double, uint8_t, uint8_t, const uint32_t *, size_t, Buf *);
 typedef int32_t (*fn_plan_image)(MzML *, double, double, uint8_t, Buf *);
 typedef int32_t (*fn_parse_ion_path)(const char *, size_t, MzML **);
 typedef void (*fn_free_mzml)(MzML *);
@@ -114,7 +114,7 @@ typedef int32_t (*fn_calculate_baseline)(const double *, size_t, double, size_t,
 typedef int32_t (*fn_deisotope_features)(const double *, size_t, double, double, Buf *);
 typedef int32_t (*fn_find_features)(const MzML *, double, double, double, double, uint8_t, double, double, double, const CPeakOptions *, size_t, Buf *);
 typedef int32_t (*fn_match_features)(const char *, double, double, double, double, uint8_t, double, double, double, double, double, double, double, const CPeakOptions *, size_t, Buf *);
-typedef int32_t (*fn_get_scans)(const MzML *, uint8_t, double, double, uint8_t, uint8_t, Buf *);
+typedef int32_t (*fn_get_scans)(const MzML *, uint8_t, double, double, uint8_t, double, double, uint8_t, uint8_t, Buf *);
 typedef int32_t (*fn_scan_metadata)(MzML *, size_t, const char *, Buf *);
 typedef int32_t (*fn_plan_scan_metadata)(MzML *, size_t, Buf *);
 typedef int32_t (*fn_get_ion_image)(const MzML *, double, double, uint8_t, Buf *);
@@ -1147,8 +1147,8 @@ static Napi::Value PlanScans(const Napi::CallbackInfo &info)
   if (!handle)
     return ThrowClosed(env, "get_scans");
   OwnedBuf out;
-  int32_t rc = ABI.plan_scans(handle, Byte(info, 1), Number(info, 2), Number(info, 3), Byte(info, 4), Byte(info, 5),
-                              out.Out());
+  int32_t rc = ABI.plan_scans(handle, Byte(info, 1), Number(info, 2), Number(info, 3), Byte(info, 4), Number(info, 5),
+                              Number(info, 6), Byte(info, 7), Byte(info, 8), out.Out());
   if (rc != 0)
     return ThrowRc(env, "get_scans", rc);
   return RangesToArray(env, out.buf);
@@ -1255,8 +1255,8 @@ static Napi::Value GetScans(const Napi::CallbackInfo &info)
   if (!handle)
     return ThrowClosed(env, "get_scans");
   OwnedBuf out;
-  int32_t rc = ABI.get_scans(handle, Byte(info, 1), Number(info, 2), Number(info, 3), Byte(info, 4), Byte(info, 5),
-                             out.Out());
+  int32_t rc = ABI.get_scans(handle, Byte(info, 1), Number(info, 2), Number(info, 3), Byte(info, 4), Number(info, 5),
+                             Number(info, 6), Byte(info, 7), Byte(info, 8), out.Out());
   if (rc != 0)
     return ThrowRc(env, "get_scans", rc);
   return TakeArrayBuffer(env, out.Out());
@@ -1264,9 +1264,9 @@ static Napi::Value GetScans(const Napi::CallbackInfo &info)
 
 static int32_t CallScansWithArrays(const Napi::CallbackInfo &info, fn_scans_with_arrays call, MzML *handle, Buf *out)
 {
-  Napi::Uint32Array accessions = info[6].As<Napi::Uint32Array>();
-  return call(handle, Byte(info, 1), Number(info, 2), Number(info, 3), Byte(info, 4), Byte(info, 5),
-              accessions.Data(), accessions.ElementLength(), out);
+  Napi::Uint32Array accessions = info[9].As<Napi::Uint32Array>();
+  return call(handle, Byte(info, 1), Number(info, 2), Number(info, 3), Byte(info, 4), Number(info, 5), Number(info, 6),
+              Byte(info, 7), Byte(info, 8), accessions.Data(), accessions.ElementLength(), out);
 }
 
 static Napi::Value PlanScansWithArrays(const Napi::CallbackInfo &info)

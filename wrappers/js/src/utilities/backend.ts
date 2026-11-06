@@ -23,6 +23,28 @@ export interface ByteRangeResult {
   length: bigint;
 }
 
+export interface PositionSettings {
+  kind: number;
+  from: number;
+  to: number;
+}
+
+export interface ScanQuerySettings {
+  rt: PositionSettings;
+  mz: PositionSettings;
+}
+
+export function getScanQueryValues(query: ScanQuerySettings): number[] {
+  return [
+    query.rt.kind,
+    query.rt.from,
+    query.rt.to,
+    query.mz.kind,
+    query.mz.from,
+    query.mz.to,
+  ];
+}
+
 export interface EicSettings {
   from: number;
   to: number;
@@ -136,18 +158,14 @@ export interface Backend {
 
   getScans(
     handle: FileHandle,
-    queryType: number,
-    from: number,
-    to: number,
+    query: ScanQuerySettings,
     level: number,
     timeUnit: number,
   ): MaybePromise<Scan[]>;
 
   getScansWithArrays(
     handle: FileHandle,
-    queryType: number,
-    from: number,
-    to: number,
+    query: ScanQuerySettings,
     level: number,
     timeUnit: number,
     accessions: Uint32Array,

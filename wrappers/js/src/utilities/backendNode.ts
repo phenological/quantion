@@ -11,10 +11,12 @@ import type {
   ModelHandle,
   PeakColumns,
   PeakSettings,
+  ScanQuerySettings,
   TargetColumns,
   TransitionColumns,
   WarpModelHandle,
 } from "./backend";
+import { getScanQueryValues } from "./backend";
 import type {
   DataXY,
   Feature,
@@ -381,28 +383,24 @@ export class NodeBackend implements Backend {
 
   async getScans(
     handle: FileHandle,
-    queryType: number,
-    from: number,
-    to: number,
+    query: ScanQuerySettings,
     level: number,
     timeUnit: number,
   ): Promise<Scan[]> {
-    const values = [queryType, from, to, level, timeUnit];
+    const values = [...getScanQueryValues(query), level, timeUnit];
     await this.prefetch(handle, () => this.native.planScans(handle, ...values));
     return readScans(this.native.getScans(handle, ...values));
   }
 
   async getScansWithArrays(
     handle: FileHandle,
-    queryType: number,
-    from: number,
-    to: number,
+    query: ScanQuerySettings,
     level: number,
     timeUnit: number,
     accessions: Uint32Array,
     keys: string[],
   ): Promise<Scan[]> {
-    const values = [queryType, from, to, level, timeUnit, accessions];
+    const values = [...getScanQueryValues(query), level, timeUnit, accessions];
     await this.prefetch(handle, () =>
       this.native.planScansWithArrays(handle, ...values),
     );

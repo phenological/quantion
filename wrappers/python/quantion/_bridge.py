@@ -47,7 +47,7 @@ assert ctypes.sizeof(PeakOptions) == 80, (
     f"PeakOptions is {ctypes.sizeof(PeakOptions)} bytes — expected 80"
 )
 
-QUANTION_ABI_VERSION = 2
+QUANTION_ABI_VERSION = 3
 
 
 READ_RANGE = ctypes.CFUNCTYPE(
@@ -68,11 +68,11 @@ class _ABI:
         "plan_open": ([POINTER(c_uint8), c_size_t, POINTER(_Buf)], c_int32),
         "plan_eic": ([c_void_p, c_double, c_double, c_double, c_double, c_double, c_uint8,
              POINTER(_Buf)], c_int32),
-        "plan_scans": ([c_void_p, c_uint8, c_double, c_double, c_uint8, c_uint8,
+        "plan_scans": ([c_void_p, c_uint8, c_double, c_double, c_uint8, c_double, c_double, c_uint8, c_uint8,
              POINTER(_Buf)], c_int32),
-        "plan_scans_with_arrays": ([c_void_p, c_uint8, c_double, c_double, c_uint8, c_uint8,
+        "plan_scans_with_arrays": ([c_void_p, c_uint8, c_double, c_double, c_uint8, c_double, c_double, c_uint8, c_uint8,
              POINTER(c_uint32), c_size_t, POINTER(_Buf)], c_int32),
-        "get_scans_with_arrays": ([c_void_p, c_uint8, c_double, c_double, c_uint8, c_uint8,
+        "get_scans_with_arrays": ([c_void_p, c_uint8, c_double, c_double, c_uint8, c_double, c_double, c_uint8, c_uint8,
              POINTER(c_uint32), c_size_t, POINTER(_Buf)], c_int32),
         "plan_image": ([c_void_p, c_double, c_double, c_uint8, POINTER(_Buf)], c_int32),
         "plan_find_targets": ([c_void_p, POINTER(c_double), c_size_t, c_double, c_double,
@@ -98,7 +98,7 @@ class _ABI:
              POINTER(c_size_t), POINTER(c_double)], c_int32),
         "calculate_eic": ([c_void_p, c_double, c_double, c_double, c_double, c_double, c_uint8,
              POINTER(_Buf), POINTER(_Buf)], c_int32),
-        "get_scans": ([c_void_p, c_uint8, c_double, c_double, c_uint8, c_uint8,
+        "get_scans": ([c_void_p, c_uint8, c_double, c_double, c_uint8, c_double, c_double, c_uint8, c_uint8,
              POINTER(_Buf)], c_int32),
         "get_scan_metadata": ([c_void_p, c_size_t, ctypes.c_char_p, POINTER(_Buf)], c_int32),
         "plan_scan_metadata": ([c_void_p, c_size_t, POINTER(_Buf)], c_int32),

@@ -1000,21 +1000,24 @@ SEXP C_write_mzml(SEXP file, SEXP out_path, SEXP overwrite)
   return take_numbers(&out, NULL, 1);
 }
 
-SEXP C_get_scans(SEXP file, SEXP query_type, SEXP from, SEXP to, SEXP level, SEXP time_unit)
+#define SCAN_QUERY_ARGUMENTS(query) \
+  (uint8_t)REAL(query)[0], REAL(query)[1], REAL(query)[2], (uint8_t)REAL(query)[3], REAL(query)[4], REAL(query)[5]
+
+SEXP C_get_scans(SEXP file, SEXP query, SEXP level, SEXP time_unit)
 {
   check_bound();
   Buf out = (Buf){0};
-  check_code(get_scans(get_sample(file), (uint8_t)asInteger(query_type), asReal(from), asReal(to),
-                       (uint8_t)asInteger(level), get_time_unit(time_unit), &out));
+  check_code(get_scans(get_sample(file), SCAN_QUERY_ARGUMENTS(query), (uint8_t)asInteger(level),
+                       get_time_unit(time_unit), &out));
   return take_with(scans_build, &out);
 }
 
-SEXP C_plan_scans(SEXP file, SEXP query_type, SEXP from, SEXP to, SEXP level, SEXP time_unit)
+SEXP C_plan_scans(SEXP file, SEXP query, SEXP level, SEXP time_unit)
 {
   check_bound();
   Buf out = (Buf){0};
-  check_code(plan_scans(get_sample(file), (uint8_t)asInteger(query_type), asReal(from), asReal(to),
-                        (uint8_t)asInteger(level), get_time_unit(time_unit), &out));
+  check_code(plan_scans(get_sample(file), SCAN_QUERY_ARGUMENTS(query), (uint8_t)asInteger(level),
+                        get_time_unit(time_unit), &out));
   return take_ranges(&out);
 }
 
@@ -1043,22 +1046,22 @@ static uint32_t *get_accessions(SEXP accessions)
   return numbers;
 }
 
-SEXP C_get_scans_with_arrays(SEXP file, SEXP query_type, SEXP from, SEXP to, SEXP level, SEXP time_unit, SEXP accessions)
+SEXP C_get_scans_with_arrays(SEXP file, SEXP query, SEXP level, SEXP time_unit, SEXP accessions)
 {
   check_bound();
   Buf out = (Buf){0};
-  check_code(get_scans_with_arrays(get_sample(file), (uint8_t)asInteger(query_type), asReal(from), asReal(to),
-                                   (uint8_t)asInteger(level), get_time_unit(time_unit),
+  check_code(get_scans_with_arrays(get_sample(file), SCAN_QUERY_ARGUMENTS(query), (uint8_t)asInteger(level),
+                                   get_time_unit(time_unit),
                                    get_accessions(accessions), (size_t)XLENGTH(accessions), &out));
   return take_with(scan_arrays_build, &out);
 }
 
-SEXP C_plan_scans_with_arrays(SEXP file, SEXP query_type, SEXP from, SEXP to, SEXP level, SEXP time_unit, SEXP accessions)
+SEXP C_plan_scans_with_arrays(SEXP file, SEXP query, SEXP level, SEXP time_unit, SEXP accessions)
 {
   check_bound();
   Buf out = (Buf){0};
-  check_code(plan_scans_with_arrays(get_sample(file), (uint8_t)asInteger(query_type), asReal(from), asReal(to),
-                                    (uint8_t)asInteger(level), get_time_unit(time_unit),
+  check_code(plan_scans_with_arrays(get_sample(file), SCAN_QUERY_ARGUMENTS(query), (uint8_t)asInteger(level),
+                                    get_time_unit(time_unit),
                                     get_accessions(accessions), (size_t)XLENGTH(accessions), &out));
   return take_ranges(&out);
 }

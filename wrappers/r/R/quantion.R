@@ -470,17 +470,17 @@ write_mzml <- function(file, options = write_mzml_options()) {
   if (is.null(out)) bytes else invisible(NULL)
 }
 
-.QUERY_RT_RANGE <- 0L
-.QUERY_CLOSEST_RT <- 1L
-.QUERY_MZ_RANGE <- 2L
-.QUERY_CLOSEST_MZ <- 3L
+.POSITION_ANY <- 0
+.POSITION_RANGE <- 1
+.POSITION_CLOSEST <- 2
 
-.get_scan_query <- function(function_name, value, name, range_query, closest_query) {
+.get_position <- function(function_name, value, name) {
+  if (is.null(value)) return(c(.POSITION_ANY, NaN, NaN))
   if (!is.numeric(value) || !(length(value) %in% c(1, 2)) || anyNA(value))
     .invalid(function_name, name, "must be one number or c(from, to)")
   value <- as.numeric(value)
-  if (length(value) == 2) return(list(type = range_query, from = value[1], to = value[2]))
-  list(type = closest_query, from = value, to = NaN)
+  if (length(value) == 2) return(c(.POSITION_RANGE, value[1], value[2]))
+  c(.POSITION_CLOSEST, value, NaN)
 }
 
 .add_scan_arrays <- function(found, keys) {
@@ -505,30 +505,26 @@ get_scans <- function(file, rt = NULL, mz = NULL, options = get_scans_options())
   function_name <- "get_scans"
   file <- .check_sample(function_name, file)
   options <- .check_options(function_name, "options", options, "get_scans_options", "get_scans_options")
-  if (is.null(rt) == is.null(mz)) .invalid(function_name, "rt", "or mz must be given, not both")
-  query <- if (!is.null(rt)) {
-    .get_scan_query(function_name, rt, "rt", .QUERY_RT_RANGE, .QUERY_CLOSEST_RT)
-  } else {
-    .get_scan_query(function_name, mz, "mz", .QUERY_MZ_RANGE, .QUERY_CLOSEST_MZ)
-  }
+  if (is.null(rt) && is.null(mz)) .invalid(function_name, "rt", "or mz must be given")
+  query <- c(.get_position(function_name, rt, "rt"), .get_position(function_name, mz, "mz"))
   level <- as.integer(options$level)
   source <- .remote_source(file)
   if (!identical(options$arrays, .DEFAULT_SCAN_ARRAYS)) {
     keys <- vapply(options$arrays, function(array) array$key, character(1))
     accessions <- vapply(options$arrays, function(array) as.numeric(sub("MS:", "", array$accession)), numeric(1))
     if (!is.null(source)) {
-      .prefetch(source, .Call("C_plan_scans_with_arrays", file, query$type, query$from, query$to, level,
+      .prefetch(source, .Call("C_plan_scans_with_arrays", file, query, level,
                               options$time_unit, accessions, PACKAGE = "quantion"))
     }
-    found <- .Call("C_get_scans_with_arrays", file, query$type, query$from, query$to, level,
+    found <- .Call("C_get_scans_with_arrays", file, query, level,
                    options$time_unit, accessions, PACKAGE = "quantion")
     return(.add_scan_arrays(found, keys))
   }
   if (!is.null(source)) {
-    .prefetch(source, .Call("C_plan_scans", file, query$type, query$from, query$to, level,
+    .prefetch(source, .Call("C_plan_scans", file, query, level,
                             options$time_unit, PACKAGE = "quantion"))
   }
-  .Call("C_get_scans", file, query$type, query$from, query$to, level, options$time_unit,
+  .Call("C_get_scans", file, query, level, options$time_unit,
         PACKAGE = "quantion")
 }
 

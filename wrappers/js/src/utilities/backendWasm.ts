@@ -13,10 +13,12 @@ import type {
   ModelHandle,
   PeakColumns,
   PeakSettings,
+  ScanQuerySettings,
   TargetColumns,
   TransitionColumns,
   WarpModelHandle,
 } from "./backend";
+import { getScanQueryValues } from "./backend";
 import type {
   DataXY,
   Feature,
@@ -47,7 +49,7 @@ const OUTPUT_BUFFER_PAIR_BYTES = 8;
 const NOISE_LEVEL_SLOT_BYTES = 16;
 const NOISE_LEVEL_INTENSITY_OFFSET = 8;
 const PEAK_OPTIONS_STRUCT_BYTES = 80;
-const QUANTION_ABI_VERSION = 2;
+const QUANTION_ABI_VERSION = 3;
 const IMAGE_BATCH_SCANS = 256;
 const LARGEST_WASM_SIZE = 4294967295;
 const IMAGE_BATCH_BUDGET_BYTES = 192 * 1024 * 1024;
@@ -539,13 +541,11 @@ class WasmApi {
 
   async getScans(
     handle: number,
-    queryType: number,
-    from: number,
-    to: number,
+    query: ScanQuerySettings,
     level: number,
     timeUnit: number,
   ): Promise<Scan[]> {
-    const values = [queryType, from, to, level, timeUnit];
+    const values = [...getScanQueryValues(query), level, timeUnit];
     await this.prefetch(handle, () =>
       this.run("plan_scans", handle, ...values, this.firstSlot),
     );
@@ -555,15 +555,13 @@ class WasmApi {
 
   async getScansWithArrays(
     handle: number,
-    queryType: number,
-    from: number,
-    to: number,
+    query: ScanQuerySettings,
     level: number,
     timeUnit: number,
     accessions: Uint32Array,
     keys: string[],
   ): Promise<Scan[]> {
-    const values = [queryType, from, to, level, timeUnit];
+    const values = [...getScanQueryValues(query), level, timeUnit];
     await this.prefetch(handle, () =>
       this.withMemory([toUint8View(accessions)], ([pointer]) =>
         this.run(
@@ -1174,27 +1172,16 @@ export class WasmBackend implements Backend {
 
   getScans(
     handle: FileHandle,
-    queryType: number,
-    from: number,
-    to: number,
+    query: ScanQuerySettings,
     level: number,
     timeUnit: number,
   ): Promise<Scan[]> {
-    return this.getApi().getScans(
-      handle as number,
-      queryType,
-      from,
-      to,
-      level,
-      timeUnit,
-    );
+    return this.getApi().getScans(handle as number, query, level, timeUnit);
   }
 
   getScansWithArrays(
     handle: FileHandle,
-    queryType: number,
-    from: number,
-    to: number,
+    query: ScanQuerySettings,
     level: number,
     timeUnit: number,
     accessions: Uint32Array,
@@ -1202,9 +1189,7 @@ export class WasmBackend implements Backend {
   ): Promise<Scan[]> {
     return this.getApi().getScansWithArrays(
       handle as number,
-      queryType,
-      from,
-      to,
+      query,
       level,
       timeUnit,
       accessions,
