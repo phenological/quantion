@@ -128,17 +128,15 @@ export interface MzQuery {
 /**
  * ScanQuery · Inputs
  *
- * Which scans get_scans returns.
+ * Which scans get_scans returns: by retention time, by precursor m/z, or by both. Two ranges give every scan inside both; when rt or mz is one value, you get the one scan closest to it.
  *
  * Fields:
- * - `{ rt: { from, to } }`: Every scan with rt in the range.
- * - `{ rt: 1.8 }`: The scan closest to this rt.
- * - `{ mz: { from, to } }`: Every scan with precursor m/z in the range.
- * - `{ mz: 445.12 }`: The scan whose precursor m/z is closest.
+ * - `rt`: Retention time: a range, one value for the closest scan, or nothing. Default Any.
+ * - `mz`: Precursor m/z: a range, one value for the closest scan, or nothing. Default Any.
  *
  * @example
  * ```ts
- * const query: ScanQuery = { rt: { from: 1.0, to: 2.5 } };
+ * const query: ScanQuery = { rt: { from: 2.3, to: 2.4 }, mz: 300.0 };
  * ```
  * @see {@link https://phenological.github.io/quantion/?language=js#ScanQuery | Documentation}
  */

@@ -153,7 +153,7 @@ class Quantion:
     def write_mzml(self, file: SampleFile, options=None):
         return write_mzml(file, options)
 
-    def get_scans(self, file: SampleFile, *, rt=None, mz=None, options=None):
+    def get_scans(self, file: SampleFile, rt=None, mz=None, options=None):
         return get_scans(file, rt=rt, mz=mz, options=options)
 
     def get_scan_metadata(self, file: SampleFile, index: int, options=None):

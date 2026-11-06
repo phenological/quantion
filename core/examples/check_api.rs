@@ -1,10 +1,12 @@
 use std::path::Path;
 
 use quantion::{
-    DataXY, CalculateEicOptions, DeisotopeFeaturesOptions, Feature, FindFeaturesOptions, FindPeaksOptions, FindTargetsOptions, FindTransitionsOptions,
-    GetPeakOptions, GetScanMetadataOptions, GridOptions, MatchFeaturesOptions, ParseIonOptions, Peak, SampleFile, ScanQuery, Target,
-    Transition, FromTo, calculate_eic, deisotope_features, find_features, find_noise_level, find_peaks, find_targets, find_transitions,
-    get_peak, get_scan_metadata, get_scans, load_model, load_warp, match_features, parse_ion,
+    CalculateEicOptions, DataXY, DeisotopeFeaturesOptions, Feature, FindFeaturesOptions,
+    FindPeaksOptions, FindTargetsOptions, FindTransitionsOptions, FromTo, GetPeakOptions,
+    GetScanMetadataOptions, GridOptions, MatchFeaturesOptions, ParseIonOptions, Peak, Position,
+    SampleFile, ScanQuery, Target, Transition, calculate_eic, deisotope_features, find_features,
+    find_noise_level, find_peaks, find_targets, find_transitions, get_peak, get_scan_metadata,
+    get_scans, load_model, load_warp, match_features, parse_ion,
 };
 
 const FROM_RT: f64 = 0.0;
@@ -119,13 +121,27 @@ fn open(fixture: &Path) -> SampleFile {
 }
 
 fn count_scans(fixture: &Path) -> usize {
-    let query = ScanQuery::RtRange(FromTo { from: FROM_RT, to: TO_RT });
-    get_scans(&mut open(fixture), query, Default::default()).expect("get_scans").len()
+    let query = ScanQuery {
+        rt: Position::Range(FromTo {
+            from: FROM_RT,
+            to: TO_RT,
+        }),
+        ..Default::default()
+    };
+    get_scans(&mut open(fixture), query, Default::default())
+        .expect("get_scans")
+        .len()
 }
 
 fn scan_metadata(fixture: &Path, out: &mut Vec<String>) {
     let mut file = open(fixture);
-    let query = ScanQuery::RtRange(FromTo { from: FROM_RT, to: TO_RT });
+    let query = ScanQuery {
+        rt: Position::Range(FromTo {
+            from: FROM_RT,
+            to: TO_RT,
+        }),
+        ..Default::default()
+    };
     let scans = get_scans(&mut file, query, Default::default()).expect("get_scans");
     let first = scans.first().expect("a first scan").index;
     let last = scans.last().expect("a last scan").index;
@@ -135,13 +151,29 @@ fn scan_metadata(fixture: &Path, out: &mut Vec<String>) {
     out.push(format!("get_scan_metadata.count = {}", rows.len()));
     for (position, row) in rows.iter().enumerate() {
         let kind = format!("{:?}", row.kind);
-        let fields = [Some(row.path.as_str()), Some(kind.as_str()), row.accession.as_deref(), Some(row.name.as_str()), row.value.as_deref(), row.unit.as_deref(), row.unit_accession.as_deref()];
+        let fields = [
+            Some(row.path.as_str()),
+            Some(kind.as_str()),
+            row.accession.as_deref(),
+            Some(row.name.as_str()),
+            row.value.as_deref(),
+            row.unit.as_deref(),
+            row.unit_accession.as_deref(),
+        ];
         let text: Vec<&str> = fields.iter().map(|field| field.unwrap_or("NA")).collect();
-        out.push(format!("get_scan_metadata.{position} = {}", text.join(" | ")));
+        out.push(format!(
+            "get_scan_metadata.{position} = {}",
+            text.join(" | ")
+        ));
     }
-    let options = GetScanMetadataOptions { tags: vec!["scan".to_string()] };
+    let options = GetScanMetadataOptions {
+        tags: vec!["scan".to_string()],
+    };
     let scan_rows = get_scan_metadata(&mut file, last, options).expect("get_scan_metadata");
-    out.push(format!("get_scan_metadata.scan.count = {}", scan_rows.len()));
+    out.push(format!(
+        "get_scan_metadata.scan.count = {}",
+        scan_rows.len()
+    ));
 }
 
 fn extract_eic(fixture: &Path, channel: &Channel) -> DataXY {
@@ -184,7 +216,10 @@ fn report_targets(fixture: &Path, channel: &Channel, prefix: &str, out: &mut Vec
 }
 
 fn report_transitions(fixture: &Path, channel: &Channel, prefix: &str, out: &mut Vec<String>) {
-    let folder = fixture.parent().and_then(Path::parent).expect("fixtures folder");
+    let folder = fixture
+        .parent()
+        .and_then(Path::parent)
+        .expect("fixtures folder");
     let targets: Vec<Transition> = channel
         .targets
         .iter()
@@ -200,7 +235,8 @@ fn report_transitions(fixture: &Path, channel: &Channel, prefix: &str, out: &mut
         find_peaks: chrom_peak_options(channel),
         threads: THREADS,
     };
-    let rows = find_transitions(&mut open(&folder.join("srm.ion")), &targets, options).expect("find_transitions");
+    let rows = find_transitions(&mut open(&folder.join("srm.ion")), &targets, options)
+        .expect("find_transitions");
     for ((id, _), peak) in channel.targets.iter().zip(&rows) {
         let name = format!("{prefix}.{id}");
         out.push(format!("{name}.rt = {}", number(peak.rt)));
@@ -242,7 +278,8 @@ fn consensus_features(directory: &str, out: &mut Vec<String>) {
     };
     let found = match_features(directory, options).expect("match_features");
     report_matched("match_features", &found, out);
-    let cleaned = deisotope_features(found, DeisotopeFeaturesOptions::default()).expect("deisotope_features");
+    let cleaned =
+        deisotope_features(found, DeisotopeFeaturesOptions::default()).expect("deisotope_features");
     report_matched("deisotope_features", &cleaned, out);
 }
 
@@ -319,9 +356,7 @@ fn predicted_rts(fixture: &Path, directory: &str, out: &mut Vec<String>) {
             })
         })
         .collect();
-    let predicted = warp
-        .predict_rts(&mut file, &targets)
-        .expect("predict_rts");
+    let predicted = warp.predict_rts(&mut file, &targets).expect("predict_rts");
     out.push(format!("predict_rts.count = {}", predicted.len()));
     for (name, prediction) in names.iter().zip(&predicted) {
         out.push(format!("predict_rts.{name}.rt = {}", number(prediction.rt)));

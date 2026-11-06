@@ -3,6 +3,8 @@ import type {
   EicSettings,
   FileHandle,
   PeakColumns,
+  PositionSettings,
+  ScanQuerySettings,
   TargetColumns,
   TransitionColumns,
 } from "./backend";
@@ -423,29 +425,16 @@ export function loadWarp(model: Model): WarpModel {
   );
 }
 
-const QUERY_RT_RANGE = 0;
-const QUERY_CLOSEST_RT = 1;
-const QUERY_MZ_RANGE = 2;
-const QUERY_CLOSEST_MZ = 3;
+const POSITION_ANY = 0;
+const POSITION_RANGE = 1;
+const POSITION_CLOSEST = 2;
+const SCAN_QUERY_KEYS = ["rt", "mz"];
 
-function getScanQuery(query: ScanQuery): [number, number, number] {
-  const given = query as unknown as Record<string, unknown>;
-  if (given === null || typeof given !== "object") {
-    throw invalidArgument("getScans", "query", "must be { rt } or { mz }");
+function getPosition(value: unknown, key: string): PositionSettings {
+  if (value === undefined) return { kind: POSITION_ANY, from: NaN, to: NaN };
+  if (typeof value === "number") {
+    return { kind: POSITION_CLOSEST, from: value, to: NaN };
   }
-  const keys = Object.keys(given);
-  if (keys.length !== 1 || (keys[0] !== "rt" && keys[0] !== "mz")) {
-    throw invalidArgument(
-      "getScans",
-      "query",
-      "must have exactly one of rt or mz",
-    );
-  }
-  const key = keys[0];
-  const value = given[key];
-  const closest = key === "rt" ? QUERY_CLOSEST_RT : QUERY_CLOSEST_MZ;
-  const range = key === "rt" ? QUERY_RT_RANGE : QUERY_MZ_RANGE;
-  if (typeof value === "number") return [closest, value, NaN];
   const fromTo = value as FromTo;
   if (fromTo === null || typeof fromTo !== "object") {
     throw invalidArgument("getScans", key, "must be a number or { from, to }");
@@ -456,22 +445,34 @@ function getScanQuery(query: ScanQuery): [number, number, number] {
     "getScans",
     `${key}.`,
   );
-  return [
-    range,
-    getRequiredNumber(fromTo.from, "getScans", `${key}.from`),
-    getRequiredNumber(fromTo.to, "getScans", `${key}.to`),
-  ];
+  return {
+    kind: POSITION_RANGE,
+    from: getRequiredNumber(fromTo.from, "getScans", `${key}.from`),
+    to: getRequiredNumber(fromTo.to, "getScans", `${key}.to`),
+  };
+}
+
+function getScanQuery(query: ScanQuery): ScanQuerySettings {
+  const given = query as unknown as Record<string, unknown>;
+  if (given === null || typeof given !== "object") {
+    throw invalidArgument("getScans", "query", "must be { rt }, { mz } or { rt, mz }");
+  }
+  checkKeys(given, SCAN_QUERY_KEYS, "getScans", "");
+  if (given.rt === undefined && given.mz === undefined) {
+    throw invalidArgument("getScans", "rt", "or mz must be given");
+  }
+  return { rt: getPosition(given.rt, "rt"), mz: getPosition(given.mz, "mz") };
 }
 
 /**
  * getScans · Files
  *
- * Read scans by retention time or precursor m/z. A range returns every scan in it; one number returns the closest scan, as a list of one.
+ * Read scans by retention time, by precursor m/z, or by both. Ranges return every scan inside them; when rt or mz is one value, you get the closest scan, as a list of one.
  *
  * @param file - The sample to read, from parse_ion or parse_mzml.
- * @param query.rt - Which scans, by retention time: a range or one value. Each FromTo has `from`, `to`. See {@link https://phenological.github.io/quantion/?language=js#FromTo | FromTo}.
+ * @param query.rt - Which scans by retention time: a range or one value. Optional when mz is given. Each FromTo has `from`, `to`. See {@link https://phenological.github.io/quantion/?language=js#FromTo | FromTo}.
  *   Example: `const window: FromTo = { from: 1.0, to: 2.5 };`
- * @param query.mz - Or by precursor m/z: a range or one value. Give rt or mz, not both. Each FromTo has `from`, `to`. See {@link https://phenological.github.io/quantion/?language=js#FromTo | FromTo}.
+ * @param query.mz - Which scans by precursor m/z: a range or one value. Give rt, mz or both. Each FromTo has `from`, `to`. See {@link https://phenological.github.io/quantion/?language=js#FromTo | FromTo}.
  *   Example: `const window: FromTo = { from: 1.0, to: 2.5 };`
  * @param options - Optional settings: `level` = 1, `timeUnit` = "MINUTES", `arrays` = { key: "mz", accession: "MS:1000514" }, { key: "intensity", accession: "MS:1000515" }. See {@link https://phenological.github.io/quantion/?language=js#GetScansOptions | GetScansOptions}.
  * @returns The scans found, in rt order.
@@ -484,13 +485,11 @@ export async function getScans(
 ): Promise<Scan[]> {
   const handle = getHandle(file, "getScans");
   const settings = readGetScansOptions(options, "getScans");
-  const [queryType, from, to] = getScanQuery(query);
+  const scanQuery = getScanQuery(query);
   if (!hasDefaultScanArrays(settings.arrays)) {
     return file._backend.getScansWithArrays(
       handle,
-      queryType,
-      from,
-      to,
+      scanQuery,
       settings.level,
       getTimeUnitCode(settings.timeUnit),
       getAccessionNumbers(settings.arrays),
@@ -499,9 +498,7 @@ export async function getScans(
   }
   return file._backend.getScans(
     handle,
-    queryType,
-    from,
-    to,
+    scanQuery,
     settings.level,
     getTimeUnitCode(settings.timeUnit),
   );

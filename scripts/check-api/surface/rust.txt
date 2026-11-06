@@ -1,3 +1,5 @@
+pub fn annotate_features(files: &mut [SampleFile], features: &[Feature], options: AnnotateFeaturesOptions) -> Result<Vec<FeatureMatch>, QuantionError>
+
 pub enum ErrorKind
     InvalidArgument = 1
     MissingArgument = 2
@@ -76,6 +78,16 @@ pub fn write_mzml(file: &mut SampleFile, options: WriteMzmlOptions) -> Result<Op
 pub fn load_model(input: impl Into<ModelInput>) -> Result<Model, QuantionError>
 
 pub fn load_warp(model: &Model) -> Result<WarpModel, QuantionError>
+
+pub struct AnnotateFeaturesOptions
+    pub library: String
+    pub model: String
+    pub matches: usize
+    pub ppm_tolerance: f64
+    pub mz_tolerance: f64
+    pub rt_range: f64
+    pub min_relative_intensity: f64
+impl Default for AnnotateFeaturesOptions: library: DEFAULT_LIBRARY.to_string(), model: DEFAULT_MODEL.to_string(), matches: 1, ppm_tolerance: 20.0, mz_tolerance: 0.005, rt_range: 0.3, min_relative_intensity: 0.02
 
 pub struct CalculateBaselineOptions
     pub lambda: f64
@@ -225,7 +237,7 @@ pub struct SampleFile
 
 pub fn find_targets(file: &mut SampleFile, targets: &[Target], options: FindTargetsOptions) -> Result<Vec<Peak>, QuantionError>
 
-pub fn find_transitions( file: &mut SampleFile, targets: &[Transition], options: FindTransitionsOptions, ) -> Result<Vec<Peak>, QuantionError>
+pub fn find_transitions(file: &mut SampleFile, targets: &[Transition], options: FindTransitionsOptions) -> Result<Vec<Peak>, QuantionError>
 
 pub fn calculate_baseline(y: &[f64], options: CalculateBaselineOptions) -> Result<Vec<f64>, QuantionError>
 
@@ -239,11 +251,18 @@ pub fn fit_peak(data: &DataXY, rt: f64, options: FitPeakOptions) -> Result<Optio
 
 pub fn get_peak(data: &DataXY, rt: f64, options: GetPeakOptions) -> Result<Peak, QuantionError>
 
-pub enum ScanQuery
-    RtRange(FromTo)
-    Rt(f64)
-    MzRange(FromTo)
-    Mz(f64)
+pub struct FeatureMatch
+    pub mz: f64
+    pub rt: f64
+    pub rank: Option<usize>
+    pub frequency: f64
+    pub ms2_frequency: f64
+    pub score: Option<f64>
+    pub model_score: Option<f64>
+    pub cosine: Option<f64>
+    pub file: Option<usize>
+    pub scan_index: Option<usize>
+    pub metadata: BTreeMap<String, String>
 
 pub enum TimeUnit
     SECONDS
@@ -259,6 +278,7 @@ pub struct Feature
     pub integral: f64
     pub n_points: usize
     pub frequency: Option<f64>
+    Feature::fn new(mz: f64, rt: f64) -> Self
 impl std::fmt::Debug for Feature
 
 pub struct NoiseLevel
@@ -336,6 +356,15 @@ pub struct Peak
 impl Default for Peak: from: 0.0, to: 0.0, rt: 0.0, integral: 0.0, intensity: 0.0, r2: 0.0, n_points: 0, noise: 0.0
 impl From<PeakCandidate> for Peak
 impl std::fmt::Debug for Peak
+
+pub enum Position
+    Any
+    Range(FromTo)
+    Closest(f64)
+
+pub struct ScanQuery
+    pub rt: Position
+    pub mz: Position
 
 pub struct Target
     pub id: Option<String>

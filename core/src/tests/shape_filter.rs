@@ -1,13 +1,15 @@
-use crate::options::FindPeaksOptions;
-use crate::utilities::{
-    find_peaks::find_peaks,
-    functions::{emg_fn, gaussian_fn, sigma_from_fwhm},
-    shape_filter::{PeakShape, ShapeFilter},
-    structs::DataXY,
-};
+use helpers::{Eic, load_chromatograms, param_bool, param_f64};
 
 use super::helpers;
-use helpers::{Eic, load_chromatograms, param_bool, param_f64};
+use crate::{
+    traces::FindPeaksOptions,
+    utilities::{
+        find_peaks::find_peaks,
+        functions::{emg_fn, gaussian_fn, sigma_from_fwhm},
+        shape_filter::{PeakShape, ShapeFilter},
+        structs::DataXY,
+    },
+};
 
 const RT_TOLERANCE: f64 = 0.35;
 
