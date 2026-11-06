@@ -8,6 +8,7 @@ use crate::{
             AnnotationError, FeatureMatch, annotate_features as read_matches, plan_library_ranges,
             plan_sample_ranges,
         },
+        calculate_eic::mz_tolerance_for,
         find_features::Feature,
         spectrum_model::{SpectrumModel, SpectrumModelError},
         structs::FromTo,
@@ -92,7 +93,7 @@ impl AnnotateFeaturesOptions {
             mz_tolerance: self.mz_tolerance,
             ..Default::default()
         };
-        let tolerance = crate::utilities::calculate_eic::mz_tolerance_for(mz, precursor);
+        let tolerance = mz_tolerance_for(mz, precursor);
         FromTo {
             from: mz - tolerance,
             to: mz + tolerance,

@@ -12,8 +12,7 @@ use ionic::{
 };
 
 use crate::{
-    TimeUnit,
-    FromTo,
+    FromTo, TimeUnit,
     error::{
         ErrorKind, QuantionError, check_finite, check_not_negative, check_positive,
         check_tolerances,
