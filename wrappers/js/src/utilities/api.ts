@@ -1016,9 +1016,9 @@ function getAnnotations(tables: AnnotationTables): FeatureAnnotation[] {
 /**
  * annotateFeatures · Untargeted
  *
- * Name features from their MS2 spectra. For each feature, every sample gives its closest MS2 scan; a spectrum model turns it into a vector, which is compared with the library spectra of the same precursor m/z. The library and the model are read from a path or a URL; over a URL only the bytes needed are fetched, in one batch per source.
+ * Annotate features by matching their MS2 spectra against a spectral library. For each feature and sample, the positive MS2 scan closest to the peak apex is used: its precursor must match the feature m/z within the tolerance, and its RT must be within rt_range. A spectrum encoder turns the scan into a vector, which is scored against the library spectra with the same precursor m/z. The library (an Ionic .ion file) and the encoder (an ONNX model) are read from a path or a URL; by default both come from the josoriom/cipher releases.
  *
- * **Warning:** The model sets how spectra are read through its metadata keys: max_peaks, max_mz, intensity_scale (SQRT or NONE), vector_accession (the library array that holds the vectors), and compound, id, database and label (the library params that name each spectrum). A missing or invalid key gives an error.
+ * **Warning:** This is an experimental feature.
  *
  * @param files - The samples, from parse_ion or parse_mzml. Must not be empty.
  * @param features - The features to name: mz and rt each. find_features and match_features output works as is. Empty gives an empty result.
