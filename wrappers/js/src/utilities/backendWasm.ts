@@ -4,7 +4,10 @@ declare const __INLINE__: boolean;
 declare const __WASM_DATA_URL__: string | undefined;
 declare var require: any;
 
+import { getAnnotationValues } from "./backend";
 import type {
+  AnnotationSettings,
+  AnnotationTables,
   Backend,
   ByteRangeResult,
   EicSettings,
@@ -170,7 +173,8 @@ class WasmExports {
         );
       }
     }
-    this.alloc = this.get("alloc");
+    const alloc = this.get("alloc");
+    this.alloc = (size: number) => alloc(size) >>> 0;
     this.free = this.get("free_");
   }
 
@@ -200,6 +204,7 @@ class WasmApi {
   readonly fn: WasmExports;
   private readonly firstSlot: number;
   private readonly secondSlot: number;
+  private readonly thirdSlot: number;
   private readonly errorSlot: number;
   private readonly peakOptionsSlot: number;
   private readonly handleSlot: number;
@@ -227,6 +232,7 @@ class WasmApi {
     this.heap = new WasmHeap(this.fn.memory, this.fn.alloc, this.fn.free);
     this.firstSlot = this.heap.allocPermanent(OUTPUT_BUFFER_PAIR_BYTES);
     this.secondSlot = this.heap.allocPermanent(OUTPUT_BUFFER_PAIR_BYTES);
+    this.thirdSlot = this.heap.allocPermanent(OUTPUT_BUFFER_PAIR_BYTES);
     this.errorSlot = this.heap.allocPermanent(OUTPUT_BUFFER_PAIR_BYTES);
     this.peakOptionsSlot = this.heap.allocPermanent(PEAK_OPTIONS_STRUCT_BYTES);
     this.handleSlot = this.heap.allocPermanent(4);
@@ -468,6 +474,68 @@ class WasmApi {
         ),
     );
     return this.takeNumbers(this.firstSlot);
+  }
+
+  async annotateFeatures(
+    library: number | null,
+    model: number | null,
+    files: number[],
+    mzs: Float64Array,
+    rts: Float64Array,
+    settings: AnnotationSettings,
+  ): Promise<AnnotationTables> {
+    const values = getAnnotationValues(settings);
+    const memory = [
+      toUint8View(Uint32Array.from(files)),
+      toUint8View(mzs),
+      toUint8View(rts),
+    ];
+    if (library !== null && model !== null) {
+      for (const file of files) {
+        await this.prefetch(file, () =>
+          this.withMemory(memory, ([, mzPointer, rtPointer]) =>
+            this.run("plan_annotate_samples", file, mzPointer, rtPointer, mzs.length, ...values, this.firstSlot),
+          ),
+        );
+      }
+      await this.prefetch(library, () =>
+        this.withMemory(memory, ([filePointer, mzPointer, rtPointer]) =>
+          this.run(
+            "plan_annotate_library",
+            library,
+            model,
+            filePointer,
+            files.length,
+            mzPointer,
+            rtPointer,
+            mzs.length,
+            ...values,
+            this.firstSlot,
+          ),
+        ),
+      );
+    }
+    this.withMemory(memory, ([filePointer, mzPointer, rtPointer]) =>
+      this.run(
+        "annotate_features",
+        library ?? 0,
+        model ?? 0,
+        filePointer,
+        files.length,
+        mzPointer,
+        rtPointer,
+        mzs.length,
+        ...values,
+        this.firstSlot,
+        this.secondSlot,
+        this.thirdSlot,
+      ),
+    );
+    return {
+      features: this.takeRecords(this.firstSlot),
+      files: this.takeRecords(this.secondSlot),
+      matches: this.takeRecords(this.thirdSlot),
+    };
   }
 
   calibrateRts(
@@ -1142,6 +1210,24 @@ export class WasmBackend implements Backend {
     rts: Float64Array,
   ): Float64Array {
     return this.getApi().predictRts(warp as number, handle as number, mzs, rts);
+  }
+
+  annotateFeatures(
+    library: FileHandle | null,
+    model: ModelHandle | null,
+    files: FileHandle[],
+    mzs: Float64Array,
+    rts: Float64Array,
+    settings: AnnotationSettings,
+  ): Promise<AnnotationTables> {
+    return this.getApi().annotateFeatures(
+      library as number | null,
+      model as number | null,
+      files as number[],
+      mzs,
+      rts,
+      settings,
+    );
   }
 
   calibrateRts(

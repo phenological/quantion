@@ -13,7 +13,10 @@ const MAX_PEAKS_KEY: &str = "max_peaks";
 const MAX_MZ_KEY: &str = "max_mz";
 const INTENSITY_SCALE_KEY: &str = "intensity_scale";
 const VECTOR_ACCESSION_KEY: &str = "vector_accession";
-const COMPOUND_PARAM_KEY: &str = "compound_param";
+const COMPOUND_KEY: &str = "compound";
+const ID_KEY: &str = "id";
+const DATABASE_KEY: &str = "database";
+const LABEL_KEY: &str = "label";
 
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) enum SpectrumModelError {
@@ -65,6 +68,9 @@ pub(crate) struct SpectrumModel {
     pub intensity_scale: IntensityScale,
     pub vector_accession: u32,
     pub compound_param: String,
+    pub id_param: String,
+    pub database_param: String,
+    pub label_param: String,
 }
 
 impl SpectrumModel {
@@ -107,7 +113,10 @@ impl SpectrumModel {
                 accession_text,
             )
         })?;
-        let compound_param = get_value(COMPOUND_PARAM_KEY)?.to_string();
+        let compound_param = get_value(COMPOUND_KEY)?.to_string();
+        let id_param = get_value(ID_KEY)?.to_string();
+        let database_param = get_value(DATABASE_KEY)?.to_string();
+        let label_param = get_value(LABEL_KEY)?.to_string();
         Ok(Self {
             model: model.clone(),
             max_peaks,
@@ -115,6 +124,9 @@ impl SpectrumModel {
             intensity_scale,
             vector_accession,
             compound_param,
+            id_param,
+            database_param,
+            label_param,
         })
     }
 

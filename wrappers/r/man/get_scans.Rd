@@ -30,7 +30,7 @@ if (curl::has_internet()) {
   # example 1
   library(quantion)
 
-  url <- "https://raw.githubusercontent.com/phenological/ion-files/main/data/p21_LTR_20_b1_w20.ion"
+  url <- "https://raw.githubusercontent.com/phenological/ion-files/main/data/aa_p21_LTR_20_b1_w20.ion"
   sample <- parse_ion(url)
   scans <- get_scans(sample, rt = c(2.3, 2.4))
   closest <- get_scans(sample, rt = 143, options = get_scans_options(time_unit = "SECONDS"))

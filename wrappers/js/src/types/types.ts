@@ -733,3 +733,101 @@ export interface IonImage {
   data: Float64Array;
   counts: Uint32Array;
 }
+
+/**
+ * AnnotateFeaturesOptions · Options
+ *
+ * Settings for annotate_features.
+ *
+ * Fields:
+ * - `library`: Spectral library: an Ionic (.ion) file path or URL. Each spectrum has a precursor m/z, a vector array and the params named by the model. Default `"https://github.com/josoriom/cipher/releases/latest/download/library_positive.ion"`.
+ * - `model`: Spectrum model: an ONNX file path or URL. Default `"https://github.com/josoriom/cipher/releases/latest/download/model.onnx"`.
+ * - `matches`: How many matches to keep per file, best first. Default `3`.
+ * - `ppmTolerance`: Precursor tolerance in ppm. The larger of the two tolerances is used. Default `20`.
+ * - `mzTolerance`: Precursor tolerance in Da. Default `0.005`.
+ * - `rtRange`: Largest distance in minutes from the peak apex to the MS2 scan. Default `0.3`.
+ * - `minRelativeIntensity`: MS2 peaks below this share of the base peak are dropped (0–1). Default `0.02`.
+ * @see {@link https://phenological.github.io/quantion/?language=js#AnnotateFeaturesOptions | Documentation}
+ */
+export interface AnnotateFeaturesOptions {
+  library?: string;
+  model?: string;
+  matches?: number;
+  ppmTolerance?: number;
+  mzTolerance?: number;
+  rtRange?: number;
+  minRelativeIntensity?: number;
+}
+
+/**
+ * CompoundMatch · Results
+ *
+ * One library spectrum that matches a feature in one file.
+ *
+ * Fields:
+ * - `label`: Name of the compound, from the library param the model names as label.
+ * - `id`: Id of the spectrum in its database.
+ * - `database`: Database the id comes from.
+ * - `score`: Average of the model vector similarity and the cosine (0–1).
+ * - `cosine`: Cosine similarity of the cleaned spectra (0–1).
+ * - `mz`: m/z values of the library spectrum.
+ * - `intensity`: Intensities of the library spectrum.
+ * - `metadata`: The other params of the library spectrum, by name.
+ * @see {@link https://phenological.github.io/quantion/?language=js#CompoundMatch | Documentation}
+ */
+export interface CompoundMatch {
+  label: string;
+  id: string;
+  database: string;
+  score: number;
+  cosine: number;
+  mz: Float64Array;
+  intensity: Float64Array;
+  metadata: Record<string, string>;
+}
+
+/**
+ * FileAnnotation · Results
+ *
+ * What one file says about a feature.
+ *
+ * Fields:
+ * - `file`: Position of the file in files, from 0.
+ * - `scanIndex`: The MS2 scan used, or none when the file has no peak or no MS2 scan close to it.
+ * - `matches`: Best matches in this file, best first, at most matches.
+ * @see {@link https://phenological.github.io/quantion/?language=js#FileAnnotation | Documentation}
+ */
+export interface FileAnnotation {
+  file: number;
+  scanIndex: number | null;
+  matches: CompoundMatch[];
+}
+
+/**
+ * FeatureAnnotation · Results
+ *
+ * The name of one feature. The label is the compound that is the best match in the most files; ties go to the higher score.
+ *
+ * Fields:
+ * - `mz`: m/z of the feature.
+ * - `rt`: Retention time of the feature (minutes).
+ * - `label`: Name of the compound, or none when no file has a match.
+ * - `id`: Id in the database, from the agreeing file with the highest score.
+ * - `database`: Database the id comes from.
+ * - `frequency`: Share of the files whose best match is this compound (0–1).
+ * - `score`: Median score over the agreeing files.
+ * - `cosine`: Median cosine over the agreeing files.
+ * - `files`: One FileAnnotation per file, in the order of files.
+ * @see {@link https://phenological.github.io/quantion/?language=js#FeatureAnnotation | Documentation}
+ */
+export interface FeatureAnnotation {
+  mz: number;
+  rt: number;
+  label: string | null;
+  id: string | null;
+  database: string | null;
+  frequency: number;
+  score: number | null;
+  cosine: number | null;
+  files: FileAnnotation[];
+}

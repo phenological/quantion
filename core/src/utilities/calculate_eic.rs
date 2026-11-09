@@ -7,7 +7,6 @@ use ionic::{
 use crate::{
     files::CalculateEicOptions,
     utilities::{
-        get_scans::CentroidScan,
         ion::{ScanSource, ScanSummary},
         structs::{DataXY, FromTo, Peak},
     },
@@ -352,29 +351,6 @@ pub fn calculate_eic(
     }
 
     Ok(DataXY { x, y })
-}
-
-pub fn get_eic_for_mz(
-    scans: &[CentroidScan],
-    scan_count: usize,
-    mz: f64,
-    options: CalculateEicOptions,
-) -> Vec<f64> {
-    if !mz.is_finite() || mz <= 0.0 {
-        return vec![0.0; scan_count];
-    }
-    let tolerance = mz_tolerance_for(mz, options);
-    if !tolerance.is_finite() || tolerance <= 0.0 {
-        return vec![0.0; scan_count];
-    }
-    let mz_lower = mz - tolerance;
-    let mz_upper = mz + tolerance;
-    let mut intensities = vec![0.0f64; scan_count];
-    for (index, scan) in scans.iter().take(scan_count).enumerate() {
-        intensities[index] =
-            summed_intensity_in_window(&scan.mz, &scan.intensity, mz_lower, mz_upper);
-    }
-    intensities
 }
 
 pub fn with_eic_apex_intensity(rt: &[f64], y: &[f64], mut p: Peak) -> Peak {

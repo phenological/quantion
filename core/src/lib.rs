@@ -34,7 +34,7 @@ pub use traces::{
     calculate_baseline, draw_peaks, find_noise_level, find_peaks, fit_peak, get_peak,
 };
 pub use utilities::{
-    annotate_features::FeatureMatch,
+    annotate_features::{CompoundMatch, FeatureAnnotation, FileAnnotation},
     calculate_eic::TimeUnit,
     find_features::Feature,
     find_noise_level::NoiseLevel,

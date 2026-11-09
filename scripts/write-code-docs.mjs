@@ -530,9 +530,12 @@ function writeR(entry, relativePath) {
   return true;
 }
 
-const rustFunctionFiles = ["core/src/files.rs", "core/src/traces.rs", "core/src/targets.rs", "core/src/features.rs", "core/src/models.rs"];
+const rustFunctionFiles = ["core/src/files.rs", "core/src/traces.rs", "core/src/targets.rs", "core/src/features.rs", "core/src/annotations.rs", "core/src/models.rs"];
 const rustTypeFiles = [
-  "core/src/options.rs",
+  "core/src/traces.rs",
+  "core/src/targets.rs",
+  "core/src/features.rs",
+  "core/src/annotations.rs",
   "core/src/error.rs",
   "core/src/sample_file.rs",
   "core/src/files.rs",
@@ -549,6 +552,7 @@ const rustTypeFiles = [
   "core/src/utilities/warp_model.rs",
   "core/src/utilities/calculate_eic.rs",
   "core/src/utilities/get_scans.rs",
+  "core/src/utilities/annotate_features.rs",
 ];
 const pythonMethodFiles = { predict_rts: ["wrappers/python/quantion/warp_model.py"], calibrate: ["wrappers/python/quantion/warp_model.py"], dispose: ["wrappers/python/quantion/file.py", "wrappers/python/quantion/model.py", "wrappers/python/quantion/warp_model.py"] };
 const jsMethodFiles = { predict_rts: ["wrappers/js/src/utilities/warpModel.ts"], calibrate: ["wrappers/js/src/utilities/warpModel.ts"], dispose: ["wrappers/js/src/utilities/sampleFile.ts", "wrappers/js/src/utilities/model.ts", "wrappers/js/src/utilities/warpModel.ts"] };

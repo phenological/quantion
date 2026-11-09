@@ -45,6 +45,30 @@ export function getScanQueryValues(query: ScanQuerySettings): number[] {
   ];
 }
 
+export interface AnnotationSettings {
+  matches: number;
+  ppmTolerance: number;
+  mzTolerance: number;
+  rtRange: number;
+  minRelativeIntensity: number;
+}
+
+export interface AnnotationTables {
+  features: Record<string, unknown>[];
+  files: Record<string, unknown>[];
+  matches: Record<string, unknown>[];
+}
+
+export function getAnnotationValues(settings: AnnotationSettings): number[] {
+  return [
+    settings.matches,
+    settings.ppmTolerance,
+    settings.mzTolerance,
+    settings.rtRange,
+    settings.minRelativeIntensity,
+  ];
+}
+
 export interface EicSettings {
   from: number;
   to: number;
@@ -243,6 +267,15 @@ export interface Backend {
     options: PeakSettings,
     threads: number,
   ): MaybePromise<Feature[]>;
+
+  annotateFeatures(
+    library: FileHandle | null,
+    model: ModelHandle | null,
+    files: FileHandle[],
+    mzs: Float64Array,
+    rts: Float64Array,
+    settings: AnnotationSettings,
+  ): Promise<AnnotationTables>;
 
   matchFeatures?(
     directory: string,

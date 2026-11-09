@@ -1,12 +1,13 @@
 use std::path::Path;
 
 use quantion::{
-    CalculateEicOptions, DataXY, DeisotopeFeaturesOptions, Feature, FindFeaturesOptions,
-    FindPeaksOptions, FindTargetsOptions, FindTransitionsOptions, FromTo, GetPeakOptions,
-    GetScanMetadataOptions, GridOptions, MatchFeaturesOptions, ParseIonOptions, Peak, Position,
-    SampleFile, ScanQuery, Target, Transition, calculate_eic, deisotope_features, find_features,
-    find_noise_level, find_peaks, find_targets, find_transitions, get_peak, get_scan_metadata,
-    get_scans, load_model, load_warp, match_features, parse_ion,
+    AnnotateFeaturesOptions, CalculateEicOptions, DataXY, DeisotopeFeaturesOptions, Feature,
+    FindFeaturesOptions, FindPeaksOptions, FindTargetsOptions, FindTransitionsOptions, FromTo,
+    GetPeakOptions, GetScanMetadataOptions, GridOptions, MatchFeaturesOptions, ParseIonOptions,
+    Peak, Position, SampleFile, ScanQuery, Target, Transition, annotate_features, calculate_eic,
+    deisotope_features, find_features, find_noise_level, find_peaks, find_targets,
+    find_transitions, get_peak, get_scan_metadata, get_scans, load_model, load_warp,
+    match_features, parse_ion,
 };
 
 const FROM_RT: f64 = 0.0;
@@ -367,6 +368,51 @@ fn predicted_rts(fixture: &Path, directory: &str, out: &mut Vec<String>) {
     }
 }
 
+fn annotations(directory: &str, out: &mut Vec<String>) {
+    let folder = Path::new(directory).join("..").join("annotate");
+    let mut files: Vec<SampleFile> = ["sample_peak_and_ms2", "sample_peak_only", "sample_no_peak"]
+        .iter()
+        .map(|name| open(&folder.join(format!("{name}.ion"))))
+        .collect();
+    let options = AnnotateFeaturesOptions {
+        library: folder.join("library.ion").to_string_lossy().into_owned(),
+        model: folder.join("model.onnx").to_string_lossy().into_owned(),
+        ..Default::default()
+    };
+    let features = [Feature::new(195.0877, 2.0)];
+    let found = annotate_features(&mut files, &features, options).expect("annotate_features");
+    let text = |value: &Option<String>| value.clone().unwrap_or_else(|| "NA".to_string());
+    let value = |value: Option<f64>| value.map(number).unwrap_or_else(|| "NA".to_string());
+    out.push(format!("annotate_features.count = {}", found.len()));
+    for (index, annotation) in found.iter().enumerate() {
+        let name = format!("annotate_features[{index}]");
+        out.push(format!("{name}.label = {}", text(&annotation.label)));
+        out.push(format!("{name}.id = {}", text(&annotation.id)));
+        out.push(format!("{name}.database = {}", text(&annotation.database)));
+        out.push(format!(
+            "{name}.frequency = {}",
+            number(annotation.frequency)
+        ));
+        out.push(format!("{name}.score = {}", value(annotation.score)));
+        out.push(format!("{name}.cosine = {}", value(annotation.cosine)));
+        for file in &annotation.files {
+            let scan = file
+                .scan_index
+                .map(|index| index.to_string())
+                .unwrap_or_else(|| "NA".to_string());
+            out.push(format!("{name}.files[{}].scan_index = {scan}", file.file));
+            for (rank, found) in file.matches.iter().enumerate() {
+                let prefix = format!("{name}.files[{}].matches[{rank}]", file.file);
+                out.push(format!("{prefix}.label = {}", found.label));
+                out.push(format!("{prefix}.id = {}", found.id));
+                out.push(format!("{prefix}.database = {}", found.database));
+                out.push(format!("{prefix}.score = {}", number(found.score)));
+                out.push(format!("{prefix}.cosine = {}", number(found.cosine)));
+            }
+        }
+    }
+}
+
 fn main() {
     let directory = std::env::args()
         .nth(1)
@@ -383,6 +429,7 @@ fn main() {
     features(&fixture, &mut out);
     consensus_features(&directory, &mut out);
     predicted_rts(&fixture, &directory, &mut out);
+    annotations(&directory, &mut out);
 
     println!("{}", out.join("\n"));
 }

@@ -1,4 +1,5 @@
 import type {
+  AnnotationTables,
   Backend,
   EicSettings,
   FileHandle,
@@ -38,6 +39,7 @@ import {
   getAccessionNumbers,
   hasDefaultScanArrays,
   readGetScanMetadataOptions,
+  readAnnotateFeaturesOptions,
   readGetScansOptions,
   readIonImageOptions,
   readMatchFeaturesOptions,
@@ -49,6 +51,10 @@ import {
   type Complete,
 } from "./options";
 import type {
+  AnnotateFeaturesOptions,
+  CompoundMatch,
+  FeatureAnnotation,
+  FileAnnotation,
   CalculateBaselineOptions,
   BinaryInput,
   DataXY,
@@ -944,3 +950,123 @@ export function deisotopeFeatures(
     settings.mzTolerance,
   );
 }
+
+const ANNOTATION_FEATURE_KEYS = [
+  "mz",
+  "rt",
+  "from",
+  "to",
+  "intensity",
+  "integral",
+  "nPoints",
+  "frequency",
+];
+
+function getNumberOrNull(value: unknown): number | null {
+  return typeof value === "number" && !Number.isNaN(value) ? value : null;
+}
+
+function getCompoundMatch(row: Record<string, unknown>): CompoundMatch {
+  const names = row.metadataNames ? String(row.metadataNames).split("\x1f") : [];
+  const values = row.metadataNames ? String(row.metadataValues).split("\x1f") : [];
+  return {
+    label: row.label as string,
+    id: row.id as string,
+    database: row.database as string,
+    score: row.score as number,
+    cosine: row.cosine as number,
+    mz: row.mz as Float64Array,
+    intensity: row.intensity as Float64Array,
+    metadata: Object.fromEntries(names.map((name, index) => [name, values[index]])),
+  };
+}
+
+function getAnnotations(tables: AnnotationTables): FeatureAnnotation[] {
+  const matches = new Map<string, CompoundMatch[]>();
+  for (const row of tables.matches) {
+    const key = `${row.feature}:${row.file}`;
+    const list = matches.get(key) ?? [];
+    list.push(getCompoundMatch(row));
+    matches.set(key, list);
+  }
+  const files = new Map<number, FileAnnotation[]>();
+  for (const row of tables.files) {
+    const feature = row.feature as number;
+    const list = files.get(feature) ?? [];
+    list.push({
+      file: row.file as number,
+      scanIndex: getNumberOrNull(row.scanIndex),
+      matches: matches.get(`${feature}:${row.file}`) ?? [],
+    });
+    files.set(feature, list);
+  }
+  return tables.features.map((row, position) => ({
+    mz: row.mz as number,
+    rt: row.rt as number,
+    label: row.label as string | null,
+    id: row.id as string | null,
+    database: row.database as string | null,
+    frequency: row.frequency as number,
+    score: getNumberOrNull(row.score),
+    cosine: getNumberOrNull(row.cosine),
+    files: files.get(position) ?? [],
+  }));
+}
+
+/**
+ * annotateFeatures · Untargeted
+ *
+ * Name features from their MS2 spectra. For each feature, every sample gives its closest MS2 scan; a spectrum model turns it into a vector, which is compared with the library spectra of the same precursor m/z. The library and the model are read from a path or a URL; over a URL only the bytes needed are fetched, in one batch per source.
+ *
+ * **Warning:** The model sets how spectra are read through its metadata keys: max_peaks, max_mz, intensity_scale (SQRT or NONE), vector_accession (the library array that holds the vectors), and compound, id, database and label (the library params that name each spectrum). A missing or invalid key gives an error.
+ *
+ * @param files - The samples, from parse_ion or parse_mzml. Must not be empty.
+ * @param features - The features to name: mz and rt each. find_features and match_features output works as is. Empty gives an empty result.
+ * @param options - Optional settings: `library` = "https://github.com/josoriom/cipher/releases/latest/download/library_positive.ion", `model` = "https://github.com/josoriom/cipher/releases/latest/download/model.onnx", `matches` = 3, `ppmTolerance` = 20, `mzTolerance` = 0.005, `rtRange` = 0.3, `minRelativeIntensity` = 0.02. See {@link https://phenological.github.io/quantion/?language=js#AnnotateFeaturesOptions | AnnotateFeaturesOptions}.
+ * @returns One FeatureAnnotation per feature, in the same order.
+ * @see {@link https://phenological.github.io/quantion/?language=js#annotate_features | Documentation}
+ */
+export async function annotateFeatures(
+  files: SampleFile[],
+  features: Array<{ mz: number; rt: number }>,
+  options?: AnnotateFeaturesOptions,
+): Promise<FeatureAnnotation[]> {
+  const functionName = "annotateFeatures";
+  const settings = readAnnotateFeaturesOptions(options, functionName);
+  if (!Array.isArray(files)) {
+    throw invalidArgument(functionName, "files", "must be an array of samples");
+  }
+  if (!Array.isArray(features)) {
+    throw invalidArgument(functionName, "features", "must be an array of features");
+  }
+  checkItems(features, ANNOTATION_FEATURE_KEYS, functionName, "features");
+  const handles = files.map((file) => getHandle(file, functionName));
+  const mzs = Float64Array.from(features, (feature, index) =>
+    getRequiredNumber(feature.mz, functionName, `features[${index}].mz`),
+  );
+  const rts = Float64Array.from(features, (feature, index) =>
+    getRequiredNumber(feature.rt, functionName, `features[${index}].rt`),
+  );
+  const backend = files[0]?._backend ?? (await getBackendAsync());
+  if (features.length === 0) {
+    await backend.annotateFeatures(null, null, handles, mzs, rts, settings);
+    return [];
+  }
+  const library = await parseIon(settings.library);
+  const model = await loadModel(settings.model);
+  try {
+    const tables = await backend.annotateFeatures(
+      library._handle,
+      model._handle,
+      handles,
+      mzs,
+      rts,
+      settings,
+    );
+    return getAnnotations(tables);
+  } finally {
+    library.dispose();
+    model.dispose();
+  }
+}
+

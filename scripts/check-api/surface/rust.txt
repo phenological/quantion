@@ -6,9 +6,9 @@ pub struct AnnotateFeaturesOptions
     pub mz_tolerance: f64
     pub rt_range: f64
     pub min_relative_intensity: f64
-impl Default for AnnotateFeaturesOptions: library: DEFAULT_LIBRARY.to_string(), model: DEFAULT_MODEL.to_string(), matches: 1, ppm_tolerance: 20.0, mz_tolerance: 0.005, rt_range: 0.3, min_relative_intensity: 0.02
+impl Default for AnnotateFeaturesOptions: library: DEFAULT_LIBRARY.to_string(), model: DEFAULT_MODEL.to_string(), matches: 3, ppm_tolerance: 20.0, mz_tolerance: 0.005, rt_range: 0.3, min_relative_intensity: 0.02
 
-pub fn annotate_features(files: &mut [SampleFile], features: &[Feature], options: AnnotateFeaturesOptions) -> Result<Vec<FeatureMatch>, QuantionError>
+pub fn annotate_features(files: &mut [SampleFile], features: &[Feature], options: AnnotateFeaturesOptions) -> Result<Vec<FeatureAnnotation>, QuantionError>
 
 pub enum ErrorKind
     InvalidArgument = 1
@@ -252,18 +252,31 @@ pub fn fit_peak(data: &DataXY, rt: f64, options: FitPeakOptions) -> Result<Optio
 
 pub fn get_peak(data: &DataXY, rt: f64, options: GetPeakOptions) -> Result<Peak, QuantionError>
 
-pub struct FeatureMatch
+pub struct CompoundMatch
+    pub label: String
+    pub id: String
+    pub database: String
+    pub score: f64
+    pub cosine: f64
+    pub mz: Vec<f64>
+    pub intensity: Vec<f64>
+    pub metadata: BTreeMap<String, String>
+
+pub struct FeatureAnnotation
     pub mz: f64
     pub rt: f64
-    pub rank: Option<usize>
+    pub label: Option<String>
+    pub id: Option<String>
+    pub database: Option<String>
     pub frequency: f64
-    pub ms2_frequency: f64
     pub score: Option<f64>
-    pub model_score: Option<f64>
     pub cosine: Option<f64>
-    pub file: Option<usize>
+    pub files: Vec<FileAnnotation>
+
+pub struct FileAnnotation
+    pub file: usize
     pub scan_index: Option<usize>
-    pub metadata: BTreeMap<String, String>
+    pub matches: Vec<CompoundMatch>
 
 pub enum TimeUnit
     SECONDS

@@ -5,8 +5,8 @@ use crate::{
     sample_file::{FileSource, SampleFile},
     utilities::{
         annotate_features::{
-            AnnotationError, FeatureMatch, annotate_features as read_matches, plan_library_ranges,
-            plan_sample_ranges,
+            AnnotationError, FeatureAnnotation, annotate_features as read_matches,
+            plan_library_ranges, plan_sample_ranges,
         },
         calculate_eic::mz_tolerance_for,
         find_features::Feature,
@@ -15,11 +15,26 @@ use crate::{
     },
 };
 
-pub(crate) const DEFAULT_LIBRARY: &str = "https://github.com/phenological/quantion/releases/download/annotations-v1/library_positive.ion";
+pub(crate) const DEFAULT_LIBRARY: &str =
+    "https://github.com/josoriom/cipher/releases/latest/download/library_positive.ion";
 
 pub(crate) const DEFAULT_MODEL: &str =
-    "https://github.com/phenological/quantion/releases/download/annotations-v1/model.onnx";
+    "https://github.com/josoriom/cipher/releases/latest/download/model.onnx";
 
+/// **AnnotateFeaturesOptions** · Options
+///
+/// Settings for annotate_features.
+///
+/// Fields:
+/// - `library`: Spectral library: an Ionic (.ion) file path or URL. Each spectrum has a precursor m/z, a vector array and the params named by the model. Default `"https://github.com/josoriom/cipher/releases/latest/download/library_positive.ion"`.
+/// - `model`: Spectrum model: an ONNX file path or URL. Default `"https://github.com/josoriom/cipher/releases/latest/download/model.onnx"`.
+/// - `matches`: How many matches to keep per file, best first. Default `3`.
+/// - `ppm_tolerance`: Precursor tolerance in ppm. The larger of the two tolerances is used. Default `20.0`.
+/// - `mz_tolerance`: Precursor tolerance in Da. Default `0.005`.
+/// - `rt_range`: Largest distance in minutes from the peak apex to the MS2 scan. Default `0.3`.
+/// - `min_relative_intensity`: MS2 peaks below this share of the base peak are dropped (0–1). Default `0.02`.
+///
+/// [Documentation](https://phenological.github.io/quantion/?language=rust#AnnotateFeaturesOptions)
 #[derive(Clone, Debug, PartialEq)]
 pub struct AnnotateFeaturesOptions {
     pub library: String,
@@ -36,7 +51,7 @@ impl Default for AnnotateFeaturesOptions {
         Self {
             library: DEFAULT_LIBRARY.to_string(),
             model: DEFAULT_MODEL.to_string(),
-            matches: 1,
+            matches: 3,
             ppm_tolerance: 20.0,
             mz_tolerance: 0.005,
             rt_range: 0.3,
@@ -101,11 +116,24 @@ impl AnnotateFeaturesOptions {
     }
 }
 
+/// **annotate_features** · Untargeted
+///
+/// Name features from their MS2 spectra. For each feature, every sample gives its closest MS2 scan; a spectrum model turns it into a vector, which is compared with the library spectra of the same precursor m/z. The library and the model are read from a path or a URL; over a URL only the bytes needed are fetched, in one batch per source.
+///
+/// **Warning:** The model sets how spectra are read through its metadata keys: max_peaks, max_mz, intensity_scale (SQRT or NONE), vector_accession (the library array that holds the vectors), and compound, id, database and label (the library params that name each spectrum). A missing or invalid key gives an error.
+///
+/// - `files`: The samples, from parse_ion or parse_mzml. Must not be empty.
+/// - `features`: The features to name: mz and rt each. find_features and match_features output works as is. Empty gives an empty result.
+/// - `options`: Optional settings: `library` = "https://github.com/josoriom/cipher/releases/latest/download/library_positive.ion", `model` = "https://github.com/josoriom/cipher/releases/latest/download/model.onnx", `matches` = 3, `ppm_tolerance` = 20.0, `mz_tolerance` = 0.005, `rt_range` = 0.3, `min_relative_intensity` = 0.02. See [AnnotateFeaturesOptions](https://phenological.github.io/quantion/?language=rust#AnnotateFeaturesOptions).
+///
+/// Returns: One FeatureAnnotation per feature, in the same order.
+///
+/// [Documentation](https://phenological.github.io/quantion/?language=rust#annotate_features)
 pub fn annotate_features(
     files: &mut [SampleFile],
     features: &[Feature],
     options: AnnotateFeaturesOptions,
-) -> Result<Vec<FeatureMatch>, QuantionError> {
+) -> Result<Vec<FeatureAnnotation>, QuantionError> {
     const FUNCTION: &str = "annotate_features";
     options.check(FUNCTION)?;
     check_files(FUNCTION, files.len())?;
@@ -163,7 +191,7 @@ pub(crate) fn annotate_with_library(
     files: &mut [&mut SampleFile],
     features: &[Feature],
     options: &AnnotateFeaturesOptions,
-) -> Result<Vec<FeatureMatch>, QuantionError> {
+) -> Result<Vec<FeatureAnnotation>, QuantionError> {
     let is_remote = library.is_remote();
     let (FileSource::Lazy(ion) | FileSource::Remote(ion)) = &mut library.source else {
         return Err(QuantionError::invalid(

@@ -34,6 +34,9 @@ SEXP C_find_noise_level(SEXP y);
 SEXP C_calculate_baseline(SEXP y, SEXP lambda, SEXP max_iterations);
 SEXP C_find_targets(SEXP file, SEXP rts, SEXP mzs, SEXP ranges, SEXP ids, SEXP eic, SEXP options, SEXP threads);
 SEXP C_plan_find_targets(SEXP file, SEXP mzs, SEXP eic);
+SEXP C_annotate_features(SEXP library, SEXP model, SEXP samples, SEXP mzs, SEXP rts, SEXP settings);
+SEXP C_plan_annotate_samples(SEXP file, SEXP mzs, SEXP rts, SEXP settings);
+SEXP C_plan_annotate_library(SEXP library, SEXP model, SEXP samples, SEXP mzs, SEXP rts, SEXP settings);
 SEXP C_find_transitions(SEXP file, SEXP precursors, SEXP products, SEXP rts, SEXP ranges, SEXP ids, SEXP options, SEXP threads);
 SEXP C_find_features(SEXP file, SEXP eic, SEXP grid, SEXP options, SEXP threads);
 SEXP C_plan_find_features(SEXP file, SEXP eic, SEXP grid);
@@ -81,6 +84,9 @@ static const R_CallMethodDef CallEntries[] = {
     {"C_calculate_baseline", (DL_FUNC)&C_calculate_baseline, 3},
     {"C_find_targets", (DL_FUNC)&C_find_targets, 8},
     {"C_plan_find_targets", (DL_FUNC)&C_plan_find_targets, 3},
+    {"C_annotate_features", (DL_FUNC)&C_annotate_features, 6},
+    {"C_plan_annotate_samples", (DL_FUNC)&C_plan_annotate_samples, 4},
+    {"C_plan_annotate_library", (DL_FUNC)&C_plan_annotate_library, 6},
     {"C_find_transitions", (DL_FUNC)&C_find_transitions, 8},
     {"C_find_features", (DL_FUNC)&C_find_features, 5},
     {"C_plan_find_features", (DL_FUNC)&C_plan_find_features, 3},

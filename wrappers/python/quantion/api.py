@@ -22,6 +22,7 @@ from quantion._bridge import (
 )
 from quantion._errors import QuantionError, _check, _invalid, _missing, _unknown_option
 from quantion._options import (
+    ANNOTATE_FEATURES,
     DEFAULT_SCAN_ARRAYS,
     read_scan_arrays,
     read_scan_metadata_tags,
@@ -51,7 +52,11 @@ from quantion._options import (
     read_options,
 )
 from quantion._types import (
+    AnnotateFeaturesOptions,
     CalculateBaselineOptions,
+    CompoundMatch,
+    FeatureAnnotation,
+    FileAnnotation,
     DataXY,
     DrawPeaksOptions,
     CalculateEicOptions,
@@ -1238,3 +1243,152 @@ def _parse_ion_remote(url: str, max_cache_size: int) -> SampleFile:
     file._range_callback = callback
     file._remote_source = source
     return file
+
+
+ANNOTATION_FEATURE_KEYS = ("mz", "rt")
+ANNOTATION_FEATURE_OPTIONAL_KEYS = ("from", "to", "intensity", "integral", "n_points", "frequency")
+
+
+def _read_annotation_features(function: str, features: Sequence[Feature]) -> Tuple[np.ndarray, np.ndarray]:
+    if not isinstance(features, (list, tuple)):
+        raise _invalid(function, "features", "must be a list of features")
+    mzs = np.empty(len(features), dtype=np.float64)
+    rts = np.empty(len(features), dtype=np.float64)
+    for index, feature in enumerate(features):
+        argument = f"features[{index}]"
+        record = _read_record(function, argument, feature, ANNOTATION_FEATURE_KEYS, ANNOTATION_FEATURE_OPTIONAL_KEYS)
+        mzs[index] = get_number(function, f"{argument}.mz", record["mz"])
+        rts[index] = get_number(function, f"{argument}.rt", record["rt"])
+    return mzs, rts
+
+
+def _read_annotation_files(function: str, files: Sequence[SampleFile]) -> List[SampleFile]:
+    if not isinstance(files, (list, tuple)):
+        raise _invalid(function, "files", "must be a list of samples")
+    for index, file in enumerate(files):
+        if not isinstance(file, SampleFile):
+            raise _invalid(function, f"files[{index}]", "must be a sample from parse_ion or parse_mzml")
+    return list(files)
+
+
+def _read_annotation_settings(function: str, settings: Mapping[str, Any]) -> list:
+    return [
+        c_size_t(get_count(function, "matches", settings["matches"])),
+        c_double(get_number(function, "ppm_tolerance", settings["ppm_tolerance"])),
+        c_double(get_number(function, "mz_tolerance", settings["mz_tolerance"])),
+        c_double(get_number(function, "rt_range", settings["rt_range"])),
+        c_double(get_number(function, "min_relative_intensity", settings["min_relative_intensity"])),
+    ]
+
+
+def _read_annotation_source(function: str, argument: str, value: Any) -> str:
+    if not isinstance(value, (str, os.PathLike)) or not os.fspath(value).strip():
+        raise _invalid(function, argument, "must be a path or a URL")
+    return os.fspath(value)
+
+
+def _get_compound_match(row: Mapping[str, Any]) -> CompoundMatch:
+    names = row["metadata_names"].split("\x1f") if row["metadata_names"] else []
+    values = row["metadata_values"].split("\x1f") if row["metadata_names"] else []
+    return {
+        "label": row["label"],
+        "id": row["id"],
+        "database": row["database"],
+        "score": row["score"],
+        "cosine": row["cosine"],
+        "mz": row["mz"],
+        "intensity": row["intensity"],
+        "metadata": dict(zip(names, values)),
+    }
+
+
+def _get_number_or_none(value: float) -> Optional[float]:
+    return None if math.isnan(value) else value
+
+
+def _get_annotations(feature_rows: list, file_rows: list, match_rows: list) -> List[FeatureAnnotation]:
+    matches: Dict[Tuple[int, int], List[CompoundMatch]] = {}
+    for row in match_rows:
+        matches.setdefault((row["feature"], row["file"]), []).append(_get_compound_match(row))
+    files: Dict[int, List[FileAnnotation]] = {}
+    for row in file_rows:
+        files.setdefault(row["feature"], []).append({
+            "file": row["file"],
+            "scan_index": None if math.isnan(row["scan_index"]) else int(row["scan_index"]),
+            "matches": matches.get((row["feature"], row["file"]), []),
+        })
+    return [
+        {
+            "mz": row["mz"],
+            "rt": row["rt"],
+            "label": row["label"],
+            "id": row["id"],
+            "database": row["database"],
+            "frequency": row["frequency"],
+            "score": _get_number_or_none(row["score"]),
+            "cosine": _get_number_or_none(row["cosine"]),
+            "files": files.get(position, []),
+        }
+        for position, row in enumerate(feature_rows)
+    ]
+
+
+def annotate_features(
+    files: Sequence[SampleFile],
+    features: Sequence[Feature],
+    options: Optional[AnnotateFeaturesOptions] = None,
+) -> List[FeatureAnnotation]:
+    """annotate_features · Untargeted
+
+    Name features from their MS2 spectra. For each feature, every sample gives its closest MS2 scan; a spectrum model turns it into a vector, which is compared with the library spectra of the same precursor m/z. The library and the model are read from a path or a URL; over a URL only the bytes needed are fetched, in one batch per source.
+
+    Warning:
+        The model sets how spectra are read through its metadata keys: max_peaks, max_mz, intensity_scale (SQRT or NONE), vector_accession (the library array that holds the vectors), and compound, id, database and label (the library params that name each spectrum). A missing or invalid key gives an error.
+
+    Args:
+        files: The samples, from parse_ion or parse_mzml. Must not be empty.
+        features: The features to name: mz and rt each. find_features and match_features output works as is. Empty gives an empty result.
+        options: Optional settings: library = "https://github.com/josoriom/cipher/releases/latest/download/library_positive.ion", model = "https://github.com/josoriom/cipher/releases/latest/download/model.onnx", matches = 3, ppm_tolerance = 20, mz_tolerance = 0.005, rt_range = 0.3, min_relative_intensity = 0.02. See AnnotateFeaturesOptions: https://phenological.github.io/quantion/?language=python#AnnotateFeaturesOptions
+
+    Returns:
+        One FeatureAnnotation per feature, in the same order.
+
+    Documentation: https://phenological.github.io/quantion/?language=python#annotate_features
+    """
+    function = "annotate_features"
+    settings = read_options(function, options, ANNOTATE_FEATURES)
+    samples = _read_annotation_files(function, files)
+    mzs, rts = _read_annotation_features(function, features)
+    library_source = _read_annotation_source(function, "library", settings["library"])
+    model_source = _read_annotation_source(function, "model", settings["model"])
+    numbers = _read_annotation_settings(function, settings)
+    abi = _get_abi()
+    handles = (ctypes.c_void_p * max(len(samples), 1))(*[sample.handle for sample in samples])
+    count = c_size_t(len(samples))
+    feature_count = c_size_t(len(mzs))
+    outputs = (_Buf(), _Buf(), _Buf())
+    if len(mzs) == 0:
+        _check(abi, function, abi.annotate_features(
+            None, None, handles, count, _as_f64_ptr(mzs), _as_f64_ptr(rts), feature_count, *numbers,
+            *[ctypes.byref(output) for output in outputs]))
+        for output in outputs:
+            buf_to_records(abi, output)
+        return []
+    library = parse_ion(library_source)
+    model = load_model(model_source)
+    try:
+        for sample in samples:
+            _prefetch(sample, function, lambda out, sample=sample: abi.plan_annotate_samples(
+                sample.handle, _as_f64_ptr(mzs), _as_f64_ptr(rts), feature_count, *numbers, out))
+        _prefetch(library, function, lambda out: abi.plan_annotate_library(
+            library.handle, model.handle, handles, count, _as_f64_ptr(mzs), _as_f64_ptr(rts), feature_count,
+            *numbers, out))
+        _check(abi, function, abi.annotate_features(
+            library.handle, model.handle, handles, count, _as_f64_ptr(mzs), _as_f64_ptr(rts), feature_count,
+            *numbers, *[ctypes.byref(output) for output in outputs]))
+        feature_rows, file_rows, match_rows = (buf_to_records(abi, output) for output in outputs)
+        return _get_annotations(feature_rows, file_rows, match_rows)
+    finally:
+        library.dispose()
+        model.dispose()
+

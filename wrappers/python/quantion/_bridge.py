@@ -79,6 +79,12 @@ class _ABI:
              c_double, c_double, c_uint8, POINTER(_Buf)], c_int32),
         "plan_find_features": ([c_void_p, c_double, c_double, c_double, c_double, c_uint8,
              c_double, c_double, c_double, POINTER(_Buf)], c_int32),
+        "annotate_features": ([c_void_p, c_void_p, POINTER(c_void_p), c_size_t, POINTER(c_double), POINTER(c_double),
+             c_size_t, c_size_t, c_double, c_double, c_double, c_double, POINTER(_Buf), POINTER(_Buf), POINTER(_Buf)], c_int32),
+        "plan_annotate_samples": ([c_void_p, POINTER(c_double), POINTER(c_double), c_size_t, c_size_t,
+             c_double, c_double, c_double, c_double, POINTER(_Buf)], c_int32),
+        "plan_annotate_library": ([c_void_p, c_void_p, POINTER(c_void_p), c_size_t, POINTER(c_double), POINTER(c_double),
+             c_size_t, c_size_t, c_double, c_double, c_double, c_double, POINTER(_Buf)], c_int32),
         "free_mzml": ([c_void_p], None),
         "free_": ([POINTER(c_uint8), c_size_t], None),
         "write_ion": ([c_void_p, ctypes.c_char_p, c_uint8, c_uint8, c_uint8, c_uint32, c_uint32,
@@ -426,8 +432,11 @@ PAYLOAD_CONSENSUS_FEATURES = 8
 PAYLOAD_WARP_TARGETS = 10
 PAYLOAD_MODEL_METADATA = 11
 PAYLOAD_SCAN_METADATA = 12
+PAYLOAD_FEATURE_ANNOTATIONS = 13
+PAYLOAD_FILE_ANNOTATIONS = 14
+PAYLOAD_COMPOUND_MATCHES = 15
 
-_NUMBER, _COUNT, _TEXT, _OPTIONAL_TEXT = "number", "count", "text", "optional text"
+_NUMBER, _COUNT, _TEXT, _OPTIONAL_TEXT, _NUMBER_LIST = "number", "count", "text", "optional text", "number list"
 
 _RECORD_COLUMNS = {
     PAYLOAD_PEAKS: [
@@ -461,6 +470,20 @@ _RECORD_COLUMNS = {
         ("value", (100, 101, 102), _OPTIONAL_TEXT), ("unit", (103, 104, 105), _OPTIONAL_TEXT),
         ("unit_accession", (106, 107, 108), _OPTIONAL_TEXT),
     ],
+    PAYLOAD_FEATURE_ANNOTATIONS: [
+        ("mz", 109, _NUMBER), ("rt", 110, _NUMBER), ("label", (111, 112, 113), _OPTIONAL_TEXT),
+        ("id", (114, 115, 116), _OPTIONAL_TEXT), ("database", (117, 118, 119), _OPTIONAL_TEXT),
+        ("frequency", 120, _NUMBER), ("score", 121, _NUMBER), ("cosine", 122, _NUMBER),
+    ],
+    PAYLOAD_FILE_ANNOTATIONS: [
+        ("feature", 123, _COUNT), ("file", 124, _COUNT), ("scan_index", 125, _NUMBER),
+    ],
+    PAYLOAD_COMPOUND_MATCHES: [
+        ("feature", 126, _COUNT), ("file", 127, _COUNT), ("label", (128, 129), _TEXT), ("id", (130, 131), _TEXT),
+        ("database", (132, 133), _TEXT), ("score", 134, _NUMBER), ("cosine", 135, _NUMBER),
+        ("mz", (136, 137), _NUMBER_LIST), ("intensity", (138, 139), _NUMBER_LIST),
+        ("metadata_names", (140, 141), _TEXT), ("metadata_values", (142, 143), _TEXT),
+    ],
 }
 
 
@@ -476,6 +499,9 @@ def read_records(raw: bytes) -> list:
             taken.append((name, read_section(bridge, where, np.float64), None, None))
         elif kind == _COUNT:
             taken.append((name, read_section(bridge, where, np.uint32), None, None))
+        elif kind == _NUMBER_LIST:
+            starts = read_section(bridge, where[0], np.uint64)
+            taken.append((name, starts, read_section(bridge, where[1], np.float64), _NUMBER_LIST))
         else:
             starts = read_section(bridge, where[0], np.uint64)
             _, offset, length = _take_section(bridge, where[1])
@@ -488,6 +514,8 @@ def read_records(raw: bytes) -> list:
         for name, values, text_bytes, missing in taken:
             if text_bytes is None:
                 row[name] = values[index].item()
+            elif missing is _NUMBER_LIST:
+                row[name] = text_bytes[int(values[index]):int(values[index + 1])].copy()
             elif missing is not None and missing[index]:
                 row[name] = None
             else:

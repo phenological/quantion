@@ -35,18 +35,76 @@ const ABOVE_PRECURSOR_LIMIT: f64 = 1.0;
 const MZ_ARRAY: u32 = 1_000_514;
 const INTENSITY_ARRAY: u32 = 1_000_515;
 
+/// **FeatureAnnotation** · Results
+///
+/// The name of one feature. The label is the compound that is the best match in the most files; ties go to the higher score.
+///
+/// Fields:
+/// - `mz`: m/z of the feature.
+/// - `rt`: Retention time of the feature (minutes).
+/// - `label`: Name of the compound, or none when no file has a match. Optional.
+/// - `id`: Id in the database, from the agreeing file with the highest score. Optional.
+/// - `database`: Database the id comes from. Optional.
+/// - `frequency`: Share of the files whose best match is this compound (0–1).
+/// - `score`: Median score over the agreeing files. Optional.
+/// - `cosine`: Median cosine over the agreeing files. Optional.
+/// - `files`: One FileAnnotation per file, in the order of files.
+///
+/// [Documentation](https://phenological.github.io/quantion/?language=rust#FeatureAnnotation)
 #[derive(Clone, Debug, PartialEq)]
-pub struct FeatureMatch {
+pub struct FeatureAnnotation {
     pub mz: f64,
     pub rt: f64,
-    pub rank: Option<usize>,
+    pub label: Option<String>,
+    pub id: Option<String>,
+    pub database: Option<String>,
     pub frequency: f64,
-    pub ms2_frequency: f64,
     pub score: Option<f64>,
-    pub model_score: Option<f64>,
     pub cosine: Option<f64>,
-    pub file: Option<usize>,
+    pub files: Vec<FileAnnotation>,
+}
+
+/// **FileAnnotation** · Results
+///
+/// What one file says about a feature.
+///
+/// Fields:
+/// - `file`: Position of the file in files, from 0.
+/// - `scan_index`: The MS2 scan used, or none when the file has no peak or no MS2 scan close to it. Optional.
+/// - `matches`: Best matches in this file, best first, at most matches.
+///
+/// [Documentation](https://phenological.github.io/quantion/?language=rust#FileAnnotation)
+#[derive(Clone, Debug, PartialEq)]
+pub struct FileAnnotation {
+    pub file: usize,
     pub scan_index: Option<usize>,
+    pub matches: Vec<CompoundMatch>,
+}
+
+/// **CompoundMatch** · Results
+///
+/// One library spectrum that matches a feature in one file.
+///
+/// Fields:
+/// - `label`: Name of the compound, from the library param the model names as label.
+/// - `id`: Id of the spectrum in its database.
+/// - `database`: Database the id comes from.
+/// - `score`: Average of the model vector similarity and the cosine (0–1).
+/// - `cosine`: Cosine similarity of the cleaned spectra (0–1).
+/// - `mz`: m/z values of the library spectrum.
+/// - `intensity`: Intensities of the library spectrum.
+/// - `metadata`: The other params of the library spectrum, by name.
+///
+/// [Documentation](https://phenological.github.io/quantion/?language=rust#CompoundMatch)
+#[derive(Clone, Debug, PartialEq)]
+pub struct CompoundMatch {
+    pub label: String,
+    pub id: String,
+    pub database: String,
+    pub score: f64,
+    pub cosine: f64,
+    pub mz: Vec<f64>,
+    pub intensity: Vec<f64>,
     pub metadata: BTreeMap<String, String>,
 }
 
@@ -119,26 +177,11 @@ pub(crate) fn annotate_features(
     library: &mut IonReader,
     model: &SpectrumModel,
     options: &AnnotateFeaturesOptions,
-) -> Result<Vec<FeatureMatch>, AnnotationError> {
-    let file_count = files.len() as f64;
-    let mut peak_counts = vec![0usize; features.len()];
-    let mut scan_counts = vec![0usize; features.len()];
+) -> Result<Vec<FeatureAnnotation>, AnnotationError> {
+    let file_count = files.len();
     let mut feature_scans: Vec<FeatureScan> = Vec::new();
     for (position, file) in files.iter_mut().enumerate() {
-        for (feature, result) in read_file_results(file, position, features, options)?
-            .into_iter()
-            .enumerate()
-        {
-            match result {
-                FileResult::NoPeak => {}
-                FileResult::PeakOnly => peak_counts[feature] += 1,
-                FileResult::Scan(feature_scan) => {
-                    peak_counts[feature] += 1;
-                    scan_counts[feature] += 1;
-                    feature_scans.push(feature_scan);
-                }
-            }
-        }
+        feature_scans.extend(find_feature_scans(file, position, features, options)?);
     }
     feature_scans.sort_by_key(|feature_scan| (feature_scan.feature, feature_scan.file));
     let spectra: Vec<Spectrum> = feature_scans
@@ -157,35 +200,34 @@ pub(crate) fn annotate_features(
             model,
             options,
             candidates: HashMap::new(),
-            matches: Vec::new(),
-            positions: HashMap::new(),
         };
+        let mut file_matches: Vec<Vec<ScanMatch>> = vec![Vec::new(); file_count];
+        let mut scan_indexes: Vec<Option<usize>> = vec![None; file_count];
         while next_scan < feature_scans.len() && feature_scans[next_scan].feature == position {
-            scorer.add_scan(&feature_scans[next_scan], &vectors[next_scan])?;
+            let feature_scan = &feature_scans[next_scan];
+            scan_indexes[feature_scan.file] = Some(feature_scan.scan_index);
+            file_matches[feature_scan.file] =
+                scorer.score_scan(feature_scan, &vectors[next_scan])?;
             next_scan += 1;
         }
-        let frequency = peak_counts[position] as f64 / file_count;
-        let ms2_frequency = scan_counts[position] as f64 / file_count;
-        results.extend(scorer.get_ranked(feature, frequency, ms2_frequency));
+        results.push(scorer.get_annotation(feature, &file_matches, &scan_indexes));
     }
     Ok(results)
 }
 
-fn read_file_results(
+fn find_feature_scans(
     file: &mut SampleFile,
     position: usize,
     features: &[Feature],
     options: &AnnotateFeaturesOptions,
-) -> Result<Vec<FileResult>, AnnotationError> {
-    let mut results = Vec::with_capacity(features.len());
+) -> Result<Vec<FeatureScan>, AnnotationError> {
+    let mut feature_scans = Vec::new();
     for (feature_position, feature) in features.iter().enumerate() {
         let Some(apex) = find_apex(file, feature, options)? else {
-            results.push(FileResult::NoPeak);
             continue;
         };
-        let found = find_closest_scan(file, feature, apex, options);
-        results.push(match found {
-            Some(scan) => FileResult::Scan(FeatureScan {
+        if let Some(scan) = find_closest_scan(file, feature, apex, options) {
+            feature_scans.push(FeatureScan {
                 feature: feature_position,
                 file: position,
                 scan_index: scan.index,
@@ -197,11 +239,10 @@ fn read_file_results(
                     },
                     options.min_relative_intensity,
                 ),
-            }),
-            None => FileResult::PeakOnly,
-        });
+            });
+        }
     }
-    Ok(results)
+    Ok(feature_scans)
 }
 
 struct FeatureScan {
@@ -210,12 +251,6 @@ struct FeatureScan {
     scan_index: usize,
     precursor: f64,
     spectrum: Spectrum,
-}
-
-enum FileResult {
-    NoPeak,
-    PeakOnly,
-    Scan(FeatureScan),
 }
 
 fn find_apex(
@@ -258,23 +293,22 @@ struct FeatureScorer<'a> {
     model: &'a SpectrumModel,
     options: &'a AnnotateFeaturesOptions,
     candidates: HashMap<usize, Candidate>,
-    matches: Vec<CompoundMatch>,
-    positions: HashMap<String, usize>,
 }
 
 impl FeatureScorer<'_> {
-    fn add_scan(
+    fn score_scan(
         &mut self,
         feature_scan: &FeatureScan,
         vector: &[f64],
-    ) -> Result<(), AnnotationError> {
+    ) -> Result<Vec<ScanMatch>, AnnotationError> {
         let mut spectrum = feature_scan.spectrum.clone();
         spectrum.sort_by_mz();
         spectrum.keep_below(feature_scan.precursor + ABOVE_PRECURSOR_LIMIT);
-        let found = self
+        let mut matches: Vec<ScanMatch> = Vec::new();
+        for library_spectrum in self
             .index
-            .find(self.options.get_precursor_window(feature_scan.precursor));
-        for library_spectrum in found {
+            .find(self.options.get_precursor_window(feature_scan.precursor))
+        {
             if !self.candidates.contains_key(&library_spectrum.index) {
                 let candidate = read_candidate(self.library, &library_spectrum, self.model)?;
                 self.candidates.insert(library_spectrum.index, candidate);
@@ -287,87 +321,159 @@ impl FeatureScorer<'_> {
                     expected: vector.len(),
                 });
             }
-            let model_score: f64 = candidate
+            let vector_score: f64 = candidate
                 .vector
                 .iter()
                 .zip(vector)
                 .map(|(left, right)| left * right)
                 .sum();
-            let cosine = get_cosine(&spectrum, &candidate.spectrum);
-            let found = CompoundMatch {
+            let cosine = get_cosine(&spectrum, &candidate.cosine_spectrum);
+            let found = ScanMatch {
                 compound: candidate.compound.clone(),
-                score: (model_score + cosine) / 2.0,
-                model_score,
+                score: (vector_score + cosine) / 2.0,
                 cosine,
-                file: feature_scan.file,
-                scan_index: feature_scan.scan_index,
                 library_index: library_spectrum.index,
             };
-            self.keep_best(found);
+            keep_best(&mut matches, found);
         }
-        Ok(())
+        matches.sort_by(|left, right| right.score.total_cmp(&left.score));
+        matches.truncate(self.options.matches);
+        Ok(matches)
     }
 
-    fn keep_best(&mut self, found: CompoundMatch) {
-        if !found.score.is_finite() {
-            return;
-        }
-        match self.positions.get(&found.compound) {
-            Some(position) if found.score > self.matches[*position].score => {
-                self.matches[*position] = found
-            }
-            Some(_) => {}
-            None => {
-                self.positions
-                    .insert(found.compound.clone(), self.matches.len());
-                self.matches.push(found);
-            }
-        }
-    }
-
-    fn get_ranked(
-        mut self,
+    fn get_annotation(
+        &self,
         feature: &Feature,
-        frequency: f64,
-        ms2_frequency: f64,
-    ) -> Vec<FeatureMatch> {
-        self.matches
-            .sort_by(|left, right| right.score.total_cmp(&left.score));
-        self.matches.truncate(self.options.matches);
-        if self.matches.is_empty() {
-            return vec![get_empty_match(feature, frequency, ms2_frequency)];
-        }
-        self.matches
-            .into_iter()
+        file_matches: &[Vec<ScanMatch>],
+        scan_indexes: &[Option<usize>],
+    ) -> FeatureAnnotation {
+        let files = file_matches
+            .iter()
+            .zip(scan_indexes)
             .enumerate()
-            .map(|(position, found)| FeatureMatch {
+            .map(|(file, (matches, scan_index))| FileAnnotation {
+                file,
+                scan_index: *scan_index,
+                matches: matches
+                    .iter()
+                    .map(|found| self.get_compound_match(found))
+                    .collect(),
+            })
+            .collect();
+        let tops: Vec<&ScanMatch> = file_matches
+            .iter()
+            .filter_map(|matches| matches.first())
+            .collect();
+        let Some(compound) = get_most_frequent_compound(&tops) else {
+            return FeatureAnnotation {
                 mz: feature.mz,
                 rt: feature.rt,
-                rank: Some(position + 1),
-                frequency,
-                ms2_frequency,
-                score: Some(found.score),
-                model_score: Some(found.model_score),
-                cosine: Some(found.cosine),
-                file: Some(found.file),
-                scan_index: Some(found.scan_index),
-                metadata: self
-                    .candidates
-                    .get(&found.library_index)
-                    .map(|candidate| candidate.user_params.clone())
-                    .unwrap_or_default(),
-            })
-            .collect()
+                label: None,
+                id: None,
+                database: None,
+                frequency: 0.0,
+                score: None,
+                cosine: None,
+                files,
+            };
+        };
+        let agreeing: Vec<&ScanMatch> = tops
+            .iter()
+            .copied()
+            .filter(|found| found.compound == compound)
+            .collect();
+        let best = agreeing.iter().copied().fold(agreeing[0], |best, found| {
+            if found.score > best.score {
+                found
+            } else {
+                best
+            }
+        });
+        let candidate = &self.candidates[&best.library_index];
+        FeatureAnnotation {
+            mz: feature.mz,
+            rt: feature.rt,
+            label: Some(candidate.label.clone()),
+            id: Some(candidate.id.clone()),
+            database: Some(candidate.database.clone()),
+            frequency: agreeing.len() as f64 / file_matches.len() as f64,
+            score: Some(get_median(
+                agreeing.iter().map(|found| found.score).collect(),
+            )),
+            cosine: Some(get_median(
+                agreeing.iter().map(|found| found.cosine).collect(),
+            )),
+            files,
+        }
+    }
+
+    fn get_compound_match(&self, found: &ScanMatch) -> CompoundMatch {
+        let candidate = &self.candidates[&found.library_index];
+        CompoundMatch {
+            label: candidate.label.clone(),
+            id: candidate.id.clone(),
+            database: candidate.database.clone(),
+            score: found.score,
+            cosine: found.cosine,
+            mz: candidate.spectrum.mz.clone(),
+            intensity: candidate.spectrum.intensity.clone(),
+            metadata: candidate.metadata.clone(),
+        }
     }
 }
 
-struct CompoundMatch {
+fn keep_best(matches: &mut Vec<ScanMatch>, found: ScanMatch) {
+    if !found.score.is_finite() {
+        return;
+    }
+    match matches
+        .iter_mut()
+        .find(|kept| kept.compound == found.compound)
+    {
+        Some(kept) if found.score > kept.score => *kept = found,
+        Some(_) => {}
+        None => matches.push(found),
+    }
+}
+
+fn get_most_frequent_compound(tops: &[&ScanMatch]) -> Option<String> {
+    let mut counts: Vec<(&str, usize, f64)> = Vec::new();
+    for found in tops {
+        match counts.iter_mut().find(|count| count.0 == found.compound) {
+            Some(count) => {
+                count.1 += 1;
+                count.2 = count.2.max(found.score);
+            }
+            None => counts.push((&found.compound, 1, found.score)),
+        }
+    }
+    counts
+        .iter()
+        .fold(
+            None,
+            |best: Option<&(&str, usize, f64)>, count| match best {
+                Some(best) if (best.1, best.2) >= (count.1, count.2) => Some(best),
+                _ => Some(count),
+            },
+        )
+        .map(|count| count.0.to_string())
+}
+
+fn get_median(mut values: Vec<f64>) -> f64 {
+    values.sort_by(f64::total_cmp);
+    let middle = values.len() / 2;
+    if values.len() % 2 == 0 {
+        (values[middle - 1] + values[middle]) / 2.0
+    } else {
+        values[middle]
+    }
+}
+
+#[derive(Clone)]
+struct ScanMatch {
     compound: String,
     score: f64,
-    model_score: f64,
     cosine: f64,
-    file: usize,
-    scan_index: usize,
     library_index: usize,
 }
 
@@ -388,35 +494,47 @@ fn read_candidate(
         peaks = Spectrum::default();
     }
     peaks.sort_by_mz();
-    peaks.keep_below(spectrum.precursor + ABOVE_PRECURSOR_LIMIT);
-    let mut user_params = BTreeMap::new();
+    let mut cosine_spectrum = peaks.clone();
+    cosine_spectrum.keep_below(spectrum.precursor + ABOVE_PRECURSOR_LIMIT);
+    let mut metadata = BTreeMap::new();
     for row in library.load_metadata(spectrum.index)? {
         if row.kind == ScanParamKind::USER {
-            user_params
+            metadata
                 .entry(row.name)
                 .or_insert_with(|| row.value.unwrap_or_default());
         }
     }
-    let compound = user_params
+    let compound = metadata
         .get(&model.compound_param)
         .cloned()
         .ok_or_else(|| AnnotationError::MissingCompound {
             spectrum: spectrum.index,
             param: model.compound_param.clone(),
         })?;
+    let label = metadata.remove(&model.label_param).unwrap_or_default();
+    let id = metadata.remove(&model.id_param).unwrap_or_default();
+    let database = metadata.remove(&model.database_param).unwrap_or_default();
     Ok(Candidate {
         compound,
+        label,
+        id,
+        database,
         vector,
         spectrum: peaks,
-        user_params,
+        cosine_spectrum,
+        metadata,
     })
 }
 
 struct Candidate {
     compound: String,
+    label: String,
+    id: String,
+    database: String,
     vector: Vec<f64>,
     spectrum: Spectrum,
-    user_params: BTreeMap<String, String>,
+    cosine_spectrum: Spectrum,
+    metadata: BTreeMap<String, String>,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -461,22 +579,6 @@ impl LibraryIndex {
                 precursor: self.precursors[position],
             })
             .collect()
-    }
-}
-
-fn get_empty_match(feature: &Feature, frequency: f64, ms2_frequency: f64) -> FeatureMatch {
-    FeatureMatch {
-        mz: feature.mz,
-        rt: feature.rt,
-        rank: None,
-        frequency,
-        ms2_frequency,
-        score: None,
-        model_score: None,
-        cosine: None,
-        file: None,
-        scan_index: None,
-        metadata: BTreeMap::new(),
     }
 }
 

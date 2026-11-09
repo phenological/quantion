@@ -12,20 +12,8 @@ use crate::{
     files::from_fast_error,
     sample_file::FileSource,
     utilities::{
-        annotate_features::{FeatureMatch, plan_library_ranges, plan_sample_ranges},
-        bridge::{
-            Column, QUANTION_PAYLOAD_FEATURE_MATCHES, QUANTION_SECTION_FEATURE_MATCH_COSINE,
-            QUANTION_SECTION_FEATURE_MATCH_FILE, QUANTION_SECTION_FEATURE_MATCH_FREQUENCY,
-            QUANTION_SECTION_FEATURE_MATCH_METADATA_NAME_BYTES,
-            QUANTION_SECTION_FEATURE_MATCH_METADATA_NAME_STARTS,
-            QUANTION_SECTION_FEATURE_MATCH_METADATA_VALUE_BYTES,
-            QUANTION_SECTION_FEATURE_MATCH_METADATA_VALUE_STARTS,
-            QUANTION_SECTION_FEATURE_MATCH_MODEL_SCORE,
-            QUANTION_SECTION_FEATURE_MATCH_MS2_FREQUENCY, QUANTION_SECTION_FEATURE_MATCH_MZ,
-            QUANTION_SECTION_FEATURE_MATCH_RANK, QUANTION_SECTION_FEATURE_MATCH_RT,
-            QUANTION_SECTION_FEATURE_MATCH_SCAN_INDEX, QUANTION_SECTION_FEATURE_MATCH_SCORE,
-            build_record_bridge,
-        },
+        annotate_features::{FeatureAnnotation, plan_library_ranges, plan_sample_ranges},
+        bridge::{Column, build_record_bridge, *},
         spectrum_model::SpectrumModel,
     },
 };
@@ -132,15 +120,19 @@ pub unsafe extern "C" fn annotate_features(
     mz_tolerance: f64,
     rt_range: f64,
     min_relative_intensity: f64,
-    out: *mut Buf,
+    out_features: *mut Buf,
+    out_files: *mut Buf,
+    out_matches: *mut Buf,
 ) -> c_int {
-    if out.is_null() {
+    if out_features.is_null() || out_files.is_null() || out_matches.is_null() {
         return remember(QuantionError::internal(
             FUNCTION,
-            "the output buffer is null",
+            "an output buffer is null",
         ));
     }
-    clear_buf(out);
+    clear_buf(out_features);
+    clear_buf(out_files);
+    clear_buf(out_matches);
     run(FUNCTION, || {
         let options = read_options(
             matches,
@@ -158,9 +150,20 @@ pub unsafe extern "C" fn annotate_features(
             let library = get_open_file(FUNCTION, library, "library")?;
             annotate_with_library(FUNCTION, library, &model, &mut samples, &features, &options)?
         };
-        let bytes = build_feature_matches_bridge(&found)
-            .ok_or_else(|| QuantionError::internal(FUNCTION, "the matches could not be packed"))?;
-        write_buf(out, bytes);
+        let could_not_pack =
+            || QuantionError::internal(FUNCTION, "the annotations could not be packed");
+        write_buf(
+            out_features,
+            build_features_bridge(&found).ok_or_else(could_not_pack)?,
+        );
+        write_buf(
+            out_files,
+            build_files_bridge(&found).ok_or_else(could_not_pack)?,
+        );
+        write_buf(
+            out_matches,
+            build_matches_bridge(&found).ok_or_else(could_not_pack)?,
+        );
         Ok(())
     })
 }
@@ -264,103 +267,218 @@ pub unsafe extern "C" fn plan_annotate_library(
     })
 }
 
-fn get_number(value: Option<f64>) -> f64 {
+fn get_number_or_nan(value: Option<f64>) -> f64 {
     value.unwrap_or(f64::NAN)
 }
 
-fn get_count(value: Option<usize>) -> f64 {
-    value.map_or(f64::NAN, |count| count as f64)
+fn build_features_bridge(annotations: &[FeatureAnnotation]) -> Option<Box<[u8]>> {
+    let numbers = |read: fn(&FeatureAnnotation) -> f64| -> Vec<f64> {
+        annotations.iter().map(read).collect()
+    };
+    let mz = numbers(|annotation| annotation.mz);
+    let rt = numbers(|annotation| annotation.rt);
+    let frequency = numbers(|annotation| annotation.frequency);
+    let score = numbers(|annotation| get_number_or_nan(annotation.score));
+    let cosine = numbers(|annotation| get_number_or_nan(annotation.cosine));
+    let labels: Vec<Option<&str>> = annotations
+        .iter()
+        .map(|annotation| annotation.label.as_deref())
+        .collect();
+    let ids: Vec<Option<&str>> = annotations
+        .iter()
+        .map(|annotation| annotation.id.as_deref())
+        .collect();
+    let databases: Vec<Option<&str>> = annotations
+        .iter()
+        .map(|annotation| annotation.database.as_deref())
+        .collect();
+    build_record_bridge(
+        QUANTION_PAYLOAD_FEATURE_ANNOTATIONS,
+        annotations.len() as u64,
+        &[
+            Column::Numbers {
+                id: QUANTION_SECTION_FEATURE_ANNOTATION_MZ,
+                values: &mz,
+            },
+            Column::Numbers {
+                id: QUANTION_SECTION_FEATURE_ANNOTATION_RT,
+                values: &rt,
+            },
+            Column::OptionalText {
+                starts_id: QUANTION_SECTION_FEATURE_ANNOTATION_LABEL_STARTS,
+                bytes_id: QUANTION_SECTION_FEATURE_ANNOTATION_LABEL_BYTES,
+                missing_id: QUANTION_SECTION_FEATURE_ANNOTATION_LABEL_MISSING,
+                values: &labels,
+            },
+            Column::OptionalText {
+                starts_id: QUANTION_SECTION_FEATURE_ANNOTATION_ID_STARTS,
+                bytes_id: QUANTION_SECTION_FEATURE_ANNOTATION_ID_BYTES,
+                missing_id: QUANTION_SECTION_FEATURE_ANNOTATION_ID_MISSING,
+                values: &ids,
+            },
+            Column::OptionalText {
+                starts_id: QUANTION_SECTION_FEATURE_ANNOTATION_DATABASE_STARTS,
+                bytes_id: QUANTION_SECTION_FEATURE_ANNOTATION_DATABASE_BYTES,
+                missing_id: QUANTION_SECTION_FEATURE_ANNOTATION_DATABASE_MISSING,
+                values: &databases,
+            },
+            Column::Numbers {
+                id: QUANTION_SECTION_FEATURE_ANNOTATION_FREQUENCY,
+                values: &frequency,
+            },
+            Column::Numbers {
+                id: QUANTION_SECTION_FEATURE_ANNOTATION_SCORE,
+                values: &score,
+            },
+            Column::Numbers {
+                id: QUANTION_SECTION_FEATURE_ANNOTATION_COSINE,
+                values: &cosine,
+            },
+        ],
+    )
 }
 
-fn build_feature_matches_bridge(matches: &[FeatureMatch]) -> Option<Box<[u8]>> {
-    let numbers =
-        |read: fn(&FeatureMatch) -> f64| -> Vec<f64> { matches.iter().map(read).collect() };
-    let mz = numbers(|found| found.mz);
-    let rt = numbers(|found| found.rt);
-    let rank = numbers(|found| get_count(found.rank));
-    let frequency = numbers(|found| found.frequency);
-    let ms2_frequency = numbers(|found| found.ms2_frequency);
-    let score = numbers(|found| get_number(found.score));
-    let model_score = numbers(|found| get_number(found.model_score));
-    let cosine = numbers(|found| get_number(found.cosine));
-    let file = numbers(|found| get_count(found.file));
-    let scan_index = numbers(|found| get_count(found.scan_index));
-    let names: Vec<String> = matches
+fn build_files_bridge(annotations: &[FeatureAnnotation]) -> Option<Box<[u8]>> {
+    let mut features = Vec::new();
+    let mut files = Vec::new();
+    let mut scan_indexes = Vec::new();
+    for (position, annotation) in annotations.iter().enumerate() {
+        for file in &annotation.files {
+            features.push(position as u32);
+            files.push(file.file as u32);
+            scan_indexes.push(file.scan_index.map_or(f64::NAN, |index| index as f64));
+        }
+    }
+    build_record_bridge(
+        QUANTION_PAYLOAD_FILE_ANNOTATIONS,
+        features.len() as u64,
+        &[
+            Column::Counts {
+                id: QUANTION_SECTION_FILE_ANNOTATION_FEATURE,
+                values: &features,
+            },
+            Column::Counts {
+                id: QUANTION_SECTION_FILE_ANNOTATION_FILE,
+                values: &files,
+            },
+            Column::Numbers {
+                id: QUANTION_SECTION_FILE_ANNOTATION_SCAN_INDEX,
+                values: &scan_indexes,
+            },
+        ],
+    )
+}
+
+fn build_matches_bridge(annotations: &[FeatureAnnotation]) -> Option<Box<[u8]>> {
+    let mut features = Vec::new();
+    let mut files = Vec::new();
+    let mut found = Vec::new();
+    for (position, annotation) in annotations.iter().enumerate() {
+        for file in &annotation.files {
+            for compound in &file.matches {
+                features.push(position as u32);
+                files.push(file.file as u32);
+                found.push(compound);
+            }
+        }
+    }
+    let labels: Vec<&str> = found
         .iter()
-        .map(|found| {
-            found
+        .map(|compound| compound.label.as_str())
+        .collect();
+    let ids: Vec<&str> = found.iter().map(|compound| compound.id.as_str()).collect();
+    let databases: Vec<&str> = found
+        .iter()
+        .map(|compound| compound.database.as_str())
+        .collect();
+    let score: Vec<f64> = found.iter().map(|compound| compound.score).collect();
+    let cosine: Vec<f64> = found.iter().map(|compound| compound.cosine).collect();
+    let mz: Vec<&[f64]> = found
+        .iter()
+        .map(|compound| compound.mz.as_slice())
+        .collect();
+    let intensity: Vec<&[f64]> = found
+        .iter()
+        .map(|compound| compound.intensity.as_slice())
+        .collect();
+    let separator = FIELD_SEPARATOR.to_string();
+    let names: Vec<String> = found
+        .iter()
+        .map(|compound| {
+            compound
                 .metadata
                 .keys()
                 .cloned()
                 .collect::<Vec<_>>()
-                .join(&FIELD_SEPARATOR.to_string())
+                .join(&separator)
         })
         .collect();
-    let values: Vec<String> = matches
+    let values: Vec<String> = found
         .iter()
-        .map(|found| {
-            found
+        .map(|compound| {
+            compound
                 .metadata
                 .values()
                 .cloned()
                 .collect::<Vec<_>>()
-                .join(&FIELD_SEPARATOR.to_string())
+                .join(&separator)
         })
         .collect();
     let names: Vec<&str> = names.iter().map(String::as_str).collect();
     let values: Vec<&str> = values.iter().map(String::as_str).collect();
     build_record_bridge(
-        QUANTION_PAYLOAD_FEATURE_MATCHES,
-        matches.len() as u64,
+        QUANTION_PAYLOAD_COMPOUND_MATCHES,
+        found.len() as u64,
         &[
-            Column::Numbers {
-                id: QUANTION_SECTION_FEATURE_MATCH_MZ,
-                values: &mz,
+            Column::Counts {
+                id: QUANTION_SECTION_COMPOUND_MATCH_FEATURE,
+                values: &features,
+            },
+            Column::Counts {
+                id: QUANTION_SECTION_COMPOUND_MATCH_FILE,
+                values: &files,
+            },
+            Column::Text {
+                starts_id: QUANTION_SECTION_COMPOUND_MATCH_LABEL_STARTS,
+                bytes_id: QUANTION_SECTION_COMPOUND_MATCH_LABEL_BYTES,
+                values: &labels,
+            },
+            Column::Text {
+                starts_id: QUANTION_SECTION_COMPOUND_MATCH_ID_STARTS,
+                bytes_id: QUANTION_SECTION_COMPOUND_MATCH_ID_BYTES,
+                values: &ids,
+            },
+            Column::Text {
+                starts_id: QUANTION_SECTION_COMPOUND_MATCH_DATABASE_STARTS,
+                bytes_id: QUANTION_SECTION_COMPOUND_MATCH_DATABASE_BYTES,
+                values: &databases,
             },
             Column::Numbers {
-                id: QUANTION_SECTION_FEATURE_MATCH_RT,
-                values: &rt,
-            },
-            Column::Numbers {
-                id: QUANTION_SECTION_FEATURE_MATCH_RANK,
-                values: &rank,
-            },
-            Column::Numbers {
-                id: QUANTION_SECTION_FEATURE_MATCH_FREQUENCY,
-                values: &frequency,
-            },
-            Column::Numbers {
-                id: QUANTION_SECTION_FEATURE_MATCH_MS2_FREQUENCY,
-                values: &ms2_frequency,
-            },
-            Column::Numbers {
-                id: QUANTION_SECTION_FEATURE_MATCH_SCORE,
+                id: QUANTION_SECTION_COMPOUND_MATCH_SCORE,
                 values: &score,
             },
             Column::Numbers {
-                id: QUANTION_SECTION_FEATURE_MATCH_MODEL_SCORE,
-                values: &model_score,
-            },
-            Column::Numbers {
-                id: QUANTION_SECTION_FEATURE_MATCH_COSINE,
+                id: QUANTION_SECTION_COMPOUND_MATCH_COSINE,
                 values: &cosine,
             },
-            Column::Numbers {
-                id: QUANTION_SECTION_FEATURE_MATCH_FILE,
-                values: &file,
+            Column::NumberLists {
+                starts_id: QUANTION_SECTION_COMPOUND_MATCH_MZ_STARTS,
+                values_id: QUANTION_SECTION_COMPOUND_MATCH_MZ_VALUES,
+                values: &mz,
             },
-            Column::Numbers {
-                id: QUANTION_SECTION_FEATURE_MATCH_SCAN_INDEX,
-                values: &scan_index,
+            Column::NumberLists {
+                starts_id: QUANTION_SECTION_COMPOUND_MATCH_INTENSITY_STARTS,
+                values_id: QUANTION_SECTION_COMPOUND_MATCH_INTENSITY_VALUES,
+                values: &intensity,
             },
             Column::Text {
-                starts_id: QUANTION_SECTION_FEATURE_MATCH_METADATA_NAME_STARTS,
-                bytes_id: QUANTION_SECTION_FEATURE_MATCH_METADATA_NAME_BYTES,
+                starts_id: QUANTION_SECTION_COMPOUND_MATCH_METADATA_NAME_STARTS,
+                bytes_id: QUANTION_SECTION_COMPOUND_MATCH_METADATA_NAME_BYTES,
                 values: &names,
             },
             Column::Text {
-                starts_id: QUANTION_SECTION_FEATURE_MATCH_METADATA_VALUE_STARTS,
-                bytes_id: QUANTION_SECTION_FEATURE_MATCH_METADATA_VALUE_BYTES,
+                starts_id: QUANTION_SECTION_COMPOUND_MATCH_METADATA_VALUE_STARTS,
+                bytes_id: QUANTION_SECTION_COMPOUND_MATCH_METADATA_VALUE_BYTES,
                 values: &values,
             },
         ],
