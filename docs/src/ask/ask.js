@@ -1,5 +1,6 @@
 import { getDisplayName } from "../names.js";
 import { isCommand, runCommand } from "./commands.js";
+import { readConvertQuestion } from "./convert.js";
 import { findVariant, getFunctionFollowUps, guideItems, hasVariants, listVariants, starters } from "./guide.js";
 import { limits, models } from "./models.js";
 import { listOptionFunctions, listValueKeys } from "./snippet.js";
@@ -387,6 +388,13 @@ export function createAsker({ embed, classify, document }) {
     return { ...result, values: { function: entry.name, mz: Number(ion.mz) }, templateValues: {}, faq: { note, route: "usage", target: entry.name, score: 1 } };
   }
 
+  async function answerConvert(asked, language) {
+    const entry = findByName(document, readConvertQuestion(asked) ?? "");
+    if (!entry) return null;
+    const result = await finishUsage(asked, [entry], "high", { language, example: findExampleEntry([entry], language) });
+    return { ...result, converter: true };
+  }
+
   const asker = async (question, language, previous) => {
     const raw = question.slice(0, isCommand(question) ? limits.code : limits.question);
     if (isCommand(raw)) {
@@ -399,6 +407,8 @@ export function createAsker({ embed, classify, document }) {
     }
     const ionAnswer = await answerIonMz(raw, language);
     if (ionAnswer) return ionAnswer;
+    const convertAnswer = await answerConvert(raw, language);
+    if (convertAnswer) return convertAnswer;
     if (!embed || !classify) return { ...refusedResult(), noModel: true };
     const questionVector = await embed(raw);
     let ranked = classify(questionVector);
@@ -413,6 +423,7 @@ export function createAsker({ embed, classify, document }) {
     }
     for (const { id, probability } of ranked.slice(0, limits.entries)) {
       const result = await answerFromId(id, probability, ranked, raw, questionVector, language);
+      if (result?.reason.route === "usage" && ["write_ion", "write_mzml"].includes(result.entries[0]?.name)) return { ...result, converter: true };
       if (result) return result;
     }
     return refusedResult({ questionVector });

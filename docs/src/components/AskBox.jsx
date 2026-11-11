@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useRef, useState } from "react";
 
 import { createAsker, createClassifier, createEmbedder, findOptionsType, getStarters, listUnderstood, writeAnswer, writePlacement } from "../ask/ask";
 import { commandList } from "../ask/commands";
+import { convertFile, convertLimits, isTooBig, readFileFormat } from "../ask/convert";
 import { writeExplanation } from "../ask/meaning";
 import { limits, models, refusal } from "../ask/models";
 import phrases from "../ask/phrases.json";
@@ -317,6 +318,126 @@ function ListResult({ result }) {
   );
 }
 
+function readDefault(document, ownerName, name, fallback) {
+  const owner = findEntry(document, ownerName);
+  const item = owner?.fields?.find((field) => field.languages.python?.name === name);
+  const value = Number(item?.languages.js?.default);
+  return Number.isFinite(value) ? value : fallback;
+}
+
+function formatSize(bytes) {
+  if (bytes >= 1000 * 1000) return `${(bytes / 1000 / 1000).toFixed(1)} MB`;
+  return `${Math.max(1, Math.round(bytes / 1000))} kB`;
+}
+
+function ConvertTool() {
+  const { state } = useDocumentation();
+  const [file, setFile] = useState(null);
+  const [isOver, setIsOver] = useState(false);
+  const [mzWindow, setMzWindow] = useState(() => readDefault(state.document, "WriteIonOptions", "mz_window", 20));
+  const [blockSize, setBlockSize] = useState(() => readDefault(state.document, "WriteIonOptions", "block_size", 8));
+  const [status, setStatus] = useState({ kind: "idle" });
+  const format = file ? readFileFormat(file.name) : null;
+  const tooBig = Boolean(format) && isTooBig(file, format);
+  const isBusy = status.kind === "busy";
+  const usesOptions = !format || format.target === "ion";
+  const problem = file && !format ? "Only .ion and .mzML files can be converted." : tooBig ? `${format.label} files over ${format.megabytes} MB cannot be converted here. Convert it with the library instead.` : null;
+
+  useEffect(() => () => status.address && URL.revokeObjectURL(status.address), [status.address]);
+
+  function choose(chosen) {
+    if (!chosen || isBusy) return;
+    setFile(chosen);
+    setStatus({ kind: "idle" });
+  }
+
+  function drop(event) {
+    event.preventDefault();
+    setIsOver(false);
+    choose(event.dataTransfer.files?.[0]);
+  }
+
+  async function convert(event) {
+    event.preventDefault();
+    if (!format || tooBig) return;
+    if (format.target === "ion" && (!Number.isInteger(mzWindow) || mzWindow < 0 || !Number.isInteger(blockSize) || blockSize < 1)) {
+      setStatus({ kind: "failed", message: "The m/z window must be a whole number, 0 or more, and the block size a whole number, 1 or more." });
+      return;
+    }
+    setStatus({ kind: "busy" });
+    try {
+      const converted = await convertFile(file, format.target === "ion" ? { mzWindow, blockSize } : {});
+      const address = URL.createObjectURL(converted.blob);
+      setStatus({ kind: "done", address, name: converted.name, size: converted.blob.size });
+      const link = document.createElement("a");
+      link.href = address;
+      link.download = converted.name;
+      link.click();
+    } catch (error) {
+      setStatus({ kind: "failed", message: error.message });
+    }
+  }
+
+  return (
+    <form className="ask-convert" onSubmit={convert}>
+      <label
+        className={`ask-convert-drop${isOver ? " ask-convert-over" : ""}${isBusy ? " ask-convert-disabled" : ""}`}
+        onDragOver={(event) => {
+          event.preventDefault();
+          setIsOver(true);
+        }}
+        onDragLeave={() => setIsOver(false)}
+        onDrop={drop}
+      >
+        <input type="file" className="ask-convert-file" accept=".ion,.mzML,.mzml" onChange={(event) => choose(event.target.files?.[0])} disabled={isBusy} />
+        <span className="ask-convert-pick">{file ? "Choose another file" : "Choose a file"}</span>
+        <span className="ask-convert-name">{file ? `${file.name} · ${formatSize(file.size)}` : `or drop a file here: .ion up to ${convertLimits.ion} MB, .mzML up to ${convertLimits.mzml} MB`}</span>
+      </label>
+      <fieldset className="ask-convert-options" disabled={isBusy || !usesOptions}>
+        <legend>{usesOptions ? "Options for mzML to .ion" : "No options for .ion to mzML"}</legend>
+        <label>
+          <span>m/z window</span>
+          <input type="number" min="0" step="1" value={mzWindow} onChange={(event) => setMzWindow(Number(event.target.value))} />
+          <span className="ask-convert-unit">Da</span>
+        </label>
+        <label>
+          <span>Block size</span>
+          <input type="number" min="1" step="1" value={blockSize} onChange={(event) => setBlockSize(Number(event.target.value))} />
+          <span className="ask-convert-unit">MB</span>
+        </label>
+      </fieldset>
+      <p className="ask-convert-warning">Large files use a lot of memory and can crash the page. For big files, use the library.</p>
+      {problem && <p className="ask-status ask-rejected">{problem}</p>}
+      <div className="ask-convert-footer">
+        <button type="submit" className="ask-button" disabled={isBusy || !format || tooBig}>
+          {isBusy ? "Converting…" : format ? `Convert to ${format.target === "ion" ? ".ion" : ".mzML"}` : "Convert"}
+        </button>
+        {status.kind === "done" && (
+          <span className="ask-status">
+            Done:{" "}
+            <a className="text-link" href={status.address} download={status.name}>
+              {status.name}
+            </a>{" "}
+            · {formatSize(status.size)}
+          </span>
+        )}
+        {status.kind === "failed" && <span className="ask-status ask-rejected">{status.message}</span>}
+      </div>
+    </form>
+  );
+}
+
+function ConvertOffer() {
+  return (
+    <>
+      <p className="ask-answer">
+        Or convert it here, with nothing to install. The file stays on your computer.
+      </p>
+      <ConvertTool />
+    </>
+  );
+}
+
 function CommandResult({ result }) {
   const { state, dispatch } = useDocumentation();
   const { askQuestion } = useContext(AskContext);
@@ -367,6 +488,16 @@ function CommandResult({ result }) {
         {command.snippet?.valid && <CodeBlock title={`Template from the docs · ${languageLabel} · ${link.label}`} code={command.snippet.code} language={state.language} />}
         {command.snippet && !command.snippet.valid && <p className="ask-answer">I cannot place those values in the {languageLabel} template ({command.snippet.reason}).</p>}
         <Source link={link} />
+      </div>
+    );
+  }
+  if (command.command === "convert") {
+    return (
+      <div className="ask-reply">
+        <p className="ask-answer">
+          Pick a .ion file to get mzML, or a .mzML file to get .ion. The file stays on your computer.
+        </p>
+        <ConvertTool />
       </div>
     );
   }
@@ -489,6 +620,7 @@ function UsageResult({ message }) {
       )}
       <Understood message={message} />
       {code && <CodeBlock title={`Template from the docs · ${languageLabel} · ${getDisplayName(codeEntry, language)}`} code={code} language={language} />}
+      {result.converter && <ConvertOffer />}
       <Source link={result.link} />
       <QuestionChips items={result.followUps} />
     </div>
@@ -650,7 +782,7 @@ function AskInput({ className, autoFocus }) {
   }
 
   function pick(item) {
-    setQuestion(item.name === "help" || item.name === "guide" ? `/${item.name}` : `/${item.name} `);
+    setQuestion(["help", "guide", "convert"].includes(item.name) ? `/${item.name}` : `/${item.name} `);
     setHighlighted(0);
   }
 

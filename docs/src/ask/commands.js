@@ -11,6 +11,7 @@ export const commandList = [
   { name: "docs", usage: "/docs <name>", meaning: "Opens that docs page; alone, opens the overview." },
   { name: "example", usage: "/example <function> [key=value …]", meaning: "The template with your values filled in." },
   { name: "fix", usage: "/fix <code>", meaning: "Checks pasted code: names, options and values." },
+  { name: "convert", usage: "/convert", meaning: "Converts a file here: .ion to mzML, or mzML to .ion." },
 ];
 
 export const exampleQuestions = ["How do I find peaks above intensity 1000?", "What is a target?", "I have mz and rt, what do I use?"];
@@ -104,6 +105,7 @@ export function runCommand(text, document, language) {
     for (const item of checked.optionValues) normalized[item.path[item.path.length - 1].languages.python.name] = item.value;
     return { command: "example", entry, values: normalized, snippet: buildSnippet(normalized, document, language) };
   }
+  if (name === "convert") return { command: "convert" };
   if (name === "fix") {
     if (!argument) return { command: "fix", failure: "Paste the code after `/fix`." };
     const review = reviewCode(argument, document, language);

@@ -1067,6 +1067,129 @@ table.details td {
   color: var(--warning);
 }
 
+.ask-convert {
+  display: grid;
+  gap: 10px;
+  margin: 0 0 8px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 12px;
+  background: var(--panel);
+  font-size: 13px;
+}
+
+.ask-convert-drop {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  border: 1.5px dashed var(--line);
+  border-radius: 10px;
+  padding: 12px;
+  background: var(--background);
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.ask-convert-drop:hover,
+.ask-convert-over {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.ask-convert-drop:focus-within {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.ask-convert-disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.ask-convert-file {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.ask-convert-pick {
+  border: 1px solid var(--accent);
+  border-radius: 999px;
+  padding: 4px 12px;
+  color: var(--accent-strong);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.ask-convert-name {
+  min-width: 0;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.ask-convert-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  margin: 0;
+  border: 0;
+  padding: 0;
+}
+
+.ask-convert-options:disabled {
+  opacity: 0.55;
+}
+
+.ask-convert-options legend {
+  margin-bottom: 6px;
+  padding: 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.ask-convert-options label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ask-convert-options input {
+  width: 64px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 3px 6px;
+  background: var(--background);
+  color: var(--text);
+  font: inherit;
+  font-family: var(--font-code);
+}
+
+.ask-convert-options input:focus {
+  border-color: var(--accent);
+  outline: none;
+}
+
+.ask-convert-unit {
+  color: var(--muted);
+}
+
+.ask-convert-warning {
+  margin: 0;
+  color: var(--warning);
+  font-size: 12px;
+}
+
+.ask-convert-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
 .ask-sources {
   display: flex;
   flex-wrap: wrap;
