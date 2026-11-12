@@ -1,0 +1,1637 @@
+[
+  {
+    "id": "too-many-results",
+    "question": "find_peaks, find_targets or match_features returns too many peaks or features",
+    "answer": "The result depends on the dataset. Usually raising `min_snr` (default 2) or `min_intensity` (default 500) is enough to drop small peaks mixed with the `noise`. You can also set `min_integral` (off by default) to drop peaks with a small area, or raise `min_peak_width_points` (default 3) to drop narrow peaks with few scans. Check the `noise` level with `find_noise_level` and set `min_intensity` above it. If the automatic `noise` estimate is off, turn `auto_noise` off and set `noise` to that value. In `get_peak`, `find_targets`, `find_transitions`, `find_features` and `match_features`, set these inside the `find_peaks` option.",
+    "intro": "The result depends on the dataset.",
+    "ideas": [
+      "Usually raising `min_snr` (default 2) or `min_intensity` (default 500) is enough to drop small peaks mixed with the `noise`.",
+      "You can also set `min_integral` (off by default) to drop peaks with a small area, or raise `min_peak_width_points` (default 3) to drop narrow peaks with few scans.",
+      "Check the `noise` level with `find_noise_level` and set `min_intensity` above it.",
+      "If the automatic `noise` estimate is off, turn `auto_noise` off and set `noise` to that value.",
+      "In `get_peak`, `find_targets`, `find_transitions`, `find_features` and `match_features`, set these inside the `find_peaks` option."
+    ],
+    "functions": [
+      "find_peaks",
+      "get_peak",
+      "find_targets",
+      "find_transitions",
+      "find_features",
+      "match_features"
+    ],
+    "uses": [
+      "deisotope_features",
+      "find_features",
+      "find_peaks",
+      "find_targets",
+      "find_transitions",
+      "get_peak",
+      "match_features"
+    ],
+    "owners": [
+      "DeisotopeFeaturesOptions",
+      "FindPeaksOptions",
+      "GroupingOptions"
+    ],
+    "options": [
+      {
+        "name": "min_snr",
+        "default": "2"
+      },
+      {
+        "name": "min_intensity",
+        "default": "500"
+      },
+      {
+        "name": "min_integral",
+        "default": "off"
+      },
+      {
+        "name": "min_peak_width_points",
+        "default": "3"
+      },
+      {
+        "name": "auto_noise",
+        "default": "True"
+      },
+      {
+        "name": "noise",
+        "default": "off"
+      },
+      {
+        "name": "min_frequency",
+        "default": "0"
+      },
+      {
+        "name": "rt_tolerance",
+        "default": "0.02"
+      },
+      {
+        "name": "mz_tolerance",
+        "default": "0.005"
+      }
+    ],
+    "short": "{fn} returns too many results",
+    "when": [],
+    "notes": {
+      "find_features": "Isotopes can also be counted as separate features. Run `deisotope_features` on the features. It joins the isotopes to their main feature using `rt_tolerance` (default 0.02 min) and `mz_tolerance` (default 0.005 Da). It checks charge 1 and 2 only.",
+      "match_features": "You can also set `min_frequency` in grouping, for example 0.8 keeps features found in 80% of the samples. Isotopes can also be counted as separate features. Run `deisotope_features` on the features. It joins the isotopes to their main feature using `rt_tolerance` (default 0.02 min) and `mz_tolerance` (default 0.005 Da). It checks charge 1 and 2 only."
+    },
+    "related": ["too-few-results", "bad-shape", "split-peak"]
+  },
+  {
+    "id": "too-few-results",
+    "question": "find_peaks, find_targets or match_features returns too few peaks or features",
+    "answer": "Too few peaks or features usually means `min_intensity` (default 500) or `min_snr` (default 2) is too high for your data. If your peaks are above `min_intensity` but still missing, the `noise` estimate may be too high, for example when the run has washing cycles, so `min_snr` × `noise` drops real peaks. Check the `noise` with `find_noise_level`. If it is too high, turn `auto_noise` off and set `noise` to a value that fits your chromatogram, or lower `min_snr`. If that doesn’t fix it, lower `min_peak_width_points` (default 3), because it drops narrow peaks with few scans. In `get_peak`, `find_targets`, `find_transitions`, `find_features` and `match_features`, set these inside the `find_peaks` option.",
+    "intro": "Too few peaks or features usually means `min_intensity` (default 500) or `min_snr` (default 2) is too high for your data.",
+    "ideas": [
+      "If your peaks are above `min_intensity` but still missing, the `noise` estimate may be too high, for example when the run has washing cycles, so `min_snr` × `noise` drops real peaks.",
+      "Check the `noise` with `find_noise_level`. If it is too high, turn `auto_noise` off and set `noise` to a value that fits your chromatogram, or lower `min_snr`.",
+      "If that doesn’t fix it, lower `min_peak_width_points` (default 3), because it drops narrow peaks with few scans.",
+      "In `get_peak`, `find_targets`, `find_transitions`, `find_features` and `match_features`, set these inside the `find_peaks` option."
+    ],
+    "functions": [
+      "find_peaks",
+      "get_peak",
+      "find_targets",
+      "find_transitions",
+      "find_features",
+      "match_features"
+    ],
+    "uses": [
+      "find_features",
+      "find_peaks",
+      "find_targets",
+      "find_transitions",
+      "get_peak",
+      "match_features"
+    ],
+    "owners": ["FindPeaksOptions", "GroupingOptions"],
+    "options": [
+      {
+        "name": "min_intensity",
+        "default": "500"
+      },
+      {
+        "name": "min_snr",
+        "default": "2"
+      },
+      {
+        "name": "auto_noise",
+        "default": "True"
+      },
+      {
+        "name": "noise",
+        "default": "off"
+      },
+      {
+        "name": "min_peak_width_points",
+        "default": "3"
+      },
+      {
+        "name": "min_frequency",
+        "default": "0"
+      }
+    ],
+    "short": "{fn} returns too few results",
+    "when": [
+      {
+        "terms": [
+          {
+            "name": "from",
+            "op": "set",
+            "value": null
+          },
+          {
+            "name": "to",
+            "op": "set",
+            "value": null
+          },
+          {
+            "name": "time_unit",
+            "op": "!=",
+            "value": "SECONDS"
+          }
+        ],
+        "text": "Your code reads retention times from {from} to {to} in minutes, because `time_unit` is MINUTES. If your retention times are in seconds, the window covers only a few seconds and real peaks are left out, so set `time_unit` to SECONDS."
+      },
+      {
+        "terms": [
+          {
+            "name": "from",
+            "op": "set",
+            "value": null
+          },
+          {
+            "name": "to",
+            "op": "set",
+            "value": null
+          },
+          {
+            "name": "time_unit",
+            "op": "=",
+            "value": "SECONDS"
+          }
+        ],
+        "text": "Your code reads retention times from {from} to {to} in seconds, because `time_unit` is SECONDS. If your retention times are in minutes, the window does not match the run, so check `time_unit`."
+      }
+    ],
+    "notes": {
+      "match_features": "A high `min_frequency` in grouping also removes features that appear in few samples."
+    },
+    "related": ["too-many-results", "eic-weak", "rt-shift"]
+  },
+  {
+    "id": "split-features",
+    "question": "the same compound shows up as two features in match_features",
+    "answer": "The m/z or rt of the two copies differ more than the grouping tolerances. Raise `ppm_tolerance` (default 5), `mz_tolerance` (default 0.0025 Da) or `rt_tolerance` (default 0.05 min) in grouping.",
+    "intro": "The m/z or rt of the two copies differ more than the grouping tolerances.",
+    "ideas": [
+      "Raise `ppm_tolerance` (default 5), `mz_tolerance` (default 0.0025 Da) or `rt_tolerance` (default 0.05 min) in grouping."
+    ],
+    "functions": ["GroupingOptions"],
+    "uses": ["match_features"],
+    "owners": ["GroupingOptions"],
+    "options": [
+      {
+        "name": "ppm_tolerance",
+        "default": "5"
+      },
+      {
+        "name": "mz_tolerance",
+        "default": "0.0025"
+      },
+      {
+        "name": "rt_tolerance",
+        "default": "0.05"
+      }
+    ],
+    "short": "one compound shows up as two features",
+    "when": [],
+    "notes": {},
+    "related": ["merged-features", "eic-interference", "split-peak"]
+  },
+  {
+    "id": "merged-features",
+    "question": "two different compounds are merged into one feature",
+    "answer": "The grouping tolerances are too wide for your data. Lower `ppm_tolerance`, `mz_tolerance` or `rt_tolerance` in grouping.",
+    "intro": "The grouping tolerances are too wide for your data.",
+    "ideas": [
+      "Lower `ppm_tolerance`, `mz_tolerance` or `rt_tolerance` in grouping."
+    ],
+    "functions": ["GroupingOptions"],
+    "uses": ["match_features"],
+    "owners": ["GroupingOptions"],
+    "options": [
+      {
+        "name": "ppm_tolerance",
+        "default": "5"
+      },
+      {
+        "name": "mz_tolerance",
+        "default": "0.0025"
+      },
+      {
+        "name": "rt_tolerance",
+        "default": "0.05"
+      }
+    ],
+    "short": "two compounds are merged into one feature",
+    "when": [],
+    "notes": {},
+    "related": ["split-features", "merged-peaks", "eic-interference"]
+  },
+  {
+    "id": "isotope-features",
+    "question": "isotopes are counted as separate features",
+    "answer": "Run `deisotope_features` on the features. It joins the isotopes to their main feature using `rt_tolerance` (default 0.02 min) and `mz_tolerance` (default 0.005 Da). It checks charge 1 and 2 only.",
+    "intro": "Run `deisotope_features` on the features. It joins the isotopes to their main feature using `rt_tolerance` (default 0.02 min) and `mz_tolerance` (default 0.005 Da). It checks charge 1 and 2 only.",
+    "ideas": [],
+    "functions": ["deisotope_features"],
+    "uses": ["deisotope_features"],
+    "owners": ["DeisotopeFeaturesOptions"],
+    "options": [
+      {
+        "name": "rt_tolerance",
+        "default": "0.02"
+      },
+      {
+        "name": "mz_tolerance",
+        "default": "0.005"
+      }
+    ],
+    "short": "isotopes are counted as separate features",
+    "when": [],
+    "notes": {},
+    "related": ["isotope-charge-3", "too-many-results", "split-features"]
+  },
+  {
+    "id": "missing-mz-range",
+    "question": "features above m/z 1000 are missing",
+    "answer": "The grid goes from `start` (default 40) to `end` (default 1000). Set `end` higher, or `start` lower, in the grid options. A smaller `step_size` is finer but slower.",
+    "intro": "The grid goes from `start` (default 40) to `end` (default 1000).",
+    "ideas": [
+      "Set `end` higher, or `start` lower, in the grid options.",
+      "A smaller `step_size` is finer but slower."
+    ],
+    "functions": ["GridOptions"],
+    "uses": ["find_features", "match_features"],
+    "owners": ["GridOptions"],
+    "options": [
+      {
+        "name": "start",
+        "default": "40"
+      },
+      {
+        "name": "end",
+        "default": "1000"
+      },
+      {
+        "name": "step_size",
+        "default": "0.005"
+      }
+    ],
+    "short": "features at high m/z are missing",
+    "when": [],
+    "notes": {},
+    "related": ["too-few-results", "eic-weak", "empty-result"]
+  },
+  {
+    "id": "wrong-peak",
+    "question": "find_targets picks the wrong peak for some compounds",
+    "answer": "This usually means the target `rt` or `range` does not fit your data. The peak is searched only inside `rt` ± `range`, so if `rt` is off or `range` is too narrow, the right peak is missed or a neighbour peak is picked. The best way to set them is from your own samples. Use the median retention time of the compound as `rt`, and its standard deviation to set `range`. Retention times shift less within one batch or plate, so values from the same batch work well. If you process several batches at the same time, a warp model is the better choice, see `predict_rts`.",
+    "intro": "This usually means the target `rt` or `range` does not fit your data. The peak is searched only inside `rt` ± `range`, so if `rt` is off or `range` is too narrow, the right peak is missed or a neighbour peak is picked.",
+    "ideas": [
+      "The best way to set them is from your own samples. Use the median retention time of the compound as `rt`, and its standard deviation to set `range`. Retention times shift less within one batch or plate, so values from the same batch work well.",
+      "If you process several batches at the same time, a warp model is the better choice, see `predict_rts`."
+    ],
+    "functions": ["find_targets", "get_peak"],
+    "uses": ["find_targets", "get_peak"],
+    "owners": ["GetPeakOptions", "Target"],
+    "options": [
+      {
+        "name": "rt",
+        "default": null
+      },
+      {
+        "name": "range",
+        "default": null
+      },
+      {
+        "name": "range",
+        "default": "0"
+      }
+    ],
+    "short": "{fn} picks the wrong peak",
+    "when": [],
+    "notes": {
+      "get_peak": "In `get_peak`, `range` 0 searches the whole trace, so set `range` to stay near `rt`."
+    },
+    "related": ["rt-shift", "short-window", "peak-cut-at-edge"]
+  },
+  {
+    "id": "empty-result",
+    "question": "find_peaks, get_peak, find_targets, find_transitions, find_features or match_features returns nothing",
+    "answer": "An empty result usually means the peak detection is running on chromatograms that are empty. Display the chromatogram from `calculate_eic` to see whether it is empty. Check the units, a wrong `time_unit` with `from` and `to` can read only a few seconds. A very short window between `from` and `to`, under a minute, can also cut the peak off, so widen it if the peak may be near its edges. If the chromatogram shows the peak, it may be below `min_intensity` (default 500) or `min_snr` (default 2), so lower them, inside the `find_peaks` option when the function has one. A noise estimate that is too high, for example when the run has washing cycles, makes `min_snr` × noise drop every peak. Check the noise with `find_noise_level`. If it is too high, turn `auto_noise` off and set noise to a value that fits your chromatogram.",
+    "intro": "An empty result usually means the peak detection is running on chromatograms that are empty.",
+    "ideas": [
+      "Display the chromatogram from `calculate_eic` to see whether it is empty.",
+      "Check the units, a wrong `time_unit` with `from` and `to` can read only a few seconds.",
+      "A very short window between `from` and `to`, under a minute, can also cut the peak off, so widen it if the peak may be near its edges.",
+      "If the chromatogram shows the peak, it may be below `min_intensity` (default 500) or `min_snr` (default 2), so lower them, inside the `find_peaks` option when the function has one.",
+      "A noise estimate that is too high, for example when the run has washing cycles, makes `min_snr` × noise drop every peak.",
+      "Check the noise with `find_noise_level`. If it is too high, turn `auto_noise` off and set noise to a value that fits your chromatogram."
+    ],
+    "functions": [
+      "find_peaks",
+      "get_peak",
+      "find_targets",
+      "find_transitions",
+      "find_features",
+      "match_features"
+    ],
+    "uses": [
+      "calculate_eic",
+      "find_features",
+      "find_peaks",
+      "find_targets",
+      "find_transitions",
+      "get_peak",
+      "match_features"
+    ],
+    "owners": [
+      "CalculateEicOptions",
+      "FindPeaksOptions",
+      "GetPeakOptions",
+      "GridOptions",
+      "GroupingOptions",
+      "Target",
+      "Transition"
+    ],
+    "options": [
+      {
+        "name": "time_unit",
+        "default": "MINUTES"
+      },
+      {
+        "name": "from",
+        "default": "0"
+      },
+      {
+        "name": "to",
+        "default": "inf"
+      },
+      {
+        "name": "min_intensity",
+        "default": "500"
+      },
+      {
+        "name": "min_snr",
+        "default": "2"
+      },
+      {
+        "name": "range",
+        "default": "0"
+      },
+      {
+        "name": "mz",
+        "default": null
+      },
+      {
+        "name": "rt",
+        "default": null
+      },
+      {
+        "name": "range",
+        "default": null
+      },
+      {
+        "name": "range",
+        "default": null
+      },
+      {
+        "name": "precursor",
+        "default": null
+      },
+      {
+        "name": "product",
+        "default": null
+      },
+      {
+        "name": "rt",
+        "default": null
+      },
+      {
+        "name": "start",
+        "default": "40"
+      },
+      {
+        "name": "end",
+        "default": "1000"
+      },
+      {
+        "name": "min_frequency",
+        "default": "0"
+      },
+      {
+        "name": "auto_noise",
+        "default": "True"
+      }
+    ],
+    "short": "{fn} returns nothing",
+    "when": [
+      {
+        "terms": [
+          {
+            "name": "from",
+            "op": "set",
+            "value": null
+          },
+          {
+            "name": "to",
+            "op": "set",
+            "value": null
+          },
+          {
+            "name": "time_unit",
+            "op": "!=",
+            "value": "SECONDS"
+          }
+        ],
+        "text": "Your code reads retention times from {from} to {to} in minutes, because `time_unit` is MINUTES. If your retention times are in seconds, the window covers only a few seconds and real peaks are left out, so set `time_unit` to SECONDS."
+      },
+      {
+        "terms": [
+          {
+            "name": "from",
+            "op": "set",
+            "value": null
+          },
+          {
+            "name": "to",
+            "op": "set",
+            "value": null
+          },
+          {
+            "name": "time_unit",
+            "op": "=",
+            "value": "SECONDS"
+          }
+        ],
+        "text": "Your code reads retention times from {from} to {to} in seconds, because `time_unit` is SECONDS. If your retention times are in minutes, the window does not match the run, so check `time_unit`."
+      }
+    ],
+    "notes": {
+      "get_peak": "`rt` and `range` are in minutes. Check that a peak is inside `rt` plus or minus `range`.",
+      "find_targets": "Check that `mz` is the ion m/z and not the neutral mass, for [M+H]+ use M + 1.00728. `rt` and `range` are in minutes.",
+      "find_transitions": "Each transition needs a `range` above 0, a `range` of 0 or less returns an empty peak. The m/z tolerance is fixed at 0.005, so `precursor` and `product` must match the file. `rt` and `range` are in minutes.",
+      "find_features": "Check that the grid `start` and `end` cover your m/z.",
+      "match_features": "It reads only the files in the top folder, not in subfolders. A high `min_frequency` in grouping can also drop every feature."
+    },
+    "related": ["too-few-results", "rt-shift", "missing-mz-range"]
+  },
+  {
+    "id": "error-unclear",
+    "question": "the function is throwing an error, why?",
+    "answer": "If you paste the line with the function and its arguments I can spot the problem for you. Do not paste your whole script, only the function and its arguments, for example peaks = `find_peaks`(eic[\"x\"], eic[\"y\"], {\"`min_snr`\": 3})",
+    "intro": "If you paste the line with the function and its arguments I can spot the problem for you.",
+    "ideas": [
+      "Do not paste your whole script, only the function and its arguments, for example peaks = `find_peaks`(eic[\"x\"], eic[\"y\"], {\"`min_snr`\": 3})"
+    ],
+    "functions": ["errors"],
+    "uses": [],
+    "owners": [],
+    "options": [],
+    "short": "{fn} throws an error",
+    "when": [],
+    "notes": {},
+    "related": ["internal-error", "unknown-option", "file-not-opening"]
+  },
+  {
+    "id": "vague-wrong",
+    "question": "the results look wrong",
+    "answer": "I need a bit more to find the problem. Please ask again with the function name, the options you set and what looks wrong, for example the `find_peaks` area is too small.",
+    "intro": "I need a bit more to find the problem.",
+    "ideas": [
+      "Please ask again with the function name, the options you set and what looks wrong, for example the `find_peaks` area is too small."
+    ],
+    "functions": ["report"],
+    "uses": ["find_features", "find_peaks", "find_targets", "match_features"],
+    "owners": [],
+    "options": [],
+    "short": "the results look wrong",
+    "when": [],
+    "notes": {},
+    "related": ["wrong-area", "wrong-peak", "rt-shift"]
+  },
+  {
+    "id": "split-peak",
+    "question": "one peak is split in two",
+    "answer": "Noisy traces can make one peak look like two. Set `kernel_size` to smooth the trace before finding apexes and borders, the peak values still come from the raw trace.",
+    "intro": "Noisy traces can make one peak look like two.",
+    "ideas": [
+      "Set `kernel_size` to smooth the trace before finding apexes and borders, the peak values still come from the raw trace."
+    ],
+    "functions": ["find_peaks"],
+    "uses": [
+      "find_features",
+      "find_peaks",
+      "find_targets",
+      "find_transitions",
+      "get_peak",
+      "match_features"
+    ],
+    "owners": ["FindPeaksOptions"],
+    "options": [
+      {
+        "name": "kernel_size",
+        "default": "0"
+      }
+    ],
+    "short": "{fn} splits one peak in two",
+    "when": [],
+    "notes": {},
+    "related": ["merged-peaks", "bad-shape", "split-features"]
+  },
+  {
+    "id": "merged-peaks",
+    "question": "two close peaks are reported as one",
+    "answer": "By default neighbouring peaks are split at the valley between them. A large `kernel_size` can smooth that valley away, so lower it. `allow_overlap` only lets peaks share border points.",
+    "intro": "By default neighbouring peaks are split at the valley between them.",
+    "ideas": [
+      "A large `kernel_size` can smooth that valley away, so lower it. `allow_overlap` only lets peaks share border points."
+    ],
+    "functions": ["find_peaks"],
+    "uses": [
+      "find_features",
+      "find_peaks",
+      "find_targets",
+      "find_transitions",
+      "get_peak",
+      "match_features"
+    ],
+    "owners": ["FindPeaksOptions"],
+    "options": [
+      {
+        "name": "kernel_size",
+        "default": "0"
+      },
+      {
+        "name": "allow_overlap",
+        "default": "False"
+      }
+    ],
+    "short": "{fn} reports two close peaks as one",
+    "when": [],
+    "notes": {},
+    "related": ["split-peak", "merged-features", "eic-interference"]
+  },
+  {
+    "id": "wrong-area",
+    "question": "the peak area looks wrong",
+    "answer": "The area is in intensity times seconds, even when rt is in minutes. A bad baseline also changes the area, so check `auto_baseline` and `lambda`. Turn `auto_baseline` off for windows shorter than 1 minute.",
+    "intro": "The area is in intensity times seconds, even when rt is in minutes.",
+    "ideas": [
+      "A bad baseline also changes the area, so check `auto_baseline` and `lambda`.",
+      "Turn `auto_baseline` off for windows shorter than 1 minute."
+    ],
+    "functions": ["Peak"],
+    "uses": [
+      "find_features",
+      "find_peaks",
+      "find_targets",
+      "find_transitions",
+      "get_peak",
+      "match_features"
+    ],
+    "owners": ["FindPeaksOptions", "Peak"],
+    "options": [
+      {
+        "name": "integral",
+        "default": null
+      },
+      {
+        "name": "auto_baseline",
+        "default": "True"
+      },
+      {
+        "name": "lambda",
+        "default": "20"
+      },
+      {
+        "name": "max_iterations",
+        "default": "4"
+      }
+    ],
+    "short": "the peak area looks wrong",
+    "when": [],
+    "notes": {},
+    "related": ["short-window", "wrong-peak", "eic-weak"]
+  },
+  {
+    "id": "bad-shape",
+    "question": "peaks with a bad shape are kept",
+    "answer": "Set `min_r2` between 0 and 1 to drop peaks that do not fit the `shape`. The `shape` can be EMG (default) or GAUSSIAN.",
+    "intro": "Set `min_r2` between 0 and 1 to drop peaks that do not fit the `shape`.",
+    "ideas": ["The `shape` can be EMG (default) or GAUSSIAN."],
+    "functions": ["find_peaks"],
+    "uses": [
+      "find_features",
+      "find_peaks",
+      "find_targets",
+      "find_transitions",
+      "get_peak",
+      "match_features"
+    ],
+    "owners": ["FindPeaksOptions"],
+    "options": [
+      {
+        "name": "min_r2",
+        "default": "0"
+      },
+      {
+        "name": "shape",
+        "default": "EMG"
+      }
+    ],
+    "short": "{fn} keeps peaks with a bad shape",
+    "when": [],
+    "notes": {},
+    "related": ["too-many-results", "split-peak", "short-window"]
+  },
+  {
+    "id": "rt-shift",
+    "question": "find_targets finds most peaks but misses some of them",
+    "answer": "Retention times can shift a little between runs. When a peak moves out of the search window, it is missed even if it is in the data. For larger shifts, or when you process several batches at the same time, a warp model is the better choice. Train it with PyTorch to learn the flow in your LC, export it to ONNX, and open it with `load_model` and `load_warp`. `calibrate` learns the shift from a few anchor samples, like LTRs or QCs, and `predict_rts` gives the expected rt of each target in each sample.",
+    "intro": "Retention times can shift a little between runs. When a peak moves out of the search window, it is missed even if it is in the data.",
+    "ideas": [
+      "For larger shifts, or when you process several batches at the same time, a warp model is the better choice. Train it with PyTorch to learn the flow in your LC, export it to ONNX, and open it with `load_model` and `load_warp`. `calibrate` learns the shift from a few anchor samples, like LTRs or QCs, and `predict_rts` gives the expected rt of each target in each sample."
+    ],
+    "functions": ["find_targets", "get_peak", "match_features"],
+    "uses": ["find_targets", "get_peak", "match_features"],
+    "owners": ["GroupingOptions", "Target"],
+    "options": [
+      {
+        "name": "range",
+        "default": null
+      },
+      {
+        "name": "rt_tolerance",
+        "default": "0.05"
+      }
+    ],
+    "short": "{fn} finds most peaks but misses some",
+    "when": [
+      {
+        "terms": [
+          {
+            "name": "from",
+            "op": "set",
+            "value": null
+          },
+          {
+            "name": "to",
+            "op": "set",
+            "value": null
+          },
+          {
+            "name": "time_unit",
+            "op": "!=",
+            "value": "SECONDS"
+          }
+        ],
+        "text": "Your code reads retention times from {from} to {to} in minutes, because `time_unit` is MINUTES. If your retention times are in seconds, the window covers only a few seconds and real peaks are left out, so set `time_unit` to SECONDS."
+      },
+      {
+        "terms": [
+          {
+            "name": "from",
+            "op": "set",
+            "value": null
+          },
+          {
+            "name": "to",
+            "op": "set",
+            "value": null
+          },
+          {
+            "name": "time_unit",
+            "op": "=",
+            "value": "SECONDS"
+          }
+        ],
+        "text": "Your code reads retention times from {from} to {to} in seconds, because `time_unit` is SECONDS. If your retention times are in minutes, the window does not match the run, so check `time_unit`."
+      }
+    ],
+    "notes": {
+      "find_targets": "`find_targets` looks for each peak only inside rt ± `range`. Make `range` wider so the shifted peaks fall inside it. If a wider `range` picks the wrong peaks, run it on smaller batches, because the shift is usually small within the same batch or plate.",
+      "get_peak": "`get_peak` looks for each peak only inside rt ± `range`. Make `range` wider so the shifted peaks fall inside it. If a wider `range` picks the wrong peaks, run it on smaller batches, because the shift is usually small within the same batch or plate.",
+      "match_features": "`match_features` joins the same feature across samples only when its rt is within `rt_tolerance` in grouping (default 0.05 min). Raise `rt_tolerance`, or run `match_features` on smaller batches, because the shift is usually small within the same batch or plate."
+    },
+    "related": ["too-few-results", "wrong-peak", "empty-result"]
+  },
+  {
+    "id": "slow-batch",
+    "question": "processing many files is slow",
+    "answer": "Set `threads` in `match_features`, `find_targets` or `find_transitions` to use more CPU cores. Use .ion files instead of mzML, they open faster and use less memory.",
+    "intro": "Set `threads` in `match_features`, `find_targets` or `find_transitions` to use more CPU cores.",
+    "ideas": [
+      "Use .ion files instead of mzML, they open faster and use less memory."
+    ],
+    "functions": [
+      "match_features",
+      "find_features",
+      "find_targets",
+      "find_transitions"
+    ],
+    "uses": [
+      "find_features",
+      "find_targets",
+      "find_transitions",
+      "match_features"
+    ],
+    "owners": [
+      "FindTargetsOptions",
+      "FindTransitionsOptions",
+      "MatchFeaturesOptions"
+    ],
+    "options": [
+      {
+        "name": "threads",
+        "default": "1"
+      },
+      {
+        "name": "threads",
+        "default": "1"
+      },
+      {
+        "name": "threads",
+        "default": "1"
+      }
+    ],
+    "short": "{fn} is slow with many files",
+    "when": [],
+    "notes": {},
+    "related": ["grid-slow", "rt-shift", "too-many-results"]
+  },
+  {
+    "id": "file-not-opening",
+    "question": "my file does not open",
+    "answer": "Quant·ion reads .ion and mzML files. Use `parse_ion` for .ion from a path, a URL or bytes, and `parse_mzml` for mzML from a path or bytes. Vendor formats must be converted to mzML first.",
+    "intro": "Quant·ion reads .ion and mzML files.",
+    "ideas": [
+      "Use `parse_ion` for .ion from a path, a URL or bytes, and `parse_mzml` for mzML from a path or bytes.",
+      "Vendor formats must be converted to mzML first."
+    ],
+    "functions": ["open-file"],
+    "uses": ["parse_ion", "parse_mzml"],
+    "owners": [],
+    "options": [],
+    "short": "the file does not open",
+    "when": [],
+    "notes": {},
+    "related": ["mzml-url", "remote-queries-slow", "out-of-memory"]
+  },
+  {
+    "id": "short-window",
+    "question": "peaks in a short rt window look wrong",
+    "answer": "For windows shorter than 1 minute turn `auto_baseline` off. A short window does not have enough points to estimate the baseline, so the peaks and areas can be wrong.",
+    "intro": "For windows shorter than 1 minute turn `auto_baseline` off.",
+    "ideas": [
+      "A short window does not have enough points to estimate the baseline, so the peaks and areas can be wrong."
+    ],
+    "functions": ["find_peaks"],
+    "uses": [
+      "calculate_eic",
+      "find_features",
+      "find_peaks",
+      "find_targets",
+      "find_transitions",
+      "get_peak",
+      "match_features"
+    ],
+    "owners": ["CalculateEicOptions", "FindPeaksOptions"],
+    "options": [
+      {
+        "name": "auto_baseline",
+        "default": "True"
+      },
+      {
+        "name": "from",
+        "default": "0"
+      },
+      {
+        "name": "to",
+        "default": "inf"
+      }
+    ],
+    "short": "peaks in a short window look wrong",
+    "when": [],
+    "notes": {},
+    "related": ["peak-cut-at-edge", "wrong-peak", "too-few-results"]
+  },
+  {
+    "id": "baseline-follows-peaks",
+    "question": "the baseline goes up into my peaks",
+    "answer": "Raise `lambda` (default 20) for a smoother baseline that follows only the slow drift. The same `lambda` is in `find_peaks` and in `calculate_baseline`.",
+    "intro": "Raise `lambda` (default 20) for a smoother baseline that follows only the slow drift.",
+    "ideas": [
+      "The same `lambda` is in `find_peaks` and in `calculate_baseline`."
+    ],
+    "functions": ["calculate_baseline"],
+    "uses": [
+      "calculate_baseline",
+      "find_features",
+      "find_peaks",
+      "find_targets",
+      "find_transitions",
+      "get_peak",
+      "match_features"
+    ],
+    "owners": ["CalculateBaselineOptions", "FindPeaksOptions"],
+    "options": [
+      {
+        "name": "lambda",
+        "default": "20"
+      },
+      {
+        "name": "lambda",
+        "default": "20"
+      },
+      {
+        "name": "max_iterations",
+        "default": "4"
+      }
+    ],
+    "short": "the baseline goes up into the peaks",
+    "when": [],
+    "notes": {},
+    "related": ["peak-cut-at-edge", "bad-shape", "wrong-peak"]
+  },
+  {
+    "id": "results-in-minutes",
+    "question": "I gave rt in seconds but the results are in minutes",
+    "answer": "`time_unit` only sets the unit of the values you give. Results are always in minutes, so multiply by 60 to get seconds.",
+    "intro": "`time_unit` only sets the unit of the values you give. Results are always in minutes, so multiply by 60 to get seconds.",
+    "ideas": [],
+    "functions": ["CalculateEicOptions"],
+    "uses": [
+      "calculate_eic",
+      "find_features",
+      "find_targets",
+      "match_features"
+    ],
+    "owners": ["CalculateEicOptions"],
+    "options": [
+      {
+        "name": "time_unit",
+        "default": "MINUTES"
+      }
+    ],
+    "short": "results are in minutes, not seconds",
+    "when": [],
+    "notes": {},
+    "related": ["short-window", "eic-weak", "rt-shift"]
+  },
+  {
+    "id": "fit-peak-fails",
+    "question": "fit_peak fails or gives no fit",
+    "answer": "The peak must be within `rt` plus or minus 0.05 min and have at least 5 points. `x` must be in ascending order and have the same length as `y`.",
+    "intro": "The peak must be within `rt` plus or minus 0.05 min and have at least 5 points. `x` must be in ascending order and have the same length as `y`.",
+    "ideas": [],
+    "functions": ["fit_peak"],
+    "uses": ["fit_peak"],
+    "owners": ["FitPeakOptions", "fit_peak"],
+    "options": [
+      {
+        "name": "rt",
+        "default": "—"
+      },
+      {
+        "name": "x",
+        "default": "—"
+      },
+      {
+        "name": "y",
+        "default": "—"
+      },
+      {
+        "name": "shape",
+        "default": "EMG"
+      }
+    ],
+    "short": "{fn} fails or gives no fit",
+    "when": [],
+    "notes": {},
+    "related": ["fit-tailing", "empty-result", "model-mismatch"]
+  },
+  {
+    "id": "empty-get_scans",
+    "question": "get_scans returns nothing for my precursor m/z",
+    "answer": "Only MS2 scans have a precursor m/z, so set `level` to 2 (default 1). If you give rt in seconds, set `time_unit` to seconds.",
+    "intro": "Only MS2 scans have a precursor m/z, so set `level` to 2 (default 1).",
+    "ideas": ["If you give rt in seconds, set `time_unit` to seconds."],
+    "functions": ["get_scans"],
+    "uses": ["get_scans"],
+    "owners": ["GetScansOptions", "get_scans"],
+    "options": [
+      {
+        "name": "level",
+        "default": "1"
+      },
+      {
+        "name": "time_unit",
+        "default": "MINUTES"
+      },
+      {
+        "name": "mz",
+        "default": "None"
+      }
+    ],
+    "short": "{fn} returns no scans",
+    "when": [],
+    "notes": {},
+    "related": ["precursor-nan", "empty-result", "empty-ion-image"]
+  },
+  {
+    "id": "precursor-nan",
+    "question": "precursor_mz is NaN in my scans",
+    "answer": "MS1 scans have no precursor, so `precursor_mz` is NaN. Set `level` to 2 in `get_scans` to read MS2 scans.",
+    "intro": "MS1 scans have no precursor, so `precursor_mz` is NaN.",
+    "ideas": ["Set `level` to 2 in `get_scans` to read MS2 scans."],
+    "functions": ["Scan"],
+    "uses": ["get_scans"],
+    "owners": ["GetScansOptions", "Scan"],
+    "options": [
+      {
+        "name": "precursor_mz",
+        "default": null
+      },
+      {
+        "name": "level",
+        "default": "1"
+      }
+    ],
+    "short": "precursor_mz is NaN",
+    "when": [],
+    "notes": {},
+    "related": ["empty-get_scans", "isotope-charge-3", "isotope-features"]
+  },
+  {
+    "id": "empty-ion-image",
+    "question": "get_ion_image returns an empty image",
+    "answer": "Check that `mz` is the ion m/z and not the neutral mass. The window is `mz` plus or minus `tolerance` (default 0.125 Da), there is no ppm option. The file must come from `parse_ion`.",
+    "intro": "Check that `mz` is the ion m/z and not the neutral mass.",
+    "ideas": [
+      "The window is `mz` plus or minus `tolerance` (default 0.125 Da), there is no ppm option. The file must come from `parse_ion`."
+    ],
+    "functions": ["get_ion_image"],
+    "uses": ["get_ion_image"],
+    "owners": ["GetIonImageOptions", "get_ion_image"],
+    "options": [
+      {
+        "name": "mz",
+        "default": "—"
+      },
+      {
+        "name": "tolerance",
+        "default": "0.125"
+      },
+      {
+        "name": "level",
+        "default": "1"
+      }
+    ],
+    "short": "{fn} returns an empty image",
+    "when": [],
+    "notes": {},
+    "related": ["ion-image-blurry", "empty-result", "empty-get_scans"]
+  },
+  {
+    "id": "empty-annotation",
+    "question": "annotate_features does not name my features",
+    "answer": "It needs a positive MS2 scan near each feature apex, within `rt_range` (default 0.3 min), with a precursor that matches the feature m/z. Without MS2 scans there is nothing to match. `annotate_features` is experimental.",
+    "intro": "It needs a positive MS2 scan near each feature apex, within `rt_range` (default 0.3 min), with a precursor that matches the feature m/z.",
+    "ideas": [
+      "Without MS2 scans there is nothing to match. `annotate_features` is experimental."
+    ],
+    "functions": ["annotate_features"],
+    "uses": ["annotate_features"],
+    "owners": ["AnnotateFeaturesOptions"],
+    "options": [
+      {
+        "name": "rt_range",
+        "default": "0.3"
+      },
+      {
+        "name": "ppm_tolerance",
+        "default": "20"
+      },
+      {
+        "name": "mz_tolerance",
+        "default": "0.005"
+      }
+    ],
+    "short": "{fn} does not name the features",
+    "when": [],
+    "notes": {},
+    "related": [
+      "annotation-few-candidates",
+      "annotation-wrong-names",
+      "own-library"
+    ]
+  },
+  {
+    "id": "own-library",
+    "question": "can I use my own spectral library in annotate_features",
+    "answer": "Only Ionic (.ion) libraries work. Set `library` to the path or URL of your .ion file.",
+    "intro": "Only Ionic (.ion) libraries work.",
+    "ideas": ["Set `library` to the path or URL of your .ion file."],
+    "functions": ["annotate_features"],
+    "uses": ["annotate_features"],
+    "owners": ["AnnotateFeaturesOptions"],
+    "options": [
+      {
+        "name": "library",
+        "default": "\"https://github.com/josoriom/cipher/releases/latest/download/library_positive.ion\""
+      }
+    ],
+    "short": "use my own spectral library",
+    "when": [],
+    "notes": {},
+    "related": [
+      "empty-annotation",
+      "annotation-few-candidates",
+      "annotation-wrong-names"
+    ]
+  },
+  {
+    "id": "isotope-charge-3",
+    "question": "deisotope_features does not remove some isotopes",
+    "answer": "`deisotope_features` checks charge 1 and 2 only. The isotope must also have the same rt as M within `rt_tolerance` (default 0.02 min) and an m/z within `mz_tolerance` (default 0.005 Da).",
+    "intro": "`deisotope_features` checks charge 1 and 2 only.",
+    "ideas": [
+      "The isotope must also have the same rt as M within `rt_tolerance` (default 0.02 min) and an m/z within `mz_tolerance` (default 0.005 Da)."
+    ],
+    "functions": ["deisotope_features"],
+    "uses": ["deisotope_features"],
+    "owners": ["DeisotopeFeaturesOptions"],
+    "options": [
+      {
+        "name": "rt_tolerance",
+        "default": "0.02"
+      },
+      {
+        "name": "mz_tolerance",
+        "default": "0.005"
+      }
+    ],
+    "short": "{fn} keeps some isotopes",
+    "when": [],
+    "notes": {},
+    "related": ["isotope-features", "too-many-results", "missing-mz-range"]
+  },
+  {
+    "id": "mzml-url",
+    "question": "parse_mzml does not open my URL",
+    "answer": "`parse_mzml` reads only a path or bytes, URLs are not allowed. Download the file first, or convert it to .ion with `write_ion` and open it with `parse_ion`.",
+    "intro": "`parse_mzml` reads only a path or bytes, URLs are not allowed.",
+    "ideas": [
+      "Download the file first, or convert it to .ion with `write_ion` and open it with `parse_ion`."
+    ],
+    "functions": ["parse_mzml"],
+    "uses": ["parse_ion", "parse_mzml", "write_ion"],
+    "owners": [],
+    "options": [],
+    "short": "{fn} does not open the URL",
+    "when": [],
+    "notes": {},
+    "related": ["file-not-opening", "file-exists", "remote-queries-slow"]
+  },
+  {
+    "id": "out-of-memory",
+    "question": "my script runs out of memory with many files",
+    "answer": "Call `dispose` on each sample when you are done with it. `parse_mzml` loads the whole file, .ion files read only what they need. Set `max_cache_size` in `parse_ion` to limit the memory of large files.",
+    "intro": "Call `dispose` on each sample when you are done with it. `parse_mzml` loads the whole file, .ion files read only what they need.",
+    "ideas": [
+      "Set `max_cache_size` in `parse_ion` to limit the memory of large files."
+    ],
+    "functions": ["dispose"],
+    "uses": ["dispose", "parse_ion"],
+    "owners": ["ParseIonOptions"],
+    "options": [
+      {
+        "name": "max_cache_size",
+        "default": "0"
+      }
+    ],
+    "short": "the script runs out of memory",
+    "when": [],
+    "notes": {},
+    "related": ["remote-queries-slow", "file-not-opening", "mzml-url"]
+  },
+  {
+    "id": "file-exists",
+    "question": "write_ion fails because the file already exists",
+    "answer": "Set `overwrite` to true to replace the file.",
+    "intro": "Set `overwrite` to true to replace the file.",
+    "ideas": [],
+    "functions": ["write_ion"],
+    "uses": ["write_ion", "write_mzml"],
+    "owners": ["WriteIonOptions", "WriteMzmlOptions"],
+    "options": [
+      {
+        "name": "overwrite",
+        "default": "False"
+      },
+      {
+        "name": "overwrite",
+        "default": "False"
+      }
+    ],
+    "short": "{fn} fails because the file exists",
+    "when": [],
+    "notes": {},
+    "related": ["write-ion-slow", "ion-file-too-big", "mzml-url"]
+  },
+  {
+    "id": "unknown-option",
+    "question": "I get unknown_option",
+    "answer": "An option name does not exist, often a typo. Paste your code after /check to check the names.",
+    "intro": "An option name does not exist, often a typo.",
+    "ideas": ["Paste your code after /check to check the names."],
+    "functions": ["errors"],
+    "uses": [],
+    "owners": ["ErrorKind"],
+    "options": [
+      {
+        "name": "unknown_option",
+        "default": null
+      }
+    ],
+    "short": "I get unknown_option",
+    "when": [],
+    "notes": {},
+    "related": ["empty-result", "internal-error", "empty-annotation"]
+  },
+  {
+    "id": "model-mismatch",
+    "question": "predict_rts fails with model_mismatch",
+    "answer": "The model has no warp, or a target is not in it. Check that the model from `load_model` holds a warp and that the target ids are in it.",
+    "intro": "The model has no warp, or a target is not in it.",
+    "ideas": [
+      "Check that the model from `load_model` holds a warp and that the target ids are in it."
+    ],
+    "functions": ["predict_rts"],
+    "uses": ["predict_rts"],
+    "owners": ["ErrorKind"],
+    "options": [
+      {
+        "name": "model_mismatch",
+        "default": null
+      }
+    ],
+    "short": "{fn} fails with model_mismatch",
+    "when": [],
+    "notes": {},
+    "related": ["annotation-wrong-names", "rt-shift", "file-exists"]
+  },
+  {
+    "id": "internal-error",
+    "question": "I get an internal error",
+    "answer": "That is a bug in Quant·ion. Please report it as an issue with the function, the options and the file if you can share it.",
+    "intro": "That is a bug in Quant·ion.",
+    "ideas": [
+      "Please report it as an issue with the function, the options and the file if you can share it."
+    ],
+    "functions": ["report"],
+    "uses": [],
+    "owners": ["ErrorKind"],
+    "options": [
+      {
+        "name": "internal",
+        "default": null
+      }
+    ],
+    "short": "I get an internal error",
+    "when": [],
+    "notes": {},
+    "related": ["unknown-option", "file-exists", "model-mismatch"]
+  },
+  {
+    "id": "eic-interference",
+    "question": "the chromatogram picks up a neighbour compound and the peaks look mixed",
+    "answer": "The m/z window of the EIC is too wide, so ions with a close m/z are summed in. Lower `ppm_tolerance` (default 20) or `mz_tolerance` (default 0.005 Da). The wider of the two windows is used, so lower both. In `find_targets`, `find_features` and `match_features`, set these inside the eic option.",
+    "intro": "The m/z window of the EIC is too wide, so ions with a close m/z are summed in.",
+    "ideas": [
+      "Lower `ppm_tolerance` (default 20) or `mz_tolerance` (default 0.005 Da). The wider of the two windows is used, so lower both.",
+      "In `find_targets`, `find_features` and `match_features`, set these inside the eic option."
+    ],
+    "functions": [
+      "calculate_eic",
+      "find_targets",
+      "find_features",
+      "match_features"
+    ],
+    "uses": [
+      "calculate_eic",
+      "find_features",
+      "find_targets",
+      "match_features"
+    ],
+    "owners": ["CalculateEicOptions"],
+    "options": [
+      {
+        "name": "ppm_tolerance",
+        "default": "20"
+      },
+      {
+        "name": "mz_tolerance",
+        "default": "0.005"
+      }
+    ],
+    "short": "the chromatogram picks up a neighbour compound",
+    "when": [],
+    "notes": {},
+    "related": ["eic-weak", "merged-features", "split-features"]
+  },
+  {
+    "id": "eic-weak",
+    "question": "the chromatogram is weaker than expected and part of the signal is missing",
+    "answer": "The m/z window of the EIC may be too narrow for your instrument, so part of the signal falls outside it. Raise `ppm_tolerance` (default 20) or `mz_tolerance` (default 0.005 Da) a little. The wider of the two windows is used. Also check that `mz` is the ion m/z and not the neutral mass. In `find_targets`, `find_features` and `match_features`, set these inside the eic option.",
+    "intro": "The m/z window of the EIC may be too narrow for your instrument, so part of the signal falls outside it.",
+    "ideas": [
+      "Raise `ppm_tolerance` (default 20) or `mz_tolerance` (default 0.005 Da) a little. The wider of the two windows is used.",
+      "Also check that `mz` is the ion m/z and not the neutral mass.",
+      "In `find_targets`, `find_features` and `match_features`, set these inside the eic option."
+    ],
+    "functions": [
+      "calculate_eic",
+      "find_targets",
+      "find_features",
+      "match_features"
+    ],
+    "uses": [
+      "calculate_eic",
+      "find_features",
+      "find_targets",
+      "match_features"
+    ],
+    "owners": ["CalculateEicOptions", "Target"],
+    "options": [
+      {
+        "name": "ppm_tolerance",
+        "default": "20"
+      },
+      {
+        "name": "mz_tolerance",
+        "default": "0.005"
+      },
+      {
+        "name": "mz",
+        "default": null
+      }
+    ],
+    "short": "the chromatogram is weaker than expected",
+    "when": [],
+    "notes": {},
+    "related": ["too-few-results", "short-window", "eic-interference"]
+  },
+  {
+    "id": "peak-cut-at-edge",
+    "question": "the peak is cut at the start or the end of the chromatogram",
+    "answer": "`from` and `to` set the retention time window that is read. If a peak is near `from` or `to`, part of it falls outside and the peak is cut. Make the window wider so the whole peak fits, and check that `time_unit` matches your values. In `find_targets`, `find_features` and `match_features`, set these inside the eic option.",
+    "intro": "`from` and `to` set the retention time window that is read.",
+    "ideas": [
+      "If a peak is near `from` or `to`, part of it falls outside and the peak is cut.",
+      "Make the window wider so the whole peak fits, and check that `time_unit` matches your values.",
+      "In `find_targets`, `find_features` and `match_features`, set these inside the eic option."
+    ],
+    "functions": [
+      "calculate_eic",
+      "find_targets",
+      "find_features",
+      "match_features"
+    ],
+    "uses": [
+      "calculate_eic",
+      "find_features",
+      "find_targets",
+      "match_features"
+    ],
+    "owners": ["CalculateEicOptions"],
+    "options": [
+      {
+        "name": "from",
+        "default": "0"
+      },
+      {
+        "name": "to",
+        "default": "inf"
+      },
+      {
+        "name": "time_unit",
+        "default": "MINUTES"
+      }
+    ],
+    "short": "the peak is cut at the start or end",
+    "when": [
+      {
+        "terms": [
+          {
+            "name": "from",
+            "op": "set",
+            "value": null
+          },
+          {
+            "name": "to",
+            "op": "set",
+            "value": null
+          },
+          {
+            "name": "time_unit",
+            "op": "!=",
+            "value": "SECONDS"
+          }
+        ],
+        "text": "Your code reads retention times from {from} to {to} in minutes, because `time_unit` is MINUTES. If your retention times are in seconds, the window covers only a few seconds and real peaks are left out, so set `time_unit` to SECONDS."
+      },
+      {
+        "terms": [
+          {
+            "name": "from",
+            "op": "set",
+            "value": null
+          },
+          {
+            "name": "to",
+            "op": "set",
+            "value": null
+          },
+          {
+            "name": "time_unit",
+            "op": "=",
+            "value": "SECONDS"
+          }
+        ],
+        "text": "Your code reads retention times from {from} to {to} in seconds, because `time_unit` is SECONDS. If your retention times are in minutes, the window does not match the run, so check `time_unit`."
+      }
+    ],
+    "notes": {},
+    "related": ["short-window", "wrong-peak", "eic-weak"]
+  },
+  {
+    "id": "grid-slow",
+    "question": "find_features or match_features is slow or uses a lot of memory",
+    "answer": "Both functions build one chromatogram for every m/z of the grid, from `start` (default 40) to `end` (default 1000) in steps of `step_size` (default 0.005 Da). A larger `step_size` or a narrower `start` to `end` range means fewer chromatograms, so they run faster and use less memory. Set `threads` to use more CPU cores.",
+    "intro": "Both functions build one chromatogram for every m/z of the grid, from `start` (default 40) to `end` (default 1000) in steps of `step_size` (default 0.005 Da).",
+    "ideas": [
+      "A larger `step_size` or a narrower `start` to `end` range means fewer chromatograms, so they run faster and use less memory.",
+      "Set `threads` to use more CPU cores."
+    ],
+    "functions": ["find_features", "match_features"],
+    "uses": ["find_features", "match_features"],
+    "owners": ["FindFeaturesOptions", "GridOptions", "MatchFeaturesOptions"],
+    "options": [
+      {
+        "name": "step_size",
+        "default": "0.005"
+      },
+      {
+        "name": "start",
+        "default": "40"
+      },
+      {
+        "name": "end",
+        "default": "1000"
+      },
+      {
+        "name": "threads",
+        "default": "1"
+      },
+      {
+        "name": "threads",
+        "default": "1"
+      }
+    ],
+    "short": "{fn} is slow or uses a lot of memory",
+    "when": [],
+    "notes": {},
+    "related": ["slow-batch", "too-few-results", "too-many-results"]
+  },
+  {
+    "id": "fit-tailing",
+    "question": "fit_peak does not follow my tailing peaks",
+    "answer": "`fit_peak` can fit an EMG curve, which has a right tail, or a GAUSSIAN curve, which is symmetric. Tailing peaks need EMG, which is the default. If you set `shape` to GAUSSIAN, change it back to EMG.",
+    "intro": "`fit_peak` can fit an EMG curve, which has a right tail, or a GAUSSIAN curve, which is symmetric.",
+    "ideas": [
+      "Tailing peaks need EMG, which is the default.",
+      "If you set `shape` to GAUSSIAN, change it back to EMG."
+    ],
+    "functions": ["fit_peak"],
+    "uses": ["fit_peak"],
+    "owners": ["FitPeakOptions"],
+    "options": [
+      {
+        "name": "shape",
+        "default": "EMG"
+      }
+    ],
+    "short": "{fn} does not follow tailing peaks",
+    "when": [],
+    "notes": {},
+    "related": ["fit-peak-fails", "bad-shape", "peak-cut-at-edge"]
+  },
+  {
+    "id": "ion-image-blurry",
+    "question": "the ion image is blurry or mixed with other ions",
+    "answer": "`get_ion_image` sums every intensity within `mz` plus or minus `tolerance` (default 0.125 Da). Lower `tolerance` to keep only your ion. If the image becomes too faint, raise it a little. There is no ppm option here. Also check that `mz` is the ion m/z and not the neutral mass.",
+    "intro": "`get_ion_image` sums every intensity within `mz` plus or minus `tolerance` (default 0.125 Da).",
+    "ideas": [
+      "Lower `tolerance` to keep only your ion.",
+      "If the image becomes too faint, raise it a little. There is no ppm option here.",
+      "Also check that `mz` is the ion m/z and not the neutral mass."
+    ],
+    "functions": ["get_ion_image"],
+    "uses": ["get_ion_image"],
+    "owners": ["GetIonImageOptions", "get_ion_image"],
+    "options": [
+      {
+        "name": "tolerance",
+        "default": "0.125"
+      },
+      {
+        "name": "mz",
+        "default": "—"
+      }
+    ],
+    "short": "the ion image is blurry",
+    "when": [],
+    "notes": {},
+    "related": ["empty-ion-image", "eic-interference", "bad-shape"]
+  },
+  {
+    "id": "annotation-wrong-names",
+    "question": "annotate_features gives wrong or noisy names",
+    "answer": "Small MS2 peaks can add noise to the match. Raise `min_relative_intensity` (default 0.02) to remove more of them. If the precursor tolerance is too wide, other spectra can match, so lower `ppm_tolerance` (default 20) or `mz_tolerance` (default 0.005 Da). The larger of the two is used. `annotate_features` is experimental.",
+    "intro": "Small MS2 peaks can add noise to the match.",
+    "ideas": [
+      "Raise `min_relative_intensity` (default 0.02) to remove more of them.",
+      "If the precursor tolerance is too wide, other spectra can match, so lower `ppm_tolerance` (default 20) or `mz_tolerance` (default 0.005 Da). The larger of the two is used. `annotate_features` is experimental."
+    ],
+    "functions": ["annotate_features"],
+    "uses": ["annotate_features"],
+    "owners": ["AnnotateFeaturesOptions"],
+    "options": [
+      {
+        "name": "min_relative_intensity",
+        "default": "0.02"
+      },
+      {
+        "name": "ppm_tolerance",
+        "default": "20"
+      },
+      {
+        "name": "mz_tolerance",
+        "default": "0.005"
+      }
+    ],
+    "short": "{fn} gives wrong or noisy names",
+    "when": [],
+    "notes": {},
+    "related": ["annotation-few-candidates", "empty-annotation", "own-library"]
+  },
+  {
+    "id": "annotation-few-candidates",
+    "question": "annotate_features shows too few candidate names",
+    "answer": "`annotate_features` keeps the best `matches` per file, 3 by default. Raise `matches` to see more candidates.",
+    "intro": "`annotate_features` keeps the best `matches` per file, 3 by default.",
+    "ideas": ["Raise `matches` to see more candidates."],
+    "functions": ["annotate_features"],
+    "uses": ["annotate_features"],
+    "owners": ["AnnotateFeaturesOptions"],
+    "options": [
+      {
+        "name": "matches",
+        "default": "3"
+      }
+    ],
+    "short": "{fn} shows too few candidates",
+    "when": [],
+    "notes": {},
+    "related": ["empty-annotation", "annotation-wrong-names", "own-library"]
+  },
+  {
+    "id": "ion-file-too-big",
+    "question": "my .ion files are too big",
+    "answer": "Raise `level` (default 12, from 0 to 22) for a smaller file. It takes longer to write. Set `f32_compress` to true to store intensities as 32-bit floats, for a smaller file with slightly less precision.",
+    "intro": "Raise `level` (default 12, from 0 to 22) for a smaller file. It takes longer to write.",
+    "ideas": [
+      "Set `f32_compress` to true to store intensities as 32-bit floats, for a smaller file with slightly less precision."
+    ],
+    "functions": ["write_ion"],
+    "uses": ["write_ion"],
+    "owners": ["WriteIonOptions"],
+    "options": [
+      {
+        "name": "level",
+        "default": "12"
+      },
+      {
+        "name": "f32_compress",
+        "default": "False"
+      }
+    ],
+    "short": "the .ion files are too big",
+    "when": [],
+    "notes": {},
+    "related": ["write-ion-slow", "remote-queries-slow", "file-exists"]
+  },
+  {
+    "id": "write-ion-slow",
+    "question": "write_ion takes a long time",
+    "answer": "A high compression `level` takes longer to write. Lower `level` (default 12, from 0 to 22) to write faster. The file will be a bit bigger.",
+    "intro": "A high compression `level` takes longer to write.",
+    "ideas": [
+      "Lower `level` (default 12, from 0 to 22) to write faster. The file will be a bit bigger."
+    ],
+    "functions": ["write_ion"],
+    "uses": ["write_ion"],
+    "owners": ["WriteIonOptions"],
+    "options": [
+      {
+        "name": "level",
+        "default": "12"
+      }
+    ],
+    "short": "{fn} takes a long time",
+    "when": [],
+    "notes": {},
+    "related": ["ion-file-too-big", "remote-queries-slow", "file-exists"]
+  },
+  {
+    "id": "remote-queries-slow",
+    "question": "reading a remote .ion file is slow",
+    "answer": "A query reads only the parts of the file it needs. When you write the file, a smaller `mz_window` (default 20 Da) and a smaller `block_size` (default 8 MB) let each query read less. With `mz_window` 0 each spectrum is kept whole, so queries read more.",
+    "intro": "A query reads only the parts of the file it needs.",
+    "ideas": [
+      "When you write the file, a smaller `mz_window` (default 20 Da) and a smaller `block_size` (default 8 MB) let each query read less. With `mz_window` 0 each spectrum is kept whole, so queries read more."
+    ],
+    "functions": ["write_ion", "parse_ion"],
+    "uses": ["parse_ion", "write_ion"],
+    "owners": ["WriteIonOptions"],
+    "options": [
+      {
+        "name": "mz_window",
+        "default": "20"
+      },
+      {
+        "name": "block_size",
+        "default": "8"
+      }
+    ],
+    "short": "reading a remote .ion file is slow",
+    "when": [],
+    "notes": {},
+    "related": ["write-ion-slow", "ion-file-too-big", "out-of-memory"]
+  },
+  {
+    "id": "noise-level-wrong",
+    "question": "find_noise_level gives a noise level that is too low or too high",
+    "answer": "The noise level depends on the part of the chromatogram you give to `find_noise_level`. A noise level that is too low means that part is probably not representative of the run, for example the peak is not there or the zone is mostly empty. A noise level that is too high means that zone or the whole chromatogram has problem zones, like a washing cycle or solvent spikes, that make the noise hard to estimate. Plot the chromatogram from `calculate_eic` and check which zones are empty or complex. Then calculate the EIC again with `from` and `to` set to leave those zones out. To get the noise level, use an EIC from a zone that looks right.",
+    "intro": "The noise level depends on the part of the chromatogram you give to `find_noise_level`.",
+    "ideas": [
+      "A noise level that is too low means that part is probably not representative of the run, for example the peak is not there or the zone is mostly empty.",
+      "A noise level that is too high means that zone or the whole chromatogram has problem zones, like a washing cycle or solvent spikes, that make the noise hard to estimate.",
+      "Plot the chromatogram from `calculate_eic` and check which zones are empty or complex. Then calculate the EIC again with `from` and `to` set to leave those zones out.",
+      "To get the noise level, use an EIC from a zone that looks right."
+    ],
+    "functions": ["find_noise_level", "calculate_eic"],
+    "uses": [
+      "calculate_eic",
+      "find_features",
+      "find_noise_level",
+      "find_targets",
+      "match_features"
+    ],
+    "owners": ["CalculateEicOptions", "NoiseLevel"],
+    "options": [
+      {
+        "name": "from",
+        "default": "0"
+      },
+      {
+        "name": "to",
+        "default": "inf"
+      },
+      {
+        "name": "intensity",
+        "default": null
+      }
+    ],
+    "short": "{fn} gives a noise level that is too low or too high",
+    "when": [],
+    "notes": {},
+    "related": ["eic-weak", "short-window", "too-few-results"]
+  }
+]

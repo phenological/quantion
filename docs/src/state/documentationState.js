@@ -1,21 +1,21 @@
-import { produce } from "immer";
+import { produce } from 'immer';
 
 export const initialState = {
   versions: [],
   version: null,
   document: null,
-  language: "python",
-  entryName: "overview",
-  status: "loading",
+  language: 'python',
+  entryName: 'overview',
+  status: 'loading',
 };
 
 export const actions = {
-  versionsLoaded: "versionsLoaded",
-  versionChosen: "versionChosen",
-  documentLoaded: "documentLoaded",
-  documentFailed: "documentFailed",
-  languageChosen: "languageChosen",
-  entryChosen: "entryChosen",
+  versionsLoaded: 'versionsLoaded',
+  versionChosen: 'versionChosen',
+  documentLoaded: 'documentLoaded',
+  documentFailed: 'documentFailed',
+  languageChosen: 'languageChosen',
+  entryChosen: 'entryChosen',
 };
 
 export const documentationReducer = produce((state, action) => {
@@ -26,16 +26,18 @@ export const documentationReducer = produce((state, action) => {
       break;
     case actions.versionChosen:
       state.version = action.version;
-      state.status = "loading";
+      state.status = 'loading';
       break;
     case actions.documentLoaded:
       state.document = action.document;
-      state.status = "ready";
-      if (!isKnownPage(action.document, state.entryName)) state.entryName = "overview";
-      if (!findLanguage(action.document, state.language)) state.language = initialState.language;
+      state.status = 'ready';
+      if (!isKnownPage(action.document, state.entryName))
+        state.entryName = 'overview';
+      if (!findLanguage(action.document, state.language))
+        state.language = initialState.language;
       break;
     case actions.documentFailed:
-      state.status = "failed";
+      state.status = 'failed';
       break;
     case actions.languageChosen:
       state.language = action.language;
@@ -47,30 +49,30 @@ export const documentationReducer = produce((state, action) => {
 });
 
 function findByKey(items, key, value) {
-  for (const item of items) {
+  for (const item of items ?? []) {
     if (item[key] === value) return item;
   }
   return null;
 }
 
 export function findApiFile(versions, version) {
-  const item = findByKey(versions, "version", version);
+  const item = findByKey(versions, 'version', version);
   if (!item) return null;
   return item.api;
 }
 
 export function findEntry(document, entryName) {
   if (!document) return null;
-  return findByKey(document.entries, "name", entryName);
+  return findByKey(document.entries, 'name', entryName);
 }
 
 export function findLanguage(document, languageKey) {
-  return findByKey(document.languages, "key", languageKey);
+  return findByKey(document.languages, 'key', languageKey);
 }
 
 export function findGroup(document, groupName) {
   if (!document) return null;
-  return findByKey(document.groups, "name", groupName);
+  return findByKey(document.groups, 'name', groupName);
 }
 
 export function getGroupEntries(document, groupName) {
@@ -81,7 +83,7 @@ export function getGroupEntries(document, groupName) {
   return entries;
 }
 
-export const pages = { overview: "overview", versions: "versions" };
+export const pages = { overview: 'overview', versions: 'versions' };
 
 function isKnownPage(document, name) {
   if (Object.values(pages).includes(name)) return true;

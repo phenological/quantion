@@ -1,6 +1,6 @@
 const addresses = {
-  Ionic: "https://github.com/phenological/ionic",
-  "josoriom/cipher": "https://github.com/josoriom/cipher",
+  Ionic: 'https://github.com/phenological/ionic',
+  'josoriom/cipher': 'https://github.com/josoriom/cipher',
 };
 
 export function IonicText({ text }) {
@@ -11,7 +11,13 @@ export function IonicText({ text }) {
     const isLink = index % 2 === 1;
     if (isLink) {
       output.push(
-        <a key={index} className="prose-link" href={addresses[part]} target="_blank" rel="noreferrer">
+        <a
+          key={index}
+          className="prose-link"
+          href={addresses[part]}
+          target="_blank"
+          rel="noreferrer"
+        >
           {part}
         </a>,
       );

@@ -1,10 +1,5 @@
 {
-  "menu": [
-    "targeted",
-    "untargeted",
-    "open-file",
-    "names"
-  ],
+  "menu": ["targeted", "untargeted", "open-file", "names"],
   "starters": [
     {
       "label": "Which tool do I need?"
@@ -65,9 +60,7 @@
         "What is the ion file format?"
       ],
       "answer": "Ionic (.ion) is a binary file format for mzML data. It can be read partially, even from a remote file or inside a web browser. It is fast to process and uses less memory.",
-      "functions": [
-        "parse_ion"
-      ],
+      "functions": ["parse_ion"],
       "links": [
         {
           "label": "doi:10.64898/2026.09.15.751169",
@@ -132,11 +125,7 @@
         "I don't know what is in my sample"
       ],
       "answer": "Do you have an id, mz and rt for each compound? Then check the `targeted` tools. Are you exploring a sample without a list? Then check the `untargeted` tools. If you found features and want to know what they are, use `annotate_features`, then the `targeted` tools to quantify them.",
-      "functions": [
-        "find_targets",
-        "find_features",
-        "annotate_features"
-      ],
+      "functions": ["find_targets", "find_features", "annotate_features"],
       "link": "overview",
       "followUps": [
         {
@@ -229,11 +218,7 @@
         "Which function detects peaks?"
       ],
       "answer": "Peak detection runs on a trace: build one with `calculate_eic` for an m/z. `find_peaks` finds every peak in that trace, and `get_peak` finds one known peak at its rt. To detect peaks in a whole file without a list, use `find_features` (`untargeted`).",
-      "functions": [
-        "find_peaks",
-        "get_peak",
-        "find_features"
-      ],
+      "functions": ["find_peaks", "get_peak", "find_features"],
       "link": "find_peaks",
       "followUps": [
         {
@@ -258,10 +243,7 @@
         "I know the m/z and retention time, how do I measure it?"
       ],
       "answer": "An `mz` and an `rt` define one compound, so check the `targeted` tools. One compound in a trace you already have: `get_peak` at its `rt`. Many compounds in one file: `find_targets`, with one `{ id, mz, rt }` per compound.",
-      "functions": [
-        "find_targets",
-        "get_peak"
-      ],
+      "functions": ["find_targets", "get_peak"],
       "link": "Targeted",
       "followUps": [
         {
@@ -283,9 +265,7 @@
         "Explain mz and rt"
       ],
       "answer": "`mz` is the m/z of the ion you look for. It usually comes from the monoisotopic mass, and it differs between positive and negative ion mode. `rt` is when the compound comes off the column, in minutes. An `mz` plus an `rt` is what lets Quant·ion find and measure one compound.",
-      "functions": [
-        "find_targets"
-      ],
+      "functions": ["find_targets"],
       "link": "Target",
       "followUps": [
         {
@@ -308,10 +288,7 @@
         "How do I get started with a file?"
       ],
       "answer": "Ionic files (.ion): `parse_ion`, from a path, a URL or bytes. mzML files: `parse_mzml`, from a path or bytes; URLs are not allowed for mzML.",
-      "functions": [
-        "parse_ion",
-        "parse_mzml"
-      ],
+      "functions": ["parse_ion", "parse_mzml"],
       "link": "Files",
       "followUps": [
         {
@@ -334,10 +311,7 @@
         "How do I get the x and y for find_peaks?"
       ],
       "answer": "`calculate_eic` builds the chromatogram of one `mz` from an open file. Give `from` and `to` to read only that rt range. Peak detection and quantification then run on that trace: its `x` are the retention times and its `y` the intensities.",
-      "functions": [
-        "calculate_eic",
-        "find_peaks"
-      ],
+      "functions": ["calculate_eic", "find_peaks"],
       "link": "calculate_eic",
       "followUps": [
         {
@@ -417,10 +391,7 @@
         "How do I put names on the peaks I found?"
       ],
       "answer": "Use `annotate_features`: it matches the MS2 spectrum of each feature against a spectral library and gives it a name and a score. Once you know the names, make them targets and quantify them with `find_targets`.",
-      "functions": [
-        "annotate_features",
-        "find_targets"
-      ],
+      "functions": ["annotate_features", "find_targets"],
       "link": "annotate_features",
       "followUps": [
         {
@@ -442,10 +413,7 @@
         "How do I identify my analytes?"
       ],
       "answer": "Use `annotate_features`. It matches the MS2 spectrum of each feature against a spectral library and gives it a name and a score. By default it uses the positive mode library below. Once you know the names, make them targets and quantify them with `find_targets`.",
-      "functions": [
-        "annotate_features",
-        "find_targets"
-      ],
+      "functions": ["annotate_features", "find_targets"],
       "links": [
         {
           "label": "Spectral library (.ion)",
@@ -473,10 +441,7 @@
         "How do I predict where my targets elute in a new sample?"
       ],
       "answer": "Quant·ion does not align retention times. To predict where each target elutes in a new sample, use `predict_rts` with a warp model. You train the model in Python, save it as ONNX, load it with `load_model`, and make the warp model with `load_warp`. `calibrate` builds the reference rt from anchor samples (LTRs, QCs). Both are experimental.",
-      "functions": [
-        "predict_rts",
-        "calibrate"
-      ],
+      "functions": ["predict_rts", "calibrate"],
       "link": "Models",
       "followUps": [
         {
@@ -511,7 +476,7 @@
         },
         {
           "label": "Show the commands",
-          "question": "/help"
+          "question": "/"
         }
       ]
     },

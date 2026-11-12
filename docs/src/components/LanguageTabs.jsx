@@ -1,5 +1,5 @@
-import { actions } from "../state/documentationState";
-import { useDocumentation } from "../state/DocumentationContext";
+import { actions } from '../state/documentationState';
+import { useDocumentation } from '../state/DocumentationContext';
 
 export function LanguageTabs() {
   const { state, dispatch } = useDocumentation();
@@ -11,7 +11,9 @@ export function LanguageTabs() {
           type="button"
           role="tab"
           aria-selected={state.language === language.key}
-          onClick={() => dispatch({ type: actions.languageChosen, language: language.key })}
+          onClick={() =>
+            dispatch({ type: actions.languageChosen, language: language.key })
+          }
         >
           {language.label}
         </button>

@@ -1,18 +1,23 @@
-import { createContext, useContext, useEffect, useReducer } from "react";
+import { createContext, useContext, useEffect, useReducer } from 'react';
 
-import { actions, documentationReducer, findApiFile, initialState } from "./documentationState";
+import {
+  actions,
+  documentationReducer,
+  findApiFile,
+  initialState,
+} from './documentationState';
 
 const DocumentationContext = createContext(null);
 
 async function readJson(path) {
-  const response = await fetch(path, { cache: "no-cache" });
+  const response = await fetch(path, { cache: 'no-cache' });
   if (!response.ok) throw new Error(`${path} answered ${response.status}`);
   return response.json();
 }
 
 function readSavedLanguage() {
   try {
-    return localStorage.getItem("quantion-language");
+    return localStorage.getItem('quantion-language');
   } catch {
     return null;
   }
@@ -20,34 +25,45 @@ function readSavedLanguage() {
 
 function saveLanguage(language) {
   try {
-    localStorage.setItem("quantion-language", language);
+    localStorage.setItem('quantion-language', language);
   } catch {
     return;
   }
 }
 
 function readEntryFromAddress() {
-  return decodeURIComponent(location.hash.slice(1)) || "overview";
+  return decodeURIComponent(location.hash.slice(1)) || 'overview';
 }
 
 function readLanguageFromAddress() {
-  return new URLSearchParams(location.search).get("language");
+  return new URLSearchParams(location.search).get('language');
 }
 
 function getStartState() {
   return {
     ...initialState,
-    language: readLanguageFromAddress() ?? readSavedLanguage() ?? initialState.language,
+    language:
+      readLanguageFromAddress() ?? readSavedLanguage() ?? initialState.language,
     entryName: readEntryFromAddress(),
   };
 }
 
 export function DocumentationProvider({ children }) {
-  const [state, dispatch] = useReducer(documentationReducer, undefined, getStartState);
+  const [state, dispatch] = useReducer(
+    documentationReducer,
+    undefined,
+    getStartState,
+  );
 
   useEffect(() => {
-    readJson("./api/versions.json")
-      .then((list) => dispatch({ type: actions.versionsLoaded, versions: list.versions, latest: list.latest }))
+    readJson('./api/versions.json')
+      .then((list) =>
+        dispatch({
+          type: actions.versionsLoaded,
+          versions: list.versions,
+          latest: list.latest,
+        }),
+      )
       .catch(() => dispatch({ type: actions.documentFailed }));
   }, []);
 
@@ -65,10 +81,18 @@ export function DocumentationProvider({ children }) {
   }, [state.language]);
 
   useEffect(() => {
-    history.replaceState(null, "", `?language=${state.language}#${encodeURIComponent(state.entryName)}`);
+    history.replaceState(
+      null,
+      '',
+      `?language=${state.language}#${encodeURIComponent(state.entryName)}`,
+    );
   }, [state.entryName, state.language]);
 
-  return <DocumentationContext.Provider value={{ state, dispatch }}>{children}</DocumentationContext.Provider>;
+  return (
+    <DocumentationContext.Provider value={{ state, dispatch }}>
+      {children}
+    </DocumentationContext.Provider>
+  );
 }
 
 export function useDocumentation() {

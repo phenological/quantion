@@ -1,9 +1,9 @@
-import { getDisplayName, getFirstSentence } from "../names";
-import { actions, getGroupEntries } from "../state/documentationState";
-import { useDocumentation } from "../state/DocumentationContext";
-import { ExperimentalBadge } from "./ExperimentalBadge";
-import { LinkedText } from "./LinkedText";
-import { IonicText } from "./IonicText";
+import { getDisplayName, getFirstSentence } from '../names';
+import { actions, getGroupEntries } from '../state/documentationState';
+import { useDocumentation } from '../state/DocumentationContext';
+import { ExperimentalBadge } from './ExperimentalBadge';
+import { LinkedText } from './LinkedText';
+import { IonicText } from './IonicText';
 
 export function GroupView({ group }) {
   const { state, dispatch } = useDocumentation();
@@ -29,7 +29,13 @@ export function GroupView({ group }) {
         <ul className="group-list">
           {entries.map((entry) => (
             <li key={entry.name}>
-              <button type="button" className="group-list-name" onClick={() => dispatch({ type: actions.entryChosen, entryName: entry.name })}>
+              <button
+                type="button"
+                className="group-list-name"
+                onClick={() =>
+                  dispatch({ type: actions.entryChosen, entryName: entry.name })
+                }
+              >
                 {getDisplayName(entry, state.language)}
               </button>
               <span className="group-list-summary">

@@ -1,8 +1,14 @@
-import { useState } from "react";
+import { useState } from 'react';
 
 function CopyIcon({ copied }) {
   return (
-    <svg className="copy-icon" viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
+    <svg
+      className="copy-icon"
+      viewBox="0 0 16 16"
+      width="14"
+      height="14"
+      aria-hidden="true"
+    >
       {copied ? (
         <path d="M3 8.5l3 3 7-7" />
       ) : (
@@ -26,7 +32,13 @@ export function CopyButton({ text, label }) {
   }
 
   return (
-    <button type="button" className="copy" onClick={copyText} aria-label={label} title={copied ? "Copied" : "Copy"}>
+    <button
+      type="button"
+      className="copy"
+      onClick={copyText}
+      aria-label={label}
+      title={copied ? 'Copied' : 'Copy'}
+    >
       <CopyIcon copied={copied} />
     </button>
   );

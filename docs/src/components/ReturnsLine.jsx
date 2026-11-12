@@ -1,5 +1,5 @@
-import { TypeText } from "./TypeText";
-import { IonicText } from "./IonicText";
+import { TypeText } from './TypeText';
+import { IonicText } from './IonicText';
 
 export function ReturnsLine({ returns, language }) {
   const type = returns?.languages[language];

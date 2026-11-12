@@ -1,15 +1,15 @@
-import { useMemo } from "react";
+import { useMemo } from 'react';
 
-import { getDisplayName } from "../names";
-import { actions, findEntry } from "../state/documentationState";
-import { useDocumentation } from "../state/DocumentationContext";
-import { IonicText } from "./IonicText";
+import { getDisplayName } from '../names';
+import { actions, findEntry } from '../state/documentationState';
+import { useDocumentation } from '../state/DocumentationContext';
+import { IonicText } from './IonicText';
 
 function getNamePattern(entries) {
   const names = [];
   for (const entry of entries) names.push(entry.name);
   names.sort((left, right) => right.length - left.length);
-  return new RegExp(`\\b(${names.join("|")})\\b`);
+  return new RegExp(`\\b(${names.join('|')})\\b`);
 }
 
 export function LinkedText({ text }) {
@@ -23,7 +23,12 @@ export function LinkedText({ text }) {
     if (!isName) return <IonicText key={index} text={part} />;
     const entry = findEntry(state.document, part);
     return (
-      <button key={index} type="button" className="text-link" onClick={() => dispatch({ type: actions.entryChosen, entryName: part })}>
+      <button
+        key={index}
+        type="button"
+        className="text-link"
+        onClick={() => dispatch({ type: actions.entryChosen, entryName: part })}
+      >
         {getDisplayName(entry, state.language)}
       </button>
     );

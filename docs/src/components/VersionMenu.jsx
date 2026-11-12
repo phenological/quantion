@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from 'react';
 
-import { actions } from "../state/documentationState";
-import { useDocumentation } from "../state/DocumentationContext";
+import { actions } from '../state/documentationState';
+import { useDocumentation } from '../state/DocumentationContext';
 
 export function VersionMenu() {
   const { state, dispatch } = useDocumentation();
@@ -14,13 +14,13 @@ export function VersionMenu() {
       if (!menu.current.contains(event.target)) setIsOpen(false);
     }
     function closeOnEscape(event) {
-      if (event.key === "Escape") setIsOpen(false);
+      if (event.key === 'Escape') setIsOpen(false);
     }
-    document.addEventListener("mousedown", closeOnOutsideClick);
-    document.addEventListener("keydown", closeOnEscape);
+    document.addEventListener('mousedown', closeOnOutsideClick);
+    document.addEventListener('keydown', closeOnEscape);
     return () => {
-      document.removeEventListener("mousedown", closeOnOutsideClick);
-      document.removeEventListener("keydown", closeOnEscape);
+      document.removeEventListener('mousedown', closeOnOutsideClick);
+      document.removeEventListener('keydown', closeOnEscape);
     };
   }, [isOpen]);
 
@@ -44,7 +44,11 @@ export function VersionMenu() {
       {isOpen && (
         <ul className="version-list" role="listbox" aria-label="Versions">
           {state.versions.map((item) => (
-            <li key={item.version} role="option" aria-selected={item.version === state.version}>
+            <li
+              key={item.version}
+              role="option"
+              aria-selected={item.version === state.version}
+            >
               <button type="button" onClick={() => chooseVersion(item.version)}>
                 v{item.version}
               </button>

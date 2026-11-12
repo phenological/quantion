@@ -1,5 +1,5 @@
-import { TypeText } from "./TypeText";
-import { LinkedText } from "./LinkedText";
+import { TypeText } from './TypeText';
+import { LinkedText } from './LinkedText';
 
 function getVisibleRows(rows, language) {
   const visibleRows = [];
@@ -42,7 +42,9 @@ export function DetailTable({ title, rows, language }) {
                   <td className="type">
                     <TypeText text={cell.type} />
                   </td>
-                  {hasDefault && <td className="default">{cell.default ?? "—"}</td>}
+                  {hasDefault && (
+                    <td className="default">{cell.default ?? '—'}</td>
+                  )}
                   <td>
                     <LinkedText text={row.meaning} />
                   </td>

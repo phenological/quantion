@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { createAsker, createClassifier, createEmbedder, writeAnswer } from "../src/ask/ask.js";
+import { createAsker, createClassifier, createEncoder, writeAnswer } from "../src/ask/ask.js";
 import { models } from "../src/ask/models.js";
 import { buildTemplateSnippet } from "../src/ask/snippet.js";
 
@@ -18,7 +18,7 @@ const syntaxCheckers = {
   js: (file) => ["node", ["--check", file]],
   r: (file) => ["Rscript", ["-e", `invisible(parse(file = "${file}"))`]],
 };
-const routes = ["usage", "definition", "placement", "review", "guide", "list", "unsupported", "command", "refused"];
+const routes = ["usage", "definition", "placement", "review", "guide", "faq", "list", "unsupported", "command", "refused"];
 const confidences = ["high", "medium", "low"];
 const splits = ["dev", "test", "all"];
 
@@ -82,10 +82,10 @@ function printTable(title, rows) {
 
 const api = findApi(readJson(path.join(publicFolder, "api", "versions.json")));
 const document = readJson(path.join(publicFolder, "api", `${api}.json`));
-const modelFolder = path.join(publicFolder, models.folder, models.embedder.name);
+const modelFolder = path.join(publicFolder, models.folder, models.encoder.name);
 const weights = readFileSync(path.join(modelFolder, models.answers.weights));
 const classify = createClassifier(readJson(path.join(modelFolder, models.answers.labels)), weights.buffer.slice(weights.byteOffset, weights.byteOffset + weights.byteLength));
-const ask = createAsker({ embed: await createEmbedder({ modelFolder: `${path.join(publicFolder, models.folder)}/` }), classify, document });
+const ask = createAsker({ encode: await createEncoder({ modelFolder: `${path.join(publicFolder, models.folder)}/` }), classify, document });
 
 const records = [];
 
@@ -179,15 +179,10 @@ for (const item of readSet("guide")) {
 function describeCommand(result) {
   const command = result.command;
   if (!command) return describeRoute(result);
-  if (command.command === "docs") return `docs:${command.target?.entryName ?? "none"}`;
-  if (command.command === "example") {
-    if (!command.entry) return "example:failure";
-    if (command.failure) return `example:${command.entry.name}:failure`;
-    return `example:${command.entry.name}:${Object.entries(withoutFunction(command.values)).map(([key, value]) => `${key}=${value}`).join(",")}`;
-  }
-  if (command.command === "fix") {
-    if (command.failure) return "fix:failure";
-    return `fix:${command.review.fixes.map((fix) => `${fix.from}=${fix.to}`).join(",")}`;
+  if (command.command === "check") {
+    if (command.open) return "check:open";
+    if (command.failure) return "check:failure";
+    return `check:${command.review.fixes.map((fix) => `${fix.from}=${fix.to}`).join(",")}`;
   }
   return command.command;
 }

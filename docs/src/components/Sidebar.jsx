@@ -1,8 +1,13 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState } from 'react';
 
-import { actions, findEntry, getGroupEntries, pages } from "../state/documentationState";
-import { useDocumentation } from "../state/DocumentationContext";
-import { ExperimentalIcon } from "./ExperimentalBadge";
+import {
+  actions,
+  findEntry,
+  getGroupEntries,
+  pages,
+} from '../state/documentationState';
+import { useDocumentation } from '../state/DocumentationContext';
+import { ExperimentalIcon } from './ExperimentalBadge';
 
 function PageButton({ name, label, experimental }) {
   const { state, dispatch } = useDocumentation();
@@ -40,10 +45,18 @@ function SidebarGroup({ group, isOpen, onToggle, onOpen }) {
   return (
     <div className="group">
       <div className="group-row">
-        <button type="button" className="group-name" aria-current={state.entryName === group.name} onClick={showGroup}>
+        <button
+          type="button"
+          className="group-name"
+          aria-current={state.entryName === group.name}
+          onClick={showGroup}
+        >
           {group.name}
           {group.experimental && (
-            <span className="experimental-mark" title="Experimental and not stable">
+            <span
+              className="experimental-mark"
+              title="Experimental and not stable"
+            >
               <ExperimentalIcon />
             </span>
           )}
@@ -61,7 +74,11 @@ function SidebarGroup({ group, isOpen, onToggle, onOpen }) {
       {isOpen && (
         <div className="group-items">
           {entries.map((entry) => (
-            <PageButton key={entry.name} name={entry.name} experimental={entry.experimental} />
+            <PageButton
+              key={entry.name}
+              name={entry.name}
+              experimental={entry.experimental}
+            />
           ))}
         </div>
       )}

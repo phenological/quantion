@@ -1,7 +1,29 @@
 {
   "words": {
-    "path": ["path", "paths", "local", "locally", "disk", "laptop", "computer", "folder", "directory", "filename"],
-    "url": ["url", "urls", "http", "https", "link", "online", "remote", "web", "server", "internet"],
+    "path": [
+      "path",
+      "paths",
+      "local",
+      "locally",
+      "disk",
+      "laptop",
+      "computer",
+      "folder",
+      "directory",
+      "filename"
+    ],
+    "url": [
+      "url",
+      "urls",
+      "http",
+      "https",
+      "link",
+      "online",
+      "remote",
+      "web",
+      "server",
+      "internet"
+    ],
     "bytes": ["bytes", "byte", "memory", "buffer", "raw", "blob", "uint8array"]
   },
   "functions": {
@@ -33,7 +55,9 @@
     },
     "parse_mzml": {
       "argument": "source",
-      "refused": { "url": "`parse_mzml` does not read URLs: it needs the whole file, so give it a path or bytes." },
+      "refused": {
+        "url": "`parse_mzml` does not read URLs: it needs the whole file, so give it a path or bytes."
+      },
       "forms": {
         "path": {
           "label": "From a local path",

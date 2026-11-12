@@ -12,7 +12,11 @@ export function GitHubIcon() {
 export function GitHubLinks() {
   return (
     <div className="github-links">
-      <a href="https://github.com/phenological/quantion" target="_blank" rel="noreferrer">
+      <a
+        href="https://github.com/phenological/quantion"
+        target="_blank"
+        rel="noreferrer"
+      >
         <GitHubIcon />
         phenological
       </a>
