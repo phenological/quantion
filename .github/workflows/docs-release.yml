@@ -1,0 +1,42 @@
+name: Documentation file
+
+on:
+  workflow_call:
+    inputs:
+      tag:
+        type: string
+        required: true
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing release tag, for example v0.2.2"
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  docs:
+    name: docs.txt
+    runs-on: ubuntu-latest
+
+    env:
+      TAG: ${{ inputs.tag }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Write docs.txt for this version
+        run: node docs/scripts/docs-txt.mjs "$RUNNER_TEMP/docs" --version "$TAG"
+
+      - name: Attach it to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "$TAG" "$RUNNER_TEMP/docs/docs.txt" --clobber

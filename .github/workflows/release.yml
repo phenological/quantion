@@ -149,6 +149,15 @@ jobs:
           fail_on_unmatched_files: true
           generate_release_notes: true
 
+  docs:
+    name: Documentation file
+    needs: publish
+    uses: ./.github/workflows/docs-release.yml
+    with:
+      tag: ${{ github.event.inputs.tag || github.ref_name }}
+    permissions:
+      contents: write
+
   cran:
     name: CRAN package
     needs: publish

@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { llmsAddress } from '../site';
+import { docsAddress } from '../site';
+import { useDocumentation } from '../state/DocumentationContext';
 import { CopyButton } from './CopyButton';
 
 function SparkIcon() {
@@ -20,12 +21,15 @@ function SparkIcon() {
 }
 
 function LlmAddress() {
+  const { state } = useDocumentation();
+  if (!state.version) return null;
+  const address = docsAddress(state.version);
   return (
     <div className="llm-link-address">
-      <a href={llmsAddress} target="_blank" rel="noreferrer">
-        {llmsAddress}
+      <a href={address} target="_blank" rel="noreferrer">
+        {address}
       </a>
-      <CopyButton text={llmsAddress} label="Copy the link" />
+      <CopyButton text={address} label="Copy the link" />
     </div>
   );
 }

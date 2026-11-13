@@ -1,2 +1,3 @@
 export const siteAddress = 'https://phenological.github.io/quantion';
-export const llmsAddress = `${siteAddress}/llms.txt`;
+
+export const docsAddress = (version) => `${siteAddress}/docs/v${version}.txt`;

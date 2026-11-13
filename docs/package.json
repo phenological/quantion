@@ -6,7 +6,7 @@
     "eslint": "eslint src --cache",
     "eslint-fix": "npm run eslint -- --fix",
     "dev": "vite",
-    "build": "vite build && node scripts/llms.mjs",
+    "build": "vite build && node scripts/docs-txt.mjs dist/docs --all",
     "prettier": "prettier --check src",
     "prettier-write": "prettier --write src",
     "preview": "vite preview",
