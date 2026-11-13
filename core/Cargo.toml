@@ -27,13 +27,13 @@ strip = "symbols"
 [dependencies]
 bytes = "1.12.1"
 ionic-rs = "0.2.2"
-memmap2 = "0.9.11"
+memmap2 = "0.9.12"
 serde = { version = "1.0.229", features = ["derive", "rc"] }
-runnet = "0.1.1"
+runnet = "0.1.2"
 
 [target.'cfg(not(all(target_arch = "wasm32", not(target_os = "wasi"))))'.dependencies]
 rayon = "1.12.0"
-ureq = { version = "3.4.2", optional = true }
+ureq = { version = "3.5.2", optional = true }
 
 [build-dependencies]
 cbindgen = "0.29.4"
