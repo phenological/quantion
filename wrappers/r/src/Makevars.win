@@ -3,7 +3,7 @@ RUST_DIR = $(CURDIR)/rust
 TARGET_DIR = $(RUST_DIR)/target
 LIBRARY_DIR = $(TARGET_DIR)/$(RUST_TARGET)/release
 
-PKG_LIBS = -L$(LIBRARY_DIR) -lquantion -lws2_32 -ladvapi32 -luserenv -lbcrypt -lntdll
+PKG_LIBS = -L$(LIBRARY_DIR) -lquantion -lws2_32 -ladvapi32 -luserenv -lbcrypt -lntdll -lsynchronization
 
 .PHONY: all rust_library clean_rust
 
