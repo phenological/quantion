@@ -71,7 +71,9 @@ PY
 
 cargo update --workspace --manifest-path core/Cargo.toml --quiet
 
-echo "version set in Cargo.toml, Cargo.lock, pyproject.toml, DESCRIPTION, package.json, config.json"
+(cd docs && npm run --silent add-version -- "$version" --message "$message")
+
+echo "version set in Cargo.toml, Cargo.lock, pyproject.toml, DESCRIPTION, package.json, config.json, docs versions.json"
 echo
 
 make --no-print-directory check-version
@@ -79,7 +81,7 @@ make --no-print-directory check-version
 echo
 git add core/Cargo.toml core/Cargo.lock wrappers/python/pyproject.toml \
         wrappers/python/quantion/__init__.py wrappers/r/DESCRIPTION \
-        wrappers/js/package.json config.json
+        wrappers/js/package.json config.json docs/public/api/versions.json
 git diff --cached --quiet || git commit -m "$message"
 git tag -a "v$version" -m "$message"
 git push origin HEAD
