@@ -34,6 +34,79 @@ function LlmAddress() {
   );
 }
 
+const RELEASES =
+  'https://github.com/phenological/quantion/releases/latest/download';
+const MCP_GUIDE = 'https://github.com/phenological/quantion/tree/main/mcp';
+
+const SYSTEMS = {
+  unix: {
+    label: 'macOS / Linux',
+    install: `curl -fsSL ${RELEASES}/install.sh | sh`,
+    separator: '--',
+    path: '~/.local/bin/quantion-mcp --allow /path/to/data',
+  },
+  windows: {
+    label: 'Windows',
+    install: `curl.exe -fsSL -o "$HOME\\quantion-mcp.exe" ${RELEASES}/quantion-mcp-windows-x86_64.exe`,
+    separator: "'--'",
+    path: '"$HOME\\quantion-mcp.exe" --allow C:\\path\\to\\data',
+  },
+};
+
+function CommandBox({ command }) {
+  return (
+    <div className="llm-link-address">
+      <code>{command}</code>
+      <CopyButton text={command} label="Copy the command" />
+    </div>
+  );
+}
+
+function McpSetup() {
+  const [system, setSystem] = useState('unix');
+  const commands = SYSTEMS[system];
+  return (
+    <>
+      <h4 className="ask-own-ai-title">
+        Claude Code, Codex, Claude Desktop, Cursor (MCP)
+      </h4>
+      <p>
+        quantion-mcp gives the assistant the Quant·ion functions as tools. It
+        runs locally and reads only the folders you allow.
+      </p>
+      <div className="ask-own-ai-systems" role="group" aria-label="System">
+        {Object.entries(SYSTEMS).map(([key, item]) => (
+          <button
+            key={key}
+            type="button"
+            aria-pressed={system === key}
+            onClick={() => setSystem(key)}
+          >
+            {item.label}
+          </button>
+        ))}
+      </div>
+      <p className="ask-own-ai-step">1. Install it:</p>
+      <CommandBox command={commands.install} />
+      <p className="ask-own-ai-step">2. Connect it to Claude Code:</p>
+      <CommandBox
+        command={`claude mcp add --scope user quantion ${commands.separator} ${commands.path}`}
+      />
+      <p className="ask-own-ai-step">Or to Codex:</p>
+      <CommandBox
+        command={`codex mcp add quantion ${commands.separator} ${commands.path}`}
+      />
+      <p className="ask-own-ai-step">
+        For Claude Desktop, Cursor and others, see the{' '}
+        <a href={MCP_GUIDE} target="_blank" rel="noreferrer">
+          MCP setup guide
+        </a>
+        .
+      </p>
+    </>
+  );
+}
+
 export function HelperNotice() {
   const [isOpen, setIsOpen] = useState(false);
 
@@ -59,11 +132,14 @@ export function HelperNotice() {
         <div className="ask-own-ai">
           <p>
             This helper does not remember what you asked before. For longer
-            work, use your favorite AI assistant (Claude, ChatGPT, Cursor).
-            Share this link with it and it can read the whole Quant·ion
-            documentation.
+            work, use your favorite AI assistant.
           </p>
+          <h4 className="ask-own-ai-title">
+            Web chat (claude.ai, ChatGPT, Gemini)
+          </h4>
+          <p>The full documentation as one text file:</p>
           <LlmAddress />
+          <McpSetup />
         </div>
       )}
     </div>

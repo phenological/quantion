@@ -1107,7 +1107,7 @@ impl Default for GetIonImageOptions {
 ///
 /// Build an imaging map of one m/z for mass spectrometry imaging, with the summed intensity at each x, y position.
 ///
-/// **Warning:** Only Ionic files (.ion). The sample must come from parse_ion; a sample from parse_mzml gives an invalid_argument error.
+/// **Warning:** This is an experimental feature. Only Ionic files (.ion). The sample must come from parse_ion; a sample from parse_mzml gives an invalid_argument error.
 ///
 /// - `file`: The sample to read. It must come from parse_ion.
 /// - `mz`: The m/z of the ion to map (Da), not the neutral mass of the compound. For example, for the protonated molecule [M+H]+ in positive mode, use M + 1.00728, and for the deprotonated molecule [M−H]− in negative mode, use M − 1.00728, where M is the monoisotopic mass.

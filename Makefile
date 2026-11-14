@@ -11,12 +11,15 @@ WINDOWS_ARM64_TARGET  := aarch64-pc-windows-gnullvm
 
 CRATE_VERSION := $(shell sed -n 's/^version = "\(.*\)"/\1/p' $(CRATE_MANIFEST) | head -1)
 OUT           ?= $(ARTIFACTS)/$(CRATE_VERSION)
+MCP_TARGET    ?=
+MCP_BUILD     := mcp/target/$(if $(MCP_TARGET),$(MCP_TARGET)/,)release
+MCP_EXE       := $(if $(filter Windows_NT,$(OS)),.exe,)
 
 .DEFAULT_GOAL := native
 
 .PHONY: release mac linux windows wasm \
         macos-arm64 macos-x86_64 linux-amd64 linux-arm64 windows-amd64 windows-arm64 \
-        check-version test header header-check native quick-check check-api check-api-update \
+        check-version test mcp test-mcp header header-check native quick-check check-api check-api-update \
         publish publish_py clean
 
 release: mac linux windows wasm
@@ -115,6 +118,16 @@ check-version:
 test:
 	cargo test --all-features --manifest-path $(CRATE_MANIFEST)
 
+mcp:
+	cargo build --locked --manifest-path mcp/Cargo.toml --release $(if $(MCP_TARGET),--target $(MCP_TARGET),)
+	mkdir -p $(OUT)/mcp
+	cp $(MCP_BUILD)/quantion-mcp$(MCP_EXE) $(OUT)/mcp/
+	$(OUT)/mcp/quantion-mcp$(MCP_EXE) --version
+	$(OUT)/mcp/quantion-mcp$(MCP_EXE) tools > /dev/null
+
+test-mcp:
+	cargo test --locked --manifest-path mcp/Cargo.toml
+
 header:
 	touch core/build.rs
 	cargo build --locked --manifest-path $(CRATE_MANIFEST)
@@ -143,6 +156,7 @@ publish_py:
 
 clean:
 	cargo clean --manifest-path $(CRATE_MANIFEST)
+	rm -rf mcp/target
 	rm -rf core/target core/target-linux-amd64 core/target-linux-arm64 \
 	       core/target-windows-amd64 core/target-windows-arm64
 	rm -rf $(OUT)

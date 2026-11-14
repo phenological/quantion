@@ -35,10 +35,12 @@ jobs:
           - os: ubuntu-latest
             platform: linux-x86_64
             extension: .so
+            mcp_target: x86_64-unknown-linux-musl
 
           - os: ubuntu-24.04-arm
             platform: linux-arm64
             extension: .so
+            mcp_target: aarch64-unknown-linux-musl
 
           - os: windows-latest
             platform: windows-x86_64
@@ -59,7 +61,9 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: core
+          workspaces: |
+            core
+            mcp
           key: release-${{ matrix.platform }}
 
       - name: The tag matches the version in the tree
@@ -73,6 +77,18 @@ jobs:
 
       - name: Build the native library
         run: make native
+
+      - name: Add the static Linux target for the MCP server
+        if: matrix.mcp_target != ''
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y musl-tools
+          rustup target add ${{ matrix.mcp_target }}
+
+      - name: Build, test and run the MCP server
+        run: |
+          make test-mcp
+          make mcp MCP_TARGET=${{ matrix.mcp_target }}
 
       - uses: actions/setup-node@v4
         with:
@@ -91,6 +107,11 @@ jobs:
           cp "artifacts/$version/${{ matrix.platform }}/libquantion${{ matrix.extension }}" \
              "upload/libquantion-${{ matrix.platform }}${{ matrix.extension }}"
           cp wrappers/js/build/Release/quantion.node "upload/quantion-${{ matrix.platform }}.node"
+          if [ "${{ matrix.extension }}" = ".dll" ]; then
+            cp "artifacts/$version/mcp/quantion-mcp.exe" "upload/quantion-mcp-${{ matrix.platform }}.exe"
+          else
+            cp "artifacts/$version/mcp/quantion-mcp" "upload/quantion-mcp-${{ matrix.platform }}"
+          fi
 
       - name: Keep the asset for the publish job
         uses: actions/upload-artifact@v4
@@ -118,6 +139,7 @@ jobs:
           mkdir -p upload
           cp "artifacts/$version/wasm/quantion.wasm" upload/quantion.wasm
           cp core/include/quantion.h upload/quantion.h
+          cp mcp/install.sh upload/install.sh
 
       - name: Keep the assets for the publish job
         uses: actions/upload-artifact@v4
@@ -139,7 +161,7 @@ jobs:
           merge-multiple: true
 
       - name: Write checksums
-        run: cd upload && sha256sum libquantion-* quantion-*.node quantion.wasm quantion.h > SHA256SUMS.txt
+        run: cd upload && sha256sum libquantion-* quantion-*.node quantion-mcp-* quantion.wasm quantion.h install.sh > SHA256SUMS.txt
 
       - name: Create or update the GitHub release
         uses: softprops/action-gh-release@v2

@@ -777,9 +777,10 @@
     {
       "name": "get_ion_image",
       "group": "Files",
+      "experimental": true,
       "kind": "function",
       "summary": "Build an imaging map of one m/z for mass spectrometry imaging, with the summed intensity at each x, y position.",
-      "warning": "Only Ionic files (.ion). The sample must come from parse_ion; a sample from parse_mzml gives an invalid_argument error.",
+      "warning": "This is an experimental feature. Only Ionic files (.ion). The sample must come from parse_ion; a sample from parse_mzml gives an invalid_argument error.",
       "arguments": [
         {
           "meaning": "The sample to read. It must come from parse_ion.",

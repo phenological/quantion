@@ -44,6 +44,9 @@ sed -i.bak "s/^version = \".*\"/version = \"$version\"/" wrappers/python/pyproje
 sed -i.bak "s/^__version__ = \".*\"/__version__ = \"$version\"/" wrappers/python/quantion/__init__.py \
   && rm -f wrappers/python/quantion/__init__.py.bak
 sed -i.bak "s/^Version: .*/Version: $version/" wrappers/r/DESCRIPTION && rm -f wrappers/r/DESCRIPTION.bak
+sed -i.bak -e "s/^version = \".*\"/version = \"$version\"/" \
+  -e "s/^\(quantion = .*version = \"=\)[^\"]*\"/\1$version\"/" mcp/Cargo.toml && rm -f mcp/Cargo.toml.bak
+sed -i.bak "s/quantion\/docs\/v[0-9.]*\.txt/quantion\/docs\/v$version.txt/g" README.md && rm -f README.md.bak
 
 VERSION="$version" python3 - <<'PY'
 import json, os
@@ -70,10 +73,11 @@ open(path, "a").write("\n")
 PY
 
 cargo update --workspace --manifest-path core/Cargo.toml --quiet
+cargo update --workspace --manifest-path mcp/Cargo.toml --quiet
 
 (cd docs && npm run --silent add-version -- "$version" --message "$message")
 
-echo "version set in Cargo.toml, Cargo.lock, pyproject.toml, DESCRIPTION, package.json, config.json, docs versions.json"
+echo "version set in Cargo.toml, Cargo.lock, pyproject.toml, DESCRIPTION, package.json, config.json, docs versions.json, mcp/Cargo.toml, mcp/Cargo.lock, README.md"
 echo
 
 make --no-print-directory check-version
@@ -81,7 +85,8 @@ make --no-print-directory check-version
 echo
 git add core/Cargo.toml core/Cargo.lock wrappers/python/pyproject.toml \
         wrappers/python/quantion/__init__.py wrappers/r/DESCRIPTION \
-        wrappers/js/package.json config.json docs/public/api/versions.json
+        wrappers/js/package.json config.json docs/public/api/versions.json \
+        mcp/Cargo.toml mcp/Cargo.lock README.md
 git diff --cached --quiet || git commit -m "$message"
 git tag -a "v$version" -m "$message"
 git push origin HEAD

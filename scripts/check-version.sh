@@ -16,6 +16,9 @@ js="$(python3 -c "import json;print(json.load(open('wrappers/js/package.json'))[
 py="$(sed -n 's/^version = "\(.*\)"/\1/p' wrappers/python/pyproject.toml | head -1)"
 r="$(sed -n 's/^Version: *\(.*\)/\1/p' wrappers/r/DESCRIPTION | head -1)"
 pyinit="$(sed -n 's/^__version__ = "\(.*\)"/\1/p' wrappers/python/quantion/__init__.py | head -1)"
+mcp="$(sed -n 's/^version = "\(.*\)"/\1/p' mcp/Cargo.toml | head -1)"
+mcp_core="$(sed -n 's/^quantion = .*version = "=\([^"]*\)".*/\1/p' mcp/Cargo.toml | head -1)"
+readme_docs="$(sed -n 's/.*quantion\/docs\/v\([0-9.]*\)\.txt.*/\1/p' README.md | head -1)"
 config="$(python3 -c "import json;print(json.load(open('config.json'))[0]['package'])")"
 abi="$(sed -n 's/^pub const QUANTION_ABI_VERSION[^=]*=[^0-9]*\([0-9][0-9]*\).*/\1/p' core/src/ffi.rs | head -1)"
 
@@ -28,6 +31,9 @@ check "wrappers/python/pyproject.toml" "$py"
 check "wrappers/python/quantion/__init__.py" "$pyinit"
 check "wrappers/r/DESCRIPTION" "$r"
 check "config.json[0].package" "$config"
+check "mcp/Cargo.toml" "$mcp"
+check "mcp/Cargo.toml quantion dependency" "$mcp_core"
+check "README.md docs link" "$readme_docs"
 
 [ "$failed" -eq 0 ] || exit 1
 echo "all versions agree at $wanted (abi $abi)"

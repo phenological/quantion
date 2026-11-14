@@ -18,7 +18,7 @@ get_ion_image(file, mz, options = get_ion_image_options())
 The image, with one value per pixel, plus its size and position. Type: \code{IonImage list}. Fields: \code{width}, \code{height}, \code{min_x}, \code{min_y}, \code{min_z}, \code{max_z}, \code{data}, \code{counts}.
 }
 \section{Warning}{
-Only Ionic files (.ion). The sample must come from parse_ion; a sample from parse_mzml gives an invalid_argument error.
+This is an experimental feature. Only Ionic files (.ion). The sample must come from parse_ion; a sample from parse_mzml gives an invalid_argument error.
 }
 \section{Documentation}{
 \url{https://phenological.github.io/quantion/?language=r#get_ion_image}

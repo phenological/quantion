@@ -23,6 +23,10 @@ peak <- get_peak(eic$x, eic$y, rt = 2.383, options = get_peak_options(range = 0.
 print(peak)
 ```
 
+## MCP server
+
+`quantion-mcp` gives AI assistants (Claude Code, Codex, Claude Desktop, Cursor) the Quant·ion functions as tools. It runs locally and reads only the folders you allow. Setup: [mcp](https://github.com/phenological/quantion/tree/main/mcp).
+
 ## Documentation
 
 Every function, option and example: [API Documentation](https://phenological.github.io/quantion/)

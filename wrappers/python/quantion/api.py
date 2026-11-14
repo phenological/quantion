@@ -547,7 +547,7 @@ def get_ion_image(file: SampleFile, mz: float, options: Optional[GetIonImageOpti
     Build an imaging map of one m/z for mass spectrometry imaging, with the summed intensity at each x, y position.
 
     Warning:
-        Only Ionic files (.ion). The sample must come from parse_ion; a sample from parse_mzml gives an invalid_argument error.
+        This is an experimental feature. Only Ionic files (.ion). The sample must come from parse_ion; a sample from parse_mzml gives an invalid_argument error.
 
     Args:
         file: The sample to read. It must come from parse_ion.
