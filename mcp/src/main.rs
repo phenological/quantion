@@ -22,7 +22,11 @@ use crate::{
     error::ToolError,
     protocol::server::run_server,
     safety::folders::AllowedFolders,
-    state::{Context, file_cache::FileCache, model_cache::ModelCache},
+    state::{
+        Context,
+        file_cache::{BYTES_PER_MEGABYTE, FileCache},
+        model_cache::ModelCache,
+    },
     tools::{find_tool, get_tool_functions, get_tool_list, run_tool},
 };
 
@@ -85,14 +89,30 @@ fn get_context(options: ServerOptions) -> Result<Context, String> {
     let folders = if options.allowed_folders.is_empty() {
         vec![env::current_dir().map_err(|error| error.to_string())?]
     } else {
-        options.allowed_folders
+        options.allowed_folders.clone()
     };
+    let folders = AllowedFolders::new(&folders)?;
+    let child_arguments = get_child_arguments(&folders, &options);
     Ok(Context {
-        folders: AllowedFolders::new(&folders)?,
+        folders,
         files: FileCache::new(options.memory_limit),
         models: ModelCache::default(),
         max_rows: options.max_rows,
+        child_arguments,
     })
+}
+
+fn get_child_arguments(folders: &AllowedFolders, options: &ServerOptions) -> Vec<String> {
+    let mut arguments = Vec::new();
+    for folder in folders.folders() {
+        arguments.push("--allow".to_string());
+        arguments.push(folder.display().to_string());
+    }
+    arguments.push("--max-rows".to_string());
+    arguments.push(options.max_rows.to_string());
+    arguments.push("--memory-limit".to_string());
+    arguments.push((options.memory_limit / BYTES_PER_MEGABYTE).to_string());
+    arguments
 }
 
 fn read_input(input: Option<&Path>) -> Result<Value, String> {

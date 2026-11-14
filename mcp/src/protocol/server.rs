@@ -1,10 +1,6 @@
 use std::{
-    collections::HashSet,
     io,
-    sync::{
-        Arc, Mutex,
-        mpsc::{Receiver, channel},
-    },
+    sync::mpsc::{Receiver, channel},
     thread,
 };
 
@@ -12,10 +8,12 @@ use serde_json::{Value, json};
 
 use crate::{
     protocol::{
+        child::{ToolReply, run_tool_in_child},
         message::{
             ErrorCode, Message, ProtocolError, get_error_response, get_result_response,
             read_message,
         },
+        requests::Requests,
         transport::{Line, read_line, write_message},
     },
     state::Context,
@@ -37,18 +35,10 @@ struct Job {
     params: Value,
 }
 
-#[derive(Default)]
-struct RequestState {
-    pending: HashSet<String>,
-    cancelled: HashSet<String>,
-}
-
-type SharedRequests = Arc<Mutex<RequestState>>;
-
 pub fn run_server(context: Context) -> io::Result<()> {
     let (sender, receiver) = channel::<Job>();
-    let requests: SharedRequests = Arc::new(Mutex::new(RequestState::default()));
-    let worker_requests = Arc::clone(&requests);
+    let requests = Requests::default();
+    let worker_requests = requests.clone();
     let worker = thread::spawn(move || run_worker(receiver, context, worker_requests));
     let mut input = io::stdin().lock();
     while let Some(line) = read_line(&mut input)? {
@@ -68,14 +58,14 @@ pub fn run_server(context: Context) -> io::Result<()> {
                 write_message(&get_result_response(&id, json!({})))?;
             }
             Ok(Message::Request { id, method, params }) => {
-                add_pending(&requests, &id);
+                requests.add(&id);
                 if sender.send(Job { id, method, params }).is_err() {
                     break;
                 }
             }
             Ok(Message::Notification { method, params }) => {
                 if method == "notifications/cancelled" {
-                    add_cancelled(&requests, &params);
+                    requests.cancel(&params["requestId"]);
                 }
             }
             Ok(Message::Response) => {}
@@ -88,18 +78,19 @@ pub fn run_server(context: Context) -> io::Result<()> {
         .map_err(|_| io::Error::other("the worker thread stopped unexpectedly"))?
 }
 
-fn run_worker(
-    receiver: Receiver<Job>,
-    mut context: Context,
-    requests: SharedRequests,
-) -> io::Result<()> {
+fn run_worker(receiver: Receiver<Job>, mut context: Context, requests: Requests) -> io::Result<()> {
     let tool_list = get_tool_list();
     for job in receiver {
-        let response = match handle_request(&job.method, job.params, &mut context, &tool_list) {
-            Ok(result) => get_result_response(&job.id, result),
-            Err(error) => get_error_response(&job.id, &error),
+        let call = Call {
+            id: &job.id,
+            requests: &requests,
         };
-        let was_cancelled = close_request(&requests, &job.id);
+        let response =
+            match handle_request(&job.method, job.params, &mut context, &tool_list, &call) {
+                Ok(result) => get_result_response(&job.id, result),
+                Err(error) => get_error_response(&job.id, &error),
+            };
+        let was_cancelled = requests.close(&job.id);
         if !was_cancelled {
             write_message(&response)?;
         }
@@ -112,12 +103,13 @@ fn handle_request(
     params: Value,
     context: &mut Context,
     tool_list: &Value,
+    call: &Call,
 ) -> Result<Value, ProtocolError> {
     match method {
         "initialize" => Ok(get_initialize_result(&params)),
         "ping" => Ok(json!({})),
         "tools/list" => Ok(tool_list.clone()),
-        "tools/call" => call_tool(params, context),
+        "tools/call" => call_tool(params, context, call),
         _ => Err(ProtocolError::new(
             ErrorCode::MethodNotFound,
             format!("{method} is not supported"),
@@ -140,7 +132,16 @@ fn get_initialize_result(params: &Value) -> Value {
     })
 }
 
-fn call_tool(mut params: Value, context: &mut Context) -> Result<Value, ProtocolError> {
+struct Call<'a> {
+    id: &'a Value,
+    requests: &'a Requests,
+}
+
+fn call_tool(
+    mut params: Value,
+    context: &mut Context,
+    call: &Call,
+) -> Result<Value, ProtocolError> {
     let Some(name) = params["name"].as_str() else {
         return Err(ProtocolError::new(
             ErrorCode::InvalidParams,
@@ -154,38 +155,26 @@ fn call_tool(mut params: Value, context: &mut Context) -> Result<Value, Protocol
         ));
     };
     let arguments = params["arguments"].take();
-    let (output, is_error) = match run_tool(tool, arguments, context) {
-        Ok(output) => (output, false),
-        Err(error) => (error.to_json(), true),
-    };
-    Ok(json!({
-        "content": [{ "type": "text", "text": output.to_string() }],
-        "isError": is_error,
-    }))
-}
-
-fn add_pending(requests: &SharedRequests, id: &Value) {
-    if let Ok(mut requests) = requests.lock() {
-        requests.pending.insert(id.to_string());
-    }
-}
-
-fn add_cancelled(requests: &SharedRequests, params: &Value) {
-    let id = params["requestId"].to_string();
-    if let Ok(mut requests) = requests.lock()
-        && requests.pending.contains(&id)
-    {
-        requests.cancelled.insert(id);
-    }
-}
-
-fn close_request(requests: &SharedRequests, id: &Value) -> bool {
-    let id = id.to_string();
-    requests
-        .lock()
-        .map(|mut requests| {
-            requests.pending.remove(&id);
-            requests.cancelled.remove(&id)
+    let result = if tool.runs_in_child() {
+        run_tool_in_child(
+            tool.name(),
+            &arguments,
+            &context.child_arguments,
+            call.requests,
+            call.id,
+        )
+    } else {
+        run_tool(tool, arguments, context).map(|output| ToolReply {
+            output,
+            is_error: false,
         })
-        .unwrap_or(false)
+    };
+    let reply = result.unwrap_or_else(|error| ToolReply {
+        output: error.to_json(),
+        is_error: true,
+    });
+    Ok(json!({
+        "content": [{ "type": "text", "text": reply.output.to_string() }],
+        "isError": reply.is_error,
+    }))
 }

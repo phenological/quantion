@@ -49,6 +49,10 @@ impl Tool for MatchFeatures {
         FIELDS
     }
 
+    fn runs_in_child(&self) -> bool {
+        true
+    }
+
     fn run(&self, input: &mut Input, context: &mut Context) -> Result<Value, ToolError> {
         let folder = match input.get_optional_text("folder")? {
             Some(folder) => context.folders.get_folder_path(&folder)?,

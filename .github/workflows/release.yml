@@ -140,6 +140,7 @@ jobs:
           cp "artifacts/$version/wasm/quantion.wasm" upload/quantion.wasm
           cp core/include/quantion.h upload/quantion.h
           cp mcp/install.sh upload/install.sh
+          cp mcp/install.ps1 upload/install.ps1
 
       - name: Keep the assets for the publish job
         uses: actions/upload-artifact@v4
@@ -161,7 +162,7 @@ jobs:
           merge-multiple: true
 
       - name: Write checksums
-        run: cd upload && sha256sum libquantion-* quantion-*.node quantion-mcp-* quantion.wasm quantion.h install.sh > SHA256SUMS.txt
+        run: cd upload && sha256sum libquantion-* quantion-*.node quantion-mcp-* quantion.wasm quantion.h install.sh install.ps1 > SHA256SUMS.txt
 
       - name: Create or update the GitHub release
         uses: softprops/action-gh-release@v2

@@ -42,14 +42,13 @@ const SYSTEMS = {
   unix: {
     label: 'macOS / Linux',
     install: `curl -fsSL ${RELEASES}/install.sh | sh`,
-    separator: '--',
-    path: '~/.local/bin/quantion-mcp --allow /path/to/data',
+    command: '~/.local/bin/quantion-mcp --allow /path/to/data',
   },
   windows: {
     label: 'Windows',
-    install: `curl.exe -fsSL -o "$HOME\\quantion-mcp.exe" ${RELEASES}/quantion-mcp-windows-x86_64.exe`,
-    separator: "'--'",
-    path: '"$HOME\\quantion-mcp.exe" --allow C:\\path\\to\\data',
+    install: `irm ${RELEASES}/install.ps1 | iex`,
+    command:
+      '"$env:LOCALAPPDATA\\Programs\\quantion-mcp\\quantion-mcp.exe" --allow C:\\path\\to\\data',
   },
 };
 
@@ -67,12 +66,9 @@ function McpSetup() {
   const commands = SYSTEMS[system];
   return (
     <>
-      <h4 className="ask-own-ai-title">
-        Claude Code, Codex, Claude Desktop, Cursor (MCP)
-      </h4>
       <p>
-        quantion-mcp gives the assistant the Quant·ion functions as tools. It
-        runs locally and reads only the folders you allow.
+        Apps that support MCP can also run Quant·ion on your computer with
+        quantion-mcp. It reads only the folders you allow.
       </p>
       <div className="ask-own-ai-systems" role="group" aria-label="System">
         {Object.entries(SYSTEMS).map(([key, item]) => (
@@ -86,20 +82,16 @@ function McpSetup() {
           </button>
         ))}
       </div>
-      <p className="ask-own-ai-step">1. Install it:</p>
+      <p className="ask-own-ai-step">Install it:</p>
       <CommandBox command={commands.install} />
-      <p className="ask-own-ai-step">2. Connect it to Claude Code:</p>
-      <CommandBox
-        command={`claude mcp add --scope user quantion ${commands.separator} ${commands.path}`}
-      />
-      <p className="ask-own-ai-step">Or to Codex:</p>
-      <CommandBox
-        command={`codex mcp add quantion ${commands.separator} ${commands.path}`}
-      />
       <p className="ask-own-ai-step">
-        For Claude Desktop, Cursor and others, see the{' '}
+        Then add it to your app as an MCP server with this command:
+      </p>
+      <CommandBox command={commands.command} />
+      <p className="ask-own-ai-step">
+        More in the{' '}
         <a href={MCP_GUIDE} target="_blank" rel="noreferrer">
-          MCP setup guide
+          MCP guide
         </a>
         .
       </p>
@@ -123,7 +115,7 @@ export function HelperNotice() {
         onClick={() => setIsOpen(!isOpen)}
       >
         <SparkIcon />
-        Need a longer conversation? Use your favorite AI assistant
+        Need a longer conversation? Use your AI assistant
         <span className="ask-own-ai-arrow" aria-hidden="true">
           {isOpen ? '▴' : '▾'}
         </span>
@@ -132,12 +124,8 @@ export function HelperNotice() {
         <div className="ask-own-ai">
           <p>
             This helper does not remember what you asked before. For longer
-            work, use your favorite AI assistant.
+            work, give your AI assistant the documentation as one text file:
           </p>
-          <h4 className="ask-own-ai-title">
-            Web chat (claude.ai, ChatGPT, Gemini)
-          </h4>
-          <p>The full documentation as one text file:</p>
           <LlmAddress />
           <McpSetup />
         </div>

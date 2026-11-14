@@ -41,39 +41,9 @@ println!("rt {} intensity {}", peak.rt, peak.intensity);
 
 ## AI assistants
 
-**Web chat** (claude.ai, ChatGPT, Gemini): the full documentation as one text file is at https://phenological.github.io/quantion/docs/v0.2.4.txt.
+The full documentation as one text file: https://phenological.github.io/quantion/docs/v0.2.4.txt
 
-**Claude Code, Codex, Claude Desktop, Cursor** (MCP): `quantion-mcp` gives the assistant the Quant·ion functions as tools. It runs locally and reads only the folders you allow.
-
-macOS and Linux:
-
-```bash
-curl -fsSL https://github.com/phenological/quantion/releases/latest/download/install.sh | sh
-```
-
-```bash
-claude mcp add --scope user quantion -- ~/.local/bin/quantion-mcp --allow /path/to/data
-```
-
-```bash
-codex mcp add quantion -- ~/.local/bin/quantion-mcp --allow /path/to/data
-```
-
-Windows (PowerShell):
-
-```powershell
-curl.exe -fsSL -o "$HOME\quantion-mcp.exe" https://github.com/phenological/quantion/releases/latest/download/quantion-mcp-windows-x86_64.exe
-```
-
-```powershell
-claude mcp add --scope user quantion '--' "$HOME\quantion-mcp.exe" --allow C:\path\to\data
-```
-
-```powershell
-codex mcp add quantion '--' "$HOME\quantion-mcp.exe" --allow C:\path\to\data
-```
-
-Claude Desktop, Cursor, Windows checksums and the tool list: [mcp](https://github.com/phenological/quantion/tree/main/mcp).
+Apps that support MCP (e.g. Claude Code or Codex) can use the Quant·ion functions as tools with `quantion-mcp`. It runs locally and reads only the folders you allow. Setup: [mcp](https://github.com/phenological/quantion/tree/main/mcp).
 
 ## Documentation
 

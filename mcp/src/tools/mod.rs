@@ -38,6 +38,10 @@ pub trait Tool: Sync {
     fn library_functions(&self) -> &'static [&'static str];
     fn fields(&self) -> &'static [Field];
     fn run(&self, input: &mut Input, context: &mut Context) -> Result<Value, ToolError>;
+
+    fn runs_in_child(&self) -> bool {
+        false
+    }
 }
 
 pub static TOOLS: &[&dyn Tool] = &[

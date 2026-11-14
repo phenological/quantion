@@ -23,7 +23,7 @@ console.log(peak);
 
 ## MCP server
 
-`quantion-mcp` gives AI assistants (Claude Code, Codex, Claude Desktop, Cursor) the Quant·ion functions as tools. It runs locally and reads only the folders you allow. Setup: [mcp](https://github.com/phenological/quantion/tree/main/mcp).
+Apps that support MCP (e.g. Claude Code or Codex) can use the Quant·ion functions as tools with `quantion-mcp`. It runs locally and reads only the folders you allow. Setup: [mcp](https://github.com/phenological/quantion/tree/main/mcp).
 
 ## Documentation
 

@@ -64,6 +64,10 @@ impl Tool for AnnotateFeatures {
         FIELDS
     }
 
+    fn runs_in_child(&self) -> bool {
+        true
+    }
+
     fn run(&self, input: &mut Input, context: &mut Context) -> Result<Value, ToolError> {
         let files = input.get_text_list("files")?;
         let feature_file = input.get_optional_text("features")?;

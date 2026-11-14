@@ -12,4 +12,5 @@ pub struct Context {
     pub files: FileCache,
     pub models: ModelCache,
     pub max_rows: usize,
+    pub child_arguments: Vec<String>,
 }

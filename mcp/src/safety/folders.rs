@@ -27,6 +27,10 @@ impl AllowedFolders {
         Ok(Self { folders: allowed })
     }
 
+    pub fn folders(&self) -> &[PathBuf] {
+        &self.folders
+    }
+
     pub fn get_main_folder(&self) -> &Path {
         &self.folders[0]
     }

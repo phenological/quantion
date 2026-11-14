@@ -68,10 +68,8 @@ main() {
   mv -f "$download" "$install_folder/$name"
 
   echo "Installed $("$install_folder/$name" --version) in $install_folder"
-  echo "Connect it to Claude Code with:"
-  echo "  claude mcp add --scope user quantion -- $install_folder/$name --allow /path/to/data"
-  echo "Or to Codex with:"
-  echo "  codex mcp add quantion -- $install_folder/$name --allow /path/to/data"
+  echo "Add it to your app as an MCP server with this command:"
+  echo "  $install_folder/$name --allow /path/to/data"
 }
 
 main "$@"

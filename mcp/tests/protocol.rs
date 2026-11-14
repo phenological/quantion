@@ -116,3 +116,37 @@ fn answers_bad_bytes_and_keeps_running() {
     let reply = server.request("ping", json!({}));
     assert_eq!(reply["result"], json!({}));
 }
+
+#[test]
+fn stopping_a_long_tool_ends_it_and_the_server_keeps_working() {
+    let folder = TestFolder::new("cancel-long");
+    for index in 1..=24 {
+        folder.write_sample(&format!("sample_{index}.mzML"));
+    }
+    let mut server = Server::start(&folder.path);
+    let options = json!({ "grid": { "start": 40.0, "end": 2000.0, "step_size": 0.001 } });
+    server.send_line(
+        &json!({
+            "jsonrpc": "2.0",
+            "id": 900,
+            "method": "tools/call",
+            "params": { "name": "match_features", "arguments": { "options": options } }
+        })
+        .to_string(),
+    );
+    std::thread::sleep(std::time::Duration::from_millis(300));
+    let started = std::time::Instant::now();
+    server.send_line(
+        &json!({ "jsonrpc": "2.0", "method": "notifications/cancelled", "params": { "requestId": 900 } })
+            .to_string(),
+    );
+    let reply = server.request("tools/list", json!({}));
+    assert!(reply["result"]["tools"].is_array(), "{reply}");
+    assert!(
+        started.elapsed() < std::time::Duration::from_secs(3),
+        "the stopped tool kept running for {:?}",
+        started.elapsed()
+    );
+    let reply = server.request("ping", json!({}));
+    assert_eq!(reply["result"], json!({}));
+}
