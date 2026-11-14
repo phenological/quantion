@@ -41,7 +41,7 @@ println!("rt {} intensity {}", peak.rt, peak.intensity);
 
 ## AI assistants
 
-**Web chat** (claude.ai, ChatGPT, Gemini): the full documentation as one text file is at https://phenological.github.io/quantion/docs/v0.2.3.txt.
+**Web chat** (claude.ai, ChatGPT, Gemini): the full documentation as one text file is at https://phenological.github.io/quantion/docs/v0.2.4.txt.
 
 **Claude Code, Codex, Claude Desktop, Cursor** (MCP): `quantion-mcp` gives the assistant the Quant·ion functions as tools. It runs locally and reads only the folders you allow.
 

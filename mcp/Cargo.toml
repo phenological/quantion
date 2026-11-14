@@ -1,6 +1,6 @@
 [package]
 name = "quantion-mcp"
-version = "0.2.3"
+version = "0.2.4"
 edition = "2024"
 description = "MCP server that lets AI agents process LCMS files with Quant·ion on your own computer."
 license = "MIT"
@@ -16,7 +16,7 @@ name = "quantion-mcp"
 path = "src/main.rs"
 
 [dependencies]
-quantion = { path = "../core", version = "=0.2.3" }
+quantion = { path = "../core", version = "=0.2.4" }
 serde_json = "1.0.154"
 
 [profile.release]
