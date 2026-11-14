@@ -2,14 +2,14 @@
 \alias{find_transitions}
 \title{Find the peak of each SRM transition}
 \description{
-For each SRM transition, take the stored chromatogram whose precursor (Q1) and product (Q3) are both within 0.005 m/z, and find its peak near rt +/- range.
+Quantify SRM or MRM transitions in one file. For each transition, it takes the stored chromatogram whose precursor (Q1) and product (Q3) are both within 0.005 m/z, and finds its peak near rt +/- range.
 }
 \usage{
 find_transitions(file, targets, options = find_transitions_options())
 }
 \arguments{
   \item{file}{The sample to read, from parse_ion or parse_mzml. Type: \code{SampleFile}.}
-  \item{targets}{The transitions. Type: \code{data.frame of Transition}. Each Transition has \code{id}, \code{precursor}, \code{product}, \code{rt}, \code{range}.
+  \item{targets}{The transitions to look for, each with id, precursor, product, rt and range. Type: \code{data.frame of Transition}. Each Transition has \code{id}, \code{precursor}, \code{product}, \code{rt}, \code{range}.
     Example: \code{                          rt = 2.385, range = 0.1)}
     \href{https://phenological.github.io/quantion/?language=r#Transition}{Transition documentation}
   }
@@ -18,7 +18,7 @@ find_transitions(file, targets, options = find_transitions_options())
   }
 }
 \value{
-One Peak per transition, in the same order. No match gives a Peak with every field 0. Type: \code{data.frame of Peak}. Columns: \code{rt}, \code{from}, \code{to}, \code{intensity}, \code{integral}, \code{n_points}.
+One peak per transition, in the same order. A transition with no matching chromatogram gets an empty peak (every field is 0). Type: \code{data.frame of Peak}. Columns: \code{rt}, \code{from}, \code{to}, \code{intensity}, \code{integral}, \code{n_points}.
 }
 \section{Warning}{
 Needs the whole file. A sample opened from a URL gives a remote_file error; open it from a path or bytes.

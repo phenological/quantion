@@ -19,16 +19,16 @@ export const ERROR_CODES = {
  * What went wrong, as a name and a fixed number code.
  *
  * Fields:
- * - `"invalid_argument"`: A value is out of range or the wrong type.
+ * - `"invalid_argument"`: A value is out of range or has the wrong type.
  * - `"missing_argument"`: A required value is missing.
- * - `"unknown_option"`: An option key that does not exist.
- * - `"remote_file"`: Needs the whole file, but a URL was given.
+ * - `"unknown_option"`: An option name that does not exist, often a typo.
+ * - `"remote_file"`: The function needs the whole file, but a URL was given. Download the file first.
  * - `"file_not_found"`: The path does not exist.
  * - `"parse_failed"`: The file is not a valid Ionic (.ion), mzML or ONNX file.
  * - `"model_mismatch"`: The model has no warp, or a target is not in it.
- * - `"file_exists"`: The output file exists and overwrite is false.
- * - `"upload_failed"`: The upload was rejected, with the HTTP status.
- * - `"internal"`: A bug in quantion. Please report it.
+ * - `"file_exists"`: The output file already exists and overwrite is false.
+ * - `"upload_failed"`: The upload was rejected. The message includes the HTTP status.
+ * - `"internal"`: A bug in Quant·ion. Please report it as an issue.
  * @see {@link https://phenological.github.io/quantion/?language=js#ErrorKind | Documentation}
  */
 export type ErrorKind = keyof typeof ERROR_CODES;
@@ -36,14 +36,14 @@ export type ErrorKind = keyof typeof ERROR_CODES;
 /**
  * QuantionError · Errors
  *
- * The error every function raises, with its kind, code, function, argument and message.
+ * The error every function raises. It says what went wrong (kind and code), where (function and argument) and why (message).
  *
  * Fields:
- * - `kind`: What went wrong.
- * - `code`: Fixed number for the kind.
- * - `function`: Where: the public function that failed.
- * - `argument`: Which input, such as targets[3].range.
- * - `message`: Why, in plain words. Starts with the function name.
+ * - `kind`: The type of problem, for example an invalid input or a file that cannot be read.
+ * - `code`: A fixed number for the kind, useful in scripts.
+ * - `function`: The function that failed.
+ * - `argument`: The input that caused it, such as targets[3].range.
+ * - `message`: Why it failed, in plain words. It starts with the function name.
  * @see {@link https://phenological.github.io/quantion/?language=js#QuantionError | Documentation}
  */
 export class QuantionError extends Error {

@@ -2,19 +2,19 @@
 \alias{write_mzml}
 \title{Write a sample as mzML}
 \description{
-Write a sample as mzML. With no out, it returns the bytes. Only a path is allowed, no URL.
+Save a sample as mzML. With out, it writes a file to a path (URLs are not allowed). Without out, it returns the bytes.
 }
 \usage{
 write_mzml(file, options = write_mzml_options())
 }
 \arguments{
-  \item{file}{The sample to write. Type: \code{SampleFile}.}
+  \item{file}{The sample to save, from parse_ion or parse_mzml. Type: \code{SampleFile}.}
   \item{options}{Settings from \code{\link{write_mzml_options}()}: \code{out = NULL}, \code{overwrite = FALSE}.
     \href{https://phenological.github.io/quantion/?language=r#WriteMzmlOptions}{WriteMzmlOptions documentation}
   }
 }
 \value{
-The bytes when out is left out; nothing when it is written. Type: \code{raw | NULL (invisible)}.
+The file's bytes when out is not given, or nothing when the file is written. Type: \code{raw | NULL (invisible)}.
 }
 \section{Documentation}{
 \url{https://phenological.github.io/quantion/?language=r#write_mzml}

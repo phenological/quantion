@@ -1,6 +1,6 @@
 /// **FromTo** · Inputs
 ///
-/// A range: retention-time windows and m/z ranges.
+/// A range with a start and an end, used for retention-time windows and m/z ranges.
 ///
 /// Fields:
 /// - `from`: Start of the range.

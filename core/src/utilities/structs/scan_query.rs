@@ -2,11 +2,11 @@ use crate::utilities::structs::FromTo;
 
 /// **ScanQuery** · Inputs
 ///
-/// Which scans get_scans returns: by retention time, by precursor m/z, or by both. Two ranges give every scan inside both; when rt or mz is one value, you get the one scan closest to it.
+/// Which scans get_scans returns, by retention time, by precursor m/z, or by both. Ranges give every scan inside them, and one value gives the closest scan.
 ///
 /// Fields:
-/// - `rt`: Retention time: a range, one value for the closest scan, or nothing. Default Any.
-/// - `mz`: Precursor m/z: a range, one value for the closest scan, or nothing. Default Any.
+/// - `rt`: Retention time, as a range, as one value for the closest scan, or nothing.
+/// - `mz`: Precursor m/z, as a range, as one value for the closest scan, or nothing.
 ///
 /// Example:
 /// ```ignore
@@ -22,12 +22,12 @@ pub struct ScanQuery {
 
 /// **Position** · Inputs
 ///
-/// One part of a ScanQuery in Rust: where rt or m/z must be. Python, JS and R give a number, a {from, to} range, or nothing instead.
+/// In Rust, where rt or m/z must be in a ScanQuery. Python, JavaScript and R use a number, a {from, to} range, or nothing instead.
 ///
 /// Fields:
-/// - `Any`: No filter (default).
-/// - `Range(FromTo)`: Every scan with the value in the range.
-/// - `Closest(f64)`: Only the scan with the value closest to this one.
+/// - `Any`: No filter.
+/// - `Range(FromTo)`: Every scan whose value is in the range.
+/// - `Closest(f64)`: Only the scan whose value is closest to this one.
 ///
 /// Example:
 /// ```ignore

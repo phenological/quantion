@@ -21,11 +21,11 @@ const ALLOWED_EDGE_GAP: f64 = 0.05;
 
 /// **PredictedRt** · Results
 ///
-/// One predicted retention time from predict_rts.
+/// One predicted retention time, from predict_rts.
 ///
 /// Fields:
-/// - `rt`: Predicted retention time (minutes).
-/// - `uncertainty`: How unsure the prediction is (minutes).
+/// - `rt`: Predicted retention time, in minutes.
+/// - `uncertainty`: How unsure the prediction is, in minutes.
 ///
 /// [Documentation](https://phenological.github.io/quantion/?language=rust#PredictedRt)
 #[derive(Clone, Copy, Debug, PartialEq)]

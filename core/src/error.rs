@@ -5,16 +5,16 @@ use std::fmt;
 /// What went wrong, as a name and a fixed number code.
 ///
 /// Fields:
-/// - `InvalidArgument`: A value is out of range or the wrong type.
+/// - `InvalidArgument`: A value is out of range or has the wrong type.
 /// - `MissingArgument`: A required value is missing.
-/// - `UnknownOption`: An option key that does not exist.
-/// - `RemoteFile`: Needs the whole file, but a URL was given.
+/// - `UnknownOption`: An option name that does not exist, often a typo.
+/// - `RemoteFile`: The function needs the whole file, but a URL was given. Download the file first.
 /// - `FileNotFound`: The path does not exist.
 /// - `ParseFailed`: The file is not a valid Ionic (.ion), mzML or ONNX file.
 /// - `ModelMismatch`: The model has no warp, or a target is not in it.
-/// - `FileExists`: The output file exists and overwrite is false.
-/// - `UploadFailed`: The upload was rejected, with the HTTP status.
-/// - `Internal`: A bug in quantion. Please report it.
+/// - `FileExists`: The output file already exists and overwrite is false.
+/// - `UploadFailed`: The upload was rejected. The message includes the HTTP status.
+/// - `Internal`: A bug in Quant·ion. Please report it as an issue.
 ///
 /// [Documentation](https://phenological.github.io/quantion/?language=rust#ErrorKind)
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -54,14 +54,14 @@ impl ErrorKind {
 
 /// **QuantionError** · Errors
 ///
-/// The error every function raises, with its kind, code, function, argument and message.
+/// The error every function raises. It says what went wrong (kind and code), where (function and argument) and why (message).
 ///
 /// Fields:
-/// - `kind`: What went wrong.
-/// - `code`: Fixed number for the kind.
-/// - `function`: Where: the public function that failed.
-/// - `argument`: Which input, such as targets\[3\].range. Optional.
-/// - `message`: Why, in plain words. Starts with the function name.
+/// - `kind`: The type of problem, for example an invalid input or a file that cannot be read.
+/// - `code`: A fixed number for the kind, useful in scripts.
+/// - `function`: The function that failed.
+/// - `argument`: The input that caused it, such as targets\[3\].range. Optional.
+/// - `message`: Why it failed, in plain words. It starts with the function name.
 ///
 /// [Documentation](https://phenological.github.io/quantion/?language=rust#QuantionError)
 #[derive(Clone, Debug, PartialEq)]

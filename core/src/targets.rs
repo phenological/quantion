@@ -40,12 +40,12 @@ pub(crate) fn check_targets(
 
 /// **FindTargetsOptions** · Options
 ///
-/// Settings for find_targets.
+/// Options for find_targets, including the EIC window, the peak-finding settings and the threads.
 ///
 /// Fields:
-/// - `eic`: EIC retention-time range (from, to), tolerances and time unit. See [CalculateEicOptions](https://phenological.github.io/quantion/?language=rust#CalculateEicOptions).
-/// - `find_peaks`: Settings for peak picking. See [FindPeaksOptions](https://phenological.github.io/quantion/?language=rust#FindPeaksOptions).
-/// - `threads`: Number of threads. Default `1`.
+/// - `eic`: Options for the EICs, with the retention-time range (from, to), the m/z tolerances and the time unit. See [CalculateEicOptions](https://phenological.github.io/quantion/?language=rust#CalculateEicOptions).
+/// - `find_peaks`: Options for find_peaks, used for every target. See [FindPeaksOptions](https://phenological.github.io/quantion/?language=rust#FindPeaksOptions).
+/// - `threads`: Number of threads (CPU cores) used to process the targets in parallel. Default `1`.
 ///
 /// [Documentation](https://phenological.github.io/quantion/?language=rust#FindTargetsOptions)
 #[derive(Clone, Debug, PartialEq)]
@@ -67,14 +67,14 @@ impl Default for FindTargetsOptions {
 
 /// **find_targets** · Targeted
 ///
-/// For each target, build its EIC at mz and find its peak near rt ± range.
+/// Quantify a list of known compounds (targets) in one file. For each target, it builds the EIC at its mz and finds its peak near rt ± range. Use it for a targeted panel.
 ///
 /// - `file`: The sample to read, from parse_ion or parse_mzml.
-/// - `targets`: What to look for. A target without range searches its whole EIC. Each Target has `id`, `mz`, `rt`, `range`. See [Target](https://phenological.github.io/quantion/?language=rust#Target).
+/// - `targets`: The compounds to look for, each with id, mz, rt and an optional range. A target without range searches its whole EIC. Each Target has `id`, `mz`, `rt`, `range`. See [Target](https://phenological.github.io/quantion/?language=rust#Target).
 ///   Example: `let target = Target { id: Some("compound_1".into()), mz: 260.103, rt: 2.383, range: Some(0.05) };`
 /// - `options`: Optional settings: `eic`, `find_peaks`, `threads` = 1. See [FindTargetsOptions](https://phenological.github.io/quantion/?language=rust#FindTargetsOptions).
 ///
-/// Returns: One Peak per target, in the same order. A target with no peak gets a Peak with every field 0.
+/// Returns: One peak per target, in the same order as targets. A target with no peak gets an empty peak (every field is 0).
 ///
 /// [Documentation](https://phenological.github.io/quantion/?language=rust#find_targets)
 pub fn find_targets(
@@ -110,11 +110,11 @@ pub fn find_targets(
 
 /// **FindTransitionsOptions** · Options
 ///
-/// Settings for find_transitions.
+/// Options for find_transitions, including the peak-finding settings and the threads.
 ///
 /// Fields:
-/// - `find_peaks`: Settings for peak picking. See [FindPeaksOptions](https://phenological.github.io/quantion/?language=rust#FindPeaksOptions).
-/// - `threads`: Number of threads. Default `1`.
+/// - `find_peaks`: Options for find_peaks, used for every transition. See [FindPeaksOptions](https://phenological.github.io/quantion/?language=rust#FindPeaksOptions).
+/// - `threads`: Number of threads (CPU cores) used to process the transitions in parallel. Default `1`.
 ///
 /// [Documentation](https://phenological.github.io/quantion/?language=rust#FindTransitionsOptions)
 #[derive(Clone, Debug, PartialEq)]
@@ -134,16 +134,16 @@ impl Default for FindTransitionsOptions {
 
 /// **find_transitions** · Targeted
 ///
-/// For each SRM transition, take the stored chromatogram whose precursor (Q1) and product (Q3) are both within 0.005 m/z, and find its peak near rt ± range.
+/// Quantify SRM or MRM transitions in one file. For each transition, it takes the stored chromatogram whose precursor (Q1) and product (Q3) are both within 0.005 m/z, and finds its peak near rt ± range.
 ///
 /// **Warning:** Needs the whole file. A sample opened from a URL gives a remote_file error; open it from a path or bytes.
 ///
 /// - `file`: The sample to read, from parse_ion or parse_mzml.
-/// - `targets`: The transitions. Each Transition has `id`, `precursor`, `product`, `rt`, `range`. See [Transition](https://phenological.github.io/quantion/?language=rust#Transition).
+/// - `targets`: The transitions to look for, each with id, precursor, product, rt and range. Each Transition has `id`, `precursor`, `product`, `rt`, `range`. See [Transition](https://phenological.github.io/quantion/?language=rust#Transition).
 ///   Example: `let transition = Transition { id: Some("compound_1".into()), precursor: 89.04768, product: 89.04768, rt: 2.385, range: 0.1 };`
 /// - `options`: Optional settings: `find_peaks`, `threads` = 1. See [FindTransitionsOptions](https://phenological.github.io/quantion/?language=rust#FindTransitionsOptions).
 ///
-/// Returns: One Peak per transition, in the same order. No match gives a Peak with every field 0.
+/// Returns: One peak per transition, in the same order. A transition with no matching chromatogram gets an empty peak (every field is 0).
 ///
 /// [Documentation](https://phenological.github.io/quantion/?language=rust#find_transitions)
 pub fn find_transitions(

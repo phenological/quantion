@@ -2,19 +2,19 @@
 \alias{parse_ion}
 \title{Open an Ionic file (.ion)}
 \description{
-Open an Ionic file (.ion) from a path, a URL or bytes. Paths and URLs are read lazily: only the bytes a query needs are fetched.
+Open an Ionic file (.ion) from a path, a URL or bytes. Paths and URLs are read lazily. Only the parts a query needs are read, so large or remote files open fast.
 }
 \usage{
 parse_ion(source, options = parse_ion_options())
 }
 \arguments{
-  \item{source}{Where the file is: a path, an http(s) URL, or raw bytes. Type: \code{character | raw}.}
+  \item{source}{Where the file is. It can be a local path, an http(s) URL, or the file's bytes. Type: \code{character | raw}.}
   \item{options}{Settings from \code{\link{parse_ion_options}()}: \code{max_cache_size = 0}.
     \href{https://phenological.github.io/quantion/?language=r#ParseIonOptions}{ParseIonOptions documentation}
   }
 }
 \value{
-The opened sample. Type: \code{SampleFile}.
+The opened sample (one file, i.e. one injection). Pass it to calculate_eic, get_scans and the other functions. Type: \code{SampleFile}.
 }
 \section{Warning}{
 The sample is freed by the library once it is no longer used, so dispose is not needed in normal use. When processing many samples, dispose each one after using it, so its memory is freed right away instead of piling up.

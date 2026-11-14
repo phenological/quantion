@@ -2,15 +2,15 @@ use serde::Deserialize;
 
 /// **Peak** · Results
 ///
-/// One chromatographic peak. No peak gives every field 0.
+/// One chromatographic peak, or an empty peak (every field is 0) when no peak is found.
 ///
 /// Fields:
-/// - `rt`: Apex retention time (minutes).
-/// - `from`: Start of the peak.
-/// - `to`: End of the peak.
-/// - `intensity`: Apex intensity.
-/// - `integral`: Area of the peak.
-/// - `n_points`: Points across the peak.
+/// - `rt`: Apex retention time, in minutes.
+/// - `from`: Start of the peak, in minutes.
+/// - `to`: End of the peak, in minutes.
+/// - `intensity`: Apex intensity: the peak height.
+/// - `integral`: Area (integral) of the peak, calculated with the trapezoid rule on the chromatogram trace between from and to.
+/// - `n_points`: Number of data points in the peak, from its start to its end.
 ///
 /// [Documentation](https://phenological.github.io/quantion/?language=rust#Peak)
 #[derive(Clone, Copy, Deserialize)]

@@ -55,12 +55,12 @@ fn from_feature_error(function: &'static str, error: FeatureError) -> QuantionEr
 
 /// **GridOptions** · Options
 ///
-/// The m/z grid that find_features and match_features search.
+/// The m/z grid that find_features and match_features scan, from start to end in steps of step_size.
 ///
 /// Fields:
-/// - `start`: Lowest m/z. Default `40.0`.
-/// - `end`: Highest m/z. Default `1000.0`.
-/// - `step_size`: Step between grid m/z values (Da). Default `0.005`.
+/// - `start`: Lowest m/z of the grid. Default `40.0`.
+/// - `end`: Highest m/z of the grid. Default `1000.0`.
+/// - `step_size`: Distance between two grid m/z values, in Da. A smaller step is finer but slower. Default `0.005`.
 ///
 /// [Documentation](https://phenological.github.io/quantion/?language=rust#GridOptions)
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -99,13 +99,13 @@ impl GridOptions {
 
 /// **FindFeaturesOptions** · Options
 ///
-/// Settings for find_features.
+/// Options for find_features, including the EIC window, the m/z grid, the peak-finding settings and the threads.
 ///
 /// Fields:
-/// - `eic`: EIC retention-time range (from, to), tolerances and time unit. See [CalculateEicOptions](https://phenological.github.io/quantion/?language=rust#CalculateEicOptions).
-/// - `grid`: The m/z grid. See [GridOptions](https://phenological.github.io/quantion/?language=rust#GridOptions).
-/// - `find_peaks`: Settings for peak picking. See [FindPeaksOptions](https://phenological.github.io/quantion/?language=rust#FindPeaksOptions).
-/// - `threads`: Number of threads. Default `1`.
+/// - `eic`: Options for the EICs, with the retention-time range (from, to), the m/z tolerances and the time unit. See [CalculateEicOptions](https://phenological.github.io/quantion/?language=rust#CalculateEicOptions).
+/// - `grid`: The m/z grid to scan. See [GridOptions](https://phenological.github.io/quantion/?language=rust#GridOptions).
+/// - `find_peaks`: Options for find_peaks, used for every grid m/z. See [FindPeaksOptions](https://phenological.github.io/quantion/?language=rust#FindPeaksOptions).
+/// - `threads`: Number of threads (CPU cores) used to scan the grid in parallel. Default `1`.
 ///
 /// [Documentation](https://phenological.github.io/quantion/?language=rust#FindFeaturesOptions)
 #[derive(Clone, Debug, PartialEq)]
@@ -129,12 +129,12 @@ impl Default for FindFeaturesOptions {
 
 /// **find_features** · Untargeted
 ///
-/// Untargeted: find every feature in one file by scanning an m/z grid.
+/// Find every feature in one file without a target list (untargeted). It scans an m/z grid, builds the EIC of each grid m/z and finds its peaks.
 ///
 /// - `file`: The sample to read, from parse_ion or parse_mzml.
 /// - `options`: Optional settings: `eic`, `grid`, `find_peaks`, `threads` = 1. See [FindFeaturesOptions](https://phenological.github.io/quantion/?language=rust#FindFeaturesOptions).
 ///
-/// Returns: Every feature found, without frequency.
+/// Returns: Every feature found (the feature table), without frequency.
 ///
 /// [Documentation](https://phenological.github.io/quantion/?language=rust#find_features)
 pub fn find_features(
@@ -161,13 +161,13 @@ pub fn find_features(
 
 /// **GroupingOptions** · Options
 ///
-/// How match_features matches features across samples.
+/// How match_features decides that features from different samples are the same feature.
 ///
 /// Fields:
-/// - `ppm_tolerance`: Same feature when m/z is within this ppm…. Default `5.0`.
-/// - `mz_tolerance`: …or within this absolute m/z (Da). Default `0.0025`.
-/// - `rt_tolerance`: …and rt is within this many minutes. Default `0.05`.
-/// - `min_frequency`: Keep a feature only if found in at least this fraction of samples (0–1). Default `0.0`.
+/// - `ppm_tolerance`: Features are the same when their m/z is within this many ppm, or within mz_tolerance. Default `5.0`.
+/// - `mz_tolerance`: Features are the same when their m/z is within this many Da, or within ppm_tolerance. Default `0.0025`.
+/// - `rt_tolerance`: Features are the same only when their rt is also within this many minutes. Default `0.05`.
+/// - `min_frequency`: Keep a feature only if it is found in at least this fraction of samples, from 0 to 1. For example, 0.8 keeps features seen in 80% of the samples. Default `0.0`.
 ///
 /// [Documentation](https://phenological.github.io/quantion/?language=rust#GroupingOptions)
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -208,14 +208,14 @@ impl GroupingOptions {
 
 /// **MatchFeaturesOptions** · Options
 ///
-/// Settings for match_features: the find_features settings plus grouping.
+/// Options for match_features. They are the find_features options plus the grouping across samples.
 ///
 /// Fields:
-/// - `eic`: EIC retention-time range (from, to), tolerances and time unit. See [CalculateEicOptions](https://phenological.github.io/quantion/?language=rust#CalculateEicOptions).
-/// - `grid`: The m/z grid. See [GridOptions](https://phenological.github.io/quantion/?language=rust#GridOptions).
+/// - `eic`: Options for the EICs, with the retention-time range (from, to), the m/z tolerances and the time unit. See [CalculateEicOptions](https://phenological.github.io/quantion/?language=rust#CalculateEicOptions).
+/// - `grid`: The m/z grid to scan. See [GridOptions](https://phenological.github.io/quantion/?language=rust#GridOptions).
 /// - `grouping`: How features are matched across samples. See [GroupingOptions](https://phenological.github.io/quantion/?language=rust#GroupingOptions).
-/// - `find_peaks`: Settings for peak picking. See [FindPeaksOptions](https://phenological.github.io/quantion/?language=rust#FindPeaksOptions).
-/// - `threads`: Number of threads. Default `1`.
+/// - `find_peaks`: Options for find_peaks, used for every grid m/z. See [FindPeaksOptions](https://phenological.github.io/quantion/?language=rust#FindPeaksOptions).
+/// - `threads`: Number of threads (CPU cores) used to process the files in parallel. Default `1`.
 ///
 /// [Documentation](https://phenological.github.io/quantion/?language=rust#MatchFeaturesOptions)
 #[derive(Clone, Debug, PartialEq)]
@@ -241,12 +241,12 @@ impl Default for MatchFeaturesOptions {
 
 /// **match_features** · Untargeted
 ///
-/// Untargeted across samples: find features in every file of a folder and match them. Values are medians over the samples where a feature was found.
+/// Find the features in every file of a folder and match them across samples (untargeted). The values of each feature are medians over the samples where it was found. Instead of aligning retention times, it groups features with close m/z and rt. Small rt differences between runs are covered by rt_tolerance.
 ///
-/// - `directory`: Folder with the Ionic (.ion) or mzML files.
+/// - `directory`: Folder with the Ionic (.ion) or mzML files, one file per sample.
 /// - `options`: Optional settings: `eic`, `grid`, `grouping`, `find_peaks`, `threads` = 1. See [MatchFeaturesOptions](https://phenological.github.io/quantion/?language=rust#MatchFeaturesOptions).
 ///
-/// Returns: One Feature per matched feature; frequency is the fraction of samples (0–1).
+/// Returns: One feature per matched feature (the feature table). frequency is the fraction of samples where it was found, from 0 to 1.
 ///
 /// [Documentation](https://phenological.github.io/quantion/?language=rust#match_features)
 #[cfg(not(all(target_arch = "wasm32", not(target_os = "wasi"))))]
@@ -324,11 +324,11 @@ fn from_alignment_error(function: &'static str, error: AlignmentError) -> Quanti
 
 /// **DeisotopeFeaturesOptions** · Options
 ///
-/// How deisotope_features links isotope peaks.
+/// Options for deisotope_features, which say how close an isotope peak must be.
 ///
 /// Fields:
-/// - `rt_tolerance`: Same compound when rt is within this many minutes of M. Default `0.02`.
-/// - `mz_tolerance`: Isotope peak when m/z is within this many Da of the expected position. Default `0.005`.
+/// - `rt_tolerance`: An isotope belongs to M only when its rt is within this many minutes of M. Default `0.02`.
+/// - `mz_tolerance`: A feature is an isotope only when its m/z is within this many Da of the expected isotope position. Default `0.005`.
 ///
 /// [Documentation](https://phenological.github.io/quantion/?language=rust#DeisotopeFeaturesOptions)
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -355,7 +355,7 @@ impl DeisotopeFeaturesOptions {
 
 /// **deisotope_features** · Untargeted
 ///
-/// Remove 13C isotope peaks from a feature list, keeping the monoisotopic peak (M) of each compound. A feature is an isotope when it sits 1.00335/charge above the previous peak (charge = 1 or 2), has the same rt as M, and its intensity is not too high: M+1 at most M × mz × charge / 12 × 0.0108157.
+/// Remove the 13C isotope peaks from a feature list and keep the monoisotopic peak (M) of each compound. A feature is an isotope when it is 1.00335/charge above the previous peak (charge 1 or 2), has the same rt as M, and is not too intense (M+1 at most M × mz × charge / 12 × 0.0108157). Run it after find_features or match_features, and before annotate_features.
 ///
 /// - `features`: The features to clean, from find_features or match_features.
 /// - `options`: Optional settings: `rt_tolerance` = 0.02, `mz_tolerance` = 0.005. See [DeisotopeFeaturesOptions](https://phenological.github.io/quantion/?language=rust#DeisotopeFeaturesOptions).

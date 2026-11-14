@@ -2,14 +2,14 @@
 \alias{find_transitions_options}
 \title{Settings for find_transitions}
 \description{
-Settings for find_transitions.
+Options for find_transitions, including the peak-finding settings and the threads.
 }
 \usage{
 find_transitions_options(find_peaks = find_peaks_options(), threads = 1L)
 }
 \arguments{
-  \item{find_peaks}{Settings for peak picking. See \code{\link{find_peaks_options}()}.}
-  \item{threads}{Number of threads.}
+  \item{find_peaks}{Options for find_peaks, used for every transition. See \code{\link{find_peaks_options}()}.}
+  \item{threads}{Number of threads (CPU cores) used to process the transitions in parallel.}
 }
 \value{
 An options object for \code{\link{find_transitions}()}.

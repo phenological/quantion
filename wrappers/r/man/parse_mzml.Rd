@@ -2,16 +2,16 @@
 \alias{parse_mzml}
 \title{Open an mzML file}
 \description{
-Open an mzML file from a path or bytes. It is always loaded fully into memory. URLs are refused.
+Open an mzML file from a path or bytes. The whole file is loaded into memory. URLs are not allowed, so download the file first, or convert it to .ion with write_ion.
 }
 \usage{
 parse_mzml(source)
 }
 \arguments{
-  \item{source}{Where the file is: a path or raw bytes. Type: \code{character | raw}.}
+  \item{source}{Where the file is. It can be a local path or the file's bytes. Type: \code{character | raw}.}
 }
 \value{
-The loaded sample. Type: \code{SampleFile}.
+The opened sample (one file, i.e. one injection). Type: \code{SampleFile}.
 }
 \section{Warning}{
 The sample is freed by the library once it is no longer used, so dispose is not needed in normal use. When processing many samples, dispose each one after using it, so its memory is freed right away instead of piling up.

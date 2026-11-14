@@ -12,7 +12,7 @@ class TimeUnit(str, Enum):
     Unit of the retention times you give to a function. Results are always in minutes.
 
     Fields:
-        MINUTES: Minutes (default).
+        MINUTES: Minutes.
         SECONDS: Seconds.
 
     Documentation: https://phenological.github.io/quantion/?language=python#TimeUnit
@@ -27,11 +27,11 @@ class TimeUnit(str, Enum):
 class PeakShape(str, Enum):
     """PeakShape · Enums
 
-    Curve used to fit a peak.
+    Curve used to fit or check a peak.
 
     Fields:
-        GAUSSIAN: Symmetric Gaussian.
-        EMG: Exponentially modified Gaussian: a Gaussian with a tail on the right (default).
+        GAUSSIAN: Symmetric bell curve.
+        EMG: Exponentially modified Gaussian: a bell curve with a tail on the right.
 
     Documentation: https://phenological.github.io/quantion/?language=python#PeakShape
     """
@@ -45,7 +45,7 @@ class PeakShape(str, Enum):
 FromTo = TypedDict("FromTo", {"from": float, "to": float})
 FromTo.__doc__ = """FromTo · Inputs
 
-A range: retention-time windows and m/z ranges.
+A range with a start and an end, used for retention-time windows and m/z ranges.
 
 Fields:
     from: Start of the range.
@@ -66,13 +66,13 @@ class _TargetFields(TypedDict):
 class Target(_TargetFields, total=False):
     """Target · Inputs
 
-    One compound. range limits the search in find_targets; missing or 0 searches the whole EIC. predict_rts and calibrate do not use range.
+    One compound to look for, with its m/z and expected retention time. range limits the search in find_targets, and a missing or 0 range searches the whole EIC. predict_rts and calibrate do not use range.
 
     Fields:
-        id: Your name for it. Not used in the search. Optional.
-        mz: m/z (Da).
-        rt: Expected retention time.
-        range: Half-width of the search window around rt. Missing or 0 = search the whole EIC. Optional.
+        id: Your name for the compound. It is not used in the search. Optional.
+        mz: The m/z of the ion to look for (Da), not the neutral mass of the compound. For example, for the protonated molecule [M+H]+ in positive mode, use M + 1.00728, and for the deprotonated molecule [M−H]− in negative mode, use M − 1.00728, where M is the monoisotopic mass.
+        rt: Expected retention time, in minutes by default (or in the time unit set in the EIC options).
+        range: Half-width of the search window around rt, in the same unit as rt. Missing or 0 searches the whole EIC. Optional.
 
     Example:
         target: Target = {"id": "compound_1", "mz": 260.103, "rt": 2.383, "range": 0.05}
@@ -93,14 +93,14 @@ class _TransitionFields(TypedDict):
 class Transition(_TransitionFields, total=False):
     """Transition · Inputs
 
-    One SRM transition.
+    One SRM or MRM transition, with its precursor (Q1) and product (Q3) m/z.
 
     Fields:
-        id: Your name for it. Optional.
+        id: Your name for the transition. Optional.
         precursor: Precursor (Q1) m/z.
         product: Product (Q3) m/z.
-        rt: Expected retention time.
-        range: Half-width of the search window around rt.
+        rt: Expected retention time, in minutes.
+        range: Half-width of the search window around rt, in minutes.
 
     Example:
         transition: Transition = {"id": "compound_1", "precursor": 89.04768, "product": 89.04768, "rt": 2.385, "range": 0.1}
@@ -113,7 +113,7 @@ class Transition(_TransitionFields, total=False):
 class Header(TypedDict):
     """Header · Inputs
 
-    One HTTP header sent with an upload in write_ion. Values are never printed. A line break, or Host, Content-Length or Transfer-Encoding, gives an invalid_argument error.
+    One HTTP header sent with an upload in write_ion, for example a token. Values are never printed. A line break, or the names Host, Content-Length or Transfer-Encoding, give an invalid_argument error.
 
     Fields:
         name: Name of the header, such as Authorization.
@@ -145,22 +145,22 @@ FindPeaksOptions = TypedDict("FindPeaksOptions", {
 }, total=False)
 FindPeaksOptions.__doc__ = """FindPeaksOptions · Options
 
-Peak-picking settings. Every field is optional.
+Options for find_peaks. Every field is optional.
 
 Fields:
-    min_integral: Drop peaks with a smaller area. Off when not given. Default off.
-    min_intensity: Drop peaks with a lower apex. Default 500.
-    min_peak_width_points: Drop peaks with fewer points. Default 3.
-    noise: Fixed noise level, used when auto_noise is false. Default off.
-    auto_noise: Estimate the noise from the trace. Default True.
-    auto_baseline: Subtract an airPLS baseline first. Default True.
-    lambda: airPLS smoothness. Default 20.
-    max_iterations: Maximum airPLS iterations. Default 4.
-    allow_overlap: Let neighbouring peaks share points. Default False.
-    min_snr: Minimum signal-to-noise ratio. Default 2.
-    min_r2: Minimum fit quality of the peak shape (0–1). 0 keeps every peak. Default 0.
-    shape: Curve used for the fit. Default EMG.
-    kernel_size: Smoothing window in points. 0 = no smoothing. Default 0.
+    min_integral: Drop peaks whose area (integral) is below this value. Off when not given. Default off.
+    min_intensity: Drop peaks whose apex intensity is below this value. Raise it to ignore small peaks. Default 500.
+    min_peak_width_points: Drop peaks with fewer data points than this. Default 3.
+    noise: Fixed noise level (intensity), used only when auto_noise is false. Default off.
+    auto_noise: Estimate the noise from the chromatogram. Turn off and set noise to use a fixed value. Default True.
+    auto_baseline: Subtract an airPLS baseline before finding peaks. Turn off for windows shorter than 1 minute: they do not have enough points to estimate the baseline and can give misleading results. Default True.
+    lambda: Smoothness of the airPLS baseline. A larger value gives a smoother baseline that follows only slow drift. Default 20.
+    max_iterations: Maximum number of airPLS iterations used to estimate the baseline. Default 4.
+    allow_overlap: Let neighbouring peaks share points at their border. When off, overlapping peaks are split at the valley between them. Default False.
+    min_snr: Minimum signal-to-noise ratio. A peak’s apex must be above min_snr × noise. Default 2.
+    min_r2: Minimum fit quality (0–1) of the peak shape. Peaks that fit the shape worse are dropped. 0 keeps every peak. Default 0.
+    shape: Curve used to check the peak shape for min_r2: EMG or GAUSSIAN. Default EMG.
+    kernel_size: Savitzky–Golay smoothing window, in points, to smooth noisy chromatograms. 0 = no smoothing. A larger value gives a smoother chromatogram. Default 0.
 
 Documentation: https://phenological.github.io/quantion/?language=python#FindPeaksOptions
 """
@@ -169,11 +169,11 @@ Documentation: https://phenological.github.io/quantion/?language=python#FindPeak
 class GetPeakOptions(TypedDict, total=False):
     """GetPeakOptions · Options
 
-    Settings for get_peak.
+    Options for get_peak, including the search window and the peak-finding settings.
 
     Fields:
-        range: Half-width of the search window around rt. 0 searches the whole trace. Default 0.
-        find_peaks: Settings for peak picking. See FindPeaksOptions: https://phenological.github.io/quantion/?language=python#FindPeaksOptions
+        range: Half-width of the search window, in minutes. Only peaks within rt ± range are considered. 0 searches the whole trace. Default 0.
+        find_peaks: Options for find_peaks function. See FindPeaksOptions: https://phenological.github.io/quantion/?language=python#FindPeaksOptions
 
     Documentation: https://phenological.github.io/quantion/?language=python#GetPeakOptions
     """
@@ -184,11 +184,11 @@ class GetPeakOptions(TypedDict, total=False):
 class FitPeakOptions(TypedDict, total=False):
     """FitPeakOptions · Options
 
-    Settings for fit_peak.
+    Options for fit_peak function.
 
     Fields:
-        shape: Curve to fit. Default EMG.
-        intensity: Apex intensity to start the fit from. 0 = take it from the peak at rt. Default 0.
+        shape: Curve to fit: EMG (with a right tail) or GAUSSIAN (symmetric). Default EMG.
+        intensity: Apex intensity to start the fit from. 0 = use the apex of the peak found at rt. Default 0.
 
     Documentation: https://phenological.github.io/quantion/?language=python#FitPeakOptions
     """
@@ -203,12 +203,12 @@ DrawPeaksOptions = TypedDict("DrawPeaksOptions", {
 }, total=False)
 DrawPeaksOptions.__doc__ = """DrawPeaksOptions · Options
 
-Settings for draw_peaks.
+Options for draw_peaks, including the time range and the number of points.
 
 Fields:
-    from: Start of the chromatogram. With to, 0 and 0 = fit the range around all the peaks. Default 0.
-    to: End of the chromatogram. Default 0.
-    points: Number of points drawn between from and to. Default 1000.
+    from: Start of the simulated chromatogram, in minutes. Leave from and to at 0 to cover all the peaks automatically. Default 0.
+    to: End of the simulated chromatogram, in minutes. Default 0.
+    points: Number of points drawn from from to to. Default 1000.
 
 Documentation: https://phenological.github.io/quantion/?language=python#DrawPeaksOptions
 """
@@ -220,11 +220,11 @@ CalculateBaselineOptions = TypedDict("CalculateBaselineOptions", {
 }, total=False)
 CalculateBaselineOptions.__doc__ = """CalculateBaselineOptions · Options
 
-airPLS baseline settings for calculate_baseline.
+Options for calculate_baseline, which estimates the baseline with airPLS.
 
 Fields:
-    lambda: Smoothness. Larger = smoother. Default 20.
-    max_iterations: Maximum iterations. Default 4.
+    lambda: Smoothness of the baseline. A larger value gives a smoother baseline that follows only slow drift. Default 20.
+    max_iterations: Maximum number of iterations used to estimate the baseline. Default 4.
 
 Documentation: https://phenological.github.io/quantion/?language=python#CalculateBaselineOptions
 """
@@ -239,14 +239,14 @@ CalculateEicOptions = TypedDict("CalculateEicOptions", {
 }, total=False)
 CalculateEicOptions.__doc__ = """CalculateEicOptions · Options
 
-Which scans are read and how wide the m/z window is. Used by calculate_eic, and as the eic group of find_targets, find_features and match_features. The wider of the ppm and absolute m/z windows is used.
+Options for calculate_eic, including the retention-time range to read and the m/z window. The same options are used by find_targets, find_features and match_features. The wider of the ppm and Da windows is used.
 
 Fields:
-    from: Start of the retention-time range read. Default 0.
-    to: End of the retention-time range read. The default reads to the end of the run. Default inf.
-    ppm_tolerance: Tolerance in ppm. Default 20.
-    mz_tolerance: Absolute tolerance in Da. Default 0.005.
-    time_unit: Unit of from, to and rt values given. Default MINUTES.
+    from: Start of the retention-time range to read. Default 0.
+    to: End of the retention-time range to read. By default, the run is read to the end. Default inf.
+    ppm_tolerance: Half-width of the m/z window, in ppm of the m/z. Default 20.
+    mz_tolerance: Half-width of the m/z window, in Da. Default 0.005.
+    time_unit: Unit of from and to, minutes or seconds. Default MINUTES.
 
 Documentation: https://phenological.github.io/quantion/?language=python#CalculateEicOptions
 """
@@ -255,12 +255,12 @@ Documentation: https://phenological.github.io/quantion/?language=python#Calculat
 class GridOptions(TypedDict, total=False):
     """GridOptions · Options
 
-    The m/z grid that find_features and match_features search.
+    The m/z grid that find_features and match_features scan, from start to end in steps of step_size.
 
     Fields:
-        start: Lowest m/z. Default 40.
-        end: Highest m/z. Default 1000.
-        step_size: Step between grid m/z values (Da). Default 0.005.
+        start: Lowest m/z of the grid. Default 40.
+        end: Highest m/z of the grid. Default 1000.
+        step_size: Distance between two grid m/z values, in Da. A smaller step is finer but slower. Default 0.005.
 
     Documentation: https://phenological.github.io/quantion/?language=python#GridOptions
     """
@@ -272,13 +272,13 @@ class GridOptions(TypedDict, total=False):
 class GroupingOptions(TypedDict, total=False):
     """GroupingOptions · Options
 
-    How match_features matches features across samples.
+    How match_features decides that features from different samples are the same feature.
 
     Fields:
-        ppm_tolerance: Same feature when m/z is within this ppm…. Default 5.
-        mz_tolerance: …or within this absolute m/z (Da). Default 0.0025.
-        rt_tolerance: …and rt is within this many minutes. Default 0.05.
-        min_frequency: Keep a feature only if found in at least this fraction of samples (0–1). Default 0.
+        ppm_tolerance: Features are the same when their m/z is within this many ppm, or within mz_tolerance. Default 5.
+        mz_tolerance: Features are the same when their m/z is within this many Da, or within ppm_tolerance. Default 0.0025.
+        rt_tolerance: Features are the same only when their rt is also within this many minutes. Default 0.05.
+        min_frequency: Keep a feature only if it is found in at least this fraction of samples, from 0 to 1. For example, 0.8 keeps features seen in 80% of the samples. Default 0.
 
     Documentation: https://phenological.github.io/quantion/?language=python#GroupingOptions
     """
@@ -291,12 +291,12 @@ class GroupingOptions(TypedDict, total=False):
 class FindTargetsOptions(TypedDict, total=False):
     """FindTargetsOptions · Options
 
-    Settings for find_targets.
+    Options for find_targets, including the EIC window, the peak-finding settings and the threads.
 
     Fields:
-        eic: EIC retention-time range (from, to), tolerances and time unit. See CalculateEicOptions: https://phenological.github.io/quantion/?language=python#CalculateEicOptions
-        find_peaks: Settings for peak picking. See FindPeaksOptions: https://phenological.github.io/quantion/?language=python#FindPeaksOptions
-        threads: Number of threads. Default 1.
+        eic: Options for the EICs, with the retention-time range (from, to), the m/z tolerances and the time unit. See CalculateEicOptions: https://phenological.github.io/quantion/?language=python#CalculateEicOptions
+        find_peaks: Options for find_peaks, used for every target. See FindPeaksOptions: https://phenological.github.io/quantion/?language=python#FindPeaksOptions
+        threads: Number of threads (CPU cores) used to process the targets in parallel. Default 1.
 
     Documentation: https://phenological.github.io/quantion/?language=python#FindTargetsOptions
     """
@@ -308,11 +308,11 @@ class FindTargetsOptions(TypedDict, total=False):
 class FindTransitionsOptions(TypedDict, total=False):
     """FindTransitionsOptions · Options
 
-    Settings for find_transitions.
+    Options for find_transitions, including the peak-finding settings and the threads.
 
     Fields:
-        find_peaks: Settings for peak picking. See FindPeaksOptions: https://phenological.github.io/quantion/?language=python#FindPeaksOptions
-        threads: Number of threads. Default 1.
+        find_peaks: Options for find_peaks, used for every transition. See FindPeaksOptions: https://phenological.github.io/quantion/?language=python#FindPeaksOptions
+        threads: Number of threads (CPU cores) used to process the transitions in parallel. Default 1.
 
     Documentation: https://phenological.github.io/quantion/?language=python#FindTransitionsOptions
     """
@@ -323,13 +323,13 @@ class FindTransitionsOptions(TypedDict, total=False):
 class FindFeaturesOptions(TypedDict, total=False):
     """FindFeaturesOptions · Options
 
-    Settings for find_features.
+    Options for find_features, including the EIC window, the m/z grid, the peak-finding settings and the threads.
 
     Fields:
-        eic: EIC retention-time range (from, to), tolerances and time unit. See CalculateEicOptions: https://phenological.github.io/quantion/?language=python#CalculateEicOptions
-        grid: The m/z grid. See GridOptions: https://phenological.github.io/quantion/?language=python#GridOptions
-        find_peaks: Settings for peak picking. See FindPeaksOptions: https://phenological.github.io/quantion/?language=python#FindPeaksOptions
-        threads: Number of threads. Default 1.
+        eic: Options for the EICs, with the retention-time range (from, to), the m/z tolerances and the time unit. See CalculateEicOptions: https://phenological.github.io/quantion/?language=python#CalculateEicOptions
+        grid: The m/z grid to scan. See GridOptions: https://phenological.github.io/quantion/?language=python#GridOptions
+        find_peaks: Options for find_peaks, used for every grid m/z. See FindPeaksOptions: https://phenological.github.io/quantion/?language=python#FindPeaksOptions
+        threads: Number of threads (CPU cores) used to scan the grid in parallel. Default 1.
 
     Documentation: https://phenological.github.io/quantion/?language=python#FindFeaturesOptions
     """
@@ -342,11 +342,11 @@ class FindFeaturesOptions(TypedDict, total=False):
 class DeisotopeFeaturesOptions(TypedDict, total=False):
     """DeisotopeFeaturesOptions · Options
 
-    How deisotope_features links isotope peaks.
+    Options for deisotope_features, which say how close an isotope peak must be.
 
     Fields:
-        rt_tolerance: Same compound when rt is within this many minutes of M. Default 0.02.
-        mz_tolerance: Isotope peak when m/z is within this many Da of the expected position. Default 0.005.
+        rt_tolerance: An isotope belongs to M only when its rt is within this many minutes of M. Default 0.02.
+        mz_tolerance: A feature is an isotope only when its m/z is within this many Da of the expected isotope position. Default 0.005.
 
     Documentation: https://phenological.github.io/quantion/?language=python#DeisotopeFeaturesOptions
     """
@@ -357,14 +357,14 @@ class DeisotopeFeaturesOptions(TypedDict, total=False):
 class MatchFeaturesOptions(TypedDict, total=False):
     """MatchFeaturesOptions · Options
 
-    Settings for match_features: the find_features settings plus grouping.
+    Options for match_features. They are the find_features options plus the grouping across samples.
 
     Fields:
-        eic: EIC retention-time range (from, to), tolerances and time unit. See CalculateEicOptions: https://phenological.github.io/quantion/?language=python#CalculateEicOptions
-        grid: The m/z grid. See GridOptions: https://phenological.github.io/quantion/?language=python#GridOptions
+        eic: Options for the EICs, with the retention-time range (from, to), the m/z tolerances and the time unit. See CalculateEicOptions: https://phenological.github.io/quantion/?language=python#CalculateEicOptions
+        grid: The m/z grid to scan. See GridOptions: https://phenological.github.io/quantion/?language=python#GridOptions
         grouping: How features are matched across samples. See GroupingOptions: https://phenological.github.io/quantion/?language=python#GroupingOptions
-        find_peaks: Settings for peak picking. See FindPeaksOptions: https://phenological.github.io/quantion/?language=python#FindPeaksOptions
-        threads: Number of threads. Default 1.
+        find_peaks: Options for find_peaks, used for every grid m/z. See FindPeaksOptions: https://phenological.github.io/quantion/?language=python#FindPeaksOptions
+        threads: Number of threads (CPU cores) used to process the files in parallel. Default 1.
 
     Documentation: https://phenological.github.io/quantion/?language=python#MatchFeaturesOptions
     """
@@ -378,7 +378,7 @@ class MatchFeaturesOptions(TypedDict, total=False):
 class ScanArray(TypedDict):
     """ScanArray · Options
 
-    One array to read from each scan in get_scans.
+    One data array to read from each scan in get_scans, for example an extra array stored in the file.
 
     Fields:
         key: Name of the array in the result, as a field of the scan.
@@ -396,10 +396,10 @@ class ScanArray(TypedDict):
 class GetScanMetadataOptions(TypedDict, total=False):
     """GetScanMetadataOptions · Options
 
-    Settings for get_scan_metadata.
+    Options for get_scan_metadata.
 
     Fields:
-        tags: Which tags to keep, by name. A row is kept when the last tag of its path matches, so scan keeps spectrum/scanList/scan[0] but not its scanWindow. Empty keeps every tag. The names are: spectrum, referenceableParamGroupRef, spectrumDescription, scanList, scan, scanWindowList, scanWindow, precursorList, precursor, isolationWindow, selectedIonList, selectedIon, activation, productList, product, binaryDataArrayList, binaryDataArray. Default [].
+        tags: Which tags to keep, by name. A row is kept when the last tag of its path matches, so scan keeps spectrum/scanList/scan[0] but not its scanWindow. An empty list keeps every tag. The names are spectrum, referenceableParamGroupRef, spectrumDescription, scanList, scan, scanWindowList, scanWindow, precursorList, precursor, isolationWindow, selectedIonList, selectedIon, activation, productList, product, binaryDataArrayList and binaryDataArray. Default [].
 
     Documentation: https://phenological.github.io/quantion/?language=python#GetScanMetadataOptions
     """
@@ -409,12 +409,12 @@ class GetScanMetadataOptions(TypedDict, total=False):
 class GetScansOptions(TypedDict, total=False):
     """GetScansOptions · Options
 
-    Settings for get_scans.
+    Options for get_scans, including the MS level and which arrays to read.
 
     Fields:
-        level: MS level. 0 = every level. Default 1.
-        time_unit: Unit of rt in the query. Default MINUTES.
-        arrays: Which arrays to read from each scan, as keys with accessions. Every other field of Scan always comes back. Default {"key": "mz", "accession": "MS:1000514"}, {"key": "intensity", "accession": "MS:1000515"}. See ScanArray: https://phenological.github.io/quantion/?language=python#ScanArray
+        level: MS level of the scans, 1 for MS1 and 2 for MS2. 0 reads every level. Default 1.
+        time_unit: Unit of the rt you give, minutes or seconds. Default MINUTES.
+        arrays: Which data arrays to read from each scan, such as m/z and intensity, given as keys with accessions. The other fields of Scan always come back. Default {"key": "mz", "accession": "MS:1000514"}, {"key": "intensity", "accession": "MS:1000515"}. See ScanArray: https://phenological.github.io/quantion/?language=python#ScanArray
 
     Documentation: https://phenological.github.io/quantion/?language=python#GetScansOptions
     """
@@ -426,16 +426,16 @@ class GetScansOptions(TypedDict, total=False):
 class AnnotateFeaturesOptions(TypedDict, total=False):
     """AnnotateFeaturesOptions · Options
 
-    Settings for annotate_features.
+    Options for annotate_features, including the library, the model, the tolerances and how many matches to keep.
 
     Fields:
-        library: Spectral library: an Ionic (.ion) file path or URL. Each spectrum has a precursor m/z, a vector array and the params named by the model. Default "https://github.com/josoriom/cipher/releases/latest/download/library_positive.ion".
-        model: Spectrum model: an ONNX file path or URL. Default "https://github.com/josoriom/cipher/releases/latest/download/model.onnx".
+        library: Spectral library, as a path or URL to an Ionic (.ion) file. Each spectrum has a precursor m/z, a vector array and the params the model names. Only Ionic (.ion) libraries work. Default "https://github.com/josoriom/cipher/releases/latest/download/library_positive.ion".
+        model: Spectrum model, as a path or URL to an ONNX file. Default "https://github.com/josoriom/cipher/releases/latest/download/model.onnx".
         matches: How many matches to keep per file, best first. Default 3.
-        ppm_tolerance: Precursor tolerance in ppm. The larger of the two tolerances is used. Default 20.
-        mz_tolerance: Precursor tolerance in Da. Default 0.005.
-        rt_range: Largest distance in minutes from the peak apex to the MS2 scan. Default 0.3.
-        min_relative_intensity: MS2 peaks below this share of the base peak are dropped (0–1). Default 0.02.
+        ppm_tolerance: Precursor m/z tolerance in ppm. The larger of the ppm and Da tolerances is used. Default 20.
+        mz_tolerance: Precursor m/z tolerance in Da. The larger of the ppm and Da tolerances is used. Default 0.005.
+        rt_range: Largest distance, in minutes, from the peak apex to the MS2 scan. Default 0.3.
+        min_relative_intensity: MS2 peaks below this share of the base peak are removed before matching, from 0 to 1. Default 0.02.
 
     Documentation: https://phenological.github.io/quantion/?language=python#AnnotateFeaturesOptions
     """
@@ -451,10 +451,10 @@ class AnnotateFeaturesOptions(TypedDict, total=False):
 class ParseIonOptions(TypedDict, total=False):
     """ParseIonOptions · Options
 
-    Settings for parse_ion.
+    Options for parse_ion.
 
     Fields:
-        max_cache_size: Cache size in bytes. 0 = no limit. Default 0.
+        max_cache_size: Maximum memory, in bytes, kept for the parts of the file already read. 0 = no limit. Set it to limit memory on large or remote files. Default 0.
 
     Documentation: https://phenological.github.io/quantion/?language=python#ParseIonOptions
     """
@@ -464,16 +464,16 @@ class ParseIonOptions(TypedDict, total=False):
 class WriteIonOptions(TypedDict, total=False):
     """WriteIonOptions · Options
 
-    Settings for write_ion.
+    Options for write_ion, including where to write and how to compress.
 
     Fields:
-        out: Path or URL to write to. Not given = return the bytes. Default None.
-        overwrite: Replace an existing file. Default False.
-        level: Compression level, 0 to 22. Default 12.
-        f32_compress: Store intensities as 32-bit floats. Default False.
+        out: Path or URL to write to. If it is not given, the bytes are returned. Default None.
+        overwrite: Replace the file if it already exists. Default False.
+        level: Compression level, 0 to 22. A higher level gives a smaller file but takes longer to write. Default 12.
+        f32_compress: Store intensities as 32-bit floats, for a smaller file with slightly less precision. Default False.
         block_size: Size of each data block before compression, in MB. A whole number, 1 or more. Default 8.
-        mz_window: Width of the m/z windows the spectra are split into, in Da, so a query reads only the windows it needs. A whole number, 0 or more; 0 keeps each spectrum whole. Default 20.
-        headers: Extra HTTP headers. Only with a URL. Default [].
+        mz_window: Width of the m/z windows the spectra are split into, in Da, so a query reads only the windows it needs. 0 keeps each spectrum whole. It only changes how the file is stored. It is not the EIC window. Default 20.
+        headers: Extra HTTP headers for the upload, such as a token. Only used with a URL. Default [].
 
     Documentation: https://phenological.github.io/quantion/?language=python#WriteIonOptions
     """
@@ -489,11 +489,11 @@ class WriteIonOptions(TypedDict, total=False):
 class WriteMzmlOptions(TypedDict, total=False):
     """WriteMzmlOptions · Options
 
-    Settings for write_mzml.
+    Options for write_mzml.
 
     Fields:
-        out: Path to write to. Not given = return the bytes. Default None.
-        overwrite: Replace an existing file. Default False.
+        out: Path to write to. If it is not given, the bytes are returned. Default None.
+        overwrite: Replace the file if it already exists. Default False.
 
     Documentation: https://phenological.github.io/quantion/?language=python#WriteMzmlOptions
     """
@@ -504,12 +504,12 @@ class WriteMzmlOptions(TypedDict, total=False):
 class GetIonImageOptions(TypedDict, total=False):
     """GetIonImageOptions · Options
 
-    Settings for get_ion_image.
+    Options for get_ion_image, including the m/z window and the MS level.
 
     Fields:
-        tolerance: Absolute m/z tolerance (Da). Default 0.125.
-        level: MS level. Default 1.
-        on_progress: Progress callback: fetched bytes, total bytes, bytes held. Default None.
+        tolerance: Half-width of the m/z window, in Da. There is no ppm option here. Default 0.125.
+        level: MS level of the scans used. Default 1.
+        on_progress: Function called while reading, with the bytes fetched, the total bytes and the bytes held in memory. Useful for a progress bar on remote files. Default None.
 
     Documentation: https://phenological.github.io/quantion/?language=python#GetIonImageOptions
     """
@@ -528,15 +528,15 @@ Peak = TypedDict("Peak", {
 })
 Peak.__doc__ = """Peak · Results
 
-One chromatographic peak. No peak gives every field 0.
+One chromatographic peak, or an empty peak (every field is 0) when no peak is found.
 
 Fields:
-    rt: Apex retention time (minutes).
-    from: Start of the peak.
-    to: End of the peak.
-    intensity: Apex intensity.
-    integral: Area of the peak.
-    n_points: Points across the peak.
+    rt: Apex retention time, in minutes.
+    from: Start of the peak, in minutes.
+    to: End of the peak, in minutes.
+    intensity: Apex intensity: the peak height.
+    integral: Area (integral) of the peak, calculated with the trapezoid rule on the chromatogram trace between from and to.
+    n_points: Number of data points in the peak, from its start to its end.
 
 Documentation: https://phenological.github.io/quantion/?language=python#Peak
 """
@@ -556,17 +556,17 @@ _FeatureFields = TypedDict("_FeatureFields", {
 class Feature(_FeatureFields, total=False):
     """Feature · Results
 
-    A peak at an m/z. match_features adds frequency.
+    A peak at one m/z, found without a target list. match_features also adds its frequency across samples.
 
     Fields:
-        mz: m/z (Da).
-        rt: Apex retention time (minutes).
-        from: Start of the peak.
-        to: End of the peak.
-        intensity: Apex intensity.
-        integral: Area of the peak.
-        n_points: Points across the peak.
-        frequency: match_features only: fraction of samples where it was found (0–1). Optional.
+        mz: m/z of the feature (Da).
+        rt: Apex retention time, in minutes.
+        from: Start of the peak, in minutes.
+        to: End of the peak, in minutes.
+        intensity: Apex intensity (the peak height).
+        integral: Area (integral) of the peak.
+        n_points: Number of data points in the peak, from its start to its end.
+        frequency: Fraction of samples where the feature was found, from 0 to 1. Only match_features sets it. Optional.
 
     Documentation: https://phenological.github.io/quantion/?language=python#Feature
     """
@@ -576,11 +576,11 @@ class Feature(_FeatureFields, total=False):
 class DataXY(TypedDict):
     """DataXY · Results
 
-    A trace: x = retention times, y = intensities. Returned by calculate_eic, taken by find_peaks.
+    A chromatogram (trace), with x as the retention times and y as the intensities. calculate_eic returns it, and find_peaks and get_peak take it.
 
     Fields:
-        x: Retention times (minutes).
-        y: Intensities.
+        x: Retention times, in minutes.
+        y: Intensities, one per retention time.
 
     Documentation: https://phenological.github.io/quantion/?language=python#DataXY
     """
@@ -594,8 +594,8 @@ class NoiseLevel(TypedDict):
     Result of find_noise_level.
 
     Fields:
-        width: Window width (points) the estimate came from.
-        intensity: Noise intensity.
+        width: Max width, in points, of the noise spikes the estimate came from.
+        intensity: Max intensity of the noise spikes, taken as the noise level.
 
     Documentation: https://phenological.github.io/quantion/?language=python#NoiseLevel
     """
@@ -613,13 +613,13 @@ class _PeakParametersFields(TypedDict):
 class PeakParameters(_PeakParametersFields, total=False):
     """PeakParameters · Results
 
-    One peak curve: returned by fit_peak, or written by hand to simulate. draw_peaks takes a list of them. tail = 0 is a Gaussian, tail above 0 an EMG.
+    The parameters that describe the shape of one peak. fit_peak returns them, and you can also write them by hand to simulate a peak with draw_peaks. With tail = 0 the peak is a Gaussian, and with tail above 0 it is an EMG.
 
     Fields:
-        height: Height of the curve at its apex.
-        center: Retention time of the apex (minutes).
-        fwhm: Full width at half maximum of the Gaussian part (minutes). With a tail, the drawn peak is a little wider.
-        tail: Length of the right-hand tail. 0 = Gaussian, above 0 = EMG.
+        height: Height of the curve at its apex (intensity).
+        center: Apex retention time, in minutes.
+        fwhm: Full width at half maximum of the Gaussian part, in minutes. With a tail, the drawn peak is a little wider.
+        tail: Tailing to the right, in minutes. 0 = Gaussian, above 0 = EMG.
         r2: Fit quality (0–1), set by fit_peak. Not needed to draw. Optional.
 
     Example:
@@ -633,11 +633,11 @@ class PeakParameters(_PeakParametersFields, total=False):
 class PredictedRt(TypedDict):
     """PredictedRt · Results
 
-    One predicted retention time from predict_rts.
+    One predicted retention time, from predict_rts.
 
     Fields:
-        rt: Predicted retention time (minutes).
-        uncertainty: How unsure the prediction is (minutes).
+        rt: Predicted retention time, in minutes.
+        uncertainty: How unsure the prediction is, in minutes.
 
     Documentation: https://phenological.github.io/quantion/?language=python#PredictedRt
     """
@@ -652,8 +652,8 @@ class ScanParamKind(str, Enum):
 
     Fields:
         ATTRIBUTE: An attribute of the tag, such as id or defaultArrayLength.
-        CV: A cvParam: a param from the controlled vocabulary, with an accession.
-        USER: A userParam: a param the software that wrote the file named itself.
+        CV: A cvParam, a param from the controlled vocabulary, with an accession.
+        USER: A userParam, a param named by the software that wrote the file.
 
     Documentation: https://phenological.github.io/quantion/?language=python#ScanParamKind
     """
@@ -665,11 +665,11 @@ class ScanParamKind(str, Enum):
 class ScanParam(TypedDict):
     """ScanParam · Results
 
-    One row from get_scan_metadata: an attribute, cvParam or userParam of one tag in a spectrum.
+    One row from get_scan_metadata. It is an attribute, a cvParam or a userParam of one tag in a spectrum.
 
     Fields:
         path: Where the tag sits, from spectrum down. Repeated tags carry their position from 0, such as spectrum/precursorList/precursor[0]/selectedIonList/selectedIon[0].
-        kind: What the row holds: ATTRIBUTE, CV or USER. See ScanParamKind.
+        kind: What the row holds, ATTRIBUTE, CV or USER. See ScanParamKind.
         accession: Accession of a cvParam, such as MS:1000511. Missing for attributes and userParams.
         name: Name of the attribute or param, such as ms level.
         value: Value as text, such as 2. Missing when the file gives none.
@@ -696,8 +696,8 @@ class CompoundMatch(TypedDict):
         label: Name of the compound, from the library param the model names as label.
         id: Id of the spectrum in its database.
         database: Database the id comes from.
-        score: Average of the model vector similarity and the cosine (0–1).
-        cosine: Cosine similarity of the cleaned spectra (0–1).
+        score: Average of the model vector similarity and the cosine, from 0 to 1.
+        cosine: Cosine similarity of the cleaned spectra, from 0 to 1.
         mz: m/z values of the library spectrum.
         intensity: Intensities of the library spectrum.
         metadata: The other params of the library spectrum, by name.
@@ -717,12 +717,12 @@ class CompoundMatch(TypedDict):
 class FileAnnotation(TypedDict):
     """FileAnnotation · Results
 
-    What one file says about a feature.
+    What one file says about a feature in annotate_features.
 
     Fields:
         file: Position of the file in files, from 0.
-        scan_index: The MS2 scan used, or none when the file has no peak or no MS2 scan close to it.
-        matches: Best matches in this file, best first, at most matches.
+        scan_index: Index of the MS2 scan used, or none when the file has no peak or no MS2 scan close to it.
+        matches: The best matches in this file, best first, at most matches of them.
 
     Documentation: https://phenological.github.io/quantion/?language=python#FileAnnotation
     """
@@ -734,18 +734,18 @@ class FileAnnotation(TypedDict):
 class FeatureAnnotation(TypedDict):
     """FeatureAnnotation · Results
 
-    The name of one feature. The label is the compound that is the best match in the most files; ties go to the higher score.
+    The name found for one feature. The label is the compound that is the best match in the most files, and ties go to the higher score.
 
     Fields:
         mz: m/z of the feature.
-        rt: Retention time of the feature (minutes).
+        rt: Retention time of the feature, in minutes.
         label: Name of the compound, or none when no file has a match.
-        id: Id in the database, from the agreeing file with the highest score.
+        id: Id of the compound in its database, from the agreeing file with the highest score.
         database: Database the id comes from.
-        frequency: Share of the files whose best match is this compound (0–1).
-        score: Median score over the agreeing files.
-        cosine: Median cosine over the agreeing files.
-        files: One FileAnnotation per file, in the order of files.
+        frequency: Share of the files whose best match is this compound, from 0 to 1.
+        score: Median score over the files that agree on the label.
+        cosine: Median cosine similarity over the files that agree on the label.
+        files: What each file says about the feature, in the same order as files.
 
     Documentation: https://phenological.github.io/quantion/?language=python#FeatureAnnotation
     """
@@ -763,22 +763,22 @@ class FeatureAnnotation(TypedDict):
 class Scan(TypedDict):
     """Scan · Results
 
-    One scan from get_scans: its retention time, centroided m/z and intensity values, and its details.
+    One scan (spectrum) from get_scans, with its retention time, its m/z and intensity values, and its details.
 
     Fields:
-        index: Position of the scan in the spectrum list, from 0. Use it with get_scan_metadata.
-        rt: Retention time (minutes).
-        mz: m/z values.
-        intensity: Intensities, same length as mz.
-        level: MS level.
-        precursor_mz: Precursor m/z (MS2 and higher).
-        base_peak_mz: Base peak m/z.
-        base_peak_intensity: Base peak intensity.
-        total_ion_current: Total ion current.
-        polarity: Polarity: 1 positive, 2 negative, 0 unknown.
-        x: Imaging x position. 0 in non-imaging files.
-        y: Imaging y position. 0 in non-imaging files.
-        z: Imaging z position. 0 in non-imaging files.
+        index: Position of the scan in the file, from 0. Use it with get_scan_metadata.
+        rt: Retention time, in minutes.
+        mz: m/z values of the spectrum.
+        intensity: Intensities, one per m/z value.
+        level: MS level, 1 for MS1 and 2 for MS2.
+        precursor_mz: m/z of the precursor ion that was fragmented (MS2 and higher).
+        base_peak_mz: m/z of the most intense peak in the scan (base peak).
+        base_peak_intensity: Intensity of the base peak.
+        total_ion_current: Sum of all intensities in this scan. Plotted against rt over the whole injection, these values form the TIC chromatogram.
+        polarity: Ion mode, 1 for positive, 2 for negative and 0 for unknown.
+        x: x position in imaging files. 0 in other files.
+        y: y position in imaging files. 0 in other files.
+        z: z position in imaging files. 0 in other files.
 
     Documentation: https://phenological.github.io/quantion/?language=python#Scan
     """
@@ -800,17 +800,17 @@ class Scan(TypedDict):
 class IonImage(TypedDict):
     """IonImage · Results
 
-    An imaging map of one m/z from get_ion_image.
+    An imaging map of one m/z, from get_ion_image.
 
     Fields:
-        width: Pixels across.
-        height: Pixels down.
+        width: Number of pixels across.
+        height: Number of pixels down.
         min_x: x position of the first column.
         min_y: y position of the first row.
         min_z: Lowest z position.
         max_z: Highest z position.
-        data: Summed intensity per pixel, row by row (width × height).
-        counts: Scans per pixel.
+        data: Summed intensity of each pixel, row by row (width × height values).
+        counts: Number of scans in each pixel, in the same order as data.
 
     Documentation: https://phenological.github.io/quantion/?language=python#IonImage
     """

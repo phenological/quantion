@@ -41,12 +41,12 @@ export class WarpModel extends Metadata {
   /**
    * predictRts · Models
    *
-   * Predict where each target elutes in one sample.
+   * Predict where each target elutes in one sample, to correct retention-time shifts (rt drift) between runs or batches.
    *
-   * @param file - The sample to read, from parse_ion or parse_mzml.
+   * @param file - The sample to predict for, from parse_ion or parse_mzml.
    * @param targets - Targets with mz and reference rt. id and range are optional and not used. Each Target has `id`, `mz`, `rt`, `range`. See {@link https://phenological.github.io/quantion/?language=js#Target | Target}.
    *   Example: `const target: Target = { id: "compound_1", mz: 260.103, rt: 2.383, range: 0.05 };`
-   * @returns One PredictedRt per target, in the same order.
+   * @returns One predicted retention time per target, in the same order.
    * @see {@link https://phenological.github.io/quantion/?language=js#predict_rts | Documentation}
    */
   async predictRts(
@@ -75,12 +75,12 @@ export class WarpModel extends Metadata {
   /**
    * calibrate · Models
    *
-   * Turn the retention times seen in anchor samples (LTRs, QCs) into targets for predict_rts. Each id gets the median rt over the anchors.
+   * Turn the retention times seen in anchor samples (LTRs or QCs) into reference targets for predict_rts. Each id gets the median rt over the anchor samples.
    *
-   * @param anchorSamples - Anchor samples.
+   * @param anchorSamples - The anchor samples (LTRs or QCs), from parse_ion or parse_mzml.
    * @param targetLists - For each anchor sample, the targets seen in it with their observed rt. Each Target has `id`, `mz`, `rt`, `range`. See {@link https://phenological.github.io/quantion/?language=js#Target | Target}.
    *   Example: `const target: Target = { id: "compound_1", mz: 260.103, rt: 2.383, range: 0.05 };`
-   * @returns One Target per id with the median rt.
+   * @returns One target per id, with the median rt.
    * @see {@link https://phenological.github.io/quantion/?language=js#calibrate | Documentation}
    */
   async calibrate(
@@ -123,7 +123,7 @@ export class WarpModel extends Metadata {
   /**
    * dispose · Models
    *
-   * Free the memory held by a sample, model or warp model.
+   * Free the memory held by a sample, a model or a warp model when you are done with it.
    *
    * **Warning:** Not needed in normal use: the library frees a sample, model or warp model by itself once it is no longer used. When processing many samples, dispose each one after using it, so its memory is freed right away instead of piling up.
    * @returns Nothing.

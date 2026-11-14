@@ -86,17 +86,17 @@ impl From<FastError> for FeatureError {
 
 /// **Feature** · Results
 ///
-/// A peak at an m/z. match_features adds frequency.
+/// A peak at one m/z, found without a target list. match_features also adds its frequency across samples.
 ///
 /// Fields:
-/// - `mz`: m/z (Da).
-/// - `rt`: Apex retention time (minutes).
-/// - `from`: Start of the peak.
-/// - `to`: End of the peak.
-/// - `intensity`: Apex intensity.
-/// - `integral`: Area of the peak.
-/// - `n_points`: Points across the peak.
-/// - `frequency`: match_features only: fraction of samples where it was found (0–1). Optional.
+/// - `mz`: m/z of the feature (Da).
+/// - `rt`: Apex retention time, in minutes.
+/// - `from`: Start of the peak, in minutes.
+/// - `to`: End of the peak, in minutes.
+/// - `intensity`: Apex intensity (the peak height).
+/// - `integral`: Area (integral) of the peak.
+/// - `n_points`: Number of data points in the peak, from its start to its end.
+/// - `frequency`: Fraction of samples where the feature was found, from 0 to 1. Only match_features sets it. Optional.
 ///
 /// [Documentation](https://phenological.github.io/quantion/?language=rust#Feature)
 #[derive(Clone, Default)]

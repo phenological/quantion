@@ -2,21 +2,21 @@
 \alias{get_scans}
 \title{Read scans}
 \description{
-Read scans by retention time, by precursor m/z, or by both. Ranges return every scan inside them; when rt or mz is one value, you get the closest scan, as a list of one.
+Read scans (spectra) by retention time, by precursor m/z, or by both. A range returns every scan inside it. One value returns the closest scan, as a list of one.
 }
 \usage{
 get_scans(file, rt = NULL, mz = NULL, options = get_scans_options())
 }
 \arguments{
   \item{file}{The sample to read, from parse_ion or parse_mzml. Type: \code{SampleFile}.}
-  \item{rt}{Which scans by retention time: a range or one value. Optional when mz is given. Type: \code{numeric(1) | c(from, to)}.}
-  \item{mz}{Which scans by precursor m/z: a range or one value. Give rt, mz or both. Type: \code{numeric(1) | c(from, to)}.}
+  \item{rt}{Retention time of the scans, as a range \{from, to\} or as one value for the closest scan. Optional when mz is given. Type: \code{numeric(1) | c(from, to)}.}
+  \item{mz}{Precursor m/z of the scans, as a range \{from, to\} or as one value for the closest scan. Give rt, mz or both. Only MS2 scans have a precursor m/z, so set level to 2 (or 0 for every level) when you give mz. Type: \code{numeric(1) | c(from, to)}.}
   \item{options}{Settings from \code{\link{get_scans_options}()}: \code{level = 1L}, \code{time_unit = "MINUTES"}, \code{arrays = list(key = "mz", accession = "MS:1000514"), list(key = "intensity", accession = "MS:1000515")}.
     \href{https://phenological.github.io/quantion/?language=r#GetScansOptions}{GetScansOptions documentation}
   }
 }
 \value{
-The scans found, in rt order. Type: \code{data.frame of Scan}. Columns: \code{index}, \code{rt}, \code{mz}, \code{intensity}, \code{level}, \code{precursor_mz}, \code{base_peak_mz}, \code{base_peak_intensity}, \code{total_ion_current}, \code{polarity}, \code{x}, \code{y}, \code{z}.
+The scans found, in rt order. An empty list means no scan matched, so check rt, mz and level. Type: \code{data.frame of Scan}. Columns: \code{index}, \code{rt}, \code{mz}, \code{intensity}, \code{level}, \code{precursor_mz}, \code{base_peak_mz}, \code{base_peak_intensity}, \code{total_ion_current}, \code{polarity}, \code{x}, \code{y}, \code{z}.
 }
 \section{Warning}{
 It is best to write the argument names rt and mz to avoid confusion. Without names, rt comes before mz, so a number given without a name is taken as rt.

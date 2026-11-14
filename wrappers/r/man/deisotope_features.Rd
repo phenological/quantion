@@ -2,7 +2,7 @@
 \alias{deisotope_features}
 \title{Remove isotope peaks from a feature list}
 \description{
-Remove 13C isotope peaks from a feature list, keeping the monoisotopic peak (M) of each compound. A feature is an isotope when it sits 1.00335/charge above the previous peak (charge = 1 or 2), has the same rt as M, and its intensity is not too high: M+1 at most M x mz x charge / 12 x 0.0108157.
+Remove the 13C isotope peaks from a feature list and keep the monoisotopic peak (M) of each compound. A feature is an isotope when it is 1.00335/charge above the previous peak (charge 1 or 2), has the same rt as M, and is not too intense (M+1 at most M x mz x charge / 12 x 0.0108157). Run it after find_features or match_features, and before annotate_features.
 }
 \usage{
 deisotope_features(features, options = deisotope_features_options())

@@ -251,17 +251,17 @@ def _open_file(function: str, abi: _ABI, call: Callable[[Any], int], is_ion: boo
 def parse_ion(source, options: Optional[ParseIonOptions] = None) -> SampleFile:
     """parse_ion · Files
 
-    Open an Ionic file (.ion) from a path, a URL or bytes. Paths and URLs are read lazily: only the bytes a query needs are fetched.
+    Open an Ionic file (.ion) from a path, a URL or bytes. Paths and URLs are read lazily. Only the parts a query needs are read, so large or remote files open fast.
 
     Warning:
         The sample is freed by the library once it is no longer used, so dispose is not needed in normal use. When processing many samples, dispose each one after using it, so its memory is freed right away instead of piling up.
 
     Args:
-        source: Where the file is: a path, an http(s) URL, or raw bytes.
+        source: Where the file is. It can be a local path, an http(s) URL, or the file's bytes.
         options: Optional settings: max_cache_size = 0. See ParseIonOptions: https://phenological.github.io/quantion/?language=python#ParseIonOptions
 
     Returns:
-        The opened sample.
+        The opened sample (one file, i.e. one injection). Pass it to calculate_eic, get_scans and the other functions.
 
     Documentation: https://phenological.github.io/quantion/?language=python#parse_ion
     """
@@ -285,16 +285,16 @@ def parse_ion(source, options: Optional[ParseIonOptions] = None) -> SampleFile:
 def parse_mzml(source) -> SampleFile:
     """parse_mzml · Files
 
-    Open an mzML file from a path or bytes. It is always loaded fully into memory. URLs are refused.
+    Open an mzML file from a path or bytes. The whole file is loaded into memory. URLs are not allowed, so download the file first, or convert it to .ion with write_ion.
 
     Warning:
         The sample is freed by the library once it is no longer used, so dispose is not needed in normal use. When processing many samples, dispose each one after using it, so its memory is freed right away instead of piling up.
 
     Args:
-        source: Where the file is: a path or raw bytes.
+        source: Where the file is. It can be a local path or the file's bytes.
 
     Returns:
-        The loaded sample.
+        The opened sample (one file, i.e. one injection).
 
     Documentation: https://phenological.github.io/quantion/?language=python#parse_mzml
     """
@@ -336,14 +336,14 @@ def _encode_headers(function: str, headers: Any) -> bytes:
 def write_ion(file: SampleFile, options: Optional[WriteIonOptions] = None) -> Optional[bytes]:
     """write_ion · Files
 
-    Write a sample as an Ionic file (.ion). With no out, it returns the bytes. A path writes a file; a URL uploads it in one PUT request.
+    Save a sample as an Ionic file (.ion), for example to convert mzML to .ion. With out, it writes a file to a path or uploads it to a URL with one PUT request. Without out, it returns the bytes.
 
     Args:
-        file: The sample to write.
+        file: The sample to save, from parse_ion or parse_mzml.
         options: Optional settings: out = None, overwrite = False, level = 12, f32_compress = False, block_size = 8, mz_window = 20, headers = []. See WriteIonOptions: https://phenological.github.io/quantion/?language=python#WriteIonOptions
 
     Returns:
-        The bytes when out is left out; nothing when it is written or uploaded.
+        The file's bytes when out is not given, or nothing when the file is written or uploaded.
 
     Documentation: https://phenological.github.io/quantion/?language=python#write_ion
     """
@@ -389,14 +389,14 @@ def _upload_ion(url: str, headers: Sequence[Mapping[str, str]], data: bytes) -> 
 def write_mzml(file: SampleFile, options: Optional[WriteMzmlOptions] = None) -> Optional[bytes]:
     """write_mzml · Files
 
-    Write a sample as mzML. With no out, it returns the bytes. Only a path is allowed, no URL.
+    Save a sample as mzML. With out, it writes a file to a path (URLs are not allowed). Without out, it returns the bytes.
 
     Args:
-        file: The sample to write.
+        file: The sample to save, from parse_ion or parse_mzml.
         options: Optional settings: out = None, overwrite = False. See WriteMzmlOptions: https://phenological.github.io/quantion/?language=python#WriteMzmlOptions
 
     Returns:
-        The bytes when out is left out; nothing when it is written.
+        The file's bytes when out is not given, or nothing when the file is written.
 
     Documentation: https://phenological.github.io/quantion/?language=python#write_mzml
     """
@@ -429,21 +429,21 @@ def get_scans(
 ) -> List[Scan]:
     """get_scans · Files
 
-    Read scans by retention time, by precursor m/z, or by both. Ranges return every scan inside them; when rt or mz is one value, you get the closest scan, as a list of one.
+    Read scans (spectra) by retention time, by precursor m/z, or by both. A range returns every scan inside it. One value returns the closest scan, as a list of one.
 
     Warning:
         It is best to write the argument names rt and mz to avoid confusion. Without names, rt comes before mz, so a number given without a name is taken as rt.
 
     Args:
         file: The sample to read, from parse_ion or parse_mzml.
-        rt: Which scans by retention time: a range or one value. Optional when mz is given. Each FromTo has from, to. See FromTo: https://phenological.github.io/quantion/?language=python#FromTo
+        rt: Retention time of the scans, as a range {from, to} or as one value for the closest scan. Optional when mz is given. Each FromTo has from, to. See FromTo: https://phenological.github.io/quantion/?language=python#FromTo
             Example: window: FromTo = {"from": 1.0, "to": 2.5}
-        mz: Which scans by precursor m/z: a range or one value. Give rt, mz or both. Each FromTo has from, to. See FromTo: https://phenological.github.io/quantion/?language=python#FromTo
+        mz: Precursor m/z of the scans, as a range {from, to} or as one value for the closest scan. Give rt, mz or both. Only MS2 scans have a precursor m/z, so set level to 2 (or 0 for every level) when you give mz. Each FromTo has from, to. See FromTo: https://phenological.github.io/quantion/?language=python#FromTo
             Example: window: FromTo = {"from": 1.0, "to": 2.5}
         options: Optional settings: level = 1, time_unit = MINUTES, arrays = {"key": "mz", "accession": "MS:1000514"}, {"key": "intensity", "accession": "MS:1000515"}. See GetScansOptions: https://phenological.github.io/quantion/?language=python#GetScansOptions
 
     Returns:
-        The scans found, in rt order.
+        The scans found, in rt order. An empty list means no scan matched, so check rt, mz and level.
 
     Documentation: https://phenological.github.io/quantion/?language=python#get_scans
     """
@@ -479,15 +479,15 @@ _LARGEST_SIZE = c_size_t(-1).value
 def get_scan_metadata(file: SampleFile, index: int, options: Optional[GetScanMetadataOptions] = None) -> List[ScanParam]:
     """get_scan_metadata · Metadata
 
-    Read the attributes, cvParams and userParams of one scan, one row each, parents before children. Find the scan with get_scans, then pass its index.
+    Read the details stored for one scan (attributes, cvParams and userParams), one row each, parents before children. Find the scan with get_scans, then pass its index.
 
     Args:
         file: The sample to read, from parse_ion or parse_mzml.
-        index: Position of the scan in the spectrum list, from 0: the index of a scan from get_scans.
+        index: Position of the scan in the file, from 0. Use the index of a scan from get_scans.
         options: Optional settings: tags = []. See GetScanMetadataOptions: https://phenological.github.io/quantion/?language=python#GetScanMetadataOptions
 
     Returns:
-        One row per attribute or param, in the order of the mzML tree. Values are text. A field the file does not give is missing: None in Rust and Python, null in JS, NA in R.
+        One row per attribute or param, in the order of the mzML tree. Values are text. A field the file does not give is missing (None in Rust and Python, null in JavaScript, NA in R).
 
     Documentation: https://phenological.github.io/quantion/?language=python#get_scan_metadata
     """
@@ -513,15 +513,15 @@ def get_scan_metadata(file: SampleFile, index: int, options: Optional[GetScanMet
 def calculate_eic(file: SampleFile, mz: float, options: Optional[CalculateEicOptions] = None) -> DataXY:
     """calculate_eic · Files
 
-    Extract the ion chromatogram of one m/z.
+    Calculate the extracted ion chromatogram (EIC, also called XIC) of one m/z. For each MS1 scan, the intensities within the m/z window are summed. Use it to get the chromatogram before find_peaks or get_peak.
 
     Args:
         file: The sample to read, from parse_ion or parse_mzml.
-        mz: The m/z to extract (Da).
+        mz: The m/z of the ion to extract (Da), not the neutral mass of the compound. For example, for the protonated molecule [M+H]+ in positive mode, use M + 1.00728, and for the deprotonated molecule [M−H]− in negative mode, use M − 1.00728, where M is the monoisotopic mass.
         options: Optional settings: from = 0, to = inf, ppm_tolerance = 20, mz_tolerance = 0.005, time_unit = MINUTES. See CalculateEicOptions: https://phenological.github.io/quantion/?language=python#CalculateEicOptions
 
     Returns:
-        The chromatogram: x = retention times, y = summed intensities.
+        The chromatogram, with x as the retention times in minutes and y as the summed intensities.
 
     Documentation: https://phenological.github.io/quantion/?language=python#calculate_eic
     """
@@ -544,18 +544,18 @@ def calculate_eic(file: SampleFile, mz: float, options: Optional[CalculateEicOpt
 def get_ion_image(file: SampleFile, mz: float, options: Optional[GetIonImageOptions] = None) -> IonImage:
     """get_ion_image · Files
 
-    Build an imaging map of one m/z: summed intensity at each x, y position.
+    Build an imaging map of one m/z for mass spectrometry imaging, with the summed intensity at each x, y position.
 
     Warning:
         Only Ionic files (.ion). The sample must come from parse_ion; a sample from parse_mzml gives an invalid_argument error.
 
     Args:
-        file: The sample to read. Must come from parse_ion.
-        mz: The m/z to map (Da).
+        file: The sample to read. It must come from parse_ion.
+        mz: The m/z of the ion to map (Da), not the neutral mass of the compound. For example, for the protonated molecule [M+H]+ in positive mode, use M + 1.00728, and for the deprotonated molecule [M−H]− in negative mode, use M − 1.00728, where M is the monoisotopic mass.
         options: Optional settings: tolerance = 0.125, level = 1, on_progress = None. See GetIonImageOptions: https://phenological.github.io/quantion/?language=python#GetIonImageOptions
 
     Returns:
-        The image.
+        The image, with one value per pixel, plus its size and position.
 
     Documentation: https://phenological.github.io/quantion/?language=python#get_ion_image
     """
@@ -609,15 +609,15 @@ def _get_trace(function: str, x: Sequence, y: Sequence) -> Tuple[np.ndarray, np.
 def find_peaks(x: Sequence, y: Sequence, options: Optional[FindPeaksOptions] = None) -> List[Peak]:
     """find_peaks · Traces
 
-    Find every peak in one trace.
+    Find every peak (peak picking) in one trace or signal, such as a chromatogram (TIC, BPC or EIC). For one known peak at an rt, use get_peak. To calculate EIC use calculate_eic.
 
     Args:
-        x: Retention times, ascending. At least 3 points.
-        y: Intensities, same length as x.
+        x: Retention times in minutes, ascending, at least 3 points. For a chromatogram, its x.
+        y: Intensities, same length as x. For a chromatogram, its y.
         options: Optional settings: min_integral = off, min_intensity = 500, min_peak_width_points = 3, noise = off, auto_noise = True, auto_baseline = True, lambda = 20, max_iterations = 4, allow_overlap = False, min_snr = 2, min_r2 = 0, shape = EMG, kernel_size = 0. See FindPeaksOptions: https://phenological.github.io/quantion/?language=python#FindPeaksOptions
 
     Returns:
-        Every peak that passes the filters.
+        Every peak that passes the filters specified in the function options: the peak table, one row per peak.
 
     Documentation: https://phenological.github.io/quantion/?language=python#find_peaks
     """
@@ -642,16 +642,16 @@ def _check_lengths(function: str, x_values: np.ndarray, y_values: np.ndarray) ->
 def get_peak(x: Sequence, y: Sequence, rt: float, options: Optional[GetPeakOptions] = None) -> Peak:
     """get_peak · Traces
 
-    Find the one peak near rt. With a range, only rt ± range is searched; without one, the whole trace is searched and the peak is chosen by its size and its distance to rt.
+    Find the peak closest to rt. If range is given, only peaks within rt ± range are searched. If it is not, the whole trace is searched, and the peak is chosen by its size and its distance from rt.
 
     Args:
         x: Retention times, ascending. At least 3 points.
         y: Intensities, same length as x.
-        rt: Expected retention time of the peak.
+        rt: Expected retention time of the target peak, in minutes.
         options: Optional settings: range = 0, find_peaks. See GetPeakOptions: https://phenological.github.io/quantion/?language=python#GetPeakOptions
 
     Returns:
-        The best peak near rt. No peak gives a Peak with every field 0.
+        The chosen peak, or an empty peak (every field is 0) when no peak is found.
 
     Documentation: https://phenological.github.io/quantion/?language=python#get_peak
     """
@@ -672,16 +672,16 @@ def get_peak(x: Sequence, y: Sequence, rt: float, options: Optional[GetPeakOptio
 def fit_peak(x: Sequence, y: Sequence, rt: float, options: Optional[FitPeakOptions] = None) -> Optional[PeakParameters]:
     """fit_peak · Traces
 
-    Fit a Gaussian or EMG curve to the peak near rt. rt says which peak; its apex intensity is the starting point unless you force one.
+    Fit a Gaussian or EMG curve to the target peak at rt. The function finds the peak within rt ± 0.05 min, then fits the points between its start and end to get its width (fwhm) and tailing (tail). The peak needs at least 5 points.
 
     Args:
         x: Retention times, ascending. At least 3 points.
         y: Intensities, same length as x.
-        rt: Expected retention time of the peak.
+        rt: Retention time of the peak to fit, in minutes. The peak must be within ± 0.05 min of it.
         options: Optional settings: shape = EMG, intensity = 0. See FitPeakOptions: https://phenological.github.io/quantion/?language=python#FitPeakOptions
 
     Returns:
-        The fitted curve, or none when no peak is found or the fit fails.
+        The fitted parameters (height, center, fwhm, tail, r2) for the target peak, or none if no peak is found near rt or the fit fails.
 
     Documentation: https://phenological.github.io/quantion/?language=python#fit_peak
     """
@@ -704,7 +704,7 @@ def fit_peak(x: Sequence, y: Sequence, rt: float, options: Optional[FitPeakOptio
 def draw_peaks(params: Sequence[PeakParameters], options: Optional[DrawPeaksOptions] = None) -> DataXY:
     """draw_peaks · Traces
 
-    Simulate a chromatogram from one or more peak shapes. Every peak is drawn into the same chromatogram; where they overlap, intensities add up. No real data is needed.
+    Simulate a chromatogram (a synthetic trace) from peak curves (height, center, fwhm, tail). Overlapping peaks add up. Useful for tests, no data needed.
 
     Args:
         params: The peaks to draw, one PeakParameters per peak. Each PeakParameters has height, center, fwhm, tail, r2. See PeakParameters: https://phenological.github.io/quantion/?language=python#PeakParameters
@@ -712,7 +712,7 @@ def draw_peaks(params: Sequence[PeakParameters], options: Optional[DrawPeaksOpti
         options: Optional settings: from = 0, to = 0, points = 1000. See DrawPeaksOptions: https://phenological.github.io/quantion/?language=python#DrawPeaksOptions
 
     Returns:
-        The simulated chromatogram: x = retention times, y = summed intensities.
+        The simulated chromatogram: x = retention times in minutes, y = summed intensities.
 
     Documentation: https://phenological.github.io/quantion/?language=python#draw_peaks
     """
@@ -740,13 +740,13 @@ def draw_peaks(params: Sequence[PeakParameters], options: Optional[DrawPeaksOpti
 def find_noise_level(y: Sequence) -> NoiseLevel:
     """find_noise_level · Traces
 
-    Estimate the noise level of a signal.
+    Estimate the noise level of a chromatogram or any signal: how noisy it is. Small, narrow peaks are grouped together, and their maximum intensity and width (in number of points) are reported as the noise.
 
     Args:
-        y: Intensities.
+        y: Intensities, for example the y of a chromatogram.
 
     Returns:
-        The noise intensity and the window width it came from.
+        The noise intensity and the width (in points) of the noise regions it was estimated from.
 
     Documentation: https://phenological.github.io/quantion/?language=python#find_noise_level
     """
@@ -762,14 +762,14 @@ def find_noise_level(y: Sequence) -> NoiseLevel:
 def calculate_baseline(y: Sequence, options: Optional[CalculateBaselineOptions] = None) -> np.ndarray:
     """calculate_baseline · Traces
 
-    Estimate a signal's baseline with airPLS.
+    Estimate the baseline (slow background drift) of the input chromatogram or signal using airPLS (Zhang et al., 2010).
 
     Args:
-        y: Intensities.
+        y: Intensities, for example the y of a chromatogram.
         options: Optional settings: lambda = 20, max_iterations = 4. See CalculateBaselineOptions: https://phenological.github.io/quantion/?language=python#CalculateBaselineOptions
 
     Returns:
-        The baseline, same length as y.
+        The baseline: one value per point of y.
 
     Documentation: https://phenological.github.io/quantion/?language=python#calculate_baseline
     """
@@ -807,16 +807,16 @@ def _read_targets(function: str, targets: Sequence[Target]):
 def find_targets(file: SampleFile, targets: Sequence[Target], options: Optional[FindTargetsOptions] = None) -> List[Peak]:
     """find_targets · Targeted
 
-    For each target, build its EIC at mz and find its peak near rt ± range.
+    Quantify a list of known compounds (targets) in one file. For each target, it builds the EIC at its mz and finds its peak near rt ± range. Use it for a targeted panel.
 
     Args:
         file: The sample to read, from parse_ion or parse_mzml.
-        targets: What to look for. A target without range searches its whole EIC. Each Target has id, mz, rt, range. See Target: https://phenological.github.io/quantion/?language=python#Target
+        targets: The compounds to look for, each with id, mz, rt and an optional range. A target without range searches its whole EIC. Each Target has id, mz, rt, range. See Target: https://phenological.github.io/quantion/?language=python#Target
             Example: target: Target = {"id": "compound_1", "mz": 260.103, "rt": 2.383, "range": 0.05}
         options: Optional settings: eic, find_peaks, threads = 1. See FindTargetsOptions: https://phenological.github.io/quantion/?language=python#FindTargetsOptions
 
     Returns:
-        One Peak per target, in the same order. A target with no peak gets a Peak with every field 0.
+        One peak per target, in the same order as targets. A target with no peak gets an empty peak (every field is 0).
 
     Documentation: https://phenological.github.io/quantion/?language=python#find_targets
     """
@@ -845,19 +845,19 @@ def find_transitions(
 ) -> List[Peak]:
     """find_transitions · Targeted
 
-    For each SRM transition, take the stored chromatogram whose precursor (Q1) and product (Q3) are both within 0.005 m/z, and find its peak near rt ± range.
+    Quantify SRM or MRM transitions in one file. For each transition, it takes the stored chromatogram whose precursor (Q1) and product (Q3) are both within 0.005 m/z, and finds its peak near rt ± range.
 
     Warning:
         Needs the whole file. A sample opened from a URL gives a remote_file error; open it from a path or bytes.
 
     Args:
         file: The sample to read, from parse_ion or parse_mzml.
-        targets: The transitions. Each Transition has id, precursor, product, rt, range. See Transition: https://phenological.github.io/quantion/?language=python#Transition
+        targets: The transitions to look for, each with id, precursor, product, rt and range. Each Transition has id, precursor, product, rt, range. See Transition: https://phenological.github.io/quantion/?language=python#Transition
             Example: transition: Transition = {"id": "compound_1", "precursor": 89.04768, "product": 89.04768, "rt": 2.385, "range": 0.1}
         options: Optional settings: find_peaks, threads = 1. See FindTransitionsOptions: https://phenological.github.io/quantion/?language=python#FindTransitionsOptions
 
     Returns:
-        One Peak per transition, in the same order. No match gives a Peak with every field 0.
+        One peak per transition, in the same order. A transition with no matching chromatogram gets an empty peak (every field is 0).
 
     Documentation: https://phenological.github.io/quantion/?language=python#find_transitions
     """
@@ -886,14 +886,14 @@ def find_transitions(
 def find_features(file: SampleFile, options: Optional[FindFeaturesOptions] = None) -> List[Feature]:
     """find_features · Untargeted
 
-    Untargeted: find every feature in one file by scanning an m/z grid.
+    Find every feature in one file without a target list (untargeted). It scans an m/z grid, builds the EIC of each grid m/z and finds its peaks.
 
     Args:
         file: The sample to read, from parse_ion or parse_mzml.
         options: Optional settings: eic, grid, find_peaks, threads = 1. See FindFeaturesOptions: https://phenological.github.io/quantion/?language=python#FindFeaturesOptions
 
     Returns:
-        Every feature found, without frequency.
+        Every feature found (the feature table), without frequency.
 
     Documentation: https://phenological.github.io/quantion/?language=python#find_features
     """
@@ -918,14 +918,14 @@ def find_features(file: SampleFile, options: Optional[FindFeaturesOptions] = Non
 def match_features(directory, options: Optional[MatchFeaturesOptions] = None) -> List[Feature]:
     """match_features · Untargeted
 
-    Untargeted across samples: find features in every file of a folder and match them. Values are medians over the samples where a feature was found.
+    Find the features in every file of a folder and match them across samples (untargeted). The values of each feature are medians over the samples where it was found. Instead of aligning retention times, it groups features with close m/z and rt. Small rt differences between runs are covered by rt_tolerance.
 
     Args:
-        directory: Folder with the Ionic (.ion) or mzML files.
+        directory: Folder with the Ionic (.ion) or mzML files, one file per sample.
         options: Optional settings: eic, grid, grouping, find_peaks, threads = 1. See MatchFeaturesOptions: https://phenological.github.io/quantion/?language=python#MatchFeaturesOptions
 
     Returns:
-        One Feature per matched feature; frequency is the fraction of samples (0–1).
+        One feature per matched feature (the feature table). frequency is the fraction of samples where it was found, from 0 to 1.
 
     Documentation: https://phenological.github.io/quantion/?language=python#match_features
     """
@@ -969,7 +969,7 @@ def _read_feature_values(function: str, features: Sequence[Feature]) -> np.ndarr
 def deisotope_features(features: Sequence[Feature], options: Optional[DeisotopeFeaturesOptions] = None) -> List[Feature]:
     """deisotope_features · Untargeted
 
-    Remove 13C isotope peaks from a feature list, keeping the monoisotopic peak (M) of each compound. A feature is an isotope when it sits 1.00335/charge above the previous peak (charge = 1 or 2), has the same rt as M, and its intensity is not too high: M+1 at most M × mz × charge / 12 × 0.0108157.
+    Remove the 13C isotope peaks from a feature list and keep the monoisotopic peak (M) of each compound. A feature is an isotope when it is 1.00335/charge above the previous peak (charge 1 or 2), has the same rt as M, and is not too intense (M+1 at most M × mz × charge / 12 × 0.0108157). Run it after find_features or match_features, and before annotate_features.
 
     Args:
         features: The features to clean, from find_features or match_features.
@@ -999,10 +999,10 @@ def load_model(source) -> Model:
     Load an ONNX model from a path, a URL or bytes, and read the keys and values stored in it.
 
     Args:
-        source: Where the model is: a path, an http(s) URL, or raw bytes.
+        source: Where the model is. It can be a local path, an http(s) URL, or the file's bytes.
 
     Returns:
-        The model, with get_keys(), get_values() and get_value(key).
+        The model, with get_keys(), get_values() and get_value(key) to read what is stored in it.
 
     Documentation: https://phenological.github.io/quantion/?language=python#load_model
     """
@@ -1042,7 +1042,10 @@ def _open_model(abi: _ABI, call) -> Model:
 def load_warp(model: Model) -> WarpModel:
     """load_warp · Models
 
-    Make a retention-time warp model from a loaded model.
+    When retention times shift between batches or within a batch, some peaks are easy to miss, e.g. low-intensity peaks. A deepwarp model predicts how each LC-MS run shifts, so peak detection finds the right peaks. Make a retention-time warp model from a loaded model. Use it with calibrate and predict_rts to correct rt shifts between runs.
+
+    Warning:
+        Works with any ONNX model that has the right inputs, outputs and keys. See them in deepwarp: https://github.com/josoriom/deepwarp#inputs-outputs-and-keys
 
     Args:
         model: A model from load_model that holds a warp.
@@ -1340,18 +1343,18 @@ def annotate_features(
 ) -> List[FeatureAnnotation]:
     """annotate_features · Untargeted
 
-    Annotate features by matching their MS2 spectra against a spectral library. For each feature and sample, the positive MS2 scan closest to the peak apex is used: its precursor must match the feature m/z within the tolerance, and its RT must be within rt_range. A spectrum encoder turns the scan into a vector, which is scored against the library spectra with the same precursor m/z. The library (an Ionic .ion file) and the encoder (an ONNX model) are read from a path or a URL; by default both come from the josoriom/cipher releases.
+    Name features (annotation) by matching their MS2 spectra against a spectral library. For each feature and sample, it takes the positive MS2 scan closest to the peak apex, whose precursor matches the feature m/z and whose rt is within rt_range. A model turns the scan into a vector, which is scored against the library spectra with the same precursor m/z. By default, the library and the model come from the josoriom/cipher releases.
 
     Warning:
         This is an experimental feature.
 
     Args:
-        files: The samples, from parse_ion or parse_mzml. Must not be empty.
-        features: The features to name: mz and rt each. find_features and match_features output works as is. Empty gives an empty result.
+        files: The samples, from parse_ion or parse_mzml. It must not be empty.
+        features: The features to name, each with mz and rt. The output of find_features and match_features works as is. An empty list gives an empty result.
         options: Optional settings: library = "https://github.com/josoriom/cipher/releases/latest/download/library_positive.ion", model = "https://github.com/josoriom/cipher/releases/latest/download/model.onnx", matches = 3, ppm_tolerance = 20, mz_tolerance = 0.005, rt_range = 0.3, min_relative_intensity = 0.02. See AnnotateFeaturesOptions: https://phenological.github.io/quantion/?language=python#AnnotateFeaturesOptions
 
     Returns:
-        One FeatureAnnotation per feature, in the same order.
+        One annotation per feature, in the same order as features.
 
     Documentation: https://phenological.github.io/quantion/?language=python#annotate_features
     """

@@ -12,17 +12,17 @@ use super::{
 
 /// **IonImage** · Results
 ///
-/// An imaging map of one m/z from get_ion_image.
+/// An imaging map of one m/z, from get_ion_image.
 ///
 /// Fields:
-/// - `width`: Pixels across.
-/// - `height`: Pixels down.
+/// - `width`: Number of pixels across.
+/// - `height`: Number of pixels down.
 /// - `min_x`: x position of the first column.
 /// - `min_y`: y position of the first row.
 /// - `min_z`: Lowest z position.
 /// - `max_z`: Highest z position.
-/// - `data`: Summed intensity per pixel, row by row (width × height).
-/// - `counts`: Scans per pixel.
+/// - `data`: Summed intensity of each pixel, row by row (width × height values).
+/// - `counts`: Number of scans in each pixel, in the same order as data.
 ///
 /// [Documentation](https://phenological.github.io/quantion/?language=rust#IonImage)
 #[derive(Clone, Debug)]

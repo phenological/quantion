@@ -2,21 +2,21 @@
 \alias{predict_rts}
 \title{Predict retention times}
 \description{
-Predict where each target elutes in one sample.
+Predict where each target elutes in one sample, to correct retention-time shifts (rt drift) between runs or batches.
 }
 \usage{
 predict_rts(warp, file, targets)
 }
 \arguments{
-  \item{warp}{The warp model. Type: \code{WarpModel}.}
-  \item{file}{The sample to read, from parse_ion or parse_mzml. Type: \code{SampleFile}.}
+  \item{warp}{The warp model, from load_warp. Type: \code{WarpModel}.}
+  \item{file}{The sample to predict for, from parse_ion or parse_mzml. Type: \code{SampleFile}.}
   \item{targets}{Targets with mz and reference rt. id and range are optional and not used. Type: \code{data.frame of Target}. Each Target has \code{id}, \code{mz}, \code{rt}, \code{range}.
     Example: \code{targets <- data.frame(id = "compound_1", mz = 260.103, rt = 2.383, range = 0.05)}
     \href{https://phenological.github.io/quantion/?language=r#Target}{Target documentation}
   }
 }
 \value{
-One PredictedRt per target, in the same order. Type: \code{data.frame of PredictedRt}. Columns: \code{rt}, \code{uncertainty}.
+One predicted retention time per target, in the same order. Type: \code{data.frame of PredictedRt}. Columns: \code{rt}, \code{uncertainty}.
 }
 \section{Documentation}{
 \url{https://phenological.github.io/quantion/?language=r#predict_rts}

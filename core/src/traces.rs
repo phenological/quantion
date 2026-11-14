@@ -41,22 +41,22 @@ pub(crate) fn check_trace(function: &'static str, data: &DataXY) -> Result<(), Q
 
 /// **FindPeaksOptions** · Options
 ///
-/// Peak-picking settings. Every field is optional.
+/// Options for find_peaks. Every field is optional.
 ///
 /// Fields:
-/// - `min_integral`: Drop peaks with a smaller area. Off when not given. Default `None`.
-/// - `min_intensity`: Drop peaks with a lower apex. Default `500.0`.
-/// - `min_peak_width_points`: Drop peaks with fewer points. Default `3`.
-/// - `noise`: Fixed noise level, used when auto_noise is false. Default `None`.
-/// - `auto_noise`: Estimate the noise from the trace. Default `true`.
-/// - `auto_baseline`: Subtract an airPLS baseline first. Default `true`.
-/// - `lambda`: airPLS smoothness. Default `20.0`.
-/// - `max_iterations`: Maximum airPLS iterations. Default `4`.
-/// - `allow_overlap`: Let neighbouring peaks share points. Default `false`.
-/// - `min_snr`: Minimum signal-to-noise ratio. Default `2.0`.
-/// - `min_r2`: Minimum fit quality of the peak shape (0–1). 0 keeps every peak. Default `0.0`.
-/// - `shape`: Curve used for the fit. Default `EMG`.
-/// - `kernel_size`: Smoothing window in points. 0 = no smoothing. Default `0`.
+/// - `min_integral`: Drop peaks whose area (integral) is below this value. Off when not given. Default `None`.
+/// - `min_intensity`: Drop peaks whose apex intensity is below this value. Raise it to ignore small peaks. Default `500.0`.
+/// - `min_peak_width_points`: Drop peaks with fewer data points than this. Default `3`.
+/// - `noise`: Fixed noise level (intensity), used only when auto_noise is false. Default `None`.
+/// - `auto_noise`: Estimate the noise from the chromatogram. Turn off and set noise to use a fixed value. Default `true`.
+/// - `auto_baseline`: Subtract an airPLS baseline before finding peaks. Turn off for windows shorter than 1 minute: they do not have enough points to estimate the baseline and can give misleading results. Default `true`.
+/// - `lambda`: Smoothness of the airPLS baseline. A larger value gives a smoother baseline that follows only slow drift. Default `20.0`.
+/// - `max_iterations`: Maximum number of airPLS iterations used to estimate the baseline. Default `4`.
+/// - `allow_overlap`: Let neighbouring peaks share points at their border. When off, overlapping peaks are split at the valley between them. Default `false`.
+/// - `min_snr`: Minimum signal-to-noise ratio. A peak’s apex must be above min_snr × noise. Default `2.0`.
+/// - `min_r2`: Minimum fit quality (0–1) of the peak shape. Peaks that fit the shape worse are dropped. 0 keeps every peak. Default `0.0`.
+/// - `shape`: Curve used to check the peak shape for min_r2: EMG or GAUSSIAN. Default `EMG`.
+/// - `kernel_size`: Savitzky–Golay smoothing window, in points, to smooth noisy chromatograms. 0 = no smoothing. A larger value gives a smoother chromatogram. Default `0`.
 ///
 /// [Documentation](https://phenological.github.io/quantion/?language=rust#FindPeaksOptions)
 #[derive(Clone, Debug, PartialEq)]
@@ -127,13 +127,13 @@ impl FindPeaksOptions {
 
 /// **find_peaks** · Traces
 ///
-/// Find every peak in one trace.
+/// Find every peak (peak picking) in one trace or signal, such as a chromatogram (TIC, BPC or EIC). For one known peak at an rt, use get_peak. To calculate EIC use calculate_eic.
 ///
-/// - `data.x`: Retention times, ascending. At least 3 points.
-/// - `data.y`: Intensities, same length as x.
+/// - `data.x`: Retention times in minutes, ascending, at least 3 points. For a chromatogram, its x.
+/// - `data.y`: Intensities, same length as x. For a chromatogram, its y.
 /// - `options`: Optional settings: `min_integral` = None, `min_intensity` = 500.0, `min_peak_width_points` = 3, `noise` = None, `auto_noise` = true, `auto_baseline` = true, `lambda` = 20.0, `max_iterations` = 4, `allow_overlap` = false, `min_snr` = 2.0, `min_r2` = 0.0, `shape` = EMG, `kernel_size` = 0. See [FindPeaksOptions](https://phenological.github.io/quantion/?language=rust#FindPeaksOptions).
 ///
-/// Returns: Every peak that passes the filters.
+/// Returns: Every peak that passes the filters specified in the function options: the peak table, one row per peak.
 ///
 /// [Documentation](https://phenological.github.io/quantion/?language=rust#find_peaks)
 pub fn find_peaks(data: &DataXY, options: FindPeaksOptions) -> Result<Vec<Peak>, QuantionError> {
@@ -145,11 +145,11 @@ pub fn find_peaks(data: &DataXY, options: FindPeaksOptions) -> Result<Vec<Peak>,
 
 /// **GetPeakOptions** · Options
 ///
-/// Settings for get_peak.
+/// Options for get_peak, including the search window and the peak-finding settings.
 ///
 /// Fields:
-/// - `range`: Half-width of the search window around rt. 0 searches the whole trace. Default `0.0`.
-/// - `find_peaks`: Settings for peak picking. See [FindPeaksOptions](https://phenological.github.io/quantion/?language=rust#FindPeaksOptions).
+/// - `range`: Half-width of the search window, in minutes. Only peaks within rt ± range are considered. 0 searches the whole trace. Default `0.0`.
+/// - `find_peaks`: Options for find_peaks function. See [FindPeaksOptions](https://phenological.github.io/quantion/?language=rust#FindPeaksOptions).
 ///
 /// [Documentation](https://phenological.github.io/quantion/?language=rust#GetPeakOptions)
 #[derive(Clone, Debug, PartialEq, Default)]
@@ -167,14 +167,14 @@ impl GetPeakOptions {
 
 /// **get_peak** · Traces
 ///
-/// Find the one peak near rt. With a range, only rt ± range is searched; without one, the whole trace is searched and the peak is chosen by its size and its distance to rt.
+/// Find the peak closest to rt. If range is given, only peaks within rt ± range are searched. If it is not, the whole trace is searched, and the peak is chosen by its size and its distance from rt.
 ///
 /// - `data.x`: Retention times, ascending. At least 3 points.
 /// - `data.y`: Intensities, same length as x.
-/// - `rt`: Expected retention time of the peak.
+/// - `rt`: Expected retention time of the target peak, in minutes.
 /// - `options`: Optional settings: `range` = 0.0, `find_peaks`. See [GetPeakOptions](https://phenological.github.io/quantion/?language=rust#GetPeakOptions).
 ///
-/// Returns: The best peak near rt. No peak gives a Peak with every field 0.
+/// Returns: The chosen peak, or an empty peak (every field is 0) when no peak is found.
 ///
 /// [Documentation](https://phenological.github.io/quantion/?language=rust#get_peak)
 pub fn get_peak(data: &DataXY, rt: f64, options: GetPeakOptions) -> Result<Peak, QuantionError> {
@@ -191,11 +191,11 @@ pub fn get_peak(data: &DataXY, rt: f64, options: GetPeakOptions) -> Result<Peak,
 
 /// **FitPeakOptions** · Options
 ///
-/// Settings for fit_peak.
+/// Options for fit_peak function.
 ///
 /// Fields:
-/// - `shape`: Curve to fit. Default `EMG`.
-/// - `intensity`: Apex intensity to start the fit from. 0 = take it from the peak at rt. Default `0.0`.
+/// - `shape`: Curve to fit: EMG (with a right tail) or GAUSSIAN (symmetric). Default `EMG`.
+/// - `intensity`: Apex intensity to start the fit from. 0 = use the apex of the peak found at rt. Default `0.0`.
 ///
 /// [Documentation](https://phenological.github.io/quantion/?language=rust#FitPeakOptions)
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -221,14 +221,14 @@ impl FitPeakOptions {
 
 /// **fit_peak** · Traces
 ///
-/// Fit a Gaussian or EMG curve to the peak near rt. rt says which peak; its apex intensity is the starting point unless you force one.
+/// Fit a Gaussian or EMG curve to the target peak at rt. The function finds the peak within rt ± 0.05 min, then fits the points between its start and end to get its width (fwhm) and tailing (tail). The peak needs at least 5 points.
 ///
 /// - `data.x`: Retention times, ascending. At least 3 points.
 /// - `data.y`: Intensities, same length as x.
-/// - `rt`: Expected retention time of the peak.
+/// - `rt`: Retention time of the peak to fit, in minutes. The peak must be within ± 0.05 min of it.
 /// - `options`: Optional settings: `shape` = EMG, `intensity` = 0.0. See [FitPeakOptions](https://phenological.github.io/quantion/?language=rust#FitPeakOptions).
 ///
-/// Returns: The fitted curve, or none when no peak is found or the fit fails.
+/// Returns: The fitted parameters (height, center, fwhm, tail, r2) for the target peak, or none if no peak is found near rt or the fit fails.
 ///
 /// [Documentation](https://phenological.github.io/quantion/?language=rust#fit_peak)
 pub fn fit_peak(
@@ -277,12 +277,12 @@ fn get_section(data: &DataXY, from: f64, to: f64) -> DataXY {
 
 /// **DrawPeaksOptions** · Options
 ///
-/// Settings for draw_peaks.
+/// Options for draw_peaks, including the time range and the number of points.
 ///
 /// Fields:
-/// - `from`: Start of the chromatogram. With to, 0 and 0 = fit the range around all the peaks. Default `0.0`.
-/// - `to`: End of the chromatogram. Default `0.0`.
-/// - `points`: Number of points drawn between from and to. Default `1000`.
+/// - `from`: Start of the simulated chromatogram, in minutes. Leave from and to at 0 to cover all the peaks automatically. Default `0.0`.
+/// - `to`: End of the simulated chromatogram, in minutes. Default `0.0`.
+/// - `points`: Number of points drawn from from to to. Default `1000`.
 ///
 /// [Documentation](https://phenological.github.io/quantion/?language=rust#DrawPeaksOptions)
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -327,13 +327,13 @@ impl DrawPeaksOptions {
 
 /// **draw_peaks** · Traces
 ///
-/// Simulate a chromatogram from one or more peak shapes. Every peak is drawn into the same chromatogram; where they overlap, intensities add up. No real data is needed.
+/// Simulate a chromatogram (a synthetic trace) from peak curves (height, center, fwhm, tail). Overlapping peaks add up. Useful for tests, no data needed.
 ///
 /// - `params`: The peaks to draw, one PeakParameters per peak. Each PeakParameters has `height`, `center`, `fwhm`, `tail`, `r2`. See [PeakParameters](https://phenological.github.io/quantion/?language=rust#PeakParameters).
 ///   Example: `let peak = PeakParameters { height: 9800.0, center: 2.38, fwhm: 0.021, tail: 0.006, r2: 0.0 };`
 /// - `options`: Optional settings: `from` = 0.0, `to` = 0.0, `points` = 1000. See [DrawPeaksOptions](https://phenological.github.io/quantion/?language=rust#DrawPeaksOptions).
 ///
-/// Returns: The simulated chromatogram: x = retention times, y = summed intensities.
+/// Returns: The simulated chromatogram: x = retention times in minutes, y = summed intensities.
 ///
 /// [Documentation](https://phenological.github.io/quantion/?language=rust#draw_peaks)
 pub fn draw_peaks(
@@ -369,11 +369,11 @@ pub fn draw_peaks(
 
 /// **find_noise_level** · Traces
 ///
-/// Estimate the noise level of a signal.
+/// Estimate the noise level of a chromatogram or any signal: how noisy it is. Small, narrow peaks are grouped together, and their maximum intensity and width (in number of points) are reported as the noise.
 ///
-/// - `y`: Intensities.
+/// - `y`: Intensities, for example the y of a chromatogram.
 ///
-/// Returns: The noise intensity and the window width it came from.
+/// Returns: The noise intensity and the width (in points) of the noise regions it was estimated from.
 ///
 /// [Documentation](https://phenological.github.io/quantion/?language=rust#find_noise_level)
 pub fn find_noise_level(y: &[f64]) -> NoiseLevel {
@@ -382,11 +382,11 @@ pub fn find_noise_level(y: &[f64]) -> NoiseLevel {
 
 /// **CalculateBaselineOptions** · Options
 ///
-/// airPLS baseline settings for calculate_baseline.
+/// Options for calculate_baseline, which estimates the baseline with airPLS.
 ///
 /// Fields:
-/// - `lambda`: Smoothness. Larger = smoother. Default `20.0`.
-/// - `max_iterations`: Maximum iterations. Default `4`.
+/// - `lambda`: Smoothness of the baseline. A larger value gives a smoother baseline that follows only slow drift. Default `20.0`.
+/// - `max_iterations`: Maximum number of iterations used to estimate the baseline. Default `4`.
 ///
 /// [Documentation](https://phenological.github.io/quantion/?language=rust#CalculateBaselineOptions)
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -420,12 +420,12 @@ impl CalculateBaselineOptions {
 
 /// **calculate_baseline** · Traces
 ///
-/// Estimate a signal's baseline with airPLS.
+/// Estimate the baseline (slow background drift) of the input chromatogram or signal using airPLS (Zhang et al., 2010).
 ///
-/// - `y`: Intensities.
+/// - `y`: Intensities, for example the y of a chromatogram.
 /// - `options`: Optional settings: `lambda` = 20.0, `max_iterations` = 4. See [CalculateBaselineOptions](https://phenological.github.io/quantion/?language=rust#CalculateBaselineOptions).
 ///
-/// Returns: The baseline, same length as y.
+/// Returns: The baseline: one value per point of y.
 ///
 /// [Documentation](https://phenological.github.io/quantion/?language=rust#calculate_baseline)
 pub fn calculate_baseline(

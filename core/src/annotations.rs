@@ -23,16 +23,16 @@ pub(crate) const DEFAULT_MODEL: &str =
 
 /// **AnnotateFeaturesOptions** · Options
 ///
-/// Settings for annotate_features.
+/// Options for annotate_features, including the library, the model, the tolerances and how many matches to keep.
 ///
 /// Fields:
-/// - `library`: Spectral library: an Ionic (.ion) file path or URL. Each spectrum has a precursor m/z, a vector array and the params named by the model. Default `"https://github.com/josoriom/cipher/releases/latest/download/library_positive.ion"`.
-/// - `model`: Spectrum model: an ONNX file path or URL. Default `"https://github.com/josoriom/cipher/releases/latest/download/model.onnx"`.
+/// - `library`: Spectral library, as a path or URL to an Ionic (.ion) file. Each spectrum has a precursor m/z, a vector array and the params the model names. Only Ionic (.ion) libraries work. Default `"https://github.com/josoriom/cipher/releases/latest/download/library_positive.ion"`.
+/// - `model`: Spectrum model, as a path or URL to an ONNX file. Default `"https://github.com/josoriom/cipher/releases/latest/download/model.onnx"`.
 /// - `matches`: How many matches to keep per file, best first. Default `3`.
-/// - `ppm_tolerance`: Precursor tolerance in ppm. The larger of the two tolerances is used. Default `20.0`.
-/// - `mz_tolerance`: Precursor tolerance in Da. Default `0.005`.
-/// - `rt_range`: Largest distance in minutes from the peak apex to the MS2 scan. Default `0.3`.
-/// - `min_relative_intensity`: MS2 peaks below this share of the base peak are dropped (0–1). Default `0.02`.
+/// - `ppm_tolerance`: Precursor m/z tolerance in ppm. The larger of the ppm and Da tolerances is used. Default `20.0`.
+/// - `mz_tolerance`: Precursor m/z tolerance in Da. The larger of the ppm and Da tolerances is used. Default `0.005`.
+/// - `rt_range`: Largest distance, in minutes, from the peak apex to the MS2 scan. Default `0.3`.
+/// - `min_relative_intensity`: MS2 peaks below this share of the base peak are removed before matching, from 0 to 1. Default `0.02`.
 ///
 /// [Documentation](https://phenological.github.io/quantion/?language=rust#AnnotateFeaturesOptions)
 #[derive(Clone, Debug, PartialEq)]
@@ -118,15 +118,15 @@ impl AnnotateFeaturesOptions {
 
 /// **annotate_features** · Untargeted
 ///
-/// Annotate features by matching their MS2 spectra against a spectral library. For each feature and sample, the positive MS2 scan closest to the peak apex is used: its precursor must match the feature m/z within the tolerance, and its RT must be within rt_range. A spectrum encoder turns the scan into a vector, which is scored against the library spectra with the same precursor m/z. The library (an Ionic .ion file) and the encoder (an ONNX model) are read from a path or a URL; by default both come from the josoriom/cipher releases.
+/// Name features (annotation) by matching their MS2 spectra against a spectral library. For each feature and sample, it takes the positive MS2 scan closest to the peak apex, whose precursor matches the feature m/z and whose rt is within rt_range. A model turns the scan into a vector, which is scored against the library spectra with the same precursor m/z. By default, the library and the model come from the josoriom/cipher releases.
 ///
 /// **Warning:** This is an experimental feature.
 ///
-/// - `files`: The samples, from parse_ion or parse_mzml. Must not be empty.
-/// - `features`: The features to name: mz and rt each. find_features and match_features output works as is. Empty gives an empty result.
+/// - `files`: The samples, from parse_ion or parse_mzml. It must not be empty.
+/// - `features`: The features to name, each with mz and rt. The output of find_features and match_features works as is. An empty list gives an empty result.
 /// - `options`: Optional settings: `library` = "https://github.com/josoriom/cipher/releases/latest/download/library_positive.ion", `model` = "https://github.com/josoriom/cipher/releases/latest/download/model.onnx", `matches` = 3, `ppm_tolerance` = 20.0, `mz_tolerance` = 0.005, `rt_range` = 0.3, `min_relative_intensity` = 0.02. See [AnnotateFeaturesOptions](https://phenological.github.io/quantion/?language=rust#AnnotateFeaturesOptions).
 ///
-/// Returns: One FeatureAnnotation per feature, in the same order.
+/// Returns: One annotation per feature, in the same order as features.
 ///
 /// [Documentation](https://phenological.github.io/quantion/?language=rust#annotate_features)
 pub fn annotate_features(

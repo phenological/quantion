@@ -10,11 +10,11 @@ const MIN_POINTS: usize = 5;
 
 /// **PeakShape** · Enums
 ///
-/// Curve used to fit a peak.
+/// Curve used to fit or check a peak.
 ///
 /// Fields:
-/// - `GAUSSIAN`: Symmetric Gaussian.
-/// - `EMG`: Exponentially modified Gaussian: a Gaussian with a tail on the right (default).
+/// - `GAUSSIAN`: Symmetric bell curve.
+/// - `EMG`: Exponentially modified Gaussian: a bell curve with a tail on the right.
 ///
 /// [Documentation](https://phenological.github.io/quantion/?language=rust#PeakShape)
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -41,13 +41,13 @@ impl From<&Peak> for PeakSeed {
 
 /// **PeakParameters** · Results
 ///
-/// One peak curve: returned by fit_peak, or written by hand to simulate. draw_peaks takes a list of them. tail = 0 is a Gaussian, tail above 0 an EMG.
+/// The parameters that describe the shape of one peak. fit_peak returns them, and you can also write them by hand to simulate a peak with draw_peaks. With tail = 0 the peak is a Gaussian, and with tail above 0 it is an EMG.
 ///
 /// Fields:
-/// - `height`: Height of the curve at its apex.
-/// - `center`: Retention time of the apex (minutes).
-/// - `fwhm`: Full width at half maximum of the Gaussian part (minutes). With a tail, the drawn peak is a little wider.
-/// - `tail`: Length of the right-hand tail. 0 = Gaussian, above 0 = EMG.
+/// - `height`: Height of the curve at its apex (intensity).
+/// - `center`: Apex retention time, in minutes.
+/// - `fwhm`: Full width at half maximum of the Gaussian part, in minutes. With a tail, the drawn peak is a little wider.
+/// - `tail`: Tailing to the right, in minutes. 0 = Gaussian, above 0 = EMG.
 /// - `r2`: Fit quality (0–1), set by fit_peak. Not needed to draw.
 ///
 /// Example:

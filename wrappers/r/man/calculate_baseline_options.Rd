@@ -2,14 +2,14 @@
 \alias{calculate_baseline_options}
 \title{Settings for calculate_baseline}
 \description{
-airPLS baseline settings for calculate_baseline.
+Options for calculate_baseline, which estimates the baseline with airPLS.
 }
 \usage{
 calculate_baseline_options(lambda = 20, max_iterations = 4L)
 }
 \arguments{
-  \item{lambda}{Smoothness. Larger = smoother.}
-  \item{max_iterations}{Maximum iterations.}
+  \item{lambda}{Smoothness of the baseline. A larger value gives a smoother baseline that follows only slow drift.}
+  \item{max_iterations}{Maximum number of iterations used to estimate the baseline.}
 }
 \value{
 An options object for \code{\link{calculate_baseline}()}.

@@ -2,18 +2,18 @@
 \alias{calibrate}
 \title{Calibrate reference retention times}
 \description{
-Turn the retention times seen in anchor samples (LTRs, QCs) into targets for predict_rts. Each id gets the median rt over the anchors.
+Turn the retention times seen in anchor samples (LTRs or QCs) into reference targets for predict_rts. Each id gets the median rt over the anchor samples.
 }
 \usage{
 calibrate(warp, anchor_samples, target_lists)
 }
 \arguments{
-  \item{warp}{The warp model. Type: \code{WarpModel}.}
-  \item{anchor_samples}{Anchor samples. Type: \code{list of SampleFile}.}
+  \item{warp}{The warp model, from load_warp. Type: \code{WarpModel}.}
+  \item{anchor_samples}{The anchor samples (LTRs or QCs), from parse_ion or parse_mzml. Type: \code{list of SampleFile}.}
   \item{target_lists}{For each anchor sample, the targets seen in it with their observed rt. Type: \code{list of data.frame}.}
 }
 \value{
-One Target per id with the median rt. Type: \code{data.frame of Target}. Columns: \code{id}, \code{mz}, \code{rt}, \code{range}.
+One target per id, with the median rt. Type: \code{data.frame of Target}. Columns: \code{id}, \code{mz}, \code{rt}, \code{range}.
 }
 \section{Documentation}{
 \url{https://phenological.github.io/quantion/?language=r#calibrate}

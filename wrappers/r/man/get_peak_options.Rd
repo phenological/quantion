@@ -2,14 +2,14 @@
 \alias{get_peak_options}
 \title{Settings for get_peak}
 \description{
-Settings for get_peak.
+Options for get_peak, including the search window and the peak-finding settings.
 }
 \usage{
 get_peak_options(range = 0, find_peaks = find_peaks_options())
 }
 \arguments{
-  \item{range}{Half-width of the search window around rt. 0 searches the whole trace.}
-  \item{find_peaks}{Settings for peak picking. See \code{\link{find_peaks_options}()}.}
+  \item{range}{Half-width of the search window, in minutes. Only peaks within rt +/- range are considered. 0 searches the whole trace.}
+  \item{find_peaks}{Options for find_peaks function. See \code{\link{find_peaks_options}()}.}
 }
 \value{
 An options object for \code{\link{get_peak}()}.

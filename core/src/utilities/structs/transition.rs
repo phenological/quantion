@@ -1,13 +1,13 @@
 /// **Transition** · Inputs
 ///
-/// One SRM transition.
+/// One SRM or MRM transition, with its precursor (Q1) and product (Q3) m/z.
 ///
 /// Fields:
-/// - `id`: Your name for it. Optional.
+/// - `id`: Your name for the transition. Optional.
 /// - `precursor`: Precursor (Q1) m/z.
 /// - `product`: Product (Q3) m/z.
-/// - `rt`: Expected retention time.
-/// - `range`: Half-width of the search window around rt.
+/// - `rt`: Expected retention time, in minutes.
+/// - `range`: Half-width of the search window around rt, in minutes.
 ///
 /// Example:
 /// ```ignore

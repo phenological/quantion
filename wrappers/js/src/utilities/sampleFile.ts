@@ -6,7 +6,7 @@ type Cell = ReturnType<typeof fileHandleRegistry.register>;
 /**
  * SampleFile · Inputs
  *
- * An opened sample from parse_ion or parse_mzml. Free it with dispose when you are done.
+ * An opened sample (one file, i.e. one injection) from parse_ion or parse_mzml. Free it with dispose when you are done.
  * @see {@link https://phenological.github.io/quantion/?language=js#SampleFile | Documentation}
  */
 export class SampleFile {
@@ -34,7 +34,7 @@ export class SampleFile {
   /**
    * dispose · Models
    *
-   * Free the memory held by a sample, model or warp model.
+   * Free the memory held by a sample, a model or a warp model when you are done with it.
    *
    * **Warning:** Not needed in normal use: the library frees a sample, model or warp model by itself once it is no longer used. When processing many samples, dispose each one after using it, so its memory is freed right away instead of piling up.
    * @returns Nothing.

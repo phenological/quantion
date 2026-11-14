@@ -2,13 +2,13 @@
 \alias{parse_ion_options}
 \title{Settings for parse_ion}
 \description{
-Settings for parse_ion.
+Options for parse_ion.
 }
 \usage{
 parse_ion_options(max_cache_size = 0)
 }
 \arguments{
-  \item{max_cache_size}{Cache size in bytes. 0 = no limit.}
+  \item{max_cache_size}{Maximum memory, in bytes, kept for the parts of the file already read. 0 = no limit. Set it to limit memory on large or remote files.}
 }
 \value{
 An options object for \code{\link{parse_ion}()}.

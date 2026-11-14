@@ -8,10 +8,10 @@ Load an ONNX model from a path, a URL or bytes, and read the keys and values sto
 load_model(source)
 }
 \arguments{
-  \item{source}{Where the model is: a path, an http(s) URL, or raw bytes. Type: \code{character | raw}.}
+  \item{source}{Where the model is. It can be a local path, an http(s) URL, or the file's bytes. Type: \code{character | raw}.}
 }
 \value{
-The model, with get_keys(), get_values() and get_value(key). Type: \code{Model}.
+The model, with get_keys(), get_values() and get_value(key) to read what is stored in it. Type: \code{Model}.
 }
 \section{Documentation}{
 \url{https://phenological.github.io/quantion/?language=r#load_model}

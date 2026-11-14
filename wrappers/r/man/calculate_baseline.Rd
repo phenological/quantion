@@ -2,19 +2,19 @@
 \alias{calculate_baseline}
 \title{Estimate a baseline}
 \description{
-Estimate a signal's baseline with airPLS.
+Estimate the baseline (slow background drift) of the input chromatogram or signal using airPLS (Zhang et al., 2010).
 }
 \usage{
 calculate_baseline(y, options = calculate_baseline_options())
 }
 \arguments{
-  \item{y}{Intensities. Type: \code{numeric}.}
+  \item{y}{Intensities, for example the y of a chromatogram. Type: \code{numeric}.}
   \item{options}{Settings from \code{\link{calculate_baseline_options}()}: \code{lambda = 20}, \code{max_iterations = 4L}.
     \href{https://phenological.github.io/quantion/?language=r#CalculateBaselineOptions}{CalculateBaselineOptions documentation}
   }
 }
 \value{
-The baseline, same length as y. Type: \code{numeric}.
+The baseline: one value per point of y. Type: \code{numeric}.
 }
 \section{Documentation}{
 \url{https://phenological.github.io/quantion/?language=r#calculate_baseline}

@@ -33,7 +33,7 @@ pub(crate) fn scan_in_minutes(mut summary: ScanSummary) -> ScanSummary {
 /// Unit of the retention times you give to a function. Results are always in minutes.
 ///
 /// Fields:
-/// - `MINUTES`: Minutes (default).
+/// - `MINUTES`: Minutes.
 /// - `SECONDS`: Seconds.
 ///
 /// [Documentation](https://phenological.github.io/quantion/?language=rust#TimeUnit)

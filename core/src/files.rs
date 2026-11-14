@@ -37,22 +37,22 @@ const RESERVED_HEADERS: [&str; 3] = ["host", "content-length", "transfer-encodin
 
 /// **Scan** · Results
 ///
-/// One scan from get_scans: its retention time, centroided m/z and intensity values, and its details.
+/// One scan (spectrum) from get_scans, with its retention time, its m/z and intensity values, and its details.
 ///
 /// Fields:
-/// - `index`: Position of the scan in the spectrum list, from 0. Use it with get_scan_metadata.
-/// - `rt`: Retention time (minutes).
-/// - `mz`: m/z values.
-/// - `intensity`: Intensities, same length as mz.
-/// - `level`: MS level.
-/// - `precursor_mz`: Precursor m/z (MS2 and higher).
-/// - `base_peak_mz`: Base peak m/z.
-/// - `base_peak_intensity`: Base peak intensity.
-/// - `total_ion_current`: Total ion current.
-/// - `polarity`: Polarity: 1 positive, 2 negative, 0 unknown.
-/// - `x`: Imaging x position. 0 in non-imaging files.
-/// - `y`: Imaging y position. 0 in non-imaging files.
-/// - `z`: Imaging z position. 0 in non-imaging files.
+/// - `index`: Position of the scan in the file, from 0. Use it with get_scan_metadata.
+/// - `rt`: Retention time, in minutes.
+/// - `mz`: m/z values of the spectrum.
+/// - `intensity`: Intensities, one per m/z value.
+/// - `level`: MS level, 1 for MS1 and 2 for MS2.
+/// - `precursor_mz`: m/z of the precursor ion that was fragmented (MS2 and higher).
+/// - `base_peak_mz`: m/z of the most intense peak in the scan (base peak).
+/// - `base_peak_intensity`: Intensity of the base peak.
+/// - `total_ion_current`: Sum of all intensities in this scan. Plotted against rt over the whole injection, these values form the TIC chromatogram.
+/// - `polarity`: Ion mode, 1 for positive, 2 for negative and 0 for unknown.
+/// - `x`: x position in imaging files. 0 in other files.
+/// - `y`: y position in imaging files. 0 in other files.
+/// - `z`: z position in imaging files. 0 in other files.
 ///
 /// [Documentation](https://phenological.github.io/quantion/?language=rust#Scan)
 #[derive(Clone, Debug, PartialEq)]
@@ -79,8 +79,8 @@ pub struct Scan {
 ///
 /// Fields:
 /// - `ATTRIBUTE`: An attribute of the tag, such as id or defaultArrayLength.
-/// - `CV`: A cvParam: a param from the controlled vocabulary, with an accession.
-/// - `USER`: A userParam: a param the software that wrote the file named itself.
+/// - `CV`: A cvParam, a param from the controlled vocabulary, with an accession.
+/// - `USER`: A userParam, a param named by the software that wrote the file.
 ///
 /// [Documentation](https://phenological.github.io/quantion/?language=rust#ScanParamKind)
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -103,11 +103,11 @@ impl ScanParamKind {
 
 /// **ScanParam** · Results
 ///
-/// One row from get_scan_metadata: an attribute, cvParam or userParam of one tag in a spectrum.
+/// One row from get_scan_metadata. It is an attribute, a cvParam or a userParam of one tag in a spectrum.
 ///
 /// Fields:
 /// - `path`: Where the tag sits, from spectrum down. Repeated tags carry their position from 0, such as spectrum/precursorList/precursor\[0\]/selectedIonList/selectedIon\[0\].
-/// - `kind`: What the row holds: ATTRIBUTE, CV or USER. See ScanParamKind.
+/// - `kind`: What the row holds, ATTRIBUTE, CV or USER. See ScanParamKind.
 /// - `accession`: Accession of a cvParam, such as MS:1000511. Missing for attributes and userParams. Optional.
 /// - `name`: Name of the attribute or param, such as ms level.
 /// - `value`: Value as text, such as 2. Missing when the file gives none. Optional.
@@ -204,10 +204,10 @@ pub(crate) fn from_fast_error(function: &'static str, error: FastError) -> Quant
 
 /// **ParseIonOptions** · Options
 ///
-/// Settings for parse_ion.
+/// Options for parse_ion.
 ///
 /// Fields:
-/// - `max_cache_size`: Cache size in bytes. 0 = no limit. Default `0`.
+/// - `max_cache_size`: Maximum memory, in bytes, kept for the parts of the file already read. 0 = no limit. Set it to limit memory on large or remote files. Default `0`.
 ///
 /// [Documentation](https://phenological.github.io/quantion/?language=rust#ParseIonOptions)
 #[derive(Clone, Copy, Debug, PartialEq, Default)]
@@ -217,14 +217,14 @@ pub struct ParseIonOptions {
 
 /// **parse_ion** · Files
 ///
-/// Open an Ionic file (.ion) from a path, a URL or bytes. Paths and URLs are read lazily: only the bytes a query needs are fetched.
+/// Open an Ionic file (.ion) from a path, a URL or bytes. Paths and URLs are read lazily. Only the parts a query needs are read, so large or remote files open fast.
 ///
 /// **Warning:** The sample is freed when it goes out of scope, so nothing else is needed in normal use. When processing many samples, drop each one after using it, with drop(file), so its memory is freed right away instead of piling up.
 ///
-/// - `input`: Where the file is: a path, an http(s) URL, or raw bytes.
+/// - `input`: Where the file is. It can be a local path, an http(s) URL, or the file's bytes.
 /// - `options`: Optional settings: `max_cache_size` = 0. See [ParseIonOptions](https://phenological.github.io/quantion/?language=rust#ParseIonOptions).
 ///
-/// Returns: The opened sample.
+/// Returns: The opened sample (one file, i.e. one injection). Pass it to calculate_eic, get_scans and the other functions.
 ///
 /// [Documentation](https://phenological.github.io/quantion/?language=rust#parse_ion)
 pub fn parse_ion(
@@ -259,13 +259,13 @@ pub fn parse_ion(
 
 /// **parse_mzml** · Files
 ///
-/// Open an mzML file from a path or bytes. It is always loaded fully into memory. URLs are refused.
+/// Open an mzML file from a path or bytes. The whole file is loaded into memory. URLs are not allowed, so download the file first, or convert it to .ion with write_ion.
 ///
 /// **Warning:** The sample is freed when it goes out of scope, so nothing else is needed in normal use. When processing many samples, drop each one after using it, with drop(file), so its memory is freed right away instead of piling up.
 ///
-/// - `input`: Where the file is: a path or raw bytes.
+/// - `input`: Where the file is. It can be a local path or the file's bytes.
 ///
-/// Returns: The loaded sample.
+/// Returns: The opened sample (one file, i.e. one injection).
 ///
 /// [Documentation](https://phenological.github.io/quantion/?language=rust#parse_mzml)
 pub fn parse_mzml(input: impl Into<MzmlInput>) -> Result<SampleFile, QuantionError> {
@@ -289,7 +289,7 @@ pub fn parse_mzml(input: impl Into<MzmlInput>) -> Result<SampleFile, QuantionErr
 
 /// **Header** · Inputs
 ///
-/// One HTTP header sent with an upload in write_ion. Values are never printed. A line break, or Host, Content-Length or Transfer-Encoding, gives an invalid_argument error.
+/// One HTTP header sent with an upload in write_ion, for example a token. Values are never printed. A line break, or the names Host, Content-Length or Transfer-Encoding, give an invalid_argument error.
 ///
 /// Fields:
 /// - `name`: Name of the header, such as Authorization.
@@ -337,16 +337,16 @@ impl From<PathBuf> for IonOutput {
 
 /// **WriteIonOptions** · Options
 ///
-/// Settings for write_ion.
+/// Options for write_ion, including where to write and how to compress.
 ///
 /// Fields:
-/// - `out`: Path or URL to write to. Not given = return the bytes. Default `None`.
-/// - `overwrite`: Replace an existing file. Default `false`.
-/// - `level`: Compression level, 0 to 22. Default `12`.
-/// - `f32_compress`: Store intensities as 32-bit floats. Default `false`.
+/// - `out`: Path or URL to write to. If it is not given, the bytes are returned. Default `None`.
+/// - `overwrite`: Replace the file if it already exists. Default `false`.
+/// - `level`: Compression level, 0 to 22. A higher level gives a smaller file but takes longer to write. Default `12`.
+/// - `f32_compress`: Store intensities as 32-bit floats, for a smaller file with slightly less precision. Default `false`.
 /// - `block_size`: Size of each data block before compression, in MB. A whole number, 1 or more. Default `8`.
-/// - `mz_window`: Width of the m/z windows the spectra are split into, in Da, so a query reads only the windows it needs. A whole number, 0 or more; 0 keeps each spectrum whole. Default `20`.
-/// - `headers`: Extra HTTP headers. Only with a URL. Default `empty`.
+/// - `mz_window`: Width of the m/z windows the spectra are split into, in Da, so a query reads only the windows it needs. 0 keeps each spectrum whole. It only changes how the file is stored. It is not the EIC window. Default `20`.
+/// - `headers`: Extra HTTP headers for the upload, such as a token. Only used with a URL. Default `empty`.
 ///
 /// [Documentation](https://phenological.github.io/quantion/?language=rust#WriteIonOptions)
 #[derive(Clone, Debug, PartialEq)]
@@ -376,12 +376,12 @@ impl Default for WriteIonOptions {
 
 /// **write_ion** · Files
 ///
-/// Write a sample as an Ionic file (.ion). With no out, it returns the bytes. A path writes a file; a URL uploads it in one PUT request.
+/// Save a sample as an Ionic file (.ion), for example to convert mzML to .ion. With out, it writes a file to a path or uploads it to a URL with one PUT request. Without out, it returns the bytes.
 ///
-/// - `file`: The sample to write.
+/// - `file`: The sample to save, from parse_ion or parse_mzml.
 /// - `options`: Optional settings: `out` = None, `overwrite` = false, `level` = 12, `f32_compress` = false, `block_size` = 8, `mz_window` = 20, `headers` = empty. See [WriteIonOptions](https://phenological.github.io/quantion/?language=rust#WriteIonOptions).
 ///
-/// Returns: The bytes when out is left out; nothing when it is written or uploaded.
+/// Returns: The file's bytes when out is not given, or nothing when the file is written or uploaded.
 ///
 /// [Documentation](https://phenological.github.io/quantion/?language=rust#write_ion)
 pub fn write_ion(
@@ -476,11 +476,11 @@ pub(crate) fn encode_ion(
 
 /// **WriteMzmlOptions** · Options
 ///
-/// Settings for write_mzml.
+/// Options for write_mzml.
 ///
 /// Fields:
-/// - `out`: Path to write to. Not given = return the bytes. Default `None`.
-/// - `overwrite`: Replace an existing file. Default `false`.
+/// - `out`: Path to write to. If it is not given, the bytes are returned. Default `None`.
+/// - `overwrite`: Replace the file if it already exists. Default `false`.
 ///
 /// [Documentation](https://phenological.github.io/quantion/?language=rust#WriteMzmlOptions)
 #[derive(Clone, Debug, PartialEq, Default)]
@@ -491,12 +491,12 @@ pub struct WriteMzmlOptions {
 
 /// **write_mzml** · Files
 ///
-/// Write a sample as mzML. With no out, it returns the bytes. Only a path is allowed, no URL.
+/// Save a sample as mzML. With out, it writes a file to a path (URLs are not allowed). Without out, it returns the bytes.
 ///
-/// - `file`: The sample to write.
+/// - `file`: The sample to save, from parse_ion or parse_mzml.
 /// - `options`: Optional settings: `out` = None, `overwrite` = false. See [WriteMzmlOptions](https://phenological.github.io/quantion/?language=rust#WriteMzmlOptions).
 ///
-/// Returns: The bytes when out is left out; nothing when it is written.
+/// Returns: The file's bytes when out is not given, or nothing when the file is written.
 ///
 /// [Documentation](https://phenological.github.io/quantion/?language=rust#write_mzml)
 pub fn write_mzml(
@@ -694,12 +694,12 @@ fn check_position(
 
 /// **GetScansOptions** · Options
 ///
-/// Settings for get_scans.
+/// Options for get_scans, including the MS level and which arrays to read.
 ///
 /// Fields:
-/// - `level`: MS level. 0 = every level. Default `1`.
-/// - `time_unit`: Unit of rt in the query. Default `MINUTES`.
-/// - `arrays`: Which arrays to read from each scan, as keys with accessions. Every other field of Scan always comes back. Default `{ key: "mz", accession: "MS:1000514" }, { key: "intensity", accession: "MS:1000515" }`. See [ScanArray](https://phenological.github.io/quantion/?language=rust#ScanArray).
+/// - `level`: MS level of the scans, 1 for MS1 and 2 for MS2. 0 reads every level. Default `1`.
+/// - `time_unit`: Unit of the rt you give, minutes or seconds. Default `MINUTES`.
+/// - `arrays`: Which data arrays to read from each scan, such as m/z and intensity, given as keys with accessions. The other fields of Scan always come back. Default `{ key: "mz", accession: "MS:1000514" }, { key: "intensity", accession: "MS:1000515" }`. See [ScanArray](https://phenological.github.io/quantion/?language=rust#ScanArray).
 ///
 /// [Documentation](https://phenological.github.io/quantion/?language=rust#GetScansOptions)
 #[derive(Clone, Debug, PartialEq)]
@@ -721,7 +721,7 @@ impl Default for GetScansOptions {
 
 /// **ScanArray** · Options
 ///
-/// One array to read from each scan in get_scans.
+/// One data array to read from each scan in get_scans, for example an extra array stored in the file.
 ///
 /// Fields:
 /// - `key`: Name of the array in the result, as a field of the scan.
@@ -855,16 +855,16 @@ fn check_scan_array(function: &'static str, array: &ScanArray) -> Result<u32, Qu
 
 /// **get_scans** · Files
 ///
-/// Read scans by retention time, by precursor m/z, or by both. Ranges return every scan inside them; when rt or mz is one value, you get the closest scan, as a list of one.
+/// Read scans (spectra) by retention time, by precursor m/z, or by both. A range returns every scan inside it. One value returns the closest scan, as a list of one.
 ///
 /// - `file`: The sample to read, from parse_ion or parse_mzml.
-/// - `query.rt`: Which scans by retention time: a range or one value. Optional when mz is given. Each Position has `Any`, `Range(FromTo)`, `Closest(f64)`. See [Position](https://phenological.github.io/quantion/?language=rust#Position).
+/// - `query.rt`: Retention time of the scans, as a range {from, to} or as one value for the closest scan. Optional when mz is given. Each Position has `Any`, `Range(FromTo)`, `Closest(f64)`. See [Position](https://phenological.github.io/quantion/?language=rust#Position).
 ///   Example: `let window = Position::Range(FromTo { from: 2.3, to: 2.4 });`
-/// - `query.mz`: Which scans by precursor m/z: a range or one value. Give rt, mz or both. Each Position has `Any`, `Range(FromTo)`, `Closest(f64)`. See [Position](https://phenological.github.io/quantion/?language=rust#Position).
+/// - `query.mz`: Precursor m/z of the scans, as a range {from, to} or as one value for the closest scan. Give rt, mz or both. Only MS2 scans have a precursor m/z, so set level to 2 (or 0 for every level) when you give mz. Each Position has `Any`, `Range(FromTo)`, `Closest(f64)`. See [Position](https://phenological.github.io/quantion/?language=rust#Position).
 ///   Example: `let window = Position::Range(FromTo { from: 2.3, to: 2.4 });`
 /// - `options`: Optional settings: `level` = 1, `time_unit` = MINUTES, `arrays` = { key: "mz", accession: "MS:1000514" }, { key: "intensity", accession: "MS:1000515" }. See [GetScansOptions](https://phenological.github.io/quantion/?language=rust#GetScansOptions).
 ///
-/// Returns: The scans found, in rt order.
+/// Returns: The scans found, in rt order. An empty list means no scan matched, so check rt, mz and level.
 ///
 /// [Documentation](https://phenological.github.io/quantion/?language=rust#get_scans)
 pub fn get_scans(
@@ -888,10 +888,10 @@ pub fn get_scans(
 
 /// **GetScanMetadataOptions** · Options
 ///
-/// Settings for get_scan_metadata.
+/// Options for get_scan_metadata.
 ///
 /// Fields:
-/// - `tags`: Which tags to keep, by name. A row is kept when the last tag of its path matches, so scan keeps spectrum/scanList/scan\[0\] but not its scanWindow. Empty keeps every tag. The names are: spectrum, referenceableParamGroupRef, spectrumDescription, scanList, scan, scanWindowList, scanWindow, precursorList, precursor, isolationWindow, selectedIonList, selectedIon, activation, productList, product, binaryDataArrayList, binaryDataArray. Default `[]`.
+/// - `tags`: Which tags to keep, by name. A row is kept when the last tag of its path matches, so scan keeps spectrum/scanList/scan\[0\] but not its scanWindow. An empty list keeps every tag. The names are spectrum, referenceableParamGroupRef, spectrumDescription, scanList, scan, scanWindowList, scanWindow, precursorList, precursor, isolationWindow, selectedIonList, selectedIon, activation, productList, product, binaryDataArrayList and binaryDataArray. Default `[]`.
 ///
 /// [Documentation](https://phenological.github.io/quantion/?language=rust#GetScanMetadataOptions)
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -923,13 +923,13 @@ impl GetScanMetadataOptions {
 
 /// **get_scan_metadata** · Metadata
 ///
-/// Read the attributes, cvParams and userParams of one scan, one row each, parents before children. Find the scan with get_scans, then pass its index.
+/// Read the details stored for one scan (attributes, cvParams and userParams), one row each, parents before children. Find the scan with get_scans, then pass its index.
 ///
 /// - `file`: The sample to read, from parse_ion or parse_mzml.
-/// - `index`: Position of the scan in the spectrum list, from 0: the index of a scan from get_scans.
+/// - `index`: Position of the scan in the file, from 0. Use the index of a scan from get_scans.
 /// - `options`: Optional settings: `tags` = []. See [GetScanMetadataOptions](https://phenological.github.io/quantion/?language=rust#GetScanMetadataOptions).
 ///
-/// Returns: One row per attribute or param, in the order of the mzML tree. Values are text. A field the file does not give is missing: None in Rust and Python, null in JS, NA in R.
+/// Returns: One row per attribute or param, in the order of the mzML tree. Values are text. A field the file does not give is missing (None in Rust and Python, null in JavaScript, NA in R).
 ///
 /// [Documentation](https://phenological.github.io/quantion/?language=rust#get_scan_metadata)
 pub fn get_scan_metadata(
@@ -983,14 +983,14 @@ pub(crate) fn check_eic_request(
 
 /// **CalculateEicOptions** · Options
 ///
-/// Which scans are read and how wide the m/z window is. Used by calculate_eic, and as the eic group of find_targets, find_features and match_features. The wider of the ppm and absolute m/z windows is used.
+/// Options for calculate_eic, including the retention-time range to read and the m/z window. The same options are used by find_targets, find_features and match_features. The wider of the ppm and Da windows is used.
 ///
 /// Fields:
-/// - `from`: Start of the retention-time range read. Default `0.0`.
-/// - `to`: End of the retention-time range read. The default reads to the end of the run. Default `f64::INFINITY`.
-/// - `ppm_tolerance`: Tolerance in ppm. Default `20.0`.
-/// - `mz_tolerance`: Absolute tolerance in Da. Default `0.005`.
-/// - `time_unit`: Unit of from, to and rt values given. Default `MINUTES`.
+/// - `from`: Start of the retention-time range to read. Default `0.0`.
+/// - `to`: End of the retention-time range to read. By default, the run is read to the end. Default `f64::INFINITY`.
+/// - `ppm_tolerance`: Half-width of the m/z window, in ppm of the m/z. Default `20.0`.
+/// - `mz_tolerance`: Half-width of the m/z window, in Da. Default `0.005`.
+/// - `time_unit`: Unit of from and to, minutes or seconds. Default `MINUTES`.
 ///
 /// [Documentation](https://phenological.github.io/quantion/?language=rust#CalculateEicOptions)
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -1051,13 +1051,13 @@ impl CalculateEicOptions {
 
 /// **calculate_eic** · Files
 ///
-/// Extract the ion chromatogram of one m/z.
+/// Calculate the extracted ion chromatogram (EIC, also called XIC) of one m/z. For each MS1 scan, the intensities within the m/z window are summed. Use it to get the chromatogram before find_peaks or get_peak.
 ///
 /// - `file`: The sample to read, from parse_ion or parse_mzml.
-/// - `mz`: The m/z to extract (Da).
+/// - `mz`: The m/z of the ion to extract (Da), not the neutral mass of the compound. For example, for the protonated molecule [M+H]+ in positive mode, use M + 1.00728, and for the deprotonated molecule [M−H]− in negative mode, use M − 1.00728, where M is the monoisotopic mass.
 /// - `options`: Optional settings: `from` = 0.0, `to` = f64::INFINITY, `ppm_tolerance` = 20.0, `mz_tolerance` = 0.005, `time_unit` = MINUTES. See [CalculateEicOptions](https://phenological.github.io/quantion/?language=rust#CalculateEicOptions).
 ///
-/// Returns: The chromatogram: x = retention times, y = summed intensities.
+/// Returns: The chromatogram, with x as the retention times in minutes and y as the summed intensities.
 ///
 /// [Documentation](https://phenological.github.io/quantion/?language=rust#calculate_eic)
 pub fn calculate_eic(
@@ -1078,12 +1078,12 @@ pub fn calculate_eic(
 
 /// **GetIonImageOptions** · Options
 ///
-/// Settings for get_ion_image.
+/// Options for get_ion_image, including the m/z window and the MS level.
 ///
 /// Fields:
-/// - `tolerance`: Absolute m/z tolerance (Da). Default `0.125`.
-/// - `level`: MS level. Default `1`.
-/// - `on_progress`: Progress callback: fetched bytes, total bytes, bytes held. Default `None`.
+/// - `tolerance`: Half-width of the m/z window, in Da. There is no ppm option here. Default `0.125`.
+/// - `level`: MS level of the scans used. Default `1`.
+/// - `on_progress`: Function called while reading, with the bytes fetched, the total bytes and the bytes held in memory. Useful for a progress bar on remote files. Default `None`.
 ///
 /// [Documentation](https://phenological.github.io/quantion/?language=rust#GetIonImageOptions)
 #[derive(Clone, Copy, Debug)]
@@ -1105,15 +1105,15 @@ impl Default for GetIonImageOptions {
 
 /// **get_ion_image** · Files
 ///
-/// Build an imaging map of one m/z: summed intensity at each x, y position.
+/// Build an imaging map of one m/z for mass spectrometry imaging, with the summed intensity at each x, y position.
 ///
 /// **Warning:** Only Ionic files (.ion). The sample must come from parse_ion; a sample from parse_mzml gives an invalid_argument error.
 ///
-/// - `file`: The sample to read. Must come from parse_ion.
-/// - `mz`: The m/z to map (Da).
+/// - `file`: The sample to read. It must come from parse_ion.
+/// - `mz`: The m/z of the ion to map (Da), not the neutral mass of the compound. For example, for the protonated molecule [M+H]+ in positive mode, use M + 1.00728, and for the deprotonated molecule [M−H]− in negative mode, use M − 1.00728, where M is the monoisotopic mass.
 /// - `options`: Optional settings: `tolerance` = 0.125, `level` = 1, `on_progress` = None. See [GetIonImageOptions](https://phenological.github.io/quantion/?language=rust#GetIonImageOptions).
 ///
-/// Returns: The image.
+/// Returns: The image, with one value per pixel, plus its size and position.
 ///
 /// [Documentation](https://phenological.github.io/quantion/?language=rust#get_ion_image)
 pub fn get_ion_image(

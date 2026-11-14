@@ -2,7 +2,7 @@
 \alias{get_scans_options}
 \title{Settings for get_scans}
 \description{
-Settings for get_scans.
+Options for get_scans, including the MS level and which arrays to read.
 }
 \usage{
 get_scans_options(level = 1L, time_unit = "MINUTES",
@@ -10,9 +10,9 @@ get_scans_options(level = 1L, time_unit = "MINUTES",
                                 list(key = "intensity", accession = "MS:1000515")))
 }
 \arguments{
-  \item{level}{MS level. 0 = every level.}
-  \item{time_unit}{Unit of rt in the query.}
-  \item{arrays}{Which arrays to read from each scan, as keys with accessions. Every other field of Scan always comes back. See \href{https://phenological.github.io/quantion/?language=r#ScanArray}{ScanArray}.}
+  \item{level}{MS level of the scans, 1 for MS1 and 2 for MS2. 0 reads every level.}
+  \item{time_unit}{Unit of the rt you give, minutes or seconds.}
+  \item{arrays}{Which data arrays to read from each scan, such as m/z and intensity, given as keys with accessions. The other fields of Scan always come back. See \href{https://phenological.github.io/quantion/?language=r#ScanArray}{ScanArray}.}
 }
 \value{
 An options object for \code{\link{get_scans}()}.

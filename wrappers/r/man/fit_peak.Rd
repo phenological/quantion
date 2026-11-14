@@ -2,7 +2,7 @@
 \alias{fit_peak}
 \title{Fit a curve to a peak}
 \description{
-Fit a Gaussian or EMG curve to the peak near rt. rt says which peak; its apex intensity is the starting point unless you force one.
+Fit a Gaussian or EMG curve to the target peak at rt. The function finds the peak within rt +/- 0.05 min, then fits the points between its start and end to get its width (fwhm) and tailing (tail). The peak needs at least 5 points.
 }
 \usage{
 fit_peak(x, y, rt, options = fit_peak_options())
@@ -10,13 +10,13 @@ fit_peak(x, y, rt, options = fit_peak_options())
 \arguments{
   \item{x}{Retention times, ascending. At least 3 points. Type: \code{numeric}.}
   \item{y}{Intensities, same length as x. Type: \code{numeric}.}
-  \item{rt}{Expected retention time of the peak. Type: \code{numeric}.}
+  \item{rt}{Retention time of the peak to fit, in minutes. The peak must be within +/- 0.05 min of it. Type: \code{numeric}.}
   \item{options}{Settings from \code{\link{fit_peak_options}()}: \code{shape = "EMG"}, \code{intensity = 0}.
     \href{https://phenological.github.io/quantion/?language=r#FitPeakOptions}{FitPeakOptions documentation}
   }
 }
 \value{
-The fitted curve, or none when no peak is found or the fit fails. Type: \code{PeakParameters list | NULL}. Fields: \code{height}, \code{center}, \code{fwhm}, \code{tail}, \code{r2}.
+The fitted parameters (height, center, fwhm, tail, r2) for the target peak, or none if no peak is found near rt or the fit fails. Type: \code{PeakParameters list | NULL}. Fields: \code{height}, \code{center}, \code{fwhm}, \code{tail}, \code{r2}.
 }
 \section{Documentation}{
 \url{https://phenological.github.io/quantion/?language=r#fit_peak}

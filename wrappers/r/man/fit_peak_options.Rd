@@ -2,14 +2,14 @@
 \alias{fit_peak_options}
 \title{Settings for fit_peak}
 \description{
-Settings for fit_peak.
+Options for fit_peak function.
 }
 \usage{
 fit_peak_options(shape = "EMG", intensity = 0)
 }
 \arguments{
-  \item{shape}{Curve to fit.}
-  \item{intensity}{Apex intensity to start the fit from. 0 = take it from the peak at rt.}
+  \item{shape}{Curve to fit: EMG (with a right tail) or GAUSSIAN (symmetric).}
+  \item{intensity}{Apex intensity to start the fit from. 0 = use the apex of the peak found at rt.}
 }
 \value{
 An options object for \code{\link{fit_peak}()}.

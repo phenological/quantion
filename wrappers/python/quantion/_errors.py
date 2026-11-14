@@ -22,14 +22,14 @@ _KIND_CODES = {
 class QuantionError(Exception):
     """QuantionError · Errors
 
-    The error every function raises, with its kind, code, function, argument and message.
+    The error every function raises. It says what went wrong (kind and code), where (function and argument) and why (message).
 
     Fields:
-        kind: What went wrong.
-        code: Fixed number for the kind.
-        function: Where: the public function that failed.
-        argument: Which input, such as targets[3].range.
-        message: Why, in plain words. Starts with the function name.
+        kind: The type of problem, for example an invalid input or a file that cannot be read.
+        code: A fixed number for the kind, useful in scripts.
+        function: The function that failed.
+        argument: The input that caused it, such as targets[3].range.
+        message: Why it failed, in plain words. It starts with the function name.
 
     Documentation: https://phenological.github.io/quantion/?language=python#QuantionError
     """

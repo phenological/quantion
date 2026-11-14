@@ -2,14 +2,14 @@
 \alias{write_mzml_options}
 \title{Settings for write_mzml}
 \description{
-Settings for write_mzml.
+Options for write_mzml.
 }
 \usage{
 write_mzml_options(out = NULL, overwrite = FALSE)
 }
 \arguments{
-  \item{out}{Path to write to. Not given = return the bytes.}
-  \item{overwrite}{Replace an existing file.}
+  \item{out}{Path to write to. If it is not given, the bytes are returned.}
+  \item{overwrite}{Replace the file if it already exists.}
 }
 \value{
 An options object for \code{\link{write_mzml}()}.

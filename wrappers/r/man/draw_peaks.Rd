@@ -2,7 +2,7 @@
 \alias{draw_peaks}
 \title{Simulate a chromatogram}
 \description{
-Simulate a chromatogram from one or more peak shapes. Every peak is drawn into the same chromatogram; where they overlap, intensities add up. No real data is needed.
+Simulate a chromatogram (a synthetic trace) from peak curves (height, center, fwhm, tail). Overlapping peaks add up. Useful for tests, no data needed.
 }
 \usage{
 draw_peaks(params, options = draw_peaks_options())
@@ -17,7 +17,7 @@ draw_peaks(params, options = draw_peaks_options())
   }
 }
 \value{
-The simulated chromatogram: x = retention times, y = summed intensities. Type: \code{DataXY list}. Fields: \code{x}, \code{y}.
+The simulated chromatogram: x = retention times in minutes, y = summed intensities. Type: \code{DataXY list}. Fields: \code{x}, \code{y}.
 }
 \section{Documentation}{
 \url{https://phenological.github.io/quantion/?language=r#draw_peaks}

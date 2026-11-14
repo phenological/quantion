@@ -2,7 +2,7 @@
 \alias{load_warp}
 \title{Make a retention-time warp model}
 \description{
-Make a retention-time warp model from a loaded model.
+When retention times shift between batches or within a batch, some peaks are easy to miss, e.g. low-intensity peaks. A deepwarp model predicts how each LC-MS run shifts, so peak detection finds the right peaks. Make a retention-time warp model from a loaded model. Use it with calibrate and predict_rts to correct rt shifts between runs.
 }
 \usage{
 load_warp(model)
@@ -12,6 +12,9 @@ load_warp(model)
 }
 \value{
 The warp model. Type: \code{WarpModel}.
+}
+\section{Warning}{
+Works with any ONNX model that has the right inputs, outputs and keys. See them in deepwarp: https://github.com/josoriom/deepwarp#inputs-outputs-and-keys
 }
 \section{Documentation}{
 \url{https://phenological.github.io/quantion/?language=r#load_warp}

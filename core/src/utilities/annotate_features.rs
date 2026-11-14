@@ -37,18 +37,18 @@ const INTENSITY_ARRAY: u32 = 1_000_515;
 
 /// **FeatureAnnotation** · Results
 ///
-/// The name of one feature. The label is the compound that is the best match in the most files; ties go to the higher score.
+/// The name found for one feature. The label is the compound that is the best match in the most files, and ties go to the higher score.
 ///
 /// Fields:
 /// - `mz`: m/z of the feature.
-/// - `rt`: Retention time of the feature (minutes).
+/// - `rt`: Retention time of the feature, in minutes.
 /// - `label`: Name of the compound, or none when no file has a match. Optional.
-/// - `id`: Id in the database, from the agreeing file with the highest score. Optional.
+/// - `id`: Id of the compound in its database, from the agreeing file with the highest score. Optional.
 /// - `database`: Database the id comes from. Optional.
-/// - `frequency`: Share of the files whose best match is this compound (0–1).
-/// - `score`: Median score over the agreeing files. Optional.
-/// - `cosine`: Median cosine over the agreeing files. Optional.
-/// - `files`: One FileAnnotation per file, in the order of files.
+/// - `frequency`: Share of the files whose best match is this compound, from 0 to 1.
+/// - `score`: Median score over the files that agree on the label. Optional.
+/// - `cosine`: Median cosine similarity over the files that agree on the label. Optional.
+/// - `files`: What each file says about the feature, in the same order as files.
 ///
 /// [Documentation](https://phenological.github.io/quantion/?language=rust#FeatureAnnotation)
 #[derive(Clone, Debug, PartialEq)]
@@ -66,12 +66,12 @@ pub struct FeatureAnnotation {
 
 /// **FileAnnotation** · Results
 ///
-/// What one file says about a feature.
+/// What one file says about a feature in annotate_features.
 ///
 /// Fields:
 /// - `file`: Position of the file in files, from 0.
-/// - `scan_index`: The MS2 scan used, or none when the file has no peak or no MS2 scan close to it. Optional.
-/// - `matches`: Best matches in this file, best first, at most matches.
+/// - `scan_index`: Index of the MS2 scan used, or none when the file has no peak or no MS2 scan close to it. Optional.
+/// - `matches`: The best matches in this file, best first, at most matches of them.
 ///
 /// [Documentation](https://phenological.github.io/quantion/?language=rust#FileAnnotation)
 #[derive(Clone, Debug, PartialEq)]
@@ -89,8 +89,8 @@ pub struct FileAnnotation {
 /// - `label`: Name of the compound, from the library param the model names as label.
 /// - `id`: Id of the spectrum in its database.
 /// - `database`: Database the id comes from.
-/// - `score`: Average of the model vector similarity and the cosine (0–1).
-/// - `cosine`: Cosine similarity of the cleaned spectra (0–1).
+/// - `score`: Average of the model vector similarity and the cosine, from 0 to 1.
+/// - `cosine`: Cosine similarity of the cleaned spectra, from 0 to 1.
 /// - `mz`: m/z values of the library spectrum.
 /// - `intensity`: Intensities of the library spectrum.
 /// - `metadata`: The other params of the library spectrum, by name.

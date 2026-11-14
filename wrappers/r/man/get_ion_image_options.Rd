@@ -2,15 +2,15 @@
 \alias{get_ion_image_options}
 \title{Settings for get_ion_image}
 \description{
-Settings for get_ion_image.
+Options for get_ion_image, including the m/z window and the MS level.
 }
 \usage{
 get_ion_image_options(tolerance = 0.125, level = 1L, on_progress = NULL)
 }
 \arguments{
-  \item{tolerance}{Absolute m/z tolerance (Da).}
-  \item{level}{MS level.}
-  \item{on_progress}{Progress callback: fetched bytes, total bytes, bytes held.}
+  \item{tolerance}{Half-width of the m/z window, in Da. There is no ppm option here.}
+  \item{level}{MS level of the scans used.}
+  \item{on_progress}{Function called while reading, with the bytes fetched, the total bytes and the bytes held in memory. Useful for a progress bar on remote files.}
 }
 \value{
 An options object for \code{\link{get_ion_image}()}.

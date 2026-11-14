@@ -7,8 +7,8 @@ use crate::utilities::cheminfo::kmeans;
 /// Result of find_noise_level.
 ///
 /// Fields:
-/// - `width`: Window width (points) the estimate came from.
-/// - `intensity`: Noise intensity.
+/// - `width`: Max width, in points, of the noise spikes the estimate came from.
+/// - `intensity`: Max intensity of the noise spikes, taken as the noise level.
 ///
 /// [Documentation](https://phenological.github.io/quantion/?language=rust#NoiseLevel)
 #[derive(Clone, Copy, Debug)]

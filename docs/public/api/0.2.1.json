@@ -41,6 +41,11 @@
         "name": "ion-beam",
         "description": "Demo of Ionic and Quant·ion.",
         "address": "https://github.com/phenological/ion-beam"
+      },
+      {
+        "name": "deepwarp",
+        "description": "Train the retention-time warp models that load_warp runs.",
+        "address": "https://github.com/josoriom/deepwarp"
       }
     ]
   },
@@ -2157,7 +2162,7 @@
       "name": "load_warp",
       "group": "Models",
       "kind": "function",
-      "summary": "Make a retention-time warp model from a loaded model. Use it with calibrate and predict_rts to correct rt shifts between runs.",
+      "summary": "When retention times shift between batches or within a batch, some peaks are easy to miss, e.g. low-intensity peaks. A deepwarp model predicts how each LC-MS run shifts, so peak detection finds the right peaks. Make a retention-time warp model from a loaded model. Use it with calibrate and predict_rts to correct rt shifts between runs.",
       "arguments": [
         {
           "meaning": "A model from load_model that holds a warp.",
@@ -2211,7 +2216,8 @@
           "signature": "load_warp(model)",
           "example": "library(quantion)\n\nfixtures <- \"https://raw.githubusercontent.com/phenological/quantion/main/core/tests/fixtures\"\nmodel <- load_model(paste0(fixtures, \"/shift_model.onnx\"))\nwarp <- load_warp(model)\nprint(warp)\n\ndispose(warp)\ndispose(model)"
         }
-      }
+      },
+      "warning": "Works with any ONNX model that has the right inputs, outputs and keys. See them in deepwarp: https://github.com/josoriom/deepwarp#inputs-outputs-and-keys"
     },
     {
       "name": "predict_rts",

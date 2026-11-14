@@ -26,15 +26,15 @@ class WarpModel(Metadata):
     def predict_rts(self, file: "SampleFile", targets: Sequence[Dict[str, Any]]) -> List[Dict[str, float]]:
         """predict_rts · Models
 
-        Predict where each target elutes in one sample.
+        Predict where each target elutes in one sample, to correct retention-time shifts (rt drift) between runs or batches.
 
         Args:
-            file: The sample to read, from parse_ion or parse_mzml.
+            file: The sample to predict for, from parse_ion or parse_mzml.
             targets: Targets with mz and reference rt. id and range are optional and not used. Each Target has id, mz, rt, range. See Target: https://phenological.github.io/quantion/?language=python#Target
                 Example: target: Target = {"id": "compound_1", "mz": 260.103, "rt": 2.383, "range": 0.05}
 
         Returns:
-            One PredictedRt per target, in the same order.
+            One predicted retention time per target, in the same order.
 
         Documentation: https://phenological.github.io/quantion/?language=python#predict_rts
         """
@@ -49,15 +49,15 @@ class WarpModel(Metadata):
     ) -> List[Dict[str, Any]]:
         """calibrate · Models
 
-        Turn the retention times seen in anchor samples (LTRs, QCs) into targets for predict_rts. Each id gets the median rt over the anchors.
+        Turn the retention times seen in anchor samples (LTRs or QCs) into reference targets for predict_rts. Each id gets the median rt over the anchor samples.
 
         Args:
-            anchor_samples: Anchor samples.
+            anchor_samples: The anchor samples (LTRs or QCs), from parse_ion or parse_mzml.
             target_lists: For each anchor sample, the targets seen in it with their observed rt. Each Target has id, mz, rt, range. See Target: https://phenological.github.io/quantion/?language=python#Target
                 Example: target: Target = {"id": "compound_1", "mz": 260.103, "rt": 2.383, "range": 0.05}
 
         Returns:
-            One Target per id with the median rt.
+            One target per id, with the median rt.
 
         Documentation: https://phenological.github.io/quantion/?language=python#calibrate
         """
@@ -68,7 +68,7 @@ class WarpModel(Metadata):
     def dispose(self) -> None:
         """dispose · Models
 
-        Free the memory held by a sample, model or warp model.
+        Free the memory held by a sample, a model or a warp model when you are done with it.
 
         Warning:
             Not needed in normal use: the library frees a sample, model or warp model by itself once it is no longer used. When processing many samples, dispose each one after using it, so its memory is freed right away instead of piling up.

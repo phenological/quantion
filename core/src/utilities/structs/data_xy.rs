@@ -2,11 +2,11 @@ use serde::Deserialize;
 
 /// **DataXY** · Results
 ///
-/// A trace: x = retention times, y = intensities. Returned by calculate_eic, taken by find_peaks.
+/// A chromatogram (trace), with x as the retention times and y as the intensities. calculate_eic returns it, and find_peaks and get_peak take it.
 ///
 /// Fields:
-/// - `x`: Retention times (minutes).
-/// - `y`: Intensities.
+/// - `x`: Retention times, in minutes.
+/// - `y`: Intensities, one per retention time.
 ///
 /// [Documentation](https://phenological.github.io/quantion/?language=rust#DataXY)
 #[derive(Clone, Debug, Default, Deserialize)]

@@ -2,7 +2,7 @@
 \alias{dispose}
 \title{Free native memory}
 \description{
-Free the memory held by a sample, model or warp model.
+Free the memory held by a sample, a model or a warp model when you are done with it.
 }
 \usage{
 dispose(object)

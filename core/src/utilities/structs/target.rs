@@ -1,12 +1,12 @@
 /// **Target** · Inputs
 ///
-/// One compound. range limits the search in find_targets; missing or 0 searches the whole EIC. predict_rts and calibrate do not use range.
+/// One compound to look for, with its m/z and expected retention time. range limits the search in find_targets, and a missing or 0 range searches the whole EIC. predict_rts and calibrate do not use range.
 ///
 /// Fields:
-/// - `id`: Your name for it. Not used in the search. Optional.
-/// - `mz`: m/z (Da).
-/// - `rt`: Expected retention time.
-/// - `range`: Half-width of the search window around rt. Missing or 0 = search the whole EIC. Optional.
+/// - `id`: Your name for the compound. It is not used in the search. Optional.
+/// - `mz`: The m/z of the ion to look for (Da), not the neutral mass of the compound. For example, for the protonated molecule \[M+H\]+ in positive mode, use M + 1.00728, and for the deprotonated molecule \[M−H\]− in negative mode, use M − 1.00728, where M is the monoisotopic mass.
+/// - `rt`: Expected retention time, in minutes by default (or in the time unit set in the EIC options).
+/// - `range`: Half-width of the search window around rt, in the same unit as rt. Missing or 0 searches the whole EIC. Optional.
 ///
 /// Example:
 /// ```ignore

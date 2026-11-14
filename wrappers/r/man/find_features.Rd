@@ -2,7 +2,7 @@
 \alias{find_features}
 \title{Find every feature in one file}
 \description{
-Untargeted: find every feature in one file by scanning an m/z grid.
+Find every feature in one file without a target list (untargeted). It scans an m/z grid, builds the EIC of each grid m/z and finds its peaks.
 }
 \usage{
 find_features(file, options = find_features_options())
@@ -14,7 +14,7 @@ find_features(file, options = find_features_options())
   }
 }
 \value{
-Every feature found, without frequency. Type: \code{data.frame of Feature}. Columns: \code{mz}, \code{rt}, \code{from}, \code{to}, \code{intensity}, \code{integral}, \code{n_points}, \code{frequency}.
+Every feature found (the feature table), without frequency. Type: \code{data.frame of Feature}. Columns: \code{mz}, \code{rt}, \code{from}, \code{to}, \code{intensity}, \code{integral}, \code{n_points}, \code{frequency}.
 }
 \section{Documentation}{
 \url{https://phenological.github.io/quantion/?language=r#find_features}
