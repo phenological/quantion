@@ -41,7 +41,7 @@ println!("rt {} intensity {}", peak.rt, peak.intensity);
 
 ## AI assistants
 
-The full documentation as one text file: https://phenological.github.io/quantion/docs/v0.2.4.txt
+The full documentation as one text file: https://phenological.github.io/quantion/docs/v0.2.5.txt
 
 Apps that support MCP (e.g. Claude Code or Codex) can use the Quant·ion functions as tools with `quantion-mcp`. It runs locally and reads only the folders you allow. Setup: [mcp](https://github.com/phenological/quantion/tree/main/mcp).
 
