@@ -555,6 +555,7 @@ const rustTypeFiles = [
   "core/src/utilities/calculate_eic.rs",
   "core/src/utilities/get_scans.rs",
   "core/src/utilities/annotate_features.rs",
+  "core/src/utilities/polarity.rs",
 ];
 const pythonMethodFiles = { predict_rts: ["wrappers/python/quantion/warp_model.py"], calibrate: ["wrappers/python/quantion/warp_model.py"], dispose: ["wrappers/python/quantion/file.py", "wrappers/python/quantion/model.py", "wrappers/python/quantion/warp_model.py"] };
 const jsMethodFiles = { predict_rts: ["wrappers/js/src/utilities/warpModel.ts"], calibrate: ["wrappers/js/src/utilities/warpModel.ts"], dispose: ["wrappers/js/src/utilities/sampleFile.ts", "wrappers/js/src/utilities/model.ts", "wrappers/js/src/utilities/warpModel.ts"] };

@@ -99,5 +99,6 @@ pub fn read_match_features_options(input: &mut Input) -> Result<MatchFeaturesOpt
         grouping: input.get_object("grouping", read_grouping_options)?,
         find_peaks: input.get_object("find_peaks", read_find_peaks_options)?,
         threads: input.get_count("threads", default.threads)?,
+        warp: None
     })
 }

@@ -20,16 +20,16 @@ use crate::{
         find_targets::{find_targets, plan_targets_ranges},
         get_cosine::get_cosine,
         get_scans::{
-            CentroidScan, find_wanted_scans, get_scans, plan_scan_ranges, whole_scan_mz_range,
+            CentroidScan, find_wanted_scans, load_first_scan, plan_scan_ranges, whole_scan_mz_range,
         },
         ion::ScanSource,
+        polarity::{get_polarity_name, is_opposite_polarity},
         spectrum_model::{SpectrumModel, SpectrumModelError},
         structs::{FromTo, Position, ScanQuery, Target},
     },
 };
 
 const MS2_LEVEL: u8 = 2;
-const POSITIVE: u8 = 1;
 const EIC_HALF_WINDOW: f64 = 0.5;
 const ABOVE_PRECURSOR_LIMIT: f64 = 1.0;
 const MZ_ARRAY: u32 = 1_000_514;
@@ -125,6 +125,14 @@ pub(crate) enum AnnotationError {
         spectrum: usize,
         param: String,
     },
+    ScanPolarity {
+        wanted: u8,
+        found: u8,
+    },
+    LibraryPolarity {
+        wanted: u8,
+    },
+    EmptyLibrary,
 }
 
 impl fmt::Display for AnnotationError {
@@ -149,6 +157,22 @@ impl fmt::Display for AnnotationError {
             Self::MissingCompound { spectrum, param } => {
                 write!(formatter, "spectrum {spectrum} has no userParam {param}")
             }
+            Self::ScanPolarity { wanted, found } => write!(
+                formatter,
+                "no MS2 scan is in {} mode; the files have {} scans; set polarity to {}",
+                get_polarity_name(*wanted),
+                get_polarity_name(*found),
+                get_polarity_name(*found).to_uppercase()
+            ),
+            Self::LibraryPolarity { wanted } => write!(
+                formatter,
+                "the library has no spectra in {} mode",
+                get_polarity_name(*wanted)
+            ),
+            Self::EmptyLibrary => write!(
+                formatter,
+                "the library has no MS2 spectra with a precursor m/z"
+            ),
         }
     }
 }
@@ -183,6 +207,14 @@ pub(crate) fn annotate_features(
     for (position, file) in files.iter_mut().enumerate() {
         feature_scans.extend(find_feature_scans(file, position, features, options)?);
     }
+    if feature_scans.is_empty() {
+        if let Some(found) = find_other_polarity(files, features, options) {
+            return Err(AnnotationError::ScanPolarity {
+                wanted: options.polarity.code(),
+                found,
+            });
+        }
+    }
     feature_scans.sort_by_key(|feature_scan| (feature_scan.feature, feature_scan.file));
     let spectra: Vec<Spectrum> = feature_scans
         .iter()
@@ -191,6 +223,14 @@ pub(crate) fn annotate_features(
     let vectors = model.get_vectors(&spectra)?;
     drop(spectra);
     let index = LibraryIndex::read(library);
+    if index.is_empty() {
+        return Err(AnnotationError::EmptyLibrary);
+    }
+    if !index.has_polarity(options.polarity.code()) {
+        return Err(AnnotationError::LibraryPolarity {
+            wanted: options.polarity.code(),
+        });
+    }
     let mut results = Vec::with_capacity(features.len());
     let mut next_scan = 0;
     for (position, feature) in features.iter().enumerate() {
@@ -215,6 +255,30 @@ pub(crate) fn annotate_features(
     Ok(results)
 }
 
+fn find_other_polarity(
+    files: &mut [&mut SampleFile],
+    features: &[Feature],
+    options: &AnnotateFeaturesOptions,
+) -> Option<u8> {
+    for file in files.iter_mut() {
+        for feature in features {
+            let scans = find_wanted_scans(
+                *file,
+                get_ms2_query(feature, options),
+                TimeUnit::MINUTES,
+                MS2_LEVEL,
+            )
+            .scans;
+            for (_, scan) in scans {
+                if !options.allows_polarity(scan.polarity) {
+                    return Some(scan.polarity);
+                }
+            }
+        }
+    }
+    None
+}
+
 fn find_feature_scans(
     file: &mut SampleFile,
     position: usize,
@@ -232,6 +296,7 @@ fn find_feature_scans(
                 file: position,
                 scan_index: scan.index,
                 precursor: scan.metadata.selected_ion_mz,
+                polarity: scan.metadata.polarity,
                 spectrum: clean_spectrum(
                     Spectrum {
                         mz: scan.mz.to_vec(),
@@ -250,6 +315,7 @@ struct FeatureScan {
     file: usize,
     scan_index: usize,
     precursor: f64,
+    polarity: u8,
     spectrum: Spectrum,
 }
 
@@ -281,10 +347,11 @@ fn find_closest_scan(
         rt: Position::Closest(apex),
         mz: Position::Range(options.get_precursor_window(feature.mz)),
     };
-    let scans = get_scans(file, query, TimeUnit::MINUTES, MS2_LEVEL);
-    scans.into_iter().next().filter(|scan| {
-        scan.metadata.polarity == POSITIVE && (scan.rt - apex).abs() <= options.rt_range
-    })
+    let allowed = find_wanted_scans(file, query, TimeUnit::MINUTES, MS2_LEVEL)
+        .into_closest_first()
+        .filter(|(_, scan)| (scan.rt - apex).abs() <= options.rt_range)
+        .filter(|(_, scan)| options.allows_polarity(scan.polarity));
+    load_first_scan(file, allowed)
 }
 
 struct FeatureScorer<'a> {
@@ -305,10 +372,10 @@ impl FeatureScorer<'_> {
         spectrum.sort_by_mz();
         spectrum.keep_below(feature_scan.precursor + ABOVE_PRECURSOR_LIMIT);
         let mut matches: Vec<ScanMatch> = Vec::new();
-        for library_spectrum in self
-            .index
-            .find(self.options.get_precursor_window(feature_scan.precursor))
-        {
+        for library_spectrum in self.index.find(
+            self.options.get_precursor_window(feature_scan.precursor),
+            feature_scan.polarity,
+        ) {
             if !self.candidates.contains_key(&library_spectrum.index) {
                 let candidate = read_candidate(self.library, &library_spectrum, self.model)?;
                 self.candidates.insert(library_spectrum.index, candidate);
@@ -541,11 +608,13 @@ struct Candidate {
 struct LibrarySpectrum {
     index: usize,
     precursor: f64,
+    polarity: u8,
 }
 
 struct LibraryIndex {
     precursors: Vec<f64>,
     indexes: Vec<usize>,
+    polarities: Vec<u8>,
 }
 
 impl LibraryIndex {
@@ -556,6 +625,7 @@ impl LibraryIndex {
                 spectra.push(LibrarySpectrum {
                     index,
                     precursor: summary.selected_ion_mz,
+                    polarity: summary.polarity,
                 });
             }
         });
@@ -567,18 +637,31 @@ impl LibraryIndex {
         Self {
             precursors: spectra.iter().map(|spectrum| spectrum.precursor).collect(),
             indexes: spectra.iter().map(|spectrum| spectrum.index).collect(),
+            polarities: spectra.iter().map(|spectrum| spectrum.polarity).collect(),
         }
     }
 
-    fn find(&self, window: FromTo) -> Vec<LibrarySpectrum> {
+    fn find(&self, window: FromTo, polarity: u8) -> Vec<LibrarySpectrum> {
         let first = lower_bound(&self.precursors, window.from);
         let last = upper_bound(&self.precursors, window.to).max(first);
         (first..last)
+            .filter(|position| !is_opposite_polarity(self.polarities[*position], polarity))
             .map(|position| LibrarySpectrum {
                 index: self.indexes[position],
                 precursor: self.precursors[position],
+                polarity: self.polarities[position],
             })
             .collect()
+    }
+
+    fn is_empty(&self) -> bool {
+        self.indexes.is_empty()
+    }
+
+    fn has_polarity(&self, polarity: u8) -> bool {
+        self.polarities
+            .iter()
+            .any(|found| !is_opposite_polarity(*found, polarity))
     }
 }
 
@@ -632,7 +715,13 @@ pub(crate) fn plan_library_ranges(
             )
             .scans;
             for (_, scan) in scans {
-                let candidates = index.find(options.get_precursor_window(scan.selected_ion_mz));
+                if !options.allows_polarity(scan.polarity) {
+                    continue;
+                }
+                let candidates = index.find(
+                    options.get_precursor_window(scan.selected_ion_mz),
+                    scan.polarity,
+                );
                 wanted.extend(candidates.iter().map(|spectrum| spectrum.index));
             }
         }

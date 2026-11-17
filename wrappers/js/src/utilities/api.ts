@@ -11,7 +11,7 @@ import type {
 } from "./backend";
 import { SampleFile } from "./sampleFile";
 import { Model } from "./model";
-import { WarpModel } from "./warpModel";
+import { WarpModel, getWarpHandle } from "./warpModel";
 import { toUint8 } from "./shared";
 import { getIonSource, type IonSource } from "./ionSource";
 import { QuantionError, invalidArgument } from "./errors";
@@ -21,6 +21,7 @@ import {
   checkKeys,
   FEATURE_NUMBER_KEYS,
   getRequiredNumber,
+  getPolarityCode,
   getShapeCode,
   getTimeUnitCode,
   packHeaders,
@@ -463,7 +464,11 @@ function getPosition(value: unknown, key: string): PositionSettings {
 function getScanQuery(query: ScanQuery): ScanQuerySettings {
   const given = query as unknown as Record<string, unknown>;
   if (given === null || typeof given !== "object") {
-    throw invalidArgument("getScans", "query", "must be { rt }, { mz } or { rt, mz }");
+    throw invalidArgument(
+      "getScans",
+      "query",
+      "must be { rt }, { mz } or { rt, mz }",
+    );
   }
   checkKeys(given, SCAN_QUERY_KEYS, "getScans", "");
   if (given.rt === undefined && given.mz === undefined) {
@@ -863,7 +868,7 @@ export async function findFeatures(
  * Find the features in every file of a folder and match them across samples (untargeted). The values of each feature are medians over the samples where it was found. Instead of aligning retention times, it groups features with close m/z and rt. Small rt differences between runs are covered by rt_tolerance.
  *
  * @param directory - Folder with the Ionic (.ion) or mzML files, one file per sample.
- * @param options - Optional settings: `eic`, `grid`, `grouping`, `findPeaks`, `threads` = 1. See {@link https://phenological.github.io/quantion/?language=js#MatchFeaturesOptions | MatchFeaturesOptions}.
+ * @param options - Optional settings: `eic`, `grid`, `grouping`, `findPeaks`, `threads` = 1, `warp` = undefined. See {@link https://phenological.github.io/quantion/?language=js#MatchFeaturesOptions | MatchFeaturesOptions}.
  * @returns One feature per matched feature (the feature table). frequency is the fraction of samples where it was found, from 0 to 1.
  * @see {@link https://phenological.github.io/quantion/?language=js#match_features | Documentation}
  */
@@ -890,6 +895,9 @@ export function matchFeatures(
     settings.grouping,
     settings.findPeaks,
     settings.threads,
+    options?.warp === undefined
+      ? null
+      : getWarpHandle(options.warp, "matchFeatures"),
   );
 }
 
@@ -969,8 +977,12 @@ function getNumberOrNull(value: unknown): number | null {
 }
 
 function getCompoundMatch(row: Record<string, unknown>): CompoundMatch {
-  const names = row.metadataNames ? String(row.metadataNames).split("\x1f") : [];
-  const values = row.metadataNames ? String(row.metadataValues).split("\x1f") : [];
+  const names = row.metadataNames
+    ? String(row.metadataNames).split("\x1f")
+    : [];
+  const values = row.metadataNames
+    ? String(row.metadataValues).split("\x1f")
+    : [];
   return {
     label: row.label as string,
     id: row.id as string,
@@ -979,7 +991,9 @@ function getCompoundMatch(row: Record<string, unknown>): CompoundMatch {
     cosine: row.cosine as number,
     mz: row.mz as Float64Array,
     intensity: row.intensity as Float64Array,
-    metadata: Object.fromEntries(names.map((name, index) => [name, values[index]])),
+    metadata: Object.fromEntries(
+      names.map((name, index) => [name, values[index]]),
+    ),
   };
 }
 
@@ -1018,13 +1032,13 @@ function getAnnotations(tables: AnnotationTables): FeatureAnnotation[] {
 /**
  * annotateFeatures · Untargeted
  *
- * Name features (annotation) by matching their MS2 spectra against a spectral library. For each feature and sample, it takes the positive MS2 scan closest to the peak apex, whose precursor matches the feature m/z and whose rt is within rt_range. A model turns the scan into a vector, which is scored against the library spectra with the same precursor m/z. By default, the library and the model come from the josoriom/cipher releases.
+ * Name features (annotation) by matching their MS2 spectra against a spectral library. For each feature and sample, it takes the MS2 scan in the ion mode given by polarity closest to the peak apex, whose precursor matches the feature m/z and whose rt is within rt_range. A model turns the scan into a vector, which is scored against the library spectra with the same precursor m/z. By default, the library and the model come from the josoriom/cipher releases.
  *
  * **Warning:** This is an experimental feature.
  *
  * @param files - The samples, from parse_ion or parse_mzml. It must not be empty.
  * @param features - The features to name, each with mz and rt. The output of find_features and match_features works as is. An empty list gives an empty result.
- * @param options - Optional settings: `library` = "https://github.com/josoriom/cipher/releases/latest/download/library_positive.ion", `model` = "https://github.com/josoriom/cipher/releases/latest/download/model.onnx", `matches` = 3, `ppmTolerance` = 20, `mzTolerance` = 0.005, `rtRange` = 0.3, `minRelativeIntensity` = 0.02. See {@link https://phenological.github.io/quantion/?language=js#AnnotateFeaturesOptions | AnnotateFeaturesOptions}.
+ * @param options - Optional settings: `library` = "https://github.com/josoriom/cipher/releases/latest/download/library_positive.ion", `model` = "https://github.com/josoriom/cipher/releases/latest/download/model.onnx", `matches` = 3, `ppmTolerance` = 20, `mzTolerance` = 0.005, `rtRange` = 0.3, `minRelativeIntensity` = 0.02, `polarity` = "POSITIVE". See {@link https://phenological.github.io/quantion/?language=js#AnnotateFeaturesOptions | AnnotateFeaturesOptions}.
  * @returns One annotation per feature, in the same order as features.
  * @see {@link https://phenological.github.io/quantion/?language=js#annotate_features | Documentation}
  */
@@ -1034,12 +1048,17 @@ export async function annotateFeatures(
   options?: AnnotateFeaturesOptions,
 ): Promise<FeatureAnnotation[]> {
   const functionName = "annotateFeatures";
-  const settings = readAnnotateFeaturesOptions(options, functionName);
+  const given = readAnnotateFeaturesOptions(options, functionName);
+  const settings = { ...given, polarity: getPolarityCode(given.polarity) };
   if (!Array.isArray(files)) {
     throw invalidArgument(functionName, "files", "must be an array of samples");
   }
   if (!Array.isArray(features)) {
-    throw invalidArgument(functionName, "features", "must be an array of features");
+    throw invalidArgument(
+      functionName,
+      "features",
+      "must be an array of features",
+    );
   }
   checkItems(features, ANNOTATION_FEATURE_KEYS, functionName, "features");
   const handles = files.map((file) => getHandle(file, functionName));
@@ -1054,8 +1073,8 @@ export async function annotateFeatures(
     await backend.annotateFeatures(null, null, handles, mzs, rts, settings);
     return [];
   }
-  const library = await parseIon(settings.library);
-  const model = await loadModel(settings.model);
+  const library = await parseIon(given.library);
+  const model = await loadModel(given.model);
   try {
     const tables = await backend.annotateFeatures(
       library._handle,
@@ -1071,4 +1090,3 @@ export async function annotateFeatures(
     model.dispose();
   }
 }
-

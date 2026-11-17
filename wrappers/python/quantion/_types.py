@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 from enum import Enum
-from typing import Callable, Dict, List, Optional, TypedDict, Union
+from typing import TYPE_CHECKING, Callable, Dict, List, Optional, TypedDict, Union
 
 import numpy as np
+
+if TYPE_CHECKING:
+    from quantion.warp_model import WarpModel
 
 
 class TimeUnit(str, Enum):
@@ -19,6 +22,24 @@ class TimeUnit(str, Enum):
     """
     MINUTES = "MINUTES"
     SECONDS = "SECONDS"
+
+    def __str__(self) -> str:
+        return self.value
+
+
+class Polarity(str, Enum):
+    """Polarity · Enums
+
+    Ion mode of a scan, the same codes as the polarity of a scan: 1 for positive and 2 for negative.
+
+    Fields:
+        POSITIVE: Positive ion mode, the code 1.
+        NEGATIVE: Negative ion mode, the code 2.
+
+    Documentation: https://phenological.github.io/quantion/?language=python#Polarity
+    """
+    POSITIVE = "POSITIVE"
+    NEGATIVE = "NEGATIVE"
 
     def __str__(self) -> str:
         return self.value
@@ -365,6 +386,7 @@ class MatchFeaturesOptions(TypedDict, total=False):
         grouping: How features are matched across samples. See GroupingOptions: https://phenological.github.io/quantion/?language=python#GroupingOptions
         find_peaks: Options for find_peaks, used for every grid m/z. See FindPeaksOptions: https://phenological.github.io/quantion/?language=python#FindPeaksOptions
         threads: Number of threads (CPU cores) used to process the files in parallel. Default 1.
+        warp: A warp model from load_warp. With it, each feature's rt is corrected to the model's reference time before grouping, and gap filling searches where the model predicts the peak in each sample. Default None.
 
     Documentation: https://phenological.github.io/quantion/?language=python#MatchFeaturesOptions
     """
@@ -373,6 +395,7 @@ class MatchFeaturesOptions(TypedDict, total=False):
     grouping: GroupingOptions
     find_peaks: FindPeaksOptions
     threads: int
+    warp: WarpModel
 
 
 class ScanArray(TypedDict):
@@ -436,6 +459,7 @@ class AnnotateFeaturesOptions(TypedDict, total=False):
         mz_tolerance: Precursor m/z tolerance in Da. The larger of the ppm and Da tolerances is used. Default 0.005.
         rt_range: Largest distance, in minutes, from the peak apex to the MS2 scan. Default 0.3.
         min_relative_intensity: MS2 peaks below this share of the base peak are removed before matching, from 0 to 1. Default 0.02.
+        polarity: Ion mode of the MS2 scans to use: POSITIVE or NEGATIVE. Library spectra in the other ion mode are skipped. Default POSITIVE.
 
     Documentation: https://phenological.github.io/quantion/?language=python#AnnotateFeaturesOptions
     """
@@ -446,6 +470,7 @@ class AnnotateFeaturesOptions(TypedDict, total=False):
     mz_tolerance: float
     rt_range: float
     min_relative_intensity: float
+    polarity: Union[Polarity, str]
 
 
 class ParseIonOptions(TypedDict, total=False):

@@ -1,5 +1,5 @@
 import { QuantionError, invalidArgument, missingArgument } from "./errors";
-import { PeakShape, TimeUnit } from "../types/types";
+import { PeakShape, Polarity, TimeUnit } from "../types/types";
 import type {
   AnnotateFeaturesOptions,
   CalculateBaselineOptions,
@@ -407,7 +407,7 @@ export function readMatchFeaturesOptions(
   const given = getObject(value, functionName, "");
   checkKeys(
     given,
-    ["eic", "grid", "grouping", "findPeaks", "threads"],
+    ["eic", "grid", "grouping", "findPeaks", "threads", "warp"],
     functionName,
     "",
   );
@@ -788,6 +788,10 @@ export function getShapeCode(shape: PeakShape): number {
   return shape === PeakShape.GAUSSIAN ? 0 : 1;
 }
 
+export function getPolarityCode(polarity: Polarity): number {
+  return polarity === Polarity.NEGATIVE ? 2 : 1;
+}
+
 export const DEFAULT_LIBRARY =
   "https://github.com/josoriom/cipher/releases/latest/download/library_positive.ion";
 export const DEFAULT_MODEL =
@@ -800,7 +804,7 @@ export function readAnnotateFeaturesOptions(
   const given = getObject(value, functionName, "");
   checkKeys(
     given,
-    ["library", "model", "matches", "ppmTolerance", "mzTolerance", "rtRange", "minRelativeIntensity"],
+    ["library", "model", "matches", "ppmTolerance", "mzTolerance", "rtRange", "minRelativeIntensity", "polarity"],
     functionName,
     "",
   );
@@ -812,6 +816,7 @@ export function readAnnotateFeaturesOptions(
     mzTolerance: getValue(given, "mzTolerance", "number", 0.005, functionName, ""),
     rtRange: getValue(given, "rtRange", "number", 0.3, functionName, ""),
     minRelativeIntensity: getValue(given, "minRelativeIntensity", "number", 0.02, functionName, ""),
+    polarity: getChoice(given, "polarity", Polarity, Polarity.POSITIVE, functionName, ""),
   };
 }
 

@@ -4,6 +4,7 @@ typeddict AnnotateFeaturesOptions total=False
     min_relative_intensity?: float
     model?: str
     mz_tolerance?: float
+    polarity?: Polarity | str
     ppm_tolerance?: float
     rt_range?: float
 
@@ -153,6 +154,7 @@ typeddict MatchFeaturesOptions total=False
     grid?: GridOptions
     grouping?: GroupingOptions
     threads?: int
+    warp?: WarpModel
 
 class Model(Metadata)
     def __enter__(self) -> Model
@@ -186,6 +188,10 @@ typeddict PeakParameters total=False
 enum PeakShape
     GAUSSIAN = GAUSSIAN
     EMG = EMG
+
+enum Polarity
+    POSITIVE = POSITIVE
+    NEGATIVE = NEGATIVE
 
 typeddict PredictedRt total=True
     rt: float

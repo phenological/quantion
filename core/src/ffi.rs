@@ -25,7 +25,7 @@ use crate::{
     },
 };
 
-pub const QUANTION_ABI_VERSION: u32 = 3;
+pub const QUANTION_ABI_VERSION: u32 = 4;
 
 #[unsafe(no_mangle)]
 pub extern "C" fn quantion_abi_version() -> u32 {

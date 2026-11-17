@@ -42,6 +42,7 @@ pub use utilities::{
     ion_image::IonImage,
     load_model::{Model, ModelInput},
     parse_ion::IonInput,
+    polarity::Polarity,
     structs::{DataXY, FromTo, Peak, Position, ScanQuery, Target, Transition},
     warp_model::{PredictedRt, WarpModel},
 };

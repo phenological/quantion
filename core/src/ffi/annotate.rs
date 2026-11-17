@@ -7,7 +7,7 @@ use super::{
     write_buf,
 };
 use crate::{
-    AnnotateFeaturesOptions, Feature, QuantionError, SampleFile,
+    AnnotateFeaturesOptions, Feature, Polarity, QuantionError, SampleFile,
     annotations::{annotate_with_library, check_features, check_files, from_spectrum_model_error},
     files::from_fast_error,
     sample_file::FileSource,
@@ -26,6 +26,7 @@ fn read_options(
     mz_tolerance: f64,
     rt_range: f64,
     min_relative_intensity: f64,
+    polarity: u8,
 ) -> Result<AnnotateFeaturesOptions, QuantionError> {
     let options = AnnotateFeaturesOptions {
         library: String::new(),
@@ -35,9 +36,20 @@ fn read_options(
         mz_tolerance,
         rt_range,
         min_relative_intensity,
+        polarity: read_polarity(polarity)?,
     };
     options.check_settings(FUNCTION)?;
     Ok(options)
+}
+
+fn read_polarity(polarity: u8) -> Result<Polarity, QuantionError> {
+    Polarity::from_code(polarity).ok_or_else(|| {
+        QuantionError::invalid(
+            FUNCTION,
+            "polarity",
+            format!("must be 1 (positive) or 2 (negative), got {polarity}"),
+        )
+    })
 }
 
 fn read_features(
@@ -102,6 +114,7 @@ fn read_model(model: *const ModelHandle) -> Result<SpectrumModel, QuantionError>
 }
 
 /// Match each feature against the library. `files` holds `file_count` open samples.
+/// `polarity` is 1 for positive and 2 for negative.
 ///
 /// # Safety
 /// `library` and every handle in `files` must be valid `ParsedFile`s; `model` a valid model.
@@ -120,6 +133,7 @@ pub unsafe extern "C" fn annotate_features(
     mz_tolerance: f64,
     rt_range: f64,
     min_relative_intensity: f64,
+    polarity: u8,
     out_features: *mut Buf,
     out_files: *mut Buf,
     out_matches: *mut Buf,
@@ -140,6 +154,7 @@ pub unsafe extern "C" fn annotate_features(
             mz_tolerance,
             rt_range,
             min_relative_intensity,
+            polarity,
         )?;
         let mut samples = read_files(library, files, file_count)?;
         let features = read_features(mzs, rts, feature_count)?;
@@ -169,6 +184,7 @@ pub unsafe extern "C" fn annotate_features(
 }
 
 /// Plan the byte ranges `annotate_features` reads from one sample.
+/// `polarity` is 1 for positive and 2 for negative.
 ///
 /// # Safety
 /// `file` must be a valid `ParsedFile`. `mzs` and `rts` must point to `feature_count` values.
@@ -184,6 +200,7 @@ pub unsafe extern "C" fn plan_annotate_samples(
     mz_tolerance: f64,
     rt_range: f64,
     min_relative_intensity: f64,
+    polarity: u8,
     out: *mut Buf,
 ) -> c_int {
     if out.is_null() {
@@ -200,6 +217,7 @@ pub unsafe extern "C" fn plan_annotate_samples(
             mz_tolerance,
             rt_range,
             min_relative_intensity,
+            polarity,
         )?;
         let features = read_features(mzs, rts, feature_count)?;
         let file = get_open_file(FUNCTION, file, "files")?;
@@ -213,6 +231,7 @@ pub unsafe extern "C" fn plan_annotate_samples(
 }
 
 /// Plan the byte ranges `annotate_features` reads from the library, for every sample at once.
+/// `polarity` is 1 for positive and 2 for negative.
 ///
 /// # Safety
 /// `library` and every handle in `files` must be valid `ParsedFile`s; `model` a valid model.
@@ -231,6 +250,7 @@ pub unsafe extern "C" fn plan_annotate_library(
     mz_tolerance: f64,
     rt_range: f64,
     min_relative_intensity: f64,
+    polarity: u8,
     out: *mut Buf,
 ) -> c_int {
     if out.is_null() {
@@ -247,6 +267,7 @@ pub unsafe extern "C" fn plan_annotate_library(
             mz_tolerance,
             rt_range,
             min_relative_intensity,
+            polarity,
         )?;
         let mut samples = read_files(library, files, file_count)?;
         let features = read_features(mzs, rts, feature_count)?;

@@ -23,7 +23,7 @@ const FIELDS: &[Field] = &[
     Field::optional(
         "folder",
         Kind::Text,
-        "Folder with one .ion or .mzML file per sample. Defaults to the first allowed folder",
+        "One .ion or .mzML file per sample. Default: the first allowed folder",
     ),
     Field::optional("options", Kind::Object(MATCH_FEATURES_FIELDS), ""),
     DEISOTOPE,

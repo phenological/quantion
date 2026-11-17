@@ -5,21 +5,20 @@ mod tests {
     use ionic::{WriteOptions, mzml::structs::*};
 
     use crate::{
+        GridOptions, GroupingOptions, MatchFeaturesOptions,
         files::CalculateEicOptions,
         traces::FindPeaksOptions,
         utilities::{
             calculate_eic::SpectrumKind,
-            find_features::{Feature, FeatureSettings, MzScanGrid, MzTolerance},
+            find_features::{Feature, MzTolerance},
             get_scans::CentroidScan,
             ion::write_mzml_to_ion,
             match_features::{
-                FeatureClusterer, MatchSettings, SearchBounds, TaggedFeature,
-                aggregate_into_consensus, assign_best_per_sample, collect_filled_slots,
-                compute_search_bounds, dedup, match_features, require_minimum_frequency,
-                resolve_cluster, weighted_centroid_mz,
+                FeatureClusterer, SearchBounds, TaggedFeature, aggregate_into_consensus,
+                assign_best_per_sample, collect_filled_slots, compute_search_bounds, dedup,
+                match_features, require_minimum_frequency, resolve_cluster, weighted_centroid_mz,
             },
             math::median,
-            mz_estimator::MzEstimatorKind,
             structs::{FromTo, SpectrumSummary},
         },
     };
@@ -99,6 +98,7 @@ mod tests {
         TaggedFeature {
             sample_index,
             feature: make_feature(mz, rt, intensity),
+            rt_shift: 0.0,
         }
     }
 
@@ -112,6 +112,7 @@ mod tests {
     ) -> TaggedFeature {
         TaggedFeature {
             sample_index,
+            rt_shift: 0.0,
             feature: Feature {
                 mz,
                 rt,
@@ -928,21 +929,20 @@ mod tests {
         dir
     }
 
-    fn alignment_cfg() -> MatchSettings {
-        MatchSettings {
-            mz_tolerance: MzTolerance {
-                mz_absolute: 0.005,
-                ppm: 20.0,
-            },
-            rt_tolerance: 0.15,
-            min_samples: 1,
-            eic_options: CalculateEicOptions {
-                ppm_tolerance: 20.0,
-                mz_tolerance: 0.005,
+    fn alignment_options(window: FromTo, grid: GridOptions) -> MatchFeaturesOptions {
+        MatchFeaturesOptions {
+            eic: CalculateEicOptions {
+                from: window.from,
+                to: window.to,
                 ..Default::default()
             },
-            peak_options: FindPeaksOptions::default(),
-            mz_estimator: MzEstimatorKind::MedianMzApex,
+            grid,
+            grouping: GroupingOptions {
+                ppm_tolerance: 20.0,
+                mz_tolerance: 0.005,
+                rt_tolerance: 0.15,
+                min_frequency: 0.0,
+            },
             ..Default::default()
         }
     }
@@ -1078,24 +1078,14 @@ mod tests {
         assert!((apex.mz - peak_mz).abs() < 1e-9);
     }
 
-    fn feature_cfg_for_mz(mz: f64) -> FeatureSettings {
-        FeatureSettings {
-            mz_scan_grid: MzScanGrid {
-                min_mz: (mz - 2.0).max(40.0),
-                max_mz: (mz + 2.0).min(1000.0),
-                ..Default::default()
-            },
-            ..Default::default()
-        }
+    fn grid_for_mz(mz: f64) -> GridOptions {
+        grid_for_mz_range(mz, mz)
     }
 
-    fn feature_cfg_for_mz_range(low: f64, high: f64) -> FeatureSettings {
-        FeatureSettings {
-            mz_scan_grid: MzScanGrid {
-                min_mz: (low - 2.0).max(40.0),
-                max_mz: (high + 2.0).min(1000.0),
-                ..Default::default()
-            },
+    fn grid_for_mz_range(low: f64, high: f64) -> GridOptions {
+        GridOptions {
+            start: (low - 2.0).max(40.0),
+            end: (high + 2.0).min(1000.0),
             ..Default::default()
         }
     }
@@ -1116,11 +1106,7 @@ mod tests {
         let dir = write_ion_dir("full_cluster", &samples);
         let features = match_features(
             dir.to_str().unwrap(),
-            FromTo { from: 3.0, to: 7.0 },
-            MatchSettings {
-                features: feature_cfg_for_mz(peak_mz),
-                ..alignment_cfg()
-            },
+            &alignment_options(FromTo { from: 3.0, to: 7.0 }, grid_for_mz(peak_mz)),
         )
         .expect("match_features should succeed");
 
@@ -1171,14 +1157,13 @@ mod tests {
         let dir = write_ion_dir("full_cluster_high_mz", &samples);
         let features = match_features(
             dir.to_str().unwrap(),
-            FromTo {
-                from: 7.0,
-                to: 11.0,
-            },
-            MatchSettings {
-                features: feature_cfg_for_mz(peak_mz),
-                ..alignment_cfg()
-            },
+            &alignment_options(
+                FromTo {
+                    from: 7.0,
+                    to: 11.0,
+                },
+                grid_for_mz(peak_mz),
+            ),
         )
         .expect("match_features should succeed");
 
@@ -1216,11 +1201,7 @@ mod tests {
         let dir = write_ion_dir("fill_centroid", &samples);
         let features = match_features(
             dir.to_str().unwrap(),
-            FromTo { from: 3.5, to: 6.5 },
-            MatchSettings {
-                features: feature_cfg_for_mz(peak_mz),
-                ..alignment_cfg()
-            },
+            &alignment_options(FromTo { from: 3.5, to: 6.5 }, grid_for_mz(peak_mz)),
         )
         .expect("match_features should succeed");
 
@@ -1257,11 +1238,7 @@ mod tests {
         let dir = write_ion_dir("fill_centroid_high_mz", &samples);
         let features = match_features(
             dir.to_str().unwrap(),
-            FromTo { from: 6.0, to: 9.0 },
-            MatchSettings {
-                features: feature_cfg_for_mz(peak_mz),
-                ..alignment_cfg()
-            },
+            &alignment_options(FromTo { from: 6.0, to: 9.0 }, grid_for_mz(peak_mz)),
         )
         .expect("match_features should succeed");
 
@@ -1305,18 +1282,14 @@ mod tests {
             .collect();
 
         let dir = write_ion_dir("freq_threshold", &samples);
-        let mut cfg = alignment_cfg();
-        cfg.min_samples = 3; // require presence in at least 3 samples
-
-        let features = match_features(
-            dir.to_str().unwrap(),
+        let mut options = alignment_options(
             FromTo { from: 3.0, to: 7.0 },
-            MatchSettings {
-                features: feature_cfg_for_mz_range(common_mz, rare_mz),
-                ..cfg
-            },
-        )
-        .expect("match_features should succeed");
+            grid_for_mz_range(common_mz, rare_mz),
+        );
+        options.grouping.min_frequency = 0.5;
+
+        let features =
+            match_features(dir.to_str().unwrap(), &options).expect("match_features should succeed");
 
         let _ = fs::remove_dir_all(&dir);
 
@@ -1346,18 +1319,11 @@ mod tests {
             .collect();
 
         let dir = write_ion_dir("freq_exact", &samples);
-        let mut cfg = alignment_cfg();
-        cfg.min_samples = n_samples; // threshold = exact count
+        let mut options = alignment_options(FromTo { from: 2.5, to: 5.5 }, grid_for_mz(peak_mz));
+        options.grouping.min_frequency = 1.0;
 
-        let features = match_features(
-            dir.to_str().unwrap(),
-            FromTo { from: 2.5, to: 5.5 },
-            MatchSettings {
-                features: feature_cfg_for_mz(peak_mz),
-                ..cfg
-            },
-        )
-        .expect("match_features should succeed");
+        let features =
+            match_features(dir.to_str().unwrap(), &options).expect("match_features should succeed");
 
         let _ = fs::remove_dir_all(&dir);
 
@@ -1384,11 +1350,7 @@ mod tests {
         let dir = write_ion_dir("two_disjoint", &samples);
         let features = match_features(
             dir.to_str().unwrap(),
-            FromTo { from: 3.0, to: 7.0 },
-            MatchSettings {
-                features: feature_cfg_for_mz_range(mz_a, mz_b),
-                ..alignment_cfg()
-            },
+            &alignment_options(FromTo { from: 3.0, to: 7.0 }, grid_for_mz_range(mz_a, mz_b)),
         )
         .expect("match_features should succeed");
 
@@ -1417,11 +1379,7 @@ mod tests {
         let dir = write_ion_dir("two_close", &samples);
         let features = match_features(
             dir.to_str().unwrap(),
-            FromTo { from: 4.0, to: 8.0 },
-            MatchSettings {
-                features: feature_cfg_for_mz_range(mz_a, mz_b),
-                ..alignment_cfg()
-            },
+            &alignment_options(FromTo { from: 4.0, to: 8.0 }, grid_for_mz_range(mz_a, mz_b)),
         )
         .expect("match_features should succeed");
 
@@ -1540,11 +1498,7 @@ mod tests {
         let dir = write_ion_dir("rt_shifted_apex", &samples);
         let features = match_features(
             dir.to_str().unwrap(),
-            FromTo { from: 3.0, to: 7.0 },
-            MatchSettings {
-                features: feature_cfg_for_mz(peak_mz),
-                ..alignment_cfg()
-            },
+            &alignment_options(FromTo { from: 3.0, to: 7.0 }, grid_for_mz(peak_mz)),
         )
         .expect("match_features should succeed");
         let _ = fs::remove_dir_all(&dir);
@@ -1587,16 +1541,9 @@ mod tests {
             let dir = write_ion_dir(&format!("determinism_{threads}"), &samples);
             let mut features = match_features(
                 dir.to_str().unwrap(),
-                FromTo { from: 5.0, to: 9.0 },
-                MatchSettings {
-                    features: FeatureSettings {
-                        threads: threads,
-                        ..feature_cfg_for_mz(peak_mz)
-                    },
-                    ..MatchSettings {
-                        threads: threads,
-                        ..alignment_cfg()
-                    }
+                &MatchFeaturesOptions {
+                    threads,
+                    ..alignment_options(FromTo { from: 5.0, to: 9.0 }, grid_for_mz(peak_mz))
                 },
             )
             .expect("match_features should succeed");
@@ -1617,48 +1564,6 @@ mod tests {
     }
 
     #[test]
-    fn test_weighted_intensity_median_selection_reports_mz() {
-        let peak_mz = 250.0;
-        let peak_rt = 5.0;
-
-        let samples: Vec<Vec<u8>> = (0..4)
-            .map(|_| {
-                to_ion_bytes(&build_mzml_single_peak(
-                    peak_mz, peak_rt, 10_000.0, 4.0, 6.0, 60,
-                ))
-            })
-            .collect();
-
-        let dir = write_ion_dir("weighted_median_select", &samples);
-        let mut cfg = alignment_cfg();
-        cfg.mz_estimator = MzEstimatorKind::WeightedIntensityMedian;
-        let features = match_features(
-            dir.to_str().unwrap(),
-            FromTo { from: 3.0, to: 7.0 },
-            MatchSettings {
-                features: feature_cfg_for_mz(peak_mz),
-                ..cfg
-            },
-        )
-        .expect("match_features should succeed");
-        let _ = fs::remove_dir_all(&dir);
-
-        let best = features
-            .iter()
-            .max_by(|a, b| {
-                a.frequency
-                    .unwrap_or(0.0)
-                    .total_cmp(&b.frequency.unwrap_or(0.0))
-            })
-            .unwrap();
-        assert!(
-            (best.mz - peak_mz).abs() < 0.001,
-            "weighted-median mz {:.5} should equal {peak_mz}",
-            best.mz
-        );
-    }
-
-    #[test]
     fn test_two_co_eluting_masses_split_into_two_features() {
         let mz_a = 200.0300;
         let mz_b = 200.0330;
@@ -1676,11 +1581,7 @@ mod tests {
         let dir = write_ion_dir("co_eluting_split", &samples);
         let features = match_features(
             dir.to_str().unwrap(),
-            FromTo { from: 3.0, to: 7.0 },
-            MatchSettings {
-                features: feature_cfg_for_mz_range(mz_a, mz_b),
-                ..alignment_cfg()
-            },
+            &alignment_options(FromTo { from: 3.0, to: 7.0 }, grid_for_mz_range(mz_a, mz_b)),
         )
         .expect("match_features should succeed");
         let _ = fs::remove_dir_all(&dir);
@@ -1723,11 +1624,7 @@ mod tests {
         let dir = write_ion_dir("within_cutoff", &samples);
         let features = match_features(
             dir.to_str().unwrap(),
-            FromTo { from: 3.0, to: 7.0 },
-            MatchSettings {
-                features: feature_cfg_for_mz_range(mz_a, mz_b),
-                ..alignment_cfg()
-            },
+            &alignment_options(FromTo { from: 3.0, to: 7.0 }, grid_for_mz_range(mz_a, mz_b)),
         )
         .expect("match_features should succeed");
         let _ = fs::remove_dir_all(&dir);
@@ -1807,11 +1704,7 @@ mod tests {
         let dir = write_ion_dir("profile_single_mass", &samples);
         let features = match_features(
             dir.to_str().unwrap(),
-            FromTo { from: 3.0, to: 7.0 },
-            MatchSettings {
-                features: feature_cfg_for_mz(center),
-                ..alignment_cfg()
-            },
+            &alignment_options(FromTo { from: 3.0, to: 7.0 }, grid_for_mz(center)),
         )
         .expect("match_features should succeed");
         let _ = fs::remove_dir_all(&dir);
@@ -1840,11 +1733,10 @@ mod tests {
         let dir = write_ion_dir("three_masses", &samples);
         let features = match_features(
             dir.to_str().unwrap(),
-            FromTo { from: 3.0, to: 7.0 },
-            MatchSettings {
-                features: feature_cfg_for_mz_range(mzs[0], mzs[2]),
-                ..alignment_cfg()
-            },
+            &alignment_options(
+                FromTo { from: 3.0, to: 7.0 },
+                grid_for_mz_range(mzs[0], mzs[2]),
+            ),
         )
         .expect("match_features should succeed");
         let _ = fs::remove_dir_all(&dir);
@@ -1877,17 +1769,11 @@ mod tests {
             })
             .collect();
         let dir = write_ion_dir("wide_tolerance", &samples);
-        let mut cfg = alignment_cfg();
-        cfg.eic_options.ppm_tolerance = 60.0;
-        let features = match_features(
-            dir.to_str().unwrap(),
-            FromTo { from: 3.0, to: 7.0 },
-            MatchSettings {
-                features: feature_cfg_for_mz_range(mz_a, mz_b),
-                ..cfg
-            },
-        )
-        .expect("match_features should succeed");
+        let mut options =
+            alignment_options(FromTo { from: 3.0, to: 7.0 }, grid_for_mz_range(mz_a, mz_b));
+        options.eic.ppm_tolerance = 60.0;
+        let features =
+            match_features(dir.to_str().unwrap(), &options).expect("match_features should succeed");
         let _ = fs::remove_dir_all(&dir);
 
         let near = features
@@ -1917,11 +1803,10 @@ mod tests {
         let dir = write_ion_dir("contaminant", &samples);
         let features = match_features(
             dir.to_str().unwrap(),
-            FromTo { from: 3.0, to: 7.0 },
-            MatchSettings {
-                features: feature_cfg_for_mz_range(peak_mz, flat_mz),
-                ..alignment_cfg()
-            },
+            &alignment_options(
+                FromTo { from: 3.0, to: 7.0 },
+                grid_for_mz_range(peak_mz, flat_mz),
+            ),
         )
         .expect("match_features should succeed");
         let _ = fs::remove_dir_all(&dir);
@@ -1952,6 +1837,7 @@ mod tests {
         rows.iter()
             .map(|(sample, mz, rt, from, to, intensity)| TaggedFeature {
                 sample_index: *sample,
+                rt_shift: 0.0,
                 feature: Feature {
                     mz: *mz,
                     rt: *rt,
@@ -2022,6 +1908,7 @@ mod tests {
             .map(|t| TaggedFeature {
                 sample_index: t.sample_index,
                 feature: t.feature.clone(),
+                rt_shift: t.rt_shift,
             })
             .collect()
     }
@@ -2590,6 +2477,7 @@ mod tests {
                 let value = |index: usize| cells[index].parse::<f64>().unwrap_or(f64::NAN);
                 tagged.push(TaggedFeature {
                     sample_index,
+                    rt_shift: 0.0,
                     feature: Feature {
                         mz: value(0),
                         rt: value(1),

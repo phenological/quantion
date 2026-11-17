@@ -13,6 +13,7 @@ use rayon::prelude::*;
 #[cfg(not(all(target_arch = "wasm32", not(target_os = "wasi"))))]
 use crate::utilities::parallel::run_with_threads;
 use crate::{
+    features::{MatchFeaturesOptions, get_feature_settings},
     files::CalculateEicOptions,
     traces::FindPeaksOptions,
     utilities::{
@@ -26,12 +27,17 @@ use crate::{
         get_scans::CentroidScan,
         math::median,
         mz_estimator::{MzEstimator, MzEstimatorKind, SampleMz, make_estimator, same_mass_gap},
-        structs::{DataXY, FromTo, Peak, Roi},
+        structs::{DataXY, FromTo, Peak, Roi, Target},
+        warp_model::{WarpError, WarpModel},
     },
 };
 
 #[cfg(not(all(target_arch = "wasm32", not(target_os = "wasi"))))]
 const ION_CACHE_BYTES: usize = 128 * 1024 * 1024;
+#[cfg(not(all(target_arch = "wasm32", not(target_os = "wasi"))))]
+const FILL_WINDOW_MINUTES: f64 = 2.0;
+#[cfg(not(all(target_arch = "wasm32", not(target_os = "wasi"))))]
+const WARP_TARGETS_PER_CALL: usize = 500;
 
 #[cfg(not(all(target_arch = "wasm32", not(target_os = "wasi"))))]
 use std::{
@@ -63,6 +69,10 @@ pub enum AlignmentError {
         path: String,
         source: crate::utilities::calculate_eic::FastError,
     },
+    Warp {
+        path: String,
+        source: WarpError,
+    },
 }
 
 impl Display for AlignmentError {
@@ -78,6 +88,7 @@ impl Display for AlignmentError {
             Self::FastPath { path, source } => {
                 write!(f, "fast path error in {}: {}", path, source)
             }
+            Self::Warp { path, source } => write!(f, "warp error in {}: {}", path, source),
         }
     }
 }
@@ -90,50 +101,11 @@ impl From<Error> for AlignmentError {
     }
 }
 
-#[derive(Clone, Debug)]
-pub struct MatchSettings {
-    pub features: FeatureSettings,
-    pub mz_tolerance: MzTolerance,
-    pub rt_tolerance: f64,
-    pub min_samples: usize,
-    pub min_frequency: f64,
-    pub min_real_support: usize,
-    pub eic_options: CalculateEicOptions,
-    pub peak_options: FindPeaksOptions,
-    pub mz_estimator: MzEstimatorKind,
-    pub fill_window_minutes: f64,
-    pub threads: usize,
-}
-
-impl Default for MatchSettings {
-    fn default() -> Self {
-        Self {
-            features: FeatureSettings::default(),
-            mz_tolerance: MzTolerance {
-                mz_absolute: 0.0025,
-                ppm: 5.0,
-            },
-            rt_tolerance: 0.05,
-            min_samples: 1,
-            min_frequency: 0.0,
-            min_real_support: 1,
-            eic_options: CalculateEicOptions {
-                ppm_tolerance: 20.0,
-                mz_tolerance: 0.005,
-                ..Default::default()
-            },
-            peak_options: FindPeaksOptions::default(),
-            mz_estimator: MzEstimatorKind::default(),
-            fill_window_minutes: 2.0,
-            threads: 1,
-        }
-    }
-}
-
 #[derive(Debug)]
 pub struct TaggedFeature {
     pub sample_index: usize,
     pub feature: Feature,
+    pub rt_shift: f64,
 }
 
 pub struct FeatureClusterer {
@@ -149,8 +121,13 @@ pub enum SampleSourceKind {
     Ion(PathBuf),
 }
 #[cfg(not(all(target_arch = "wasm32", not(target_os = "wasi"))))]
-type SampleDataset = (String, SampleSourceKind, Vec<Feature>);
+struct SampleData {
+    source: SampleSourceKind,
+    features: Vec<Feature>,
+    rt_shifts: Vec<f64>,
+}
 
+#[derive(Clone, Copy)]
 pub(crate) struct SearchBounds {
     pub(crate) target_mz: f64,
     pub(crate) center_rt: f64,
@@ -425,144 +402,211 @@ struct ClusterSlot {
     apex_values: Vec<Option<SampleMz>>,
     masses: Vec<Option<Vec<MassPeak>>>,
     bounds: SearchBounds,
+    rt_shifts: Vec<f64>,
+    fill_bounds: Vec<Option<SearchBounds>>,
+}
+
+impl ClusterSlot {
+    fn get_sample_bounds(&self, sample_idx: usize) -> SearchBounds {
+        if let Some(bounds) = self.fill_bounds[sample_idx] {
+            return bounds;
+        }
+        let shift = self.rt_shifts[sample_idx];
+        SearchBounds {
+            target_mz: self.bounds.target_mz,
+            center_rt: self.bounds.center_rt - shift,
+            rt_from: self.bounds.rt_from - shift,
+            rt_to: self.bounds.rt_to - shift,
+        }
+    }
+
+    fn move_to_reference_time(&mut self) {
+        for (sample_idx, shift) in self.rt_shifts.iter().enumerate() {
+            if let Some(feature) = self.features[sample_idx].take() {
+                self.features[sample_idx] = Some(shift_feature(feature, *shift));
+            }
+            for mass in self.masses[sample_idx].iter_mut().flatten() {
+                mass.rt += shift;
+            }
+        }
+    }
+}
+
+fn shift_feature(feature: Feature, shift: f64) -> Feature {
+    Feature {
+        rt: feature.rt + shift,
+        from: feature.from + shift,
+        to: feature.to + shift,
+        ..feature
+    }
 }
 
 #[cfg(not(all(target_arch = "wasm32", not(target_os = "wasi"))))]
 pub fn match_features(
     directory: &str,
-    window: FromTo,
-    options: MatchSettings,
+    options: &MatchFeaturesOptions,
 ) -> Result<Vec<Feature>, AlignmentError> {
-    let features = FeatureSettings {
-        threads: options.threads,
-        ..options.features.clone()
-    };
+    let features = get_feature_settings(
+        &options.eic,
+        &options.grid,
+        &options.find_peaks,
+        options.threads,
+    );
     let datasets = load_sample_files(directory)?;
-    let datasets = detect_features_per_sample(datasets, window, &features)?;
+    let datasets = detect_features_per_sample(
+        datasets,
+        options.eic.get_window(),
+        &features,
+    )?;
     align_samples(datasets, options)
 }
-fn get_min_samples(min_samples: usize, min_frequency: f64, total_samples: usize) -> usize {
+
+fn get_min_samples(min_frequency: f64, total_samples: usize) -> usize {
     let from_frequency = (min_frequency.clamp(0.0, 1.0) * total_samples as f64).ceil() as usize;
-    min_samples.max(from_frequency).max(1)
+    from_frequency.max(1)
 }
 
 #[cfg(not(all(target_arch = "wasm32", not(target_os = "wasi"))))]
 fn align_samples(
-    mut datasets: Vec<SampleDataset>,
-    options: MatchSettings,
+    mut datasets: Vec<SampleData>,
+    options: &MatchFeaturesOptions,
 ) -> Result<Vec<Feature>, AlignmentError> {
     let threads = options.threads;
+    let grouping = options.grouping;
+    let mz_tolerance = grouping.get_mz_tolerance();
+    let eic = options.eic.in_minutes();
     let clusterer = FeatureClusterer {
-        tolerance: options.mz_tolerance.clone(),
-        rt_tolerance: options.rt_tolerance,
+        tolerance: mz_tolerance.clone(),
+        rt_tolerance: grouping.rt_tolerance,
     };
 
     let tagged = collect_tagged(&mut datasets);
     let clusters = run_with_threads(threads, || clusterer.cluster(tagged));
-    let mut slots = prepare_slots(
-        clusters,
-        datasets.len(),
-        options.rt_tolerance,
-        options.min_real_support,
-    );
+    let mut slots = prepare_slots(clusters, datasets.len(), grouping.rt_tolerance);
 
-    let estimator = make_estimator(&options.mz_estimator);
+    let estimator = make_estimator(&MzEstimatorKind::default());
 
     resolve_samples(
         &mut slots,
         &datasets,
-        options.eic_options,
-        options.peak_options,
-        options.fill_window_minutes,
-        threads,
+        SampleReading {
+            eic_options: eic,
+            peak_options: options.find_peaks.clone(),
+            fill_window: FILL_WINDOW_MINUTES,
+            threads,
+            warp: options.warp.as_ref(),
+            rt_tolerance: grouping.rt_tolerance,
+        },
     )?;
+    for slot in &mut slots {
+        slot.move_to_reference_time();
+    }
 
-    let min_samples = get_min_samples(options.min_samples, options.min_frequency, datasets.len());
+    let min_samples = get_min_samples(grouping.min_frequency, datasets.len());
     let (single, split) = build_results(
         slots,
         min_samples,
         datasets.len(),
         estimator.as_ref(),
-        &options.mz_tolerance,
-        options.eic_options.ppm_tolerance,
+        &mz_tolerance,
+        eic.ppm_tolerance,
     );
 
     let same_mass = MzTolerance {
         mz_absolute: 0.0,
-        ppm: 0.5 * options.eic_options.ppm_tolerance,
+        ppm: 0.5 * eic.ppm_tolerance,
     };
     let mut features = single;
     features.extend(split);
     let results = run_with_threads(threads, || {
-        dedup(features, &same_mass, options.rt_tolerance)
+        dedup(features, &same_mass, grouping.rt_tolerance)
     });
     Ok(results)
 }
 
-fn collect_tagged(datasets: &mut [SampleDataset]) -> Vec<TaggedFeature> {
+#[cfg(not(all(target_arch = "wasm32", not(target_os = "wasi"))))]
+fn collect_tagged(datasets: &mut [SampleData]) -> Vec<TaggedFeature> {
     datasets
         .iter_mut()
         .enumerate()
-        .flat_map(|(idx, (_, _, features))| {
-            std::mem::take(features)
+        .flat_map(|(idx, sample)| {
+            std::mem::take(&mut sample.features)
                 .into_iter()
-                .map(move |feature| TaggedFeature {
+                .zip(std::mem::take(&mut sample.rt_shifts))
+                .map(move |(feature, rt_shift)| TaggedFeature {
                     sample_index: idx,
-                    feature,
+                    feature: shift_feature(feature, rt_shift),
+                    rt_shift,
                 })
         })
         .collect()
 }
 
-fn prepare_slots(
-    clusters: Vec<Cluster>,
-    n_samples: usize,
-    rt_tol: f64,
-    min_real_support: usize,
-) -> Vec<ClusterSlot> {
+fn prepare_slots(clusters: Vec<Cluster>, n_samples: usize, rt_tol: f64) -> Vec<ClusterSlot> {
     clusters
         .into_iter()
         .filter_map(|cluster| {
-            let features = assign_best_per_sample(cluster, n_samples);
-            let real_support = features.iter().filter(|feature| feature.is_some()).count();
-            if real_support < min_real_support {
-                return None;
-            }
-            let bounds = compute_search_bounds(&features, rt_tol)?;
+            let best = pick_best_per_sample(cluster, n_samples);
+            let reference_features: Vec<Option<Feature>> = best
+                .iter()
+                .map(|tagged| tagged.as_ref().map(|tagged| tagged.feature.clone()))
+                .collect();
+            let bounds = compute_search_bounds(&reference_features, rt_tol)?;
+            let rt_shifts = best
+                .iter()
+                .map(|tagged| tagged.as_ref().map_or(0.0, |tagged| tagged.rt_shift))
+                .collect();
+            let features = best
+                .into_iter()
+                .map(|tagged| tagged.map(|tagged| shift_feature(tagged.feature, -tagged.rt_shift)))
+                .collect();
             Some(ClusterSlot {
-                apex_values: vec![None; features.len()],
-                masses: vec![None; features.len()],
+                apex_values: vec![None; n_samples],
+                masses: vec![None; n_samples],
                 features,
                 bounds,
+                rt_shifts,
+                fill_bounds: vec![None; n_samples],
             })
         })
         .collect()
 }
 
 #[cfg(not(all(target_arch = "wasm32", not(target_os = "wasi"))))]
-fn resolve_samples(
-    slots: &mut [ClusterSlot],
-    datasets: &[SampleDataset],
+struct SampleReading<'a> {
     eic_options: CalculateEicOptions,
     peak_options: FindPeaksOptions,
     fill_window: f64,
     threads: usize,
+    warp: Option<&'a WarpModel>,
+    rt_tolerance: f64,
+}
+
+#[cfg(not(all(target_arch = "wasm32", not(target_os = "wasi"))))]
+fn resolve_samples(
+    slots: &mut [ClusterSlot],
+    datasets: &[SampleData],
+    reading: SampleReading,
 ) -> Result<(), AlignmentError> {
+    let eic_options = reading.eic_options;
+    let peak_options = &reading.peak_options;
+    let fill_window = reading.fill_window;
+    let threads = reading.threads;
     if slots.is_empty() {
         return Ok(());
     }
 
     let tiles = build_tiles(slots, eic_options);
 
-    for (sample_idx, (_, source, _)) in datasets.iter().enumerate() {
-        let loaded = match source {
+    for (sample_idx, sample) in datasets.iter().enumerate() {
+        let loaded = match &sample.source {
             SampleSourceKind::Mzml(path) => {
                 let mut mzml = open_mzml(path).map_err(|e| AlignmentError::Parse {
                     path: path.to_string_lossy().to_string(),
                     source: e.to_string(),
                 })?;
                 let mut reader = EicReader::Mzml(&mut mzml);
-                load_sample_scans(&mut reader, slots, sample_idx, eic_options, fill_window)?
+                read_sample(&mut reader, path, slots, sample_idx, &reading)?
             }
             SampleSourceKind::Ion(path) => {
                 let mut owned = open_ion(path).map_err(|e| AlignmentError::Parse {
@@ -570,7 +614,7 @@ fn resolve_samples(
                     source: e.to_string(),
                 })?;
                 let mut reader = EicReader::Ion(&mut owned);
-                load_sample_scans(&mut reader, slots, sample_idx, eic_options, fill_window)?
+                read_sample(&mut reader, path, slots, sample_idx, &reading)?
             }
         };
 
@@ -674,6 +718,98 @@ fn build_tiles(slots: &[ClusterSlot], eic_options: CalculateEicOptions) -> Vec<V
 
 type LoadedScans = Option<(SpectrumKind, Vec<f64>, Vec<(f64, Vec<f64>, Vec<f64>)>)>;
 
+#[cfg(not(all(target_arch = "wasm32", not(target_os = "wasi"))))]
+fn read_sample(
+    reader: &mut EicReader,
+    path: &Path,
+    slots: &mut [ClusterSlot],
+    sample_idx: usize,
+    reading: &SampleReading,
+) -> Result<LoadedScans, AlignmentError> {
+    if let Some(warp) = reading.warp {
+        predict_fill_bounds(warp, reader, slots, sample_idx, reading.rt_tolerance).map_err(
+            |source| AlignmentError::Warp {
+                path: path.to_string_lossy().to_string(),
+                source,
+            },
+        )?;
+    }
+    load_sample_scans(
+        reader,
+        slots,
+        sample_idx,
+        reading.eic_options,
+        reading.fill_window,
+    )
+}
+
+#[cfg(not(all(target_arch = "wasm32", not(target_os = "wasi"))))]
+fn predict_fill_bounds(
+    warp: &WarpModel,
+    reader: &mut EicReader,
+    slots: &mut [ClusterSlot],
+    sample_idx: usize,
+    rt_tolerance: f64,
+) -> Result<(), WarpError> {
+    let missing: Vec<usize> = (0..slots.len())
+        .filter(|&ci| slots[ci].features[sample_idx].is_none())
+        .collect();
+    let targets: Vec<Target> = missing
+        .iter()
+        .map(|&ci| get_target(slots[ci].bounds.target_mz, slots[ci].bounds.center_rt))
+        .collect();
+    let predicted = predict_sample_rts(warp, reader, &targets)?;
+    for (&ci, sample_rt) in missing.iter().zip(predicted) {
+        let Some(sample_rt) = sample_rt else {
+            continue;
+        };
+        let slot = &mut slots[ci];
+        slot.fill_bounds[sample_idx] = Some(SearchBounds {
+            target_mz: slot.bounds.target_mz,
+            center_rt: sample_rt,
+            rt_from: sample_rt - rt_tolerance,
+            rt_to: sample_rt + rt_tolerance,
+        });
+    }
+    Ok(())
+}
+
+#[cfg(not(all(target_arch = "wasm32", not(target_os = "wasi"))))]
+fn predict_sample_rts(
+    warp: &WarpModel,
+    reader: &mut EicReader,
+    targets: &[Target],
+) -> Result<Vec<Option<f64>>, WarpError> {
+    let range = warp.time_range();
+    let inside: Vec<usize> = (0..targets.len())
+        .filter(|&index| (range.from..=range.to).contains(&targets[index].rt))
+        .collect();
+    let mut predicted = vec![None; targets.len()];
+    for chunk in inside.chunks(WARP_TARGETS_PER_CALL) {
+        let batch: Vec<Target> = chunk.iter().map(|&index| targets[index].clone()).collect();
+        match warp.predict_rts_from_reader(reader, &batch) {
+            Ok(rts) => {
+                for (&index, rt) in chunk.iter().zip(rts) {
+                    predicted[index] = Some(rt.rt);
+                }
+            }
+            Err(WarpError::NoBackground) => return Ok(vec![None; targets.len()]),
+            Err(error) => return Err(error),
+        }
+    }
+    Ok(predicted)
+}
+
+#[cfg(not(all(target_arch = "wasm32", not(target_os = "wasi"))))]
+fn get_target(mz: f64, rt: f64) -> Target {
+    Target {
+        id: None,
+        mz,
+        rt,
+        range: None,
+    }
+}
+
 fn load_sample_scans(
     reader: &mut EicReader,
     slots: &[ClusterSlot],
@@ -775,7 +911,7 @@ fn resolve_tile(
 
     tile.iter()
         .map(|&ci| {
-            let bounds = &slots[ci].bounds;
+            let bounds = &slots[ci].get_sample_bounds(sample_idx);
             let tolerance = mz_tolerance_for(bounds.target_mz, eic_options);
             let mz_lo = bounds.target_mz - tolerance;
             let mz_hi = bounds.target_mz + tolerance;
@@ -798,14 +934,20 @@ fn resolve_tile(
 fn sample_rt_from(slot: &ClusterSlot, sample_idx: usize, fill_window: f64) -> f64 {
     match slot.features[sample_idx].as_ref() {
         Some(feature) => feature.from,
-        None => (slot.bounds.center_rt - fill_window).min(slot.bounds.rt_from),
+        None => {
+            let bounds = slot.get_sample_bounds(sample_idx);
+            (bounds.center_rt - fill_window).min(bounds.rt_from)
+        }
     }
 }
 
 fn sample_rt_to(slot: &ClusterSlot, sample_idx: usize, fill_window: f64) -> f64 {
     match slot.features[sample_idx].as_ref() {
         Some(feature) => feature.to,
-        None => (slot.bounds.center_rt + fill_window).max(slot.bounds.rt_to),
+        None => {
+            let bounds = slot.get_sample_bounds(sample_idx);
+            (bounds.center_rt + fill_window).max(bounds.rt_to)
+        }
     }
 }
 
@@ -904,7 +1046,7 @@ fn measure_mass(
         },
         &Roi {
             rt: bounds.center_rt,
-            range: bounds.rt_to - bounds.rt_from,
+            range: (bounds.rt_to - bounds.rt_from) / 2.0,
         },
         &peak_options,
     );
@@ -952,7 +1094,7 @@ fn detect_peak(
         },
         &Roi {
             rt: bounds.center_rt,
-            range: bounds.rt_to - bounds.rt_from,
+            range: (bounds.rt_to - bounds.rt_from) / 2.0,
         },
         &peak_options,
     );
@@ -1160,6 +1302,7 @@ fn build_results(
             apex_values,
             masses,
             bounds,
+            ..
         } = slot;
 
         let mut pool: Vec<(usize, MassPeak)> = Vec::new();
@@ -1351,24 +1494,19 @@ fn detect_features_per_sample(
     samples: Vec<(String, SampleSourceKind)>,
     window: FromTo,
     config: &FeatureSettings,
-) -> Result<Vec<SampleDataset>, AlignmentError> {
+) -> Result<Vec<SampleData>, AlignmentError> {
     let mut results = Vec::new();
 
     for (idx, (name, source)) in samples.into_iter().enumerate() {
         let start = Instant::now();
-        let features = match &source {
+        let (features, rt_shifts) = match &source {
             SampleSourceKind::Mzml(path) => {
                 let mut mzml = open_mzml(path).map_err(|e| AlignmentError::Parse {
                     path: path.to_string_lossy().to_string(),
                     source: e.to_string(),
                 })?;
                 let mut reader = EicReader::Mzml(&mut mzml);
-                find_features(&mut reader, window, config.clone()).map_err(|e| {
-                    AlignmentError::FeatureDetection {
-                        path: path.to_string_lossy().to_string(),
-                        source: e,
-                    }
-                })?
+                find_sample_features(&mut reader, path, window, config)?
             }
             SampleSourceKind::Ion(path) => {
                 let mut owned = open_ion(path).map_err(|e| AlignmentError::Parse {
@@ -1376,12 +1514,7 @@ fn detect_features_per_sample(
                     source: e.to_string(),
                 })?;
                 let mut reader = EicReader::Ion(&mut owned);
-                find_features(&mut reader, window, config.clone()).map_err(|e| {
-                    AlignmentError::FeatureDetection {
-                        path: path.to_string_lossy().to_string(),
-                        source: e,
-                    }
-                })?
+                find_sample_features(&mut reader, path, window, config)?
             }
         };
         eprintln!(
@@ -1390,21 +1523,49 @@ fn detect_features_per_sample(
             name,
             start.elapsed().as_secs_f64()
         );
-        results.push((name, source, features));
+        results.push(SampleData {
+            source,
+            features,
+            rt_shifts,
+        });
     }
 
     Ok(results)
 }
 
+#[cfg(not(all(target_arch = "wasm32", not(target_os = "wasi"))))]
+fn find_sample_features(
+    reader: &mut EicReader,
+    path: &Path,
+    window: FromTo,
+    config: &FeatureSettings,
+) -> Result<(Vec<Feature>, Vec<f64>), AlignmentError> {
+    let features = find_features(reader, window, config.clone()).map_err(|source| {
+        AlignmentError::FeatureDetection {
+            path: path.to_string_lossy().to_string(),
+            source,
+        }
+    })?;
+    let rt_shifts = vec![0.0; features.len()];
+    Ok((features, rt_shifts))
+}
+
 pub(crate) fn assign_best_per_sample(cluster: Cluster, n_samples: usize) -> Vec<Option<Feature>> {
-    let mut slots: Vec<Option<Feature>> = vec![None; n_samples];
+    pick_best_per_sample(cluster, n_samples)
+        .into_iter()
+        .map(|tagged| tagged.map(|tagged| tagged.feature))
+        .collect()
+}
+
+fn pick_best_per_sample(cluster: Cluster, n_samples: usize) -> Vec<Option<TaggedFeature>> {
+    let mut slots: Vec<Option<TaggedFeature>> = (0..n_samples).map(|_| None).collect();
     for tagged in cluster {
         let idx = tagged.sample_index;
         if slots[idx]
             .as_ref()
-            .is_none_or(|f| tagged.feature.intensity > f.intensity)
+            .is_none_or(|best| tagged.feature.intensity > best.feature.intensity)
         {
-            slots[idx] = Some(tagged.feature);
+            slots[idx] = Some(tagged);
         }
     }
     slots

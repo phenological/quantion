@@ -51,6 +51,7 @@ export interface AnnotationSettings {
   mzTolerance: number;
   rtRange: number;
   minRelativeIntensity: number;
+  polarity: number;
 }
 
 export interface AnnotationTables {
@@ -66,6 +67,7 @@ export function getAnnotationValues(settings: AnnotationSettings): number[] {
     settings.mzTolerance,
     settings.rtRange,
     settings.minRelativeIntensity,
+    settings.polarity,
   ];
 }
 
@@ -284,5 +286,6 @@ export interface Backend {
     grouping: GroupingSettings,
     options: PeakSettings,
     threads: number,
+    warp: WarpModelHandle | null,
   ): Feature[];
 }

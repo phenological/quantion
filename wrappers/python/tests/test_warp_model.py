@@ -124,3 +124,13 @@ class WarpModel(unittest.TestCase):
     def test_load_warp_needs_a_model(self):
         with self.assertRaisesRegex(support.quantion.QuantionError, "load_warp: model must be a Model from load_model"):
             support.quantion.load_warp(str(MODEL))
+
+    def test_match_features_needs_a_warp_model(self):
+        with self.assertRaisesRegex(support.quantion.QuantionError, "match_features: warp must be a WarpModel from load_warp"):
+            support.quantion.match_features(str(MODEL.parent), {"warp": str(MODEL)})
+
+    def test_match_features_refuses_a_disposed_warp(self):
+        warp = self.load(str(MODEL))
+        warp.dispose()
+        with self.assertRaisesRegex(support.quantion.QuantionError, "match_features: warp is not open; it was disposed"):
+            support.quantion.match_features(str(MODEL.parent), {"warp": warp})

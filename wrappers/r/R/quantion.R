@@ -370,14 +370,15 @@ find_features_options <- function(eic = calculate_eic_options(), grid = grid_opt
 }
 
 match_features_options <- function(eic = calculate_eic_options(), grid = grid_options(), grouping = grouping_options(),
-                                   find_peaks = find_peaks_options(), threads = 1L) {
+                                   find_peaks = find_peaks_options(), threads = 1L, warp = NULL) {
   function_name <- "match_features_options"
   .as_options("match_features_options", list(
     eic = .check_options(function_name, "eic", eic, "calculate_eic_options", "calculate_eic_options"),
     grid = .check_options(function_name, "grid", grid, "grid_options", "grid_options"),
     grouping = .check_options(function_name, "grouping", grouping, "grouping_options", "grouping_options"),
     find_peaks = .check_options(function_name, "find_peaks", find_peaks, "find_peaks_options", "find_peaks_options"),
-    threads = .check_threads(function_name, threads)
+    threads = .check_threads(function_name, threads),
+    warp = if (is.null(warp)) NULL else .check_warp(function_name, warp)
   ))
 }
 
@@ -706,7 +707,7 @@ match_features <- function(directory, options = match_features_options()) {
   directory <- .check_text(function_name, "directory", directory)
   options <- .check_options(function_name, "options", options, "match_features_options", "match_features_options")
   features <- .Call("C_match_features", path.expand(directory), options$eic, options$grid, options$grouping,
-                    options$find_peaks, options$threads, PACKAGE = "quantion")
+                    options$find_peaks, options$threads, options$warp, PACKAGE = "quantion")
   .as_table(features, c(.FEATURE_COLUMNS, "frequency"))
 }
 
@@ -940,7 +941,7 @@ calibrate <- function(warp, anchor_samples, target_lists) {
 
 annotate_features_options <- function(library = .DEFAULT_LIBRARY, model = .DEFAULT_MODEL, matches = 3L,
                                       ppm_tolerance = 20, mz_tolerance = 0.005, rt_range = 0.3,
-                                      min_relative_intensity = 0.02) {
+                                      min_relative_intensity = 0.02, polarity = "POSITIVE") {
   function_name <- "annotate_features_options"
   .as_options("annotate_features_options", list(
     library = .check_text(function_name, "library", library),
@@ -949,8 +950,13 @@ annotate_features_options <- function(library = .DEFAULT_LIBRARY, model = .DEFAU
     ppm_tolerance = .check_number(function_name, "ppm_tolerance", ppm_tolerance),
     mz_tolerance = .check_number(function_name, "mz_tolerance", mz_tolerance),
     rt_range = .check_number(function_name, "rt_range", rt_range),
-    min_relative_intensity = .check_number(function_name, "min_relative_intensity", min_relative_intensity)
+    min_relative_intensity = .check_number(function_name, "min_relative_intensity", min_relative_intensity),
+    polarity = .check_choice(function_name, "polarity", polarity, c("POSITIVE", "NEGATIVE"))
   ))
+}
+
+.get_polarity_code <- function(polarity) {
+  if (identical(polarity, "NEGATIVE")) 2 else 1
 }
 
 .get_compound_matches <- function(rows) {
@@ -998,7 +1004,7 @@ annotate_features <- function(files, features, options = annotate_features_optio
   mzs <- as.numeric(.get_column(function_name, features, "mz", TRUE, NA, "features"))
   rts <- as.numeric(.get_column(function_name, features, "rt", TRUE, NA, "features"))
   settings <- as.numeric(c(options$matches, options$ppm_tolerance, options$mz_tolerance, options$rt_range,
-                           options$min_relative_intensity))
+                           options$min_relative_intensity, .get_polarity_code(options$polarity)))
   if (length(mzs) == 0)
     return(.get_annotations(.Call("C_annotate_features", NULL, NULL, files, mzs, rts, settings, PACKAGE = "quantion")))
   library <- parse_ion(options$library)

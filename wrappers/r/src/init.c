@@ -41,7 +41,7 @@ SEXP C_find_transitions(SEXP file, SEXP precursors, SEXP products, SEXP rts, SEX
 SEXP C_find_features(SEXP file, SEXP eic, SEXP grid, SEXP options, SEXP threads);
 SEXP C_plan_find_features(SEXP file, SEXP eic, SEXP grid);
 SEXP C_deisotope_features(SEXP features, SEXP count, SEXP rt_tolerance, SEXP mz_tolerance);
-SEXP C_match_features(SEXP directory, SEXP eic, SEXP grid, SEXP grouping, SEXP options, SEXP threads);
+SEXP C_match_features(SEXP directory, SEXP eic, SEXP grid, SEXP grouping, SEXP options, SEXP threads, SEXP warp);
 SEXP C_model_load_path(SEXP path);
 SEXP C_model_load_bytes(SEXP bytes);
 SEXP C_dispose_model(SEXP pointer);
@@ -91,7 +91,7 @@ static const R_CallMethodDef CallEntries[] = {
     {"C_find_features", (DL_FUNC)&C_find_features, 5},
     {"C_plan_find_features", (DL_FUNC)&C_plan_find_features, 3},
     {"C_deisotope_features", (DL_FUNC)&C_deisotope_features, 4},
-    {"C_match_features", (DL_FUNC)&C_match_features, 6},
+    {"C_match_features", (DL_FUNC)&C_match_features, 7},
     {"C_model_load_path", (DL_FUNC)&C_model_load_path, 1},
     {"C_model_load_bytes", (DL_FUNC)&C_model_load_bytes, 1},
     {"C_dispose_model", (DL_FUNC)&C_dispose_model, 1},

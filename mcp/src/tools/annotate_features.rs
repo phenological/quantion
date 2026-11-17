@@ -45,7 +45,7 @@ const FIELDS: &[Field] = &[
     OVERWRITE,
 ];
 
-const LIBRARY_FIX: &str = "download library_positive.ion and model.onnx from https://github.com/josoriom/cipher/releases into an allowed folder";
+const LIBRARY_FIX: &str = "download library_positive.ion and model.onnx from https://github.com/josoriom/cipher/releases into an allowed folder; only a positive library is released, so options.polarity NEGATIVE needs a negative library of your own";
 
 impl Tool for AnnotateFeatures {
     fn name(&self) -> &'static str {

@@ -6,7 +6,8 @@ pub struct AnnotateFeaturesOptions
     pub mz_tolerance: f64
     pub rt_range: f64
     pub min_relative_intensity: f64
-impl Default for AnnotateFeaturesOptions: library: DEFAULT_LIBRARY.to_string(), model: DEFAULT_MODEL.to_string(), matches: 3, ppm_tolerance: 20.0, mz_tolerance: 0.005, rt_range: 0.3, min_relative_intensity: 0.02
+    pub polarity: Polarity
+impl Default for AnnotateFeaturesOptions: library: DEFAULT_LIBRARY.to_string(), model: DEFAULT_MODEL.to_string(), matches: 3, ppm_tolerance: 20.0, mz_tolerance: 0.005, rt_range: 0.3, min_relative_intensity: 0.02, polarity: Polarity::POSITIVE
 
 pub fn annotate_features(files: &mut [SampleFile], features: &[Feature], options: AnnotateFeaturesOptions) -> Result<Vec<FeatureAnnotation>, QuantionError>
 
@@ -63,7 +64,8 @@ pub struct MatchFeaturesOptions
     pub grouping: GroupingOptions
     pub find_peaks: FindPeaksOptions
     pub threads: usize
-impl Default for MatchFeaturesOptions: eic: CalculateEicOptions::default(), grid: GridOptions::default(), grouping: GroupingOptions::default(), find_peaks: FindPeaksOptions::default(), threads: 1
+    pub warp: Option<WarpModel>
+impl Default for MatchFeaturesOptions: eic: CalculateEicOptions::default(), grid: GridOptions::default(), grouping: GroupingOptions::default(), find_peaks: FindPeaksOptions::default(), threads: 1, warp: None
 
 pub fn deisotope_features(features: Vec<Feature>, options: DeisotopeFeaturesOptions) -> Result<Vec<Feature>, QuantionError>
 
@@ -325,6 +327,7 @@ pub struct Model
     Model::fn get_keys(&self) -> &[String]
     Model::fn get_value(&self, key: &str) -> Option<&str>
     Model::fn get_values(&self) -> &[String]
+impl PartialEq for Model
 
 pub enum ModelInput
     Path(PathBuf)
@@ -350,6 +353,14 @@ impl From<&str> for IonInput
 impl From<PathBuf> for IonInput
 impl From<String> for IonInput
 impl From<Vec<u8>> for IonInput
+
+pub enum Polarity
+    POSITIVE
+    NEGATIVE
+    Polarity::fn allows(self, polarity: u8) -> bool
+    Polarity::fn code(self) -> u8
+    Polarity::fn from_code(code: u8) -> Option<Self>
+    Polarity::fn name(self) -> &'static str
 
 pub struct DataXY
     pub x: Vec<f64>

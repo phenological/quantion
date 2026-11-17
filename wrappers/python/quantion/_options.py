@@ -6,7 +6,7 @@ import re
 from typing import Any, Dict, Mapping, Optional
 
 from quantion._errors import _invalid, _unknown_option
-from quantion._types import PeakShape, TimeUnit
+from quantion._types import PeakShape, Polarity, TimeUnit
 
 FIND_PEAKS = {
     "min_integral": None,
@@ -40,7 +40,9 @@ DEISOTOPE_FEATURES = {"rt_tolerance": 0.02, "mz_tolerance": 0.005}
 FIND_TARGETS = {"eic": EIC, "find_peaks": FIND_PEAKS, "threads": 1}
 FIND_TRANSITIONS = {"find_peaks": FIND_PEAKS, "threads": 1}
 FIND_FEATURES = {"eic": EIC, "grid": GRID, "find_peaks": FIND_PEAKS, "threads": 1}
-MATCH_FEATURES = {"eic": EIC, "grid": GRID, "grouping": GROUPING, "find_peaks": FIND_PEAKS, "threads": 1}
+MATCH_FEATURES = {
+    "eic": EIC, "grid": GRID, "grouping": GROUPING, "find_peaks": FIND_PEAKS, "threads": 1, "warp": None,
+}
 DEFAULT_SCAN_ARRAYS = [
     {"key": "mz", "accession": "MS:1000514"},
     {"key": "intensity", "accession": "MS:1000515"},
@@ -61,10 +63,12 @@ ANNOTATE_FEATURES = {
     "mz_tolerance": 0.005,
     "rt_range": 0.3,
     "min_relative_intensity": 0.02,
+    "polarity": "POSITIVE",
 }
 
 _TIME_UNIT_CODES = {TimeUnit.MINUTES.value: 0, TimeUnit.SECONDS.value: 1}
 _SHAPE_CODES = {PeakShape.GAUSSIAN.value: 0, PeakShape.EMG.value: 1}
+_POLARITY_CODES = {Polarity.POSITIVE.value: 1, Polarity.NEGATIVE.value: 2}
 
 
 def read_options(
@@ -125,6 +129,13 @@ def get_shape(function: str, argument: str, value: Any) -> int:
     if text not in _SHAPE_CODES:
         raise _invalid(function, argument, f'must be "GAUSSIAN" or "EMG", got {value!r}')
     return _SHAPE_CODES[text]
+
+
+def get_polarity(function: str, argument: str, value: Any) -> int:
+    text = value.value if isinstance(value, Polarity) else value
+    if text not in _POLARITY_CODES:
+        raise _invalid(function, argument, f'must be "POSITIVE" or "NEGATIVE", got {value!r}')
+    return _POLARITY_CODES[text]
 
 
 def pack_peak_options(function: str, options: Mapping[str, Any], prefix: str = "find_peaks."):

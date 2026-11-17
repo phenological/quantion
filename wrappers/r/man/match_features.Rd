@@ -9,7 +9,7 @@ match_features(directory, options = match_features_options())
 }
 \arguments{
   \item{directory}{Folder with the Ionic (.ion) or mzML files, one file per sample. Type: \code{character}.}
-  \item{options}{Settings from \code{\link{match_features_options}()}: \code{eic}, \code{grid}, \code{grouping}, \code{find_peaks}, \code{threads = 1L}.
+  \item{options}{Settings from \code{\link{match_features_options}()}: \code{eic}, \code{grid}, \code{grouping}, \code{find_peaks}, \code{threads = 1L}, \code{warp = NULL}.
     \href{https://phenological.github.io/quantion/?language=r#MatchFeaturesOptions}{MatchFeaturesOptions documentation}
   }
 }

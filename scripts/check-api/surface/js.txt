@@ -8,6 +8,7 @@ interface AnnotateFeaturesOptions
     minRelativeIntensity?: number | undefined
     model?: string | undefined
     mzTolerance?: number | undefined
+    polarity?: Polarity | undefined
     ppmTolerance?: number | undefined
     rtRange?: number | undefined
 
@@ -201,6 +202,7 @@ interface MatchFeaturesOptions
     grid?: GridOptions | undefined
     grouping?: GroupingOptions | undefined
     threads?: number | undefined
+    warp?: WarpModel | undefined
 
 class Model
     dispose: () => void
@@ -239,6 +241,9 @@ interface PeakParameters
 
 type PeakShape = PeakShape
 const PeakShape: { readonly GAUSSIAN: "GAUSSIAN"; readonly EMG: "EMG"; }
+
+type Polarity = Polarity
+const Polarity: { readonly POSITIVE: "POSITIVE"; readonly NEGATIVE: "NEGATIVE"; }
 
 interface PredictedRt
     rt: number
@@ -343,6 +348,7 @@ interface AnnotateFeaturesOptions
     minRelativeIntensity?: number | undefined
     model?: string | undefined
     mzTolerance?: number | undefined
+    polarity?: Polarity | undefined
     ppmTolerance?: number | undefined
     rtRange?: number | undefined
 
@@ -536,6 +542,7 @@ interface MatchFeaturesOptions
     grid?: GridOptions | undefined
     grouping?: GroupingOptions | undefined
     threads?: number | undefined
+    warp?: WarpModel | undefined
 
 class Model
     dispose: () => void
@@ -574,6 +581,9 @@ interface PeakParameters
 
 type PeakShape = PeakShape
 const PeakShape: { readonly GAUSSIAN: "GAUSSIAN"; readonly EMG: "EMG"; }
+
+type Polarity = Polarity
+const Polarity: { readonly POSITIVE: "POSITIVE"; readonly NEGATIVE: "NEGATIVE"; }
 
 interface PredictedRt
     rt: number

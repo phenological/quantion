@@ -10,6 +10,7 @@ use crate::{
         },
         calculate_eic::mz_tolerance_for,
         find_features::Feature,
+        polarity::Polarity,
         spectrum_model::{SpectrumModel, SpectrumModelError},
         structs::FromTo,
     },
@@ -33,6 +34,7 @@ pub(crate) const DEFAULT_MODEL: &str =
 /// - `mz_tolerance`: Precursor m/z tolerance in Da. The larger of the ppm and Da tolerances is used. Default `0.005`.
 /// - `rt_range`: Largest distance, in minutes, from the peak apex to the MS2 scan. Default `0.3`.
 /// - `min_relative_intensity`: MS2 peaks below this share of the base peak are removed before matching, from 0 to 1. Default `0.02`.
+/// - `polarity`: Ion mode of the MS2 scans to use: POSITIVE or NEGATIVE. Library spectra in the other ion mode are skipped. Default `POSITIVE`.
 ///
 /// [Documentation](https://phenological.github.io/quantion/?language=rust#AnnotateFeaturesOptions)
 #[derive(Clone, Debug, PartialEq)]
@@ -44,6 +46,7 @@ pub struct AnnotateFeaturesOptions {
     pub mz_tolerance: f64,
     pub rt_range: f64,
     pub min_relative_intensity: f64,
+    pub polarity: Polarity,
 }
 
 impl Default for AnnotateFeaturesOptions {
@@ -56,6 +59,7 @@ impl Default for AnnotateFeaturesOptions {
             mz_tolerance: 0.005,
             rt_range: 0.3,
             min_relative_intensity: 0.02,
+            polarity: Polarity::POSITIVE,
         }
     }
 }
@@ -102,6 +106,10 @@ impl AnnotateFeaturesOptions {
         Ok(())
     }
 
+    pub(crate) fn allows_polarity(&self, polarity: u8) -> bool {
+        self.polarity.allows(polarity)
+    }
+
     pub(crate) fn get_precursor_window(&self, mz: f64) -> FromTo {
         let precursor = CalculateEicOptions {
             ppm_tolerance: self.ppm_tolerance,
@@ -118,13 +126,13 @@ impl AnnotateFeaturesOptions {
 
 /// **annotate_features** · Untargeted
 ///
-/// Name features (annotation) by matching their MS2 spectra against a spectral library. For each feature and sample, it takes the positive MS2 scan closest to the peak apex, whose precursor matches the feature m/z and whose rt is within rt_range. A model turns the scan into a vector, which is scored against the library spectra with the same precursor m/z. By default, the library and the model come from the josoriom/cipher releases.
+/// Name features (annotation) by matching their MS2 spectra against a spectral library. For each feature and sample, it takes the MS2 scan in the ion mode given by polarity closest to the peak apex, whose precursor matches the feature m/z and whose rt is within rt_range. A model turns the scan into a vector, which is scored against the library spectra with the same precursor m/z. By default, the library and the model come from the josoriom/cipher releases.
 ///
 /// **Warning:** This is an experimental feature.
 ///
 /// - `files`: The samples, from parse_ion or parse_mzml. It must not be empty.
 /// - `features`: The features to name, each with mz and rt. The output of find_features and match_features works as is. An empty list gives an empty result.
-/// - `options`: Optional settings: `library` = "https://github.com/josoriom/cipher/releases/latest/download/library_positive.ion", `model` = "https://github.com/josoriom/cipher/releases/latest/download/model.onnx", `matches` = 3, `ppm_tolerance` = 20.0, `mz_tolerance` = 0.005, `rt_range` = 0.3, `min_relative_intensity` = 0.02. See [AnnotateFeaturesOptions](https://phenological.github.io/quantion/?language=rust#AnnotateFeaturesOptions).
+/// - `options`: Optional settings: `library` = "https://github.com/josoriom/cipher/releases/latest/download/library_positive.ion", `model` = "https://github.com/josoriom/cipher/releases/latest/download/model.onnx", `matches` = 3, `ppm_tolerance` = 20.0, `mz_tolerance` = 0.005, `rt_range` = 0.3, `min_relative_intensity` = 0.02, `polarity` = POSITIVE. See [AnnotateFeaturesOptions](https://phenological.github.io/quantion/?language=rust#AnnotateFeaturesOptions).
 ///
 /// Returns: One annotation per feature, in the same order as features.
 ///
@@ -229,6 +237,9 @@ fn from_annotation_error(function: &'static str, error: AnnotationError) -> Quan
     match error {
         AnnotationError::ReadFailed(error) => from_fast_error(function, error),
         AnnotationError::Model(error) => from_spectrum_model_error(function, error),
+        error @ AnnotationError::ScanPolarity { .. } => {
+            QuantionError::invalid(function, "polarity", error.to_string())
+        }
         other => QuantionError::invalid(function, "library", other.to_string()),
     }
 }

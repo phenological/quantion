@@ -624,6 +624,7 @@ export class NodeBackend implements Backend {
     grouping: GroupingSettings,
     options: PeakSettings,
     threads: number,
+    warp: WarpModelHandle | null,
   ): Feature[] {
     return readRecords(
       this.native.matchFeatures(
@@ -642,6 +643,7 @@ export class NodeBackend implements Backend {
         grouping.minFrequency,
         options,
         threads,
+        warp,
       ),
     ) as unknown as Feature[];
   }

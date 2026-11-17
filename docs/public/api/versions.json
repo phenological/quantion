@@ -1,17 +1,30 @@
 {
-  "latest": "0.2.4",
+  "latest": "0.2.6",
   "versions": [
+    {
+      "version": "0.2.6",
+      "api": "0.2.2"
+    },
+    {
+      "version": "0.2.5",
+      "api": "0.2.1",
+      "date": "2026-11-15",
+      "message": "fix(mcp): allow stopping long tool calls",
+      "commit": "b900b325aa659f8443b20d8f2dfef394eaadd171"
+    },
     {
       "version": "0.2.4",
       "api": "0.2.1",
       "date": "2026-11-14",
-      "message": "feat: release v0.2.4"
+      "message": "feat: release v0.2.4",
+      "commit": "337d2ca9476564970f6ce6a0a56278dbdb11eabd"
     },
     {
       "version": "0.2.3",
       "api": "0.2.1",
       "date": "2026-11-13",
-      "message": "feat: release v0.2.3"
+      "message": "feat: release v0.2.3",
+      "commit": "349a2e7d41da0a9e883cc7638e594f675332732d"
     },
     {
       "version": "0.2.2",

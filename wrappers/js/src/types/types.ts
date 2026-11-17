@@ -1,3 +1,5 @@
+import type { WarpModel } from "../utilities/warpModel";
+
 export type BinaryInput = Uint8Array | ArrayBuffer;
 export type IonInput = BinaryInput | URL | string;
 
@@ -26,6 +28,19 @@ export type TimeUnit = (typeof TimeUnit)[keyof typeof TimeUnit];
  */
 export const PeakShape = { GAUSSIAN: "GAUSSIAN", EMG: "EMG" } as const;
 export type PeakShape = (typeof PeakShape)[keyof typeof PeakShape];
+
+/**
+ * Polarity · Enums
+ *
+ * Ion mode of a scan, the same codes as the polarity of a scan: 1 for positive and 2 for negative.
+ *
+ * Fields:
+ * - `POSITIVE`: Positive ion mode, the code 1.
+ * - `NEGATIVE`: Negative ion mode, the code 2.
+ * @see {@link https://phenological.github.io/quantion/?language=js#Polarity | Documentation}
+ */
+export const Polarity = { POSITIVE: "POSITIVE", NEGATIVE: "NEGATIVE" } as const;
+export type Polarity = (typeof Polarity)[keyof typeof Polarity];
 
 /**
  * FromTo · Inputs
@@ -375,6 +390,7 @@ export interface DeisotopeFeaturesOptions {
  * - `grouping`: How features are matched across samples. See {@link https://phenological.github.io/quantion/?language=js#GroupingOptions | GroupingOptions}.
  * - `findPeaks`: Options for find_peaks, used for every grid m/z. See {@link https://phenological.github.io/quantion/?language=js#FindPeaksOptions | FindPeaksOptions}.
  * - `threads`: Number of threads (CPU cores) used to process the files in parallel. Default `1`.
+ * - `warp`: A warp model from load_warp. With it, each feature's rt is corrected to the model's reference time before grouping, and gap filling searches where the model predicts the peak in each sample. Default `undefined`.
  * @see {@link https://phenological.github.io/quantion/?language=js#MatchFeaturesOptions | Documentation}
  */
 export interface MatchFeaturesOptions {
@@ -383,6 +399,7 @@ export interface MatchFeaturesOptions {
   grouping?: GroupingOptions;
   findPeaks?: FindPeaksOptions;
   threads?: number;
+  warp?: WarpModel;
 }
 
 /**
@@ -747,6 +764,7 @@ export interface IonImage {
  * - `mzTolerance`: Precursor m/z tolerance in Da. The larger of the ppm and Da tolerances is used. Default `0.005`.
  * - `rtRange`: Largest distance, in minutes, from the peak apex to the MS2 scan. Default `0.3`.
  * - `minRelativeIntensity`: MS2 peaks below this share of the base peak are removed before matching, from 0 to 1. Default `0.02`.
+ * - `polarity`: Ion mode of the MS2 scans to use: POSITIVE or NEGATIVE. Library spectra in the other ion mode are skipped. Default `"POSITIVE"`.
  * @see {@link https://phenological.github.io/quantion/?language=js#AnnotateFeaturesOptions | Documentation}
  */
 export interface AnnotateFeaturesOptions {
@@ -757,6 +775,7 @@ export interface AnnotateFeaturesOptions {
   mzTolerance?: number;
   rtRange?: number;
   minRelativeIntensity?: number;
+  polarity?: Polarity;
 }
 
 /**

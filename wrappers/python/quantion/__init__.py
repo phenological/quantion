@@ -38,6 +38,7 @@ from quantion._types import (
     TimeUnit,
     ScanParamKind,
     PeakShape,
+    Polarity,
     FromTo,
     Target,
     Transition,
@@ -73,7 +74,7 @@ from quantion._types import (
     IonImage,
 )
 
-__version__ = "0.2.4"
+__version__ = "0.2.6"
 
 __all__ = [
     "Quantion",
@@ -106,6 +107,7 @@ __all__ = [
     "TimeUnit",
     "ScanParamKind",
     "PeakShape",
+    "Polarity",
     "FromTo",
     "Target",
     "Transition",

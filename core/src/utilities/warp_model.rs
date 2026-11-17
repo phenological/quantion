@@ -101,6 +101,7 @@ impl fmt::Display for WarpError {
 
 impl std::error::Error for WarpError {}
 
+#[derive(Clone, Debug, PartialEq)]
 pub struct WarpModel {
     model: Model,
     points: usize,
@@ -398,7 +399,7 @@ fn get_value_at(scan_rts: &[f64], input: &[f64], next_scan: usize, time: f64) ->
     input[before] + fraction * (input[next_scan] - input[before])
 }
 
-fn get_calibrated_rt(rt: f64, predicted_rt: f64) -> f64 {
+pub(crate) fn get_calibrated_rt(rt: f64, predicted_rt: f64) -> f64 {
     2.0 * rt - predicted_rt
 }
 

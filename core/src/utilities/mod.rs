@@ -6,6 +6,7 @@ pub(crate) mod get_scan_metadata;
 pub mod ion;
 pub mod ion_image;
 pub mod parse_ion;
+pub mod polarity;
 pub(crate) mod spectrum_model;
 
 pub mod parallel;

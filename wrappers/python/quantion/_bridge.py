@@ -47,7 +47,7 @@ assert ctypes.sizeof(PeakOptions) == 80, (
     f"PeakOptions is {ctypes.sizeof(PeakOptions)} bytes — expected 80"
 )
 
-QUANTION_ABI_VERSION = 3
+QUANTION_ABI_VERSION = 4
 
 
 READ_RANGE = ctypes.CFUNCTYPE(
@@ -80,11 +80,11 @@ class _ABI:
         "plan_find_features": ([c_void_p, c_double, c_double, c_double, c_double, c_uint8,
              c_double, c_double, c_double, POINTER(_Buf)], c_int32),
         "annotate_features": ([c_void_p, c_void_p, POINTER(c_void_p), c_size_t, POINTER(c_double), POINTER(c_double),
-             c_size_t, c_size_t, c_double, c_double, c_double, c_double, POINTER(_Buf), POINTER(_Buf), POINTER(_Buf)], c_int32),
+             c_size_t, c_size_t, c_double, c_double, c_double, c_double, c_uint8, POINTER(_Buf), POINTER(_Buf), POINTER(_Buf)], c_int32),
         "plan_annotate_samples": ([c_void_p, POINTER(c_double), POINTER(c_double), c_size_t, c_size_t,
-             c_double, c_double, c_double, c_double, POINTER(_Buf)], c_int32),
+             c_double, c_double, c_double, c_double, c_uint8, POINTER(_Buf)], c_int32),
         "plan_annotate_library": ([c_void_p, c_void_p, POINTER(c_void_p), c_size_t, POINTER(c_double), POINTER(c_double),
-             c_size_t, c_size_t, c_double, c_double, c_double, c_double, POINTER(_Buf)], c_int32),
+             c_size_t, c_size_t, c_double, c_double, c_double, c_double, c_uint8, POINTER(_Buf)], c_int32),
         "free_mzml": ([c_void_p], None),
         "free_": ([POINTER(c_uint8), c_size_t], None),
         "write_ion": ([c_void_p, ctypes.c_char_p, c_uint8, c_uint8, c_uint8, c_uint32, c_uint32,
@@ -132,7 +132,7 @@ class _ABI:
              c_double, c_double, c_double, c_double, c_uint8,
              c_double, c_double, c_double,
              c_double, c_double, c_double, c_double,
-             POINTER(PeakOptions), c_size_t, POINTER(_Buf)], c_int32),
+             POINTER(PeakOptions), c_size_t, c_void_p, POINTER(_Buf)], c_int32),
         "model_load_path": ([POINTER(c_uint8), c_size_t, POINTER(c_void_p),
              POINTER(_Buf)], c_int32),
         "model_load_bytes": ([POINTER(c_uint8), c_size_t, POINTER(c_void_p),

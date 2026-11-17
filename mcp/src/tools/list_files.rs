@@ -17,7 +17,7 @@ use crate::{
 pub struct ListFiles;
 
 const FIELDS: &[Field] = &[
-    Field::optional("folder", Kind::Text, "Defaults to the first allowed folder"),
+    Field::optional("folder", Kind::Text, "Default: the first allowed folder"),
     Field::optional("limit", Kind::Count, "Most rows to return"),
 ];
 

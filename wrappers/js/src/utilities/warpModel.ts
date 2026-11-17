@@ -54,7 +54,7 @@ export class WarpModel extends Metadata {
     targets: Target[],
   ): Promise<PredictedRt[]> {
     checkItems(targets, TARGET_KEYS, "predictRts", "targets");
-    const warp = this.getHandle("predictRts");
+    const warp = getWarpHandle(this, "predictRts");
     const handle = getFileHandle(file, "predictRts");
     if (targets.length === 0) return [];
 
@@ -96,7 +96,7 @@ export class WarpModel extends Metadata {
         getRequiredNumber(target.rt, "calibrate", `${argument}[${item}].rt`);
       }
     }
-    const warp = this.getHandle("calibrate");
+    const warp = getWarpHandle(this, "calibrate");
     const handles = anchorSamples.map((sample) =>
       getFileHandle(sample, "calibrate"),
     );
@@ -138,14 +138,17 @@ export class WarpModel extends Metadata {
   protected _getMetadata(): ModelEntry[] {
     return this.metadata;
   }
+}
 
-  private getHandle(caller: string): WarpModelHandle {
-    const handle = this._handle;
-    if (handle === null) {
-      throw invalidArgument(caller, "warp", "is not open; it was disposed");
-    }
-    return handle;
+export function getWarpHandle(warp: unknown, caller: string): WarpModelHandle {
+  if (!(warp instanceof WarpModel)) {
+    throw invalidArgument(caller, "warp", "must be a WarpModel from loadWarp");
   }
+  const handle = warp._handle;
+  if (handle === null) {
+    throw invalidArgument(caller, "warp", "is not open; it was disposed");
+  }
+  return handle;
 }
 
 function getFileHandle(file: SampleFile, caller: string) {

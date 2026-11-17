@@ -27,7 +27,7 @@ impl Tool for WriteIon {
     }
 
     fn description(&self) -> &'static str {
-        "Save a sample as .ion, for example to convert mzML. .ion opens fast and uses little memory."
+        "Save a sample as .ion, to convert mzML. .ion opens fast and uses little memory."
     }
 
     fn library_functions(&self) -> &'static [&'static str] {

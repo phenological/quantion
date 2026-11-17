@@ -3,7 +3,13 @@ import * as fs from "fs";
 import * as http from "http";
 import * as path from "path";
 import { NodeBackend } from "../utilities/backendNode";
-import { setBackend, loadModel, loadWarp, parseIon } from "../utilities/api";
+import {
+  setBackend,
+  loadModel,
+  loadWarp,
+  matchFeatures,
+  parseIon,
+} from "../utilities/api";
 
 const fixtures = path.join(__dirname, "../../../../core/tests/fixtures");
 const modelPath = path.join(fixtures, "shift_model.onnx");
@@ -213,6 +219,20 @@ describeWithNode("warp model", () => {
   it("needs a model to make a warp", () => {
     expect(() => loadWarp(modelPath as never)).toThrow(
       "loadWarp: model must be an open Model from loadModel",
+    );
+  });
+
+  it("needs a WarpModel as the warp of matchFeatures", () => {
+    expect(() => matchFeatures(fixtures, { warp: modelPath as never })).toThrow(
+      "matchFeatures: warp must be a WarpModel from loadWarp",
+    );
+  });
+
+  it("refuses a disposed warp in matchFeatures", async () => {
+    const warp = await getWarp(modelPath);
+    warp.dispose();
+    expect(() => matchFeatures(fixtures, { warp })).toThrow(
+      "matchFeatures: warp is not open; it was disposed",
     );
   });
 

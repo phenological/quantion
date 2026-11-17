@@ -6,7 +6,7 @@ use crate::{
     error::ErrorKind,
     utilities::{
         find_features::MzTolerance,
-        match_features::{AlignmentError, MatchSettings, match_features as read_matches},
+        match_features::{AlignmentError, match_features as read_matches},
     },
 };
 use crate::{
@@ -17,10 +17,11 @@ use crate::{
     utilities::{
         deisotope_features::deisotope_features as remove_isotopes,
         find_features::{Feature, FeatureError, FeatureSettings, find_features as read_features},
+        warp_model::WarpModel,
     },
 };
 
-fn get_feature_settings(
+pub(crate) fn get_feature_settings(
     eic: &CalculateEicOptions,
     grid: &GridOptions,
     find_peaks: &FindPeaksOptions,
@@ -204,6 +205,14 @@ impl GroupingOptions {
         }
         Ok(())
     }
+
+    #[cfg(not(all(target_arch = "wasm32", not(target_os = "wasi"))))]
+    pub(crate) fn get_mz_tolerance(&self) -> MzTolerance {
+        MzTolerance {
+            mz_absolute: self.mz_tolerance,
+            ppm: self.ppm_tolerance,
+        }
+    }
 }
 
 /// **MatchFeaturesOptions** · Options
@@ -216,6 +225,7 @@ impl GroupingOptions {
 /// - `grouping`: How features are matched across samples. See [GroupingOptions](https://phenological.github.io/quantion/?language=rust#GroupingOptions).
 /// - `find_peaks`: Options for find_peaks, used for every grid m/z. See [FindPeaksOptions](https://phenological.github.io/quantion/?language=rust#FindPeaksOptions).
 /// - `threads`: Number of threads (CPU cores) used to process the files in parallel. Default `1`.
+/// - `warp`: A warp model from load_warp. With it, each feature's rt is corrected to the model's reference time before grouping, and gap filling searches where the model predicts the peak in each sample. Default `None`.
 ///
 /// [Documentation](https://phenological.github.io/quantion/?language=rust#MatchFeaturesOptions)
 #[derive(Clone, Debug, PartialEq)]
@@ -225,6 +235,7 @@ pub struct MatchFeaturesOptions {
     pub grouping: GroupingOptions,
     pub find_peaks: FindPeaksOptions,
     pub threads: usize,
+    pub warp: Option<WarpModel>,
 }
 
 impl Default for MatchFeaturesOptions {
@@ -235,6 +246,7 @@ impl Default for MatchFeaturesOptions {
             grouping: GroupingOptions::default(),
             find_peaks: FindPeaksOptions::default(),
             threads: 1,
+            warp: None,
         }
     }
 }
@@ -244,7 +256,7 @@ impl Default for MatchFeaturesOptions {
 /// Find the features in every file of a folder and match them across samples (untargeted). The values of each feature are medians over the samples where it was found. Instead of aligning retention times, it groups features with close m/z and rt. Small rt differences between runs are covered by rt_tolerance.
 ///
 /// - `directory`: Folder with the Ionic (.ion) or mzML files, one file per sample.
-/// - `options`: Optional settings: `eic`, `grid`, `grouping`, `find_peaks`, `threads` = 1. See [MatchFeaturesOptions](https://phenological.github.io/quantion/?language=rust#MatchFeaturesOptions).
+/// - `options`: Optional settings: `eic`, `grid`, `grouping`, `find_peaks`, `threads` = 1, `warp` = None. See [MatchFeaturesOptions](https://phenological.github.io/quantion/?language=rust#MatchFeaturesOptions).
 ///
 /// Returns: One feature per matched feature (the feature table). frequency is the fraction of samples where it was found, from 0 to 1.
 ///
@@ -269,34 +281,8 @@ pub fn match_features(
     options.grouping.check(FUNCTION)?;
     options.find_peaks.check(FUNCTION)?;
     check_threads(FUNCTION, options.threads)?;
-    let features = get_feature_settings(
-        &options.eic,
-        &options.grid,
-        &options.find_peaks,
-        options.threads,
-    );
-    let GroupingOptions {
-        ppm_tolerance,
-        mz_tolerance,
-        rt_tolerance,
-        min_frequency,
-    } = options.grouping;
-    let settings = MatchSettings {
-        features,
-        mz_tolerance: MzTolerance {
-            mz_absolute: mz_tolerance,
-            ppm: ppm_tolerance,
-        },
-        rt_tolerance,
-        min_frequency,
-        eic_options: options.eic.in_minutes(),
-        peak_options: options.find_peaks.clone(),
-        threads: options.threads,
-        ..MatchSettings::default()
-    };
     let text = directory.to_string_lossy();
-    read_matches(&text, options.eic.get_window(), settings)
-        .map_err(|error| from_alignment_error(FUNCTION, error))
+    read_matches(&text, &options).map_err(|error| from_alignment_error(FUNCTION, error))
 }
 
 #[cfg(not(all(target_arch = "wasm32", not(target_os = "wasi"))))]

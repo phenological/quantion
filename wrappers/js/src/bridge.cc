@@ -113,7 +113,7 @@ typedef int32_t (*fn_find_peaks)(const double *, const double *, size_t, const C
 typedef int32_t (*fn_calculate_baseline)(const double *, size_t, double, size_t, Buf *);
 typedef int32_t (*fn_deisotope_features)(const double *, size_t, double, double, Buf *);
 typedef int32_t (*fn_find_features)(const MzML *, double, double, double, double, uint8_t, double, double, double, const CPeakOptions *, size_t, Buf *);
-typedef int32_t (*fn_match_features)(const char *, double, double, double, double, uint8_t, double, double, double, double, double, double, double, const CPeakOptions *, size_t, Buf *);
+typedef int32_t (*fn_match_features)(const char *, double, double, double, double, uint8_t, double, double, double, double, double, double, double, const CPeakOptions *, size_t, const WarpModel *, Buf *);
 typedef int32_t (*fn_get_scans)(const MzML *, uint8_t, double, double, uint8_t, double, double, uint8_t, uint8_t, Buf *);
 typedef int32_t (*fn_scan_metadata)(MzML *, size_t, const char *, Buf *);
 typedef int32_t (*fn_plan_scan_metadata)(MzML *, size_t, Buf *);
@@ -130,11 +130,11 @@ typedef int32_t (*fn_calibrate_rts)(const WarpModel *, const MzML *const *, size
 typedef int32_t (*fn_predict_rts_from_file)(const WarpModel *, const MzML *, const double *, const double *, size_t, Buf *);
 typedef int32_t (*fn_plan_predict_rts)(const WarpModel *, MzML *, const double *, const double *, size_t, Buf *);
 typedef int32_t (*fn_annotate_features)(MzML *, const Model *, MzML *const *, size_t, const double *, const double *, size_t,
-                                        size_t, double, double, double, double, Buf *, Buf *, Buf *);
+                                        size_t, double, double, double, double, uint8_t, Buf *, Buf *, Buf *);
 typedef int32_t (*fn_plan_annotate_samples)(MzML *, const double *, const double *, size_t, size_t, double, double, double,
-                                            double, Buf *);
+                                            double, uint8_t, Buf *);
 typedef int32_t (*fn_plan_annotate_library)(MzML *, const Model *, MzML *const *, size_t, const double *, const double *,
-                                            size_t, size_t, double, double, double, double, Buf *);
+                                            size_t, size_t, double, double, double, double, uint8_t, Buf *);
 
 typedef struct
 {
@@ -1247,6 +1247,8 @@ static Napi::Value ParseIonPath(const Napi::CallbackInfo &info)
   return external;
 }
 
+static WarpModel *GetWarpModel(Napi::Value value);
+
 static Napi::Value MatchFeatures(const Napi::CallbackInfo &info)
 {
   Napi::Env env = info.Env();
@@ -1257,7 +1259,7 @@ static Napi::Value MatchFeatures(const Napi::CallbackInfo &info)
   int32_t rc = ABI.match_features(directory.c_str(), Number(info, 1), Number(info, 2), Number(info, 3), Number(info, 4),
                                   Byte(info, 5), Number(info, 6), Number(info, 7), Number(info, 8), Number(info, 9),
                                   Number(info, 10), Number(info, 11), Number(info, 12), options_pointer,
-                                  Count(info, 14), out.Out());
+                                  Count(info, 14), GetWarpModel(info[15]), out.Out());
   if (rc != 0)
     return ThrowRc(env, "match_features", rc);
   return TakeArrayBuffer(env, out.Out());
@@ -1555,7 +1557,8 @@ static Napi::Value AnnotateFeatures(const Napi::CallbackInfo &info)
   OwnedBuf matches;
   int32_t rc = ABI.annotate_features(library, model, files.data(), files.size(), Float64Ptr(mzs), Float64Ptr(rts),
                                      mzs.ElementLength(), (size_t)Number(info, 5), Number(info, 6), Number(info, 7),
-                                     Number(info, 8), Number(info, 9), features.Out(), fileRows.Out(), matches.Out());
+                                     Number(info, 8), Number(info, 9), (uint8_t)Number(info, 10), features.Out(),
+                                     fileRows.Out(), matches.Out());
   if (rc != 0)
     return ThrowRc(env, "annotate_features", rc);
   Napi::Array result = Napi::Array::New(env, 3);
@@ -1576,7 +1579,7 @@ static Napi::Value PlanAnnotateSamples(const Napi::CallbackInfo &info)
   OwnedBuf out;
   int32_t rc = ABI.plan_annotate_samples(handle, Float64Ptr(mzs), Float64Ptr(rts), mzs.ElementLength(),
                                          (size_t)Number(info, 3), Number(info, 4), Number(info, 5), Number(info, 6),
-                                         Number(info, 7), out.Out());
+                                         Number(info, 7), (uint8_t)Number(info, 8), out.Out());
   if (rc != 0)
     return ThrowRc(env, "annotate_features", rc);
   return RangesToArray(env, out.buf);
@@ -1597,7 +1600,7 @@ static Napi::Value PlanAnnotateLibrary(const Napi::CallbackInfo &info)
   OwnedBuf out;
   int32_t rc = ABI.plan_annotate_library(library, model, files.data(), files.size(), Float64Ptr(mzs), Float64Ptr(rts),
                                          mzs.ElementLength(), (size_t)Number(info, 5), Number(info, 6), Number(info, 7),
-                                         Number(info, 8), Number(info, 9), out.Out());
+                                         Number(info, 8), Number(info, 9), (uint8_t)Number(info, 10), out.Out());
   if (rc != 0)
     return ThrowRc(env, "annotate_features", rc);
   return RangesToArray(env, out.buf);

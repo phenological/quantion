@@ -1285,10 +1285,13 @@ SEXP C_deisotope_features(SEXP features, SEXP count, SEXP rt_tolerance, SEXP mz_
   return take_records(&out);
 }
 
-SEXP C_match_features(SEXP directory, SEXP eic, SEXP grid, SEXP grouping, SEXP options, SEXP threads)
+static WarpModelHandle *get_warp_model(SEXP pointer);
+
+SEXP C_match_features(SEXP directory, SEXP eic, SEXP grid, SEXP grouping, SEXP options, SEXP threads, SEXP warp)
 {
   check_bound();
   CPeakOptions peak_options = get_peak_options(options);
+  const WarpModelHandle *warp_model = warp == R_NilValue ? NULL : get_warp_model(warp);
   Buf out = (Buf){0};
   check_code(match_features(get_text_or_null(directory), get_number(eic, "from"), get_number(eic, "to"),
                             get_number(eic, "ppm_tolerance"), get_number(eic, "mz_tolerance"),
@@ -1296,7 +1299,7 @@ SEXP C_match_features(SEXP directory, SEXP eic, SEXP grid, SEXP grouping, SEXP o
                             get_number(grid, "end"), get_number(grid, "step_size"),
                             get_number(grouping, "ppm_tolerance"), get_number(grouping, "mz_tolerance"),
                             get_number(grouping, "rt_tolerance"), get_number(grouping, "min_frequency"),
-                            &peak_options, (size_t)asReal(threads), &out));
+                            &peak_options, (size_t)asReal(threads), warp_model, &out));
   return take_records(&out);
 }
 
@@ -1443,8 +1446,9 @@ static ParsedFile **get_samples(SEXP samples)
   return files;
 }
 
-#define ANNOTATION_SETTINGS(settings) \
-  (size_t)REAL(settings)[0], REAL(settings)[1], REAL(settings)[2], REAL(settings)[3], REAL(settings)[4]
+#define ANNOTATION_SETTINGS(settings)                                                          \
+  (size_t)REAL(settings)[0], REAL(settings)[1], REAL(settings)[2], REAL(settings)[3],          \
+      REAL(settings)[4], (uint8_t)REAL(settings)[5]
 
 SEXP C_annotate_features(SEXP library, SEXP model, SEXP samples, SEXP mzs, SEXP rts, SEXP settings)
 {

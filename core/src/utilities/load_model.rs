@@ -81,6 +81,12 @@ pub struct Model {
     onnx: Arc<runnet::Model>,
 }
 
+impl PartialEq for Model {
+    fn eq(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.onnx, &other.onnx)
+    }
+}
+
 pub fn load_model(input: impl Into<ModelInput>) -> Result<Model, ModelError> {
     let onnx = match input.into() {
         ModelInput::Path(path) => runnet::Model::load(path),

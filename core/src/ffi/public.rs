@@ -1426,6 +1426,7 @@ pub unsafe extern "C" fn deisotope_features(
 ///
 /// # Safety
 /// `directory` must be a valid NUL-terminated string. `options` must be null or valid.
+/// `warp` must be null or a warp model from `warp_model_load` that is not freed.
 /// `out` must be a valid writable `Buf`.
 #[cfg(not(all(target_arch = "wasm32", not(target_os = "wasi"))))]
 #[unsafe(no_mangle)]
@@ -1445,6 +1446,7 @@ pub unsafe extern "C" fn match_features(
     grouping_min_frequency: f64,
     options: *const CPeakOptions,
     threads: usize,
+    warp: *const super::warp::WarpModelHandle,
     out: *mut Buf,
 ) -> c_int {
     const FUNCTION: &str = "match_features";
@@ -1472,6 +1474,7 @@ pub unsafe extern "C" fn match_features(
             },
             find_peaks: features.find_peaks,
             threads: features.threads,
+            warp: unsafe { warp.as_ref() }.map(|handle| handle.warp.clone()),
         };
         let matched = crate::match_features(directory, options)?;
         let bytes = super::build_consensus_bridge(&matched)

@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use quantion::AnnotateFeaturesOptions;
+use quantion::{AnnotateFeaturesOptions, Polarity};
 
 use crate::{
     error::ToolError,
@@ -22,7 +22,14 @@ pub const ANNOTATE_FEATURES_FIELDS: &[Field] = &[
         Kind::Number,
         "MS2 peaks below this share of the base peak are removed",
     ),
+    Field::optional(
+        "polarity",
+        Kind::Choice(POLARITIES),
+        "Ion mode of the MS2 scans",
+    ),
 ];
+
+pub const POLARITIES: &[&str] = &["POSITIVE", "NEGATIVE"];
 
 pub fn read_annotate_features_options(
     input: &mut Input,
@@ -39,7 +46,20 @@ pub fn read_annotate_features_options(
         rt_range: input.get_number("rt_range", default.rt_range)?,
         min_relative_intensity: input
             .get_number("min_relative_intensity", default.min_relative_intensity)?,
+        polarity: read_polarity(input, default.polarity)?,
     })
+}
+
+fn read_polarity(input: &mut Input, default: Polarity) -> Result<Polarity, ToolError> {
+    match input.get_optional_text("polarity")?.as_deref() {
+        Some("POSITIVE") => Ok(Polarity::POSITIVE),
+        Some("NEGATIVE") => Ok(Polarity::NEGATIVE),
+        Some(other) => Err(ToolError::invalid(
+            "polarity",
+            format!("must be POSITIVE or NEGATIVE, got {other}"),
+        )),
+        None => Ok(default),
+    }
 }
 
 fn get_path_text(path: &Path) -> Result<String, ToolError> {

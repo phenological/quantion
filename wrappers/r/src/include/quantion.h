@@ -7,7 +7,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 
-#define QUANTION_ABI_VERSION 3
+#define QUANTION_ABI_VERSION 4
 
 #define QUANTION_BRIDGE_MAGIC 1112821329
 
@@ -448,6 +448,7 @@ void image_free(struct ImageSession *session);
 
 /**
  * Match each feature against the library. `files` holds `file_count` open samples.
+ * `polarity` is 1 for positive and 2 for negative.
  *
  * # Safety
  * `library` and every handle in `files` must be valid `ParsedFile`s; `model` a valid model.
@@ -465,12 +466,14 @@ int annotate_features(struct ParsedFile *library,
                       double mz_tolerance,
                       double rt_range,
                       double min_relative_intensity,
+                      uint8_t polarity,
                       struct Buf *out_features,
                       struct Buf *out_files,
                       struct Buf *out_matches);
 
 /**
  * Plan the byte ranges `annotate_features` reads from one sample.
+ * `polarity` is 1 for positive and 2 for negative.
  *
  * # Safety
  * `file` must be a valid `ParsedFile`. `mzs` and `rts` must point to `feature_count` values.
@@ -485,10 +488,12 @@ int plan_annotate_samples(struct ParsedFile *file,
                           double mz_tolerance,
                           double rt_range,
                           double min_relative_intensity,
+                          uint8_t polarity,
                           struct Buf *out);
 
 /**
  * Plan the byte ranges `annotate_features` reads from the library, for every sample at once.
+ * `polarity` is 1 for positive and 2 for negative.
  *
  * # Safety
  * `library` and every handle in `files` must be valid `ParsedFile`s; `model` a valid model.
@@ -506,6 +511,7 @@ int plan_annotate_library(struct ParsedFile *library,
                           double mz_tolerance,
                           double rt_range,
                           double min_relative_intensity,
+                          uint8_t polarity,
                           struct Buf *out);
 
 int model_load_path(const uint8_t *path_ptr,
@@ -893,6 +899,7 @@ int deisotope_features(const double *features,
  *
  * # Safety
  * `directory` must be a valid NUL-terminated string. `options` must be null or valid.
+ * `warp` must be null or a warp model from `warp_model_load` that is not freed.
  * `out` must be a valid writable `Buf`.
  */
 int match_features(const char *directory,
@@ -910,6 +917,7 @@ int match_features(const char *directory,
                    double grouping_min_frequency,
                    const struct CPeakOptions *options,
                    uintptr_t threads,
+                   const struct WarpModelHandle *warp,
                    struct Buf *out);
 #endif
 

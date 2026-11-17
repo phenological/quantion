@@ -349,6 +349,56 @@ fn a_url_needs_the_http_feature() {
     assert!(matches!(result, Err(ModelError::NotRead(reason)) if reason.contains("http feature")));
 }
 
+fn copy_into_folder(tag: &str, files: &[&str]) -> std::path::PathBuf {
+    let folder = std::env::temp_dir().join(format!("quantion_warp_{tag}"));
+    let _ = std::fs::remove_dir_all(&folder);
+    std::fs::create_dir_all(&folder).expect("folder");
+    for (index, file) in files.iter().enumerate() {
+        std::fs::copy(file, folder.join(format!("sample_{index}.ion"))).expect("copy");
+    }
+    folder
+}
+
+fn get_sorted_masses(features: &[crate::Feature]) -> Vec<f64> {
+    let mut masses: Vec<f64> = features.iter().map(|feature| feature.mz).collect();
+    masses.sort_by(f64::total_cmp);
+    masses
+}
+
+#[test]
+fn match_features_with_a_warp_keeps_the_masses_of_identical_samples() {
+    let folder = copy_into_folder("identical", &[COVERING_FILE, COVERING_FILE]);
+    let options = crate::MatchFeaturesOptions {
+        grid: crate::GridOptions {
+            start: 80.0,
+            end: 100.0,
+            ..Default::default()
+        },
+        ..Default::default()
+    };
+    let without_warp = crate::match_features(&folder, options.clone()).expect("without warp");
+    let with_warp = crate::match_features(
+        &folder,
+        crate::MatchFeaturesOptions {
+            warp: Some(get_warp()),
+            ..options
+        },
+    )
+    .expect("with warp");
+    let _ = std::fs::remove_dir_all(&folder);
+
+    assert!(!with_warp.is_empty());
+    assert_eq!(
+        get_sorted_masses(&without_warp),
+        get_sorted_masses(&with_warp)
+    );
+    assert!(
+        with_warp
+            .iter()
+            .all(|feature| feature.frequency == Some(1.0))
+    );
+}
+
 #[cfg(feature = "http")]
 mod from_url {
     use std::{

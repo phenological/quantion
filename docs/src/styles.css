@@ -732,7 +732,7 @@ table.details td {
 .default {
   color: var(--token-number);
   white-space: pre-wrap;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
   max-width: 28ch;
 }
 

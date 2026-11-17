@@ -27,7 +27,7 @@ use crate::utilities::{
 };
 
 pub struct WarpModelHandle {
-    warp: WarpModel,
+    pub(super) warp: WarpModel,
 }
 
 #[unsafe(no_mangle)]

@@ -135,6 +135,18 @@ test_that("load_warp needs a model", {
   expect_error(load_warp(model_file), "load_warp: model must be a model from load_model")
 })
 
+test_that("match_features_options needs a warp model", {
+  expect_error(match_features_options(warp = model_file), "match_features_options: warp must be a warp model from load_warp")
+})
+
+test_that("match_features refuses a disposed warp", {
+  skip_if(!nzchar(sample_file), "no api.ion sample next to the package")
+  warp <- get_warp(model_file)
+  options <- match_features_options(warp = warp)
+  dispose(warp)
+  expect_error(match_features(fixtures, options), "disposed warp model")
+})
+
 test_that("a missing model file is refused", {
   skip_if(!nzchar(sample_file), "no api.ion sample next to the package")
   expect_error(load_model(file.path(fixtures, "missing.onnx")), "load_model: the file could not be read")

@@ -105,7 +105,9 @@ pub fn get_scans(
 ) -> Vec<CentroidScan> {
     let wanted = find_wanted_scans(source, query, time_unit, level);
     if wanted.only_first {
-        return load_first(source, wanted.into_closest_first());
+        return load_first_scan(source, wanted.into_closest_first())
+            .into_iter()
+            .collect();
     }
     load_selected(source, wanted.scans)
 }
@@ -213,17 +215,17 @@ fn read_arrays(
     })
 }
 
-fn load_first(
+pub(crate) fn load_first_scan(
     source: &mut impl ScanSource,
     candidates: impl Iterator<Item = (usize, ScanSummary)>,
-) -> Vec<CentroidScan> {
+) -> Option<CentroidScan> {
     let mut buffers = ScanBuffers::default();
     for (index, summary) in candidates {
         if let Some(scan) = buffers.load(source, index, &summary) {
-            return vec![scan];
+            return Some(scan);
         }
     }
-    Vec::new()
+    None
 }
 
 fn load_selected(

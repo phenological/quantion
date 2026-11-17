@@ -46,6 +46,7 @@ from quantion._options import (
     get_count,
     get_flag,
     get_number,
+    get_polarity,
     get_shape,
     get_time_unit,
     pack_peak_options,
@@ -922,7 +923,7 @@ def match_features(directory, options: Optional[MatchFeaturesOptions] = None) ->
 
     Args:
         directory: Folder with the Ionic (.ion) or mzML files, one file per sample.
-        options: Optional settings: eic, grid, grouping, find_peaks, threads = 1. See MatchFeaturesOptions: https://phenological.github.io/quantion/?language=python#MatchFeaturesOptions
+        options: Optional settings: eic, grid, grouping, find_peaks, threads = 1, warp = None. See MatchFeaturesOptions: https://phenological.github.io/quantion/?language=python#MatchFeaturesOptions
 
     Returns:
         One feature per matched feature (the feature table). frequency is the fraction of samples where it was found, from 0 to 1.
@@ -938,6 +939,7 @@ def match_features(directory, options: Optional[MatchFeaturesOptions] = None) ->
     grouping = settings["grouping"]
     packed = pack_peak_options(function, settings["find_peaks"])
     threads = get_count(function, "threads", settings["threads"])
+    warp = None if settings["warp"] is None else _get_warp_handle(function, settings["warp"])
     abi = _get_abi()
     buffer = _Buf()
     _check(abi, function, abi.match_features(
@@ -948,8 +950,16 @@ def match_features(directory, options: Optional[MatchFeaturesOptions] = None) ->
         c_double(get_number(function, "grouping.mz_tolerance", grouping["mz_tolerance"])),
         c_double(get_number(function, "grouping.rt_tolerance", grouping["rt_tolerance"])),
         c_double(get_number(function, "grouping.min_frequency", grouping["min_frequency"])),
-        ctypes.byref(packed), c_size_t(threads), ctypes.byref(buffer)))
+        ctypes.byref(packed), c_size_t(threads), warp, ctypes.byref(buffer)))
     return buf_to_records(abi, buffer)
+
+
+def _get_warp_handle(function: str, warp: Any) -> ctypes.c_void_p:
+    if not isinstance(warp, WarpModel):
+        raise _invalid(function, "warp", "must be a WarpModel from load_warp")
+    if warp.handle is None:
+        raise _invalid(function, "warp", "is not open; it was disposed")
+    return warp.handle
 
 
 def _read_feature_values(function: str, features: Sequence[Feature]) -> np.ndarray:
@@ -1281,6 +1291,7 @@ def _read_annotation_settings(function: str, settings: Mapping[str, Any]) -> lis
         c_double(get_number(function, "mz_tolerance", settings["mz_tolerance"])),
         c_double(get_number(function, "rt_range", settings["rt_range"])),
         c_double(get_number(function, "min_relative_intensity", settings["min_relative_intensity"])),
+        c_uint8(get_polarity(function, "polarity", settings["polarity"])),
     ]
 
 
@@ -1343,7 +1354,7 @@ def annotate_features(
 ) -> List[FeatureAnnotation]:
     """annotate_features · Untargeted
 
-    Name features (annotation) by matching their MS2 spectra against a spectral library. For each feature and sample, it takes the positive MS2 scan closest to the peak apex, whose precursor matches the feature m/z and whose rt is within rt_range. A model turns the scan into a vector, which is scored against the library spectra with the same precursor m/z. By default, the library and the model come from the josoriom/cipher releases.
+    Name features (annotation) by matching their MS2 spectra against a spectral library. For each feature and sample, it takes the MS2 scan in the ion mode given by polarity closest to the peak apex, whose precursor matches the feature m/z and whose rt is within rt_range. A model turns the scan into a vector, which is scored against the library spectra with the same precursor m/z. By default, the library and the model come from the josoriom/cipher releases.
 
     Warning:
         This is an experimental feature.
@@ -1351,7 +1362,7 @@ def annotate_features(
     Args:
         files: The samples, from parse_ion or parse_mzml. It must not be empty.
         features: The features to name, each with mz and rt. The output of find_features and match_features works as is. An empty list gives an empty result.
-        options: Optional settings: library = "https://github.com/josoriom/cipher/releases/latest/download/library_positive.ion", model = "https://github.com/josoriom/cipher/releases/latest/download/model.onnx", matches = 3, ppm_tolerance = 20, mz_tolerance = 0.005, rt_range = 0.3, min_relative_intensity = 0.02. See AnnotateFeaturesOptions: https://phenological.github.io/quantion/?language=python#AnnotateFeaturesOptions
+        options: Optional settings: library = "https://github.com/josoriom/cipher/releases/latest/download/library_positive.ion", model = "https://github.com/josoriom/cipher/releases/latest/download/model.onnx", matches = 3, ppm_tolerance = 20, mz_tolerance = 0.005, rt_range = 0.3, min_relative_intensity = 0.02, polarity = POSITIVE. See AnnotateFeaturesOptions: https://phenological.github.io/quantion/?language=python#AnnotateFeaturesOptions
 
     Returns:
         One annotation per feature, in the same order as features.
