@@ -3,7 +3,9 @@
   "versions": [
     {
       "version": "0.2.6",
-      "api": "0.2.2"
+      "api": "0.2.2",
+      "date": "2026-11-17",
+      "message": "feat: release v0.2.6"
     },
     {
       "version": "0.2.5",
