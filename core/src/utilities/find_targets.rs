@@ -6,8 +6,8 @@ use crate::{
     traces::FindPeaksOptions,
     utilities::{
         calculate_eic::{
-            EicReader, FastError, MS1_LEVEL, get_scan_times, lower_bound, mz_tolerance_for,
-            plan_window_ranges, read_mz_window, upper_bound,
+            EicReader, FastError, MS1_LEVEL, ScanTime, get_scan_times, lower_bound,
+            mz_tolerance_for, plan_window_ranges, read_mz_window, upper_bound,
         },
         get_peak::get_peak,
         structs::{DataXY, FromTo, Peak, Roi, Target},
@@ -158,7 +158,7 @@ fn compute_peak_for_job(
 
 pub(crate) fn read_eics_one_pass(
     reader: &mut EicReader,
-    scan_times: &[crate::utilities::calculate_eic::ScanTime],
+    scan_times: &[ScanTime],
     windows: &[MzWindow],
 ) -> Result<Vec<f64>, FastError> {
     let scan_count = scan_times.len();

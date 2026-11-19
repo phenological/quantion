@@ -5,10 +5,11 @@
 Options for parse_ion.
 }
 \usage{
-parse_ion_options(max_cache_size = 0)
+parse_ion_options(max_cache_size = 0, headers = list())
 }
 \arguments{
   \item{max_cache_size}{Maximum memory, in bytes, kept for the parts of the file already read. 0 = no limit. Set it to limit memory on large or remote files.}
+  \item{headers}{Extra HTTP headers for every remote read, such as a token. Only used with a URL.}
 }
 \value{
 An options object for \code{\link{parse_ion}()}.

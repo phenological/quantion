@@ -1,3 +1,4 @@
+import type { HttpClient } from "./httpClient";
 /// <reference types="node" />
 
 import * as fs from "fs";
@@ -253,8 +254,16 @@ export class NodeBackend implements Backend {
     return this.native.parseIonPath(filePath, cacheSize);
   }
 
-  async parseIonRemote(url: URL, cacheSize: number): Promise<FileHandle> {
-    const source = newRemoteSource(url.href);
+  checkParseIonHeaders(isUrl: boolean, headers: Uint8Array): void {
+    this.native.checkParseIonHeaders(isUrl ? 1 : 0, toNodeBuffer(headers));
+  }
+
+  async parseIonRemote(
+    url: URL,
+    cacheSize: number,
+    client: HttpClient,
+  ): Promise<FileHandle> {
+    const source = newRemoteSource(url.href, client);
     const header = await fetchHeader(source);
     await prefetchRanges(
       source,
@@ -523,7 +532,14 @@ export class NodeBackend implements Backend {
         );
       }
       await this.prefetch(library, () =>
-        this.native.planAnnotateLibrary(library, model, files, mzs, rts, ...values),
+        this.native.planAnnotateLibrary(
+          library,
+          model,
+          files,
+          mzs,
+          rts,
+          ...values,
+        ),
       );
     }
     const [features, fileRows, matches] = this.native.annotateFeatures(

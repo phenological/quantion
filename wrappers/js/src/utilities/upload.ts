@@ -1,18 +1,12 @@
-import type { Header } from "../types/types";
 import { QuantionError } from "./errors";
+import type { HttpClient } from "./httpClient";
 
 export async function uploadIon(
   url: string,
-  headers: Header[],
+  client: HttpClient,
   bytes: Uint8Array,
 ): Promise<void> {
-  const response = await fetch(url, {
-    method: "PUT",
-    headers: headers.map(
-      (header) => [header.name.trim(), header.value] as [string, string],
-    ),
-    body: new Blob([bytes as BlobPart]),
-  }).catch((error: Error) => {
+  const response = await client.put(url, bytes).catch((error: Error) => {
     throw new QuantionError(
       "upload_failed",
       "writeIon",

@@ -162,6 +162,27 @@ class RemoteReading(unittest.TestCase):
         self.assertEqual(server.requests, BIG_REQUESTS_TO_OPEN)
         self.assertLess(server.bytes_sent, BIG_FIXTURE.stat().st_size)
 
+    def test_headers_reach_the_server_on_every_request(self):
+        token = {"name": "Authorization", "value": "Bearer test-token"}
+        remote = support.quantion.parse_ion(self.server.url, {"headers": [token]})
+        self.addCleanup(remote.dispose)
+        support.quantion.get_scans(remote, {"from": FROM_RT, "to": TO_RT})
+        self.assertGreaterEqual(self.server.requests, REQUESTS_TO_OPEN)
+        self.assertEqual(self.server.tokens, ["Bearer test-token"] * self.server.requests)
+
+    def test_headers_need_a_url(self):
+        token = {"name": "Authorization", "value": "Bearer test-token"}
+        with self.assertRaises(support.quantion.QuantionError) as caught:
+            support.quantion.parse_ion(str(support.ION_FIXTURE), {"headers": [token]})
+        self.assertEqual(caught.exception.argument, "headers")
+
+    def test_a_reserved_header_is_refused(self):
+        host = {"name": "Host", "value": "example.org"}
+        with self.assertRaises(support.quantion.QuantionError) as caught:
+            support.quantion.parse_ion(self.server.url, {"headers": [host]})
+        self.assertEqual(caught.exception.argument, "headers[0].name")
+        self.assertEqual(self.server.requests, 0)
+
     def test_the_remote_answer_matches_the_local_one(self):
         remote_eic = self.eic_of(self.open_remote())
         local_eic = self.eic_of(self.open_local())

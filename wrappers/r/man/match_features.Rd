@@ -20,14 +20,22 @@ One feature per matched feature (the feature table). frequency is the fraction o
 \url{https://phenological.github.io/quantion/?language=r#match_features}
 }
 \examples{
-\dontrun{
-library(quantion)
+\donttest{
+if (curl::has_internet()) {
+  library(quantion)
 
-features <- match_features("samples/", options = match_features_options(
-  grouping = grouping_options(min_frequency = 0.5),
-  threads  = 8L
-))
-print(features)
+  folder <- file.path(tempdir(), "samples")
+  dir.create(folder, showWarnings = FALSE)
+  url <- "https://raw.githubusercontent.com/phenological/ion-files/main/data/aa_p21_LTR_20_b1_w20.ion"
+  utils::download.file(url, file.path(folder, "sample.ion"), mode = "wb", quiet = TRUE)
+  features <- match_features(folder, options = match_features_options(
+    eic      = calculate_eic_options(from = 2.3, to = 2.45),
+    grid     = grid_options(start = 255, end = 265),
+    grouping = grouping_options(min_frequency = 0.5),
+    threads  = 1L
+  ))
+  print(features)
+}
 }
 }
 \seealso{

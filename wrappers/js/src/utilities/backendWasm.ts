@@ -1,3 +1,4 @@
+import type { HttpClient } from "./httpClient";
 /// <reference types="node" />
 
 declare const __INLINE__: boolean;
@@ -330,12 +331,27 @@ class WasmApi {
 
   parseBin(data: Uint8Array, cacheSize: number): number {
     return this.withMemory([data], ([pointer]) =>
-      this.openHandle("parse_bin", pointer, data.length, cacheSize),
+      this.openHandle("parse_ion_bytes", pointer, data.length, cacheSize),
     );
   }
 
-  async parseIonUrl(url: string, cacheSize: number): Promise<number> {
-    const source = newRemoteSource(url);
+  checkParseIonHeaders(isUrl: boolean, headers: Uint8Array): void {
+    this.withMemory([headers], ([pointer]) =>
+      this.run(
+        "check_parse_ion_headers",
+        isUrl ? 1 : 0,
+        headers.length ? pointer : 0,
+        headers.length,
+      ),
+    );
+  }
+
+  async parseIonUrl(
+    url: string,
+    cacheSize: number,
+    client: HttpClient,
+  ): Promise<number> {
+    const source = newRemoteSource(url, client);
     const sourceId = range_sources.add(source);
     try {
       const header = await fetchHeader(source);
@@ -494,7 +510,15 @@ class WasmApi {
       for (const file of files) {
         await this.prefetch(file, () =>
           this.withMemory(memory, ([, mzPointer, rtPointer]) =>
-            this.run("plan_annotate_samples", file, mzPointer, rtPointer, mzs.length, ...values, this.firstSlot),
+            this.run(
+              "plan_annotate_samples",
+              file,
+              mzPointer,
+              rtPointer,
+              mzs.length,
+              ...values,
+              this.firstSlot,
+            ),
           ),
         );
       }
@@ -1123,8 +1147,16 @@ export class WasmBackend implements Backend {
     );
   }
 
-  async parseIonRemote(url: URL, cacheSize: number): Promise<FileHandle> {
-    return this.getApi().parseIonUrl(url.href, cacheSize);
+  checkParseIonHeaders(isUrl: boolean, headers: Uint8Array): void {
+    this.getApi().checkParseIonHeaders(isUrl, headers);
+  }
+
+  async parseIonRemote(
+    url: URL,
+    cacheSize: number,
+    client: HttpClient,
+  ): Promise<FileHandle> {
+    return this.getApi().parseIonUrl(url.href, cacheSize, client);
   }
 
   parseIonBuffer(bytes: Uint8Array, cacheSize: number): FileHandle {

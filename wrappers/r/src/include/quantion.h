@@ -390,10 +390,10 @@ int parse_ion_url(uint32_t source_id, uintptr_t cache_bytes, struct ParsedFile *
  * `dest` must be a valid writable pointer to `*mut ParsedFile`.
  * On success, `*dest` must be freed with `free_mzml`.
  */
-int parse_bin(const uint8_t *data_ptr,
-              uintptr_t data_len,
-              uintptr_t max_cache_size,
-              struct ParsedFile **dest);
+int parse_ion_bytes(const uint8_t *data_ptr,
+                    uintptr_t data_len,
+                    uintptr_t max_cache_size,
+                    struct ParsedFile **dest);
 
 #if !(defined(QUANTION_TARGET_WASM32) && !defined(QUANTION_TARGET_WASI))
 int parse_ion_path(const char *path_ptr, uintptr_t max_cache_size, struct ParsedFile **dest);
@@ -563,6 +563,16 @@ int write_ion(struct ParsedFile *handle,
               const uint8_t *headers,
               uintptr_t headers_len,
               struct Buf *out);
+
+/**
+ * Check the headers parse_ion sends with every remote read; the caller reads the URL with its own HTTP client. `is_url` is 1 when the source is a URL. `headers` holds name, value, name, value… each ending in a NUL byte.
+ *
+ * # Safety
+ * `headers` must point to `headers_len` readable bytes, or be null.
+ */
+int check_parse_ion_headers(uint8_t is_url,
+                            const uint8_t *headers,
+                            uintptr_t headers_len);
 
 /**
  * Write a sample as mzML. A null `out_path` returns the bytes in `out`.

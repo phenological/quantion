@@ -2,6 +2,7 @@ use crate::{
     CalculateEicOptions,
     error::{QuantionError, check_mz_and_rt, check_positive, check_tolerances},
     files::{ParseIonOptions, from_fast_error, read_error},
+    load_model, parse_ion,
     sample_file::{FileSource, SampleFile},
     utilities::{
         annotate_features::{
@@ -149,16 +150,18 @@ pub fn annotate_features(
     if features.is_empty() {
         return Ok(Vec::new());
     }
-    let model = crate::load_model(options.model.as_str()).map_err(|error| QuantionError {
+    let model = load_model(options.model.as_str()).map_err(|error| QuantionError {
         function: FUNCTION,
         ..error
     })?;
     let model =
         SpectrumModel::read(&model).map_err(|error| from_spectrum_model_error(FUNCTION, error))?;
-    let mut library = crate::parse_ion(options.library.as_str(), ParseIonOptions::default())
-        .map_err(|error| QuantionError {
-            function: FUNCTION,
-            ..error
+    let mut library =
+        parse_ion(options.library.as_str(), ParseIonOptions::default()).map_err(|error| {
+            QuantionError {
+                function: FUNCTION,
+                ..error
+            }
         })?;
     let mut files: Vec<&mut SampleFile> = files.iter_mut().collect();
     for file in files.iter_mut() {

@@ -11,6 +11,11 @@ use ionic::{
     mzml::{bin_to_mzml, parse_mzml as read_mzml},
 };
 
+#[cfg(all(
+    feature = "http",
+    not(all(target_arch = "wasm32", not(target_os = "wasi")))
+))]
+use crate::utilities::http::HttpClient;
 use crate::{
     FromTo, TimeUnit,
     error::{
@@ -26,7 +31,7 @@ use crate::{
         },
         ion::{ScanSource, write_mzml_to_ion},
         ion_image::{IonImage, image_session_begin},
-        parse_ion::{IonInput, parse_ion_with_prefetch},
+        parse_ion::{IonInput, is_url, parse_ion_with_prefetch},
         structs::{DataXY, Position, ScanQuery},
     },
 };
@@ -208,10 +213,12 @@ pub(crate) fn from_fast_error(function: &'static str, error: FastError) -> Quant
 ///
 /// Fields:
 /// - `max_cache_size`: Maximum memory, in bytes, kept for the parts of the file already read. 0 = no limit. Set it to limit memory on large or remote files. Default `0`.
+/// - `headers`: Extra HTTP headers for every remote read, such as a token. Only used with a URL. Default `empty`.
 ///
 /// [Documentation](https://phenological.github.io/quantion/?language=rust#ParseIonOptions)
-#[derive(Clone, Copy, Debug, PartialEq, Default)]
+#[derive(Clone, Debug, PartialEq, Default)]
 pub struct ParseIonOptions {
+    pub headers: Vec<Header>,
     pub max_cache_size: usize,
 }
 
@@ -222,7 +229,7 @@ pub struct ParseIonOptions {
 /// **Warning:** The sample is freed when it goes out of scope, so nothing else is needed in normal use. When processing many samples, drop each one after using it, with drop(file), so its memory is freed right away instead of piling up.
 ///
 /// - `input`: Where the file is. It can be a local path, an http(s) URL, or the file's bytes.
-/// - `options`: Optional settings: `max_cache_size` = 0. See [ParseIonOptions](https://phenological.github.io/quantion/?language=rust#ParseIonOptions).
+/// - `options`: Optional settings: `max_cache_size` = 0, `headers` = empty. See [ParseIonOptions](https://phenological.github.io/quantion/?language=rust#ParseIonOptions).
 ///
 /// Returns: The opened sample (one file, i.e. one injection). Pass it to calculate_eic, get_scans and the other functions.
 ///
@@ -243,11 +250,12 @@ pub fn parse_ion(
         ));
     }
     let is_remote = matches!(input, IonInput::Url(_));
+    check_headers(FUNCTION, &options.headers, is_remote, "source")?;
     let read_options = ReadOptions {
         max_cached_bytes: options.max_cache_size,
         ..Default::default()
     };
-    let (reader, remote) = parse_ion_with_prefetch(input, &read_options)
+    let (reader, remote) = parse_ion_with_prefetch(input, &read_options, options.headers)
         .map_err(|error| read_error(FUNCTION, error))?;
     let source = if is_remote {
         FileSource::Remote(Box::new(reader))
@@ -289,7 +297,7 @@ pub fn parse_mzml(input: impl Into<MzmlInput>) -> Result<SampleFile, QuantionErr
 
 /// **Header** · Inputs
 ///
-/// One HTTP header sent with an upload in write_ion, for example a token. Values are never printed. A line break, or the names Host, Content-Length or Transfer-Encoding, give an invalid_argument error.
+/// One HTTP header sent with every remote read in parse_ion or with an upload in write_ion, for example a token. Values are never printed. A line break, or the names Host, Content-Length or Transfer-Encoding, give an invalid_argument error.
 ///
 /// Fields:
 /// - `name`: Name of the header, such as Authorization.
@@ -315,7 +323,7 @@ pub enum IonOutput {
 
 impl From<&str> for IonOutput {
     fn from(text: &str) -> Self {
-        if crate::utilities::parse_ion::is_url(text) {
+        if is_url(text) {
             IonOutput::Url(text.to_string())
         } else {
             IonOutput::Path(PathBuf::from(text))
@@ -444,14 +452,7 @@ pub(crate) fn encode_ion(
     }
     let block_bytes = get_block_bytes(FUNCTION, options.block_size)?;
     let is_upload = matches!(options.out, Some(IonOutput::Url(_)));
-    if !options.headers.is_empty() && !is_upload {
-        return Err(QuantionError::invalid(
-            FUNCTION,
-            "headers",
-            "can only be used when out is a URL",
-        ));
-    }
-    check_headers(FUNCTION, &options.headers)?;
+    check_headers(FUNCTION, &options.headers, is_upload, "out")?;
     if let Some(IonOutput::Path(path)) = &options.out {
         check_can_write(FUNCTION, path, options.overwrite)?;
     }
@@ -528,7 +529,19 @@ pub fn write_mzml(
     }
 }
 
-fn check_headers(function: &'static str, headers: &[Header]) -> Result<(), QuantionError> {
+pub(crate) fn check_headers(
+    function: &'static str,
+    headers: &[Header],
+    has_url: bool,
+    url_argument: &str,
+) -> Result<(), QuantionError> {
+    if !headers.is_empty() && !has_url {
+        return Err(QuantionError::invalid(
+            function,
+            "headers",
+            format!("can only be used when {url_argument} is a URL"),
+        ));
+    }
     for (index, header) in headers.iter().enumerate() {
         let name = header.name.trim();
         if name.is_empty() {
@@ -603,12 +616,8 @@ fn upload(
     headers: &[Header],
     bytes: Vec<u8>,
 ) -> Result<(), QuantionError> {
-    let agent = ureq::Agent::new_with_defaults();
-    let mut request = agent.put(url);
-    for header in headers {
-        request = request.header(header.name.trim(), header.value.as_str());
-    }
-    match request.send(&bytes[..]) {
+    let client = HttpClient::new(headers.to_vec());
+    match client.put(url, &bytes) {
         Ok(_) => Ok(()),
         Err(ureq::Error::StatusCode(status)) => Err(QuantionError::new(
             ErrorKind::UploadFailed,

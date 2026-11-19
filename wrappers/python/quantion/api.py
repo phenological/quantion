@@ -259,7 +259,7 @@ def parse_ion(source, options: Optional[ParseIonOptions] = None) -> SampleFile:
 
     Args:
         source: Where the file is. It can be a local path, an http(s) URL, or the file's bytes.
-        options: Optional settings: max_cache_size = 0. See ParseIonOptions: https://phenological.github.io/quantion/?language=python#ParseIonOptions
+        options: Optional settings: max_cache_size = 0, headers = []. See ParseIonOptions: https://phenological.github.io/quantion/?language=python#ParseIonOptions
 
     Returns:
         The opened sample (one file, i.e. one injection). Pass it to calculate_eic, get_scans and the other functions.
@@ -270,15 +270,20 @@ def parse_ion(source, options: Optional[ParseIonOptions] = None) -> SampleFile:
     settings = read_options(function, options, PARSE_ION)
     cache_size = get_count(function, "max_cache_size", settings["max_cache_size"])
     abi = _get_abi()
+    is_url = isinstance(source, (str, os.PathLike)) and _is_url(os.fspath(source))
+    headers = _encode_headers(function, settings["headers"])
+    headers_pointer, headers_array = _as_u8_ptr(headers) if headers else (None, None)
+    _check(abi, function, abi.check_parse_ion_headers(
+        c_uint8(is_url), headers_pointer, c_size_t(len(headers))))
+    if is_url:
+        return _parse_ion_remote(os.fspath(source), cache_size, _HttpClient(settings["headers"]))
     if isinstance(source, (str, os.PathLike)):
         text = os.fspath(source)
-        if _is_url(text):
-            return _parse_ion_remote(text, cache_size)
         return _open_file(function, abi, lambda out: abi.parse_ion_path(
             os.fsencode(text), c_size_t(cache_size), out), True)
     if isinstance(source, (bytes, bytearray, memoryview)):
         pointer, array = _as_u8_ptr(bytes(source))
-        return _open_file(function, abi, lambda out: abi.parse_bin(
+        return _open_file(function, abi, lambda out: abi.parse_ion_bytes(
             pointer, c_size_t(len(array)), c_size_t(cache_size), out), True)
     raise _invalid(function, "source", "must be a path, an http(s) URL or bytes")
 
@@ -367,20 +372,34 @@ def write_ion(file: SampleFile, options: Optional[WriteIonOptions] = None) -> Op
         headers_pointer, c_size_t(len(headers)), ctypes.byref(buffer),
     ))
     if out is not None and _is_url(os.fsdecode(out)):
-        _upload_ion(os.fsdecode(out), settings["headers"], buf_to_bytes(abi, buffer))
+        _upload_ion(os.fsdecode(out), _HttpClient(settings["headers"]), buf_to_bytes(abi, buffer))
         return None
     return buf_to_bytes(abi, buffer) if out is None else None
 
 
-def _upload_ion(url: str, headers: Sequence[Mapping[str, str]], data: bytes) -> None:
-    from urllib.error import HTTPError, URLError
-    from urllib.request import Request, urlopen
+class _HttpClient:
+    def __init__(self, headers: Sequence[Mapping[str, str]]) -> None:
+        self.headers = {header["name"].strip(): header["value"] for header in headers}
 
-    fields = {header["name"].strip(): header["value"] for header in headers}
-    request = Request(url, data=data, method="PUT", headers=fields)
+    def send(self, url: str, data: Optional[bytes] = None, method: str = "GET", headers=None) -> bytes:
+        from urllib.request import Request, urlopen
+
+        request = Request(url, data=data, method=method, headers={**self.headers, **(headers or {})})
+        with urlopen(request) as response:
+            return response.read()
+
+    def get_range(self, url: str, offset: int, length: int) -> bytes:
+        return self.send(url, headers={"Range": f"bytes={offset}-{offset + length - 1}"})
+
+    def put(self, url: str, data: bytes) -> None:
+        self.send(url, data=data, method="PUT")
+
+
+def _upload_ion(url: str, client: _HttpClient, data: bytes) -> None:
+    from urllib.error import HTTPError, URLError
+
     try:
-        with urlopen(request):
-            pass
+        client.put(url, data)
     except HTTPError as error:
         raise QuantionError("upload_failed", "write_ion", f"PUT returned {error.code}") from None
     except URLError as error:
@@ -1153,8 +1172,9 @@ def gap_for(total: int) -> int:
 class _RemoteSource:
     HEADER_BYTES = 1024
 
-    def __init__(self, url: str) -> None:
+    def __init__(self, url: str, client: _HttpClient) -> None:
         self.url = url
+        self.client = client
         self.cache: dict[tuple[int, int], bytes] = {}
         self.bytes_fetched = 0
         self.total = 0
@@ -1165,12 +1185,7 @@ class _RemoteSource:
         self.prefetch(planned)
 
     def fetch(self, offset: int, length: int) -> bytes:
-        from urllib.request import Request, urlopen
-
-        last = offset + length - 1
-        request = Request(self.url, headers={"Range": f"bytes={offset}-{last}"})
-        with urlopen(request) as response:
-            payload = response.read()
+        payload = self.client.get_range(self.url, offset, length)
         self.bytes_fetched += len(payload)
         return payload
 
@@ -1236,8 +1251,8 @@ def _plan_open(header: bytes) -> list[tuple[int, int]]:
 
 
 
-def _parse_ion_remote(url: str, max_cache_size: int) -> SampleFile:
-    source = _RemoteSource(url)
+def _parse_ion_remote(url: str, max_cache_size: int, client: _HttpClient) -> SampleFile:
+    source = _RemoteSource(url, client)
 
     def serve(context, offset, length, dest):
         try:

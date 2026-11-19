@@ -3,15 +3,15 @@ use std::fs;
 use crate::{
     CalculateEicOptions, DataXY, DrawPeaksOptions, ErrorKind, FindTargetsOptions, FitPeakOptions,
     GetIonImageOptions, GetPeakOptions, Header, IonOutput, ParseIonOptions, PeakParameters,
-    Position, ScanQuery, Target, WriteIonOptions, WriteMzmlOptions, calculate_eic, draw_peaks,
-    find_targets, fit_peak, get_ion_image, get_peak, get_scans, parse_ion, parse_mzml, write_ion,
-    write_mzml,
+    PeakShape, Position, SampleFile, ScanQuery, Target, TimeUnit, WriteIonOptions,
+    WriteMzmlOptions, calculate_eic, draw_peaks, find_targets, fit_peak, get_ion_image, get_peak,
+    get_scans, parse_ion, parse_mzml, write_ion, write_mzml,
 };
 
 const API_FILE: &str = "tests/fixtures/api/api.ion";
 const ALANINE_MZ: f64 = 89.04768;
 
-fn open_api_file() -> crate::SampleFile {
+fn open_api_file() -> SampleFile {
     parse_ion(API_FILE, ParseIonOptions::default()).expect("open api.ion")
 }
 
@@ -73,7 +73,7 @@ fn seconds_give_the_same_window_as_minutes() {
     let seconds = CalculateEicOptions {
         from: 120.0,
         to: 180.0,
-        time_unit: crate::TimeUnit::SECONDS,
+        time_unit: TimeUnit::SECONDS,
         ..Default::default()
     };
     let in_minutes = calculate_eic(&mut file, ALANINE_MZ, minutes).expect("minutes");
@@ -143,7 +143,7 @@ fn headers_need_a_url() {
         }],
         ..Default::default()
     };
-    let error = write_ion(&mut file, options).expect_err("no url");
+    let error = write_ion(&mut file, options).err().expect("no url");
     assert_eq!(error.argument.as_deref(), Some("headers"));
 }
 
@@ -163,6 +163,56 @@ fn a_reserved_header_is_refused() {
     let error = write_ion(&mut file, options).expect_err("reserved");
     assert_eq!(error.kind, ErrorKind::InvalidArgument);
     assert_eq!(error.argument.as_deref(), Some("headers[0].name"));
+}
+
+fn token() -> Vec<Header> {
+    vec![Header {
+        name: "Authorization".to_string(),
+        value: "Bearer token".to_string(),
+    }]
+}
+
+#[test]
+fn parse_ion_headers_need_a_url() {
+    let options = ParseIonOptions {
+        headers: token(),
+        ..Default::default()
+    };
+    let error = parse_ion(API_FILE, options).err().expect("no url");
+    assert_eq!(error.kind, ErrorKind::InvalidArgument);
+    assert_eq!(error.argument.as_deref(), Some("headers"));
+}
+
+#[test]
+fn parse_ion_refuses_a_reserved_header() {
+    let options = ParseIonOptions {
+        headers: vec![Header {
+            name: " host ".to_string(),
+            value: "example.org".to_string(),
+        }],
+        ..Default::default()
+    };
+    let error = parse_ion("https://example.org/sample.ion", options)
+        .err()
+        .expect("reserved");
+    assert_eq!(error.kind, ErrorKind::InvalidArgument);
+    assert_eq!(error.argument.as_deref(), Some("headers[0].name"));
+}
+
+#[test]
+fn parse_ion_refuses_a_line_break_without_printing_the_value() {
+    let options = ParseIonOptions {
+        headers: vec![Header {
+            name: "Authorization".to_string(),
+            value: "secret\r\nX: y".to_string(),
+        }],
+        ..Default::default()
+    };
+    let error = parse_ion("https://example.org/sample.ion", options)
+        .err()
+        .expect("line break");
+    assert_eq!(error.argument.as_deref(), Some("headers[0]"));
+    assert!(!error.to_string().contains("secret"));
 }
 
 #[test]
@@ -229,7 +279,7 @@ fn a_drawn_peak_is_fitted_back() {
         &drawn,
         2.0,
         FitPeakOptions {
-            shape: crate::PeakShape::GAUSSIAN,
+            shape: PeakShape::GAUSSIAN,
             ..Default::default()
         },
     )

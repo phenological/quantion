@@ -16,6 +16,7 @@ import { toUint8 } from "./shared";
 import { getIonSource, type IonSource } from "./ionSource";
 import { QuantionError, invalidArgument } from "./errors";
 import { uploadIon } from "./upload";
+import { HttpClient } from "./httpClient";
 import {
   checkItems,
   checkKeys,
@@ -229,12 +230,21 @@ function getTransitionColumns(
 function openIon(
   backend: Backend,
   source: IonSource,
-  cacheSize: number,
+  settings: Complete<ParseIonOptions>,
 ): FileHandle | Promise<FileHandle> {
+  const cacheSize = settings.maxCacheSize;
+  backend.checkParseIonHeaders(
+    source.kind === "url",
+    packHeaders(settings.headers),
+  );
   if (source.kind === "path")
     return backend.parseIonPath(source.path, cacheSize);
   if (source.kind === "url")
-    return backend.parseIonRemote(source.url, cacheSize);
+    return backend.parseIonRemote(
+      source.url,
+      cacheSize,
+      new HttpClient(settings.headers),
+    );
   return backend.parseIonBuffer(source.bytes, cacheSize);
 }
 
@@ -246,7 +256,7 @@ function openIon(
  * **Warning:** The sample is freed by the library once it is no longer used, so dispose is not needed in normal use. When processing many samples, dispose each one after using it, so its memory is freed right away instead of piling up.
  *
  * @param source - Where the file is. It can be a local path, an http(s) URL, or the file's bytes.
- * @param options - Optional settings: `maxCacheSize` = 0. See {@link https://phenological.github.io/quantion/?language=js#ParseIonOptions | ParseIonOptions}.
+ * @param options - Optional settings: `maxCacheSize` = 0, `headers` = []. See {@link https://phenological.github.io/quantion/?language=js#ParseIonOptions | ParseIonOptions}.
  * @returns The opened sample (one file, i.e. one injection). Pass it to calculate_eic, get_scans and the other functions.
  * @see {@link https://phenological.github.io/quantion/?language=js#parse_ion | Documentation}
  */
@@ -257,7 +267,7 @@ export async function parseIon(
   const settings = readParseIonOptions(options, "parseIon");
   const ionSource = getIonSource(source, "parseIon");
   const backend = await getBackendAsync();
-  const handle = await openIon(backend, ionSource, settings.maxCacheSize);
+  const handle = await openIon(backend, ionSource, settings);
   return new SampleFile(handle, backend);
 }
 
@@ -336,7 +346,7 @@ export async function writeIon(
   if (!isUrl) return bytes;
   await uploadIon(
     settings.out as string,
-    settings.headers,
+    new HttpClient(settings.headers),
     bytes as Uint8Array,
   );
   return undefined;

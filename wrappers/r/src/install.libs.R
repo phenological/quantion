@@ -1,0 +1,5 @@
+files <- c(Sys.glob(paste0("*", SHLIB_EXT)), Sys.glob(file.path("prebuilt", "libquantion.*")))
+destination <- file.path(R_PACKAGE_DIR, paste0("libs", R_ARCH))
+dir.create(destination, recursive = TRUE, showWarnings = FALSE)
+file.copy(files, destination, overwrite = TRUE)
+if (file.exists("symbols.rds")) file.copy("symbols.rds", destination, overwrite = TRUE)

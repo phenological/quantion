@@ -601,8 +601,9 @@ export function readParseIonOptions(
   value: unknown,
   functionName: string,
 ): Complete<ParseIonOptions> {
-  const settings = readNumbers(value, { maxCacheSize: 0 }, functionName, "");
-  const size = settings.maxCacheSize;
+  const given = getObject(value, functionName, "");
+  checkKeys(given, ["maxCacheSize", "headers"], functionName, "");
+  const size = getValue(given, "maxCacheSize", "number", 0, functionName, "");
   if (!Number.isSafeInteger(size) || size < 0) {
     throw invalidArgument(
       functionName,
@@ -610,7 +611,10 @@ export function readParseIonOptions(
       `must be a whole number, 0 or more, got ${size}`,
     );
   }
-  return settings;
+  return {
+    maxCacheSize: size,
+    headers: readHeaders(given.headers, functionName),
+  };
 }
 
 export interface WriteIonSettings {
@@ -656,7 +660,11 @@ function readSource(
 ): string {
   const source = getValue(given, key, "string", fallback, functionName, "");
   if (source.trim() === "") {
-    throw invalidArgument(functionName, key, "must be a path or a URL, got an empty text");
+    throw invalidArgument(
+      functionName,
+      key,
+      "must be a path or a URL, got an empty text",
+    );
   }
   return source;
 }
@@ -804,7 +812,16 @@ export function readAnnotateFeaturesOptions(
   const given = getObject(value, functionName, "");
   checkKeys(
     given,
-    ["library", "model", "matches", "ppmTolerance", "mzTolerance", "rtRange", "minRelativeIntensity", "polarity"],
+    [
+      "library",
+      "model",
+      "matches",
+      "ppmTolerance",
+      "mzTolerance",
+      "rtRange",
+      "minRelativeIntensity",
+      "polarity",
+    ],
     functionName,
     "",
   );
@@ -812,11 +829,38 @@ export function readAnnotateFeaturesOptions(
     library: readSource(given, "library", DEFAULT_LIBRARY, functionName),
     model: readSource(given, "model", DEFAULT_MODEL, functionName),
     matches: getValue(given, "matches", "number", 3, functionName, ""),
-    ppmTolerance: getValue(given, "ppmTolerance", "number", 20, functionName, ""),
-    mzTolerance: getValue(given, "mzTolerance", "number", 0.005, functionName, ""),
+    ppmTolerance: getValue(
+      given,
+      "ppmTolerance",
+      "number",
+      20,
+      functionName,
+      "",
+    ),
+    mzTolerance: getValue(
+      given,
+      "mzTolerance",
+      "number",
+      0.005,
+      functionName,
+      "",
+    ),
     rtRange: getValue(given, "rtRange", "number", 0.3, functionName, ""),
-    minRelativeIntensity: getValue(given, "minRelativeIntensity", "number", 0.02, functionName, ""),
-    polarity: getChoice(given, "polarity", Polarity, Polarity.POSITIVE, functionName, ""),
+    minRelativeIntensity: getValue(
+      given,
+      "minRelativeIntensity",
+      "number",
+      0.02,
+      functionName,
+      "",
+    ),
+    polarity: getChoice(
+      given,
+      "polarity",
+      Polarity,
+      Polarity.POSITIVE,
+      functionName,
+      "",
+    ),
   };
 }
-

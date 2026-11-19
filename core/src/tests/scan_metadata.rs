@@ -1,7 +1,7 @@
 use crate::{
     ErrorKind, FromTo, GetScanMetadataOptions, GetScansOptions, ParseIonOptions, Position,
-    ScanParam, ScanParamKind, ScanQuery, WriteIonOptions, get_scan_metadata, get_scans, parse_ion,
-    parse_mzml, sample_file::SampleFile, write_ion,
+    ScanArray, ScanParam, ScanParamKind, ScanQuery, WriteIonOptions, get_scan_metadata, get_scans,
+    parse_ion, parse_mzml, sample_file::SampleFile, write_ion,
 };
 
 const SCAN_COUNT: usize = 6;
@@ -346,7 +346,7 @@ fn scan_index_is_set_when_reading_chosen_arrays() {
     for mut file in [open_mzml(), open_ion()] {
         let options = GetScansOptions {
             level: 2,
-            arrays: vec![crate::ScanArray {
+            arrays: vec![ScanArray {
                 key: "intensity".to_string(),
                 accession: "MS:1000515".to_string(),
             }],
@@ -475,7 +475,7 @@ fn index_out_of_range_is_invalid() {
 fn index_cannot_be_an_array_key() {
     let mut file = open_ion();
     let options = GetScansOptions {
-        arrays: vec![crate::ScanArray {
+        arrays: vec![ScanArray {
             key: "index".to_string(),
             accession: "MS:1000786".to_string(),
         }],

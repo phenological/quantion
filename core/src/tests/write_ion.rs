@@ -4,6 +4,7 @@ use crate::{
     ErrorKind, FromTo, GetScansOptions, ParseIonOptions, Position, ScanQuery, WriteIonOptions,
     get_scans, parse_ion,
     sample_file::{FileSource, SampleFile},
+    utilities::ion::write_mzml_to_ion,
     write_ion,
 };
 
@@ -113,7 +114,7 @@ fn write_with_ionic(file: &mut SampleFile, block_bytes: usize, mz_window: f64) -
     };
     file.with_mzml("write_ion", |mzml| {
         let mut bytes = Vec::new();
-        crate::utilities::ion::write_mzml_to_ion(mzml, options, &mut bytes).expect("ionic write");
+        write_mzml_to_ion(mzml, options, &mut bytes).expect("ionic write");
         Ok(bytes)
     })
     .expect("mzML")

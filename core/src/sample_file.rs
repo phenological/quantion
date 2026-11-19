@@ -7,6 +7,7 @@ use ionic::{IonReader, mzml::structs::MzML};
 
 use crate::{
     error::{ErrorKind, QuantionError},
+    files::ScanParam,
     utilities::{
         calculate_eic::EicReader,
         ion::{ScanSource, ScanSummary},
@@ -157,7 +158,7 @@ impl ScanSource for SampleFile {
         }
     }
 
-    fn load_metadata(&mut self, index: usize) -> ionic::IonResult<Vec<crate::files::ScanParam>> {
+    fn load_metadata(&mut self, index: usize) -> ionic::IonResult<Vec<ScanParam>> {
         match &mut self.source {
             FileSource::Full(mzml) => mzml.load_metadata(index),
             FileSource::Lazy(ion) | FileSource::Remote(ion) => ion.load_metadata(index),

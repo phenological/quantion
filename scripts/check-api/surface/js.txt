@@ -220,6 +220,7 @@ interface NoiseLevel
 function parseIon(source: IonInput, options?: ParseIonOptions): Promise<SampleFile>
 
 interface ParseIonOptions
+    headers?: Header[] | undefined
     maxCacheSize?: number | undefined
 
 function parseMzml(source: string | BinaryInput): Promise<SampleFile>
@@ -560,6 +561,7 @@ interface NoiseLevel
 function parseIon(source: IonInput, options?: ParseIonOptions): Promise<SampleFile>
 
 interface ParseIonOptions
+    headers?: Header[] | undefined
     maxCacheSize?: number | undefined
 
 function parseMzml(source: string | BinaryInput): Promise<SampleFile>

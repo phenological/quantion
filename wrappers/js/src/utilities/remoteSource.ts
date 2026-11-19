@@ -1,4 +1,5 @@
 import { ContainmentCache } from "./containmentCache";
+import { HttpClient } from "./httpClient";
 
 export interface ByteRangeResult {
   offset: bigint;
@@ -7,6 +8,7 @@ export interface ByteRangeResult {
 
 export interface RemoteSource {
   url: string;
+  client: HttpClient;
   cache: ContainmentCache;
   total: bigint;
   multipart: boolean | null;
@@ -34,9 +36,12 @@ function hideQuery(url: string): string {
   return parsed.search === "" ? url : `${parsed.origin}${parsed.pathname}?…`;
 }
 
-async function fetchOrExplain(url: string, init: RequestInit): Promise<Response> {
+async function fetchOrExplain(
+  url: string,
+  request: Promise<Response>,
+): Promise<Response> {
   try {
-    return await fetch(url, init);
+    return await request;
   } catch (error) {
     const reason = error instanceof Error ? error.message : String(error);
     throw new Error(
@@ -45,23 +50,31 @@ async function fetchOrExplain(url: string, init: RequestInit): Promise<Response>
   }
 }
 
-export function newRemoteSource(url: string): RemoteSource {
-  return { url, cache: new ContainmentCache(), total: 0n, multipart: null };
+export function newRemoteSource(
+  url: string,
+  client: HttpClient = new HttpClient(),
+): RemoteSource {
+  return {
+    url,
+    client,
+    cache: new ContainmentCache(),
+    total: 0n,
+    multipart: null,
+  };
 }
 
 export async function fetchRange(
   url: string,
   range: ByteRangeResult,
+  client: HttpClient = new HttpClient(),
 ): Promise<Uint8Array> {
   const start = range.offset;
   const end = range.offset + range.length - 1n;
 
-  const response = await fetchOrExplain(url, {
-    headers: {
-      Range: `bytes=${start}-${end}`,
-      "Accept-Encoding": "identity",
-    },
-  });
+  const response = await fetchOrExplain(
+    url,
+    client.getRange(url, `${start}-${end}`),
+  );
 
   if (response.status !== 206) {
     throw new Error(
@@ -189,17 +202,13 @@ export function splitByteRanges(
 export async function fetchRanges(
   url: string,
   ranges: ByteRangeResult[],
+  client: HttpClient = new HttpClient(),
 ): Promise<Uint8Array[] | null> {
   const spec = ranges
     .map((range) => `${range.offset}-${range.offset + range.length - 1n}`)
     .join(", ");
 
-  const response = await fetch(url, {
-    headers: {
-      Range: `bytes=${spec}`,
-      "Accept-Encoding": "identity",
-    },
-  }).catch(() => null);
+  const response = await client.getRange(url, spec).catch(() => null);
 
   if (response === null) return null;
   if (response.status !== 206) {
@@ -237,6 +246,7 @@ export async function fetchRanges(
 export async function fetchRangeParts(
   url: string,
   range: ByteRangeResult,
+  client: HttpClient = new HttpClient(),
 ): Promise<Uint8Array> {
   const count = Number((range.length + PART_SIZE - 1n) / PART_SIZE);
   const bytes = new Uint8Array(Number(range.length));
@@ -256,7 +266,9 @@ export async function fetchRangeParts(
           : PART_SIZE;
       const at = Number(offset - range.offset);
       batch.push(
-        fetchRange(url, { offset, length }).then((part) => bytes.set(part, at)),
+        fetchRange(url, { offset, length }, client).then((part) =>
+          bytes.set(part, at),
+        ),
       );
     }
     await Promise.all(batch);
@@ -283,8 +295,8 @@ async function fetchEachRange(
     wanted.map(async (range) => {
       const bytes =
         range.length > PART_SIZE
-          ? await fetchRangeParts(source.url, range)
-          : await fetchRange(source.url, range);
+          ? await fetchRangeParts(source.url, range, source.client)
+          : await fetchRange(source.url, range, source.client);
       source.cache.add(range, bytes);
     }),
   );
@@ -302,7 +314,7 @@ export async function prefetchRanges(
   const large = coalesced.filter((range) => range.length > PART_SIZE);
   await Promise.all(
     large.map(async (range) => {
-      const bytes = await fetchRangeParts(source.url, range);
+      const bytes = await fetchRangeParts(source.url, range, source.client);
       source.cache.add(range, bytes);
     }),
   );
@@ -310,7 +322,7 @@ export async function prefetchRanges(
   const exact = coalesced.filter((range) => range.length <= PART_SIZE);
   if (exact.length === 0) return;
   if (exact.length === 1) {
-    const bytes = await fetchRange(source.url, exact[0]);
+    const bytes = await fetchRange(source.url, exact[0], source.client);
     source.cache.add(exact[0], bytes);
     return;
   }
@@ -318,7 +330,7 @@ export async function prefetchRanges(
   if (source.multipart !== false && exact.length >= MULTIPART_MIN_RANGES) {
     const batches = chunked(exact, MAX_RANGES_PER_REQUEST);
     const results = await Promise.all(
-      batches.map((batch) => fetchRanges(source.url, batch)),
+      batches.map((batch) => fetchRanges(source.url, batch, source.client)),
     );
 
     if (results.every((result) => result !== null)) {
@@ -354,8 +366,14 @@ function readTotalFromContentRange(response: Response): bigint | null {
   return /^\d+$/.test(total) ? BigInt(total) : null;
 }
 
-async function fetchTotalByHead(url: string): Promise<bigint> {
-  const response = await fetchOrExplain(url, { method: "HEAD" });
+async function fetchTotalByHead(
+  url: string,
+  client: HttpClient,
+): Promise<bigint> {
+  const response = await fetchOrExplain(
+    url,
+    client.send(url, { method: "HEAD" }),
+  );
   if (!response.ok) {
     throw new Error(`size request failed for ${url}: got ${response.status}`);
   }
@@ -381,12 +399,10 @@ const SIGNATURE = [0x49, 0x4f, 0x4e, 0x49, 0x43];
 const FILE_SIZE_OFFSET = 400;
 
 export async function fetchHeader(source: RemoteSource): Promise<Uint8Array> {
-  const response = await fetchOrExplain(source.url, {
-    headers: {
-      Range: `bytes=0-${HEADER_BYTES - 1n}`,
-      "Accept-Encoding": "identity",
-    },
-  });
+  const response = await fetchOrExplain(
+    source.url,
+    source.client.getRange(source.url, `0-${HEADER_BYTES - 1n}`),
+  );
   if (response.status !== 206) {
     throw new Error(
       `range request failed for ${hideQuery(source.url)}: expected 206 Partial Content, got ${response.status}`,
@@ -415,7 +431,7 @@ export async function fetchHeader(source: RemoteSource): Promise<Uint8Array> {
   source.total =
     totalFromHeader ??
     readTotalFromContentRange(response) ??
-    (await fetchTotalByHead(source.url));
+    (await fetchTotalByHead(source.url, source.client));
 
   const range: ByteRangeResult = { offset: 0n, length: BigInt(bytes.length) };
   source.cache.add(range, bytes);

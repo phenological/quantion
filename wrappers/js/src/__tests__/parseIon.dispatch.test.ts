@@ -1,6 +1,7 @@
 import { describe, test, expect, beforeEach } from "@jest/globals";
 import { parseIon, setBackend } from "../utilities/api";
 import type { Backend, FileHandle } from "../utilities/backend";
+import { HttpClient } from "../utilities/httpClient";
 
 describe("parseIon dispatch to backend primitives", () => {
   let mockBackend: Backend;
@@ -18,6 +19,7 @@ describe("parseIon dispatch to backend primitives", () => {
       parseBin: jest.fn(),
       parseIonPath: parseIonPathMock,
       parseIonRemote: parseIonRemoteMock,
+      checkParseIonHeaders: jest.fn(),
       parseIonBuffer: parseIonBufferMock,
       freeFile: jest.fn(),
       fileToMzml: jest.fn(),
@@ -62,7 +64,11 @@ describe("parseIon dispatch to backend primitives", () => {
       const url = new URL("https://example.com/file.ion");
       await parseIon(url);
 
-      expect(mockBackend.parseIonRemote).toHaveBeenCalledWith(url, 0);
+      expect(mockBackend.parseIonRemote).toHaveBeenCalledWith(
+        url,
+        0,
+        new HttpClient(),
+      );
       expect(mockBackend.parseIonPath).not.toHaveBeenCalled();
       expect(mockBackend.parseIonBuffer).not.toHaveBeenCalled();
     });
@@ -71,7 +77,11 @@ describe("parseIon dispatch to backend primitives", () => {
       const url = new URL("http://example.com/file.ion");
       await parseIon(url);
 
-      expect(mockBackend.parseIonRemote).toHaveBeenCalledWith(url, 0);
+      expect(mockBackend.parseIonRemote).toHaveBeenCalledWith(
+        url,
+        0,
+        new HttpClient(),
+      );
       expect(mockBackend.parseIonPath).not.toHaveBeenCalled();
       expect(mockBackend.parseIonBuffer).not.toHaveBeenCalled();
     });
@@ -110,9 +120,50 @@ describe("parseIon dispatch to backend primitives", () => {
       const cacheSize = 2000;
       await parseIon(url, { maxCacheSize: cacheSize });
 
-      expect(mockBackend.parseIonRemote).toHaveBeenCalledWith(url, cacheSize);
+      expect(mockBackend.parseIonRemote).toHaveBeenCalledWith(
+        url,
+        cacheSize,
+        new HttpClient(),
+      );
       expect(mockBackend.parseIonPath).not.toHaveBeenCalled();
       expect(mockBackend.parseIonBuffer).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("headers", () => {
+    const token = { name: " Authorization ", value: "Bearer test-token" };
+
+    test("parseIon passes the headers to the remote reader", async () => {
+      const url = new URL("https://example.com/file.ion");
+      await parseIon(url, { headers: [token] });
+
+      expect(mockBackend.checkParseIonHeaders).toHaveBeenCalledWith(
+        true,
+        new TextEncoder().encode(" Authorization \0Bearer test-token\0"),
+      );
+      expect(mockBackend.parseIonRemote).toHaveBeenCalledWith(
+        url,
+        0,
+        new HttpClient([token]),
+      );
+    });
+
+    test("parseIon asks the core to check headers for a path", async () => {
+      await parseIon("/data/file.ion", { headers: [token] });
+
+      expect(mockBackend.checkParseIonHeaders).toHaveBeenCalledWith(
+        false,
+        expect.any(Uint8Array),
+      );
+    });
+
+    test("parseIon refuses headers that are not an array", async () => {
+      await expect(
+        parseIon("https://example.com/file.ion", {
+          headers: "Authorization: x" as any,
+        }),
+      ).rejects.toThrow("parseIon: headers must be an array");
+      expect(mockBackend.parseIonRemote).not.toHaveBeenCalled();
     });
   });
 

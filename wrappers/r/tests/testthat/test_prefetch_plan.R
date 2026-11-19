@@ -9,6 +9,7 @@ source_holding <- function(blocks) {
 source_over_file <- function(path) {
   source <- new.env(parent = emptyenv())
   source$url <- file_url(path)
+  source$client <- quantion:::.http_client()
   source$store <- .Call("C_store_new", PACKAGE = "quantion")
   source$held <- list()
   source$total <- file.info(path)$size

@@ -24,16 +24,18 @@ This is an experimental feature.
 \url{https://phenological.github.io/quantion/?language=r#annotate_features}
 }
 \examples{
-\dontrun{
-library(quantion)
+\donttest{
+if (curl::has_internet()) {
+  library(quantion)
 
-url <- "https://raw.githubusercontent.com/phenological/ion-files/main/data/aa_p21_LTR_20_b1_w20.ion"
-file <- parse_ion(url)
-features <- find_features(file, find_features_options(
-  eic  = calculate_eic_options(from = 2.3, to = 2.45),
-  grid = grid_options(start = 255, end = 265)
-))
-annotations <- annotate_features(list(file), features, annotate_features_options(matches = 3L))
-print(annotations[, c("mz", "rt", "label", "id", "database", "frequency", "score")])
+  url <- "https://raw.githubusercontent.com/phenological/ion-files/main/data/aa_p21_LTR_20_b1_w20.ion"
+  file <- parse_ion(url)
+  features <- find_features(file, find_features_options(
+    eic  = calculate_eic_options(from = 2.3, to = 2.45),
+    grid = grid_options(start = 255, end = 265)
+  ))
+  annotations <- annotate_features(list(file), features, annotate_features_options(matches = 3L))
+  print(annotations[, c("mz", "rt", "label", "id", "database", "frequency", "score")])
+}
 }
 }

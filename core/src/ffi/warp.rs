@@ -12,17 +12,21 @@ use super::{
     public::{fail, read_targets_at, read_values, remember},
     write_buf,
 };
-use crate::utilities::{
-    bridge::{
-        Column, QUANTION_PAYLOAD_WARP_TARGETS, QUANTION_SECTION_WARP_TARGET_ID_BYTES,
-        QUANTION_SECTION_WARP_TARGET_ID_STARTS, QUANTION_SECTION_WARP_TARGET_MZ,
-        QUANTION_SECTION_WARP_TARGET_RT, build_record_bridge,
-    },
-    calculate_eic::{EicReader, FastError},
-    structs::Target,
-    warp_model::{
-        WarpError, WarpModel, check_target_lists, get_median_targets, load_warp,
-        plan_predict_rts_ranges,
+use crate::{
+    QuantionError,
+    models::from_warp_error,
+    utilities::{
+        bridge::{
+            Column, QUANTION_PAYLOAD_WARP_TARGETS, QUANTION_SECTION_WARP_TARGET_ID_BYTES,
+            QUANTION_SECTION_WARP_TARGET_ID_STARTS, QUANTION_SECTION_WARP_TARGET_MZ,
+            QUANTION_SECTION_WARP_TARGET_RT, build_record_bridge,
+        },
+        calculate_eic::{EicReader, FastError},
+        structs::Target,
+        warp_model::{
+            WarpError, WarpModel, check_target_lists, get_median_targets, load_warp,
+            plan_predict_rts_ranges,
+        },
     },
 };
 
@@ -183,7 +187,7 @@ pub unsafe extern "C" fn calibrate_rts(
         .iter()
         .any(|file| file.is_null() || file_is_broken(*file))
     {
-        return remember(crate::QuantionError::invalid(
+        return remember(QuantionError::invalid(
             "calibrate",
             "anchor_samples",
             "must all be open; one was disposed or never opened",
@@ -293,5 +297,5 @@ fn get_ids(
 
 fn write_error(function: &'static str, message: *mut Buf, error: WarpError) -> c_int {
     write_buf(message, error.to_string().into_bytes().into_boxed_slice());
-    remember(crate::models::from_warp_error(function, error))
+    remember(from_warp_error(function, error))
 }

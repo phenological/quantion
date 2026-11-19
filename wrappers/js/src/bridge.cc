@@ -86,7 +86,7 @@ static_assert(sizeof(CPeakOptions) == 80, "CPeakOptions must be 80 bytes");
 typedef uint32_t (*fn_quantion_abi_version)(void);
 typedef size_t   (*fn_quantion_sizeof_peak_options)(void);
 typedef int32_t (*fn_parse_mzml)(const unsigned char *, size_t, MzML **);
-typedef int32_t (*fn_parse_bin)(const unsigned char *, size_t, size_t, MzML **);
+typedef int32_t (*fn_parse_ion_bytes)(const unsigned char *, size_t, size_t, MzML **);
 typedef int32_t (*fn_read_range)(void *, uint64_t, uint64_t, uint8_t *);
 typedef int32_t (*fn_parse_ion_source)(fn_read_range, void *, size_t, MzML **);
 typedef int32_t (*fn_plan_open)(const uint8_t *, size_t, Buf *);
@@ -101,6 +101,7 @@ typedef void (*fn_free_mzml)(MzML *);
 typedef int32_t (*fn_quantion_last_error)(Buf *);
 typedef int32_t (*fn_parse_mzml_path)(const char *, MzML **);
 typedef int32_t (*fn_write_ion)(MzML *, const char *, uint8_t, uint8_t, uint8_t, uint32_t, uint32_t, const uint8_t *, size_t, Buf *);
+typedef int32_t (*fn_check_parse_ion_headers)(uint8_t, const uint8_t *, size_t);
 typedef int32_t (*fn_write_mzml)(MzML *, const char *, uint8_t, Buf *);
 typedef int32_t (*fn_fit_peak)(const double *, const double *, size_t, double, int32_t, double, Buf *);
 typedef int32_t (*fn_draw_peaks)(const double *, const double *, const double *, const double *, size_t, double, double, size_t, Buf *, Buf *);
@@ -144,6 +145,7 @@ typedef struct
   fn_quantion_last_error quantion_last_error;
   fn_parse_mzml_path parse_mzml_path;
   fn_write_ion write_ion;
+  fn_check_parse_ion_headers check_parse_ion_headers;
   fn_write_mzml write_mzml;
   fn_fit_peak fit_peak;
   fn_draw_peaks draw_peaks;
@@ -156,7 +158,7 @@ typedef struct
   fn_calculate_baseline calculate_baseline;
   fn_deisotope_features deisotope_features;
   fn_find_features find_features;
-  fn_parse_bin parse_bin;
+  fn_parse_ion_bytes parse_ion_bytes;
   fn_parse_ion_source parse_ion_source;
   fn_plan_open plan_open;
   fn_plan_eic plan_eic;
@@ -361,6 +363,8 @@ static int abi_load(const char *path, const char **err)
     goto fail;
   if (resolve_required((void **)&ABI.write_ion, "write_ion"))
     goto fail;
+  if (resolve_required((void **)&ABI.check_parse_ion_headers, "check_parse_ion_headers"))
+    goto fail;
   if (resolve_required((void **)&ABI.write_mzml, "write_mzml"))
     goto fail;
   if (resolve_required((void **)&ABI.fit_peak, "fit_peak"))
@@ -393,7 +397,7 @@ static int abi_load(const char *path, const char **err)
   ABI.plan_scans_with_arrays = (fn_scans_with_arrays)DLSYM(LIB_HANDLE, "plan_scans_with_arrays");
   ABI.get_scans_with_arrays = (fn_scans_with_arrays)DLSYM(LIB_HANDLE, "get_scans_with_arrays");
   ABI.plan_image = (fn_plan_image)DLSYM(LIB_HANDLE, "plan_image");
-  if (resolve_required((void **)&ABI.parse_bin, "parse_bin"))
+  if (resolve_required((void **)&ABI.parse_ion_bytes, "parse_ion_bytes"))
     goto fail;
   ABI.parse_ion_path = (fn_parse_ion_path)DLSYM(LIB_HANDLE, "parse_ion_path");
   if (resolve_required((void **)&ABI.match_features, "match_features"))
@@ -718,6 +722,16 @@ static Napi::Value WriteIon(const Napi::CallbackInfo &info)
   if (has_out && out.buf.ptr == nullptr)
     return env.Undefined();
   return TakeBuffer(env, out.Out());
+}
+
+static Napi::Value CheckParseIonHeaders(const Napi::CallbackInfo &info)
+{
+  Napi::Env env = info.Env();
+  Napi::Buffer<uint8_t> headers = info[1].As<Napi::Buffer<uint8_t>>();
+  int32_t rc = ABI.check_parse_ion_headers(Byte(info, 0), headers.Data(), headers.Length());
+  if (rc != 0)
+    return ThrowRc(env, "parse_ion", rc);
+  return env.Undefined();
 }
 
 static Napi::Value WriteMzml(const Napi::CallbackInfo &info)
@@ -1053,7 +1067,7 @@ static Napi::Value FindFeatures(const Napi::CallbackInfo &info)
 static Napi::Value ParseBin(const Napi::CallbackInfo &info)
 {
   Napi::Env env = info.Env();
-  if (!ThrowIfMissing(env, (void *)ABI.parse_bin, "parse_bin"))
+  if (!ThrowIfMissing(env, (void *)ABI.parse_ion_bytes, "parse_ion_bytes"))
     return env.Undefined();
   if (info.Length() < 1 || !info[0].IsBuffer())
     return env.Undefined();
@@ -1065,10 +1079,10 @@ static Napi::Value ParseBin(const Napi::CallbackInfo &info)
                          : 0;
 
   MzML *handle = nullptr;
-  int32_t rc = ABI.parse_bin(input.Data(), input_len, max_cache, &handle);
+  int32_t rc = ABI.parse_ion_bytes(input.Data(), input_len, max_cache, &handle);
 
   if (rc != 0)
-    return ThrowRc(env, "parse_bin", rc);
+    return ThrowRc(env, "parse_ion_bytes", rc);
 
   MzMLWrapper *w = new MzMLWrapper{handle, input_len, nullptr};
   Napi::MemoryManagement::AdjustExternalMemory(env, (int64_t)input_len);
@@ -1714,6 +1728,7 @@ static Napi::Object Init(Napi::Env env, Napi::Object exports)
   exports.Set("parseMzml", Napi::Function::New(env, ParseMzML));
   exports.Set("parseMzmlPath", Napi::Function::New(env, ParseMzmlPath));
   exports.Set("writeIon", Napi::Function::New(env, WriteIon));
+  exports.Set("checkParseIonHeaders", Napi::Function::New(env, CheckParseIonHeaders));
   exports.Set("writeMzml", Napi::Function::New(env, WriteMzml));
   exports.Set("fitPeak", Napi::Function::New(env, FitPeak));
   exports.Set("drawPeaks", Napi::Function::New(env, DrawPeaks));

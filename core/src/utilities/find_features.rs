@@ -14,8 +14,8 @@ use crate::{
     traces::FindPeaksOptions,
     utilities::{
         calculate_eic::{
-            EicReader, FastError, MS1_LEVEL, SpectrumKind, get_scan_times, get_spectrum_kind,
-            lower_bound, mz_tolerance_for, plan_window_ranges, read_mz_window,
+            EicReader, FastError, MS1_LEVEL, ScanTime, SpectrumKind, get_scan_times,
+            get_spectrum_kind, lower_bound, mz_tolerance_for, plan_window_ranges, read_mz_window,
             summed_intensity_in_window, with_eic_apex_intensity,
         },
         find_masses::find_masses,
@@ -305,7 +305,7 @@ fn grid_read_window(grid: &[f64], options: &FeatureSettings) -> (f64, f64) {
 
 fn read_grid_scans(
     reader: &mut EicReader,
-    scan_times: &[crate::utilities::calculate_eic::ScanTime],
+    scan_times: &[ScanTime],
     grid: &[f64],
     options: &FeatureSettings,
 ) -> Result<Scans, FeatureError> {

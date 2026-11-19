@@ -49,7 +49,7 @@ DEFAULT_SCAN_ARRAYS = [
 ]
 GET_SCANS = {"level": 1, "time_unit": "MINUTES", "arrays": DEFAULT_SCAN_ARRAYS}
 GET_SCAN_METADATA = {"tags": []}
-PARSE_ION = {"max_cache_size": 0}
+PARSE_ION = {"max_cache_size": 0, "headers": []}
 WRITE_ION = {"out": None, "overwrite": False, "level": 12, "f32_compress": False, "block_size": 8, "mz_window": 20, "headers": []}
 WRITE_MZML = {"out": None, "overwrite": False}
 ION_IMAGE = {"tolerance": 0.125, "level": 1, "on_progress": None}

@@ -1,8 +1,8 @@
 \name{header}
 \alias{header}
-\title{An HTTP header for an upload}
+\title{An HTTP header for a remote read or an upload}
 \description{
-One HTTP header sent with an upload in \code{\link{write_ion}()}. A line break, or Host, Content-Length or Transfer-Encoding, gives an \code{invalid_argument} error.
+One HTTP header sent with every remote read in \code{\link{parse_ion}()} or with an upload in \code{\link{write_ion}()}. A line break, or Host, Content-Length or Transfer-Encoding, gives an \code{invalid_argument} error.
 }
 \usage{
 header(name, value)

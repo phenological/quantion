@@ -16,6 +16,7 @@ SEXP C_store_add(SEXP store_pointer, SEXP offset, SEXP bytes);
 SEXP C_write_ion(SEXP file, SEXP out_path, SEXP overwrite, SEXP level, SEXP f32_compress, SEXP block_size,
                  SEXP mz_window, SEXP headers);
 SEXP C_write_mzml(SEXP file, SEXP out_path, SEXP overwrite);
+SEXP C_check_parse_ion_headers(SEXP is_url, SEXP headers);
 SEXP C_get_scans(SEXP file, SEXP query, SEXP level, SEXP time_unit);
 SEXP C_plan_scans(SEXP file, SEXP query, SEXP level, SEXP time_unit);
 SEXP C_get_scan_metadata(SEXP file, SEXP index, SEXP tags);
@@ -65,6 +66,7 @@ static const R_CallMethodDef CallEntries[] = {
     {"C_store_new", (DL_FUNC)&C_store_new, 0},
     {"C_store_add", (DL_FUNC)&C_store_add, 3},
     {"C_write_ion", (DL_FUNC)&C_write_ion, 8},
+    {"C_check_parse_ion_headers", (DL_FUNC)&C_check_parse_ion_headers, 2},
     {"C_write_mzml", (DL_FUNC)&C_write_mzml, 3},
     {"C_get_scans", (DL_FUNC)&C_get_scans, 4},
     {"C_plan_scans", (DL_FUNC)&C_plan_scans, 4},

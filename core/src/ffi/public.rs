@@ -13,13 +13,19 @@ use super::{
     mark_file_broken, pack_byte_ranges, read_ids, write_buf,
 };
 use crate::{
-    CalculateEicOptions, DataXY, ErrorKind, FindFeaturesOptions, FindPeaksOptions,
-    FindTargetsOptions, FindTransitionsOptions, FitPeakOptions, FromTo, GetIonImageOptions,
-    GetPeakOptions, GetScanMetadataOptions, GetScansOptions, GridOptions, Header, PeakParameters,
-    PeakShape, Position, QuantionError, SampleFile, ScanParam, ScanQuery, Target, TimeUnit,
-    Transition, WriteIonOptions, WriteMzmlOptions,
-    files::{IonOutput, from_fast_error, scan_metadata_error},
+    CalculateEicOptions, DataXY, DeisotopeFeaturesOptions, ErrorKind, Feature, FindFeaturesOptions,
+    FindPeaksOptions, FindTargetsOptions, FindTransitionsOptions, FitPeakOptions, FromTo,
+    GetIonImageOptions, GetPeakOptions, GetScanMetadataOptions, GetScansOptions, GridOptions,
+    GroupingOptions, Header, MatchFeaturesOptions, PeakParameters, PeakShape, Position,
+    QuantionError, SampleFile, ScanParam, ScanQuery, Target, TimeUnit, Transition, WriteIonOptions,
+    WriteMzmlOptions,
+    files::{
+        IonOutput, check_eic_request, check_headers, check_scan_query, encode_ion, from_fast_error,
+        read_scans_with_arrays, scan_metadata_error,
+    },
+    parse_mzml,
     sample_file::FileSource,
+    targets::check_targets,
     traces::{CalculateBaselineOptions, DrawPeaksOptions},
     utilities::{
         bridge::{
@@ -40,6 +46,7 @@ use crate::{
         calculate_eic::plan_eic_ranges,
         find_features::{FeatureSettings, plan_features_ranges},
         find_targets::plan_targets_ranges,
+        get_scans::plan_scan_ranges,
     },
 };
 
@@ -284,7 +291,7 @@ pub unsafe extern "C" fn parse_mzml_path(
     run(FUNCTION, || {
         let path = read_text(FUNCTION, "source", path)?
             .ok_or_else(|| QuantionError::missing(FUNCTION, "source"))?;
-        let file = crate::parse_mzml(path)?;
+        let file = parse_mzml(path)?;
         unsafe { *dest = Box::into_raw(Box::new(ParsedFile::from_file(file))) };
         Ok(())
     })
@@ -329,7 +336,7 @@ pub unsafe extern "C" fn write_ion(
             headers: read_headers(FUNCTION, headers, headers_len)?,
         };
         if let Some(IonOutput::Url(_)) = options.out {
-            let bytes = crate::files::encode_ion(file, &options)?;
+            let bytes = encode_ion(file, &options)?;
             write_buf(out, bytes.into_boxed_slice());
             return Ok(());
         }
@@ -337,6 +344,23 @@ pub unsafe extern "C" fn write_ion(
             write_buf(out, bytes.into_boxed_slice());
         }
         Ok(())
+    })
+}
+
+/// Check the headers parse_ion sends with every remote read; the caller reads the URL with its own HTTP client. `is_url` is 1 when the source is a URL. `headers` holds name, value, name, value… each ending in a NUL byte.
+///
+/// # Safety
+/// `headers` must point to `headers_len` readable bytes, or be null.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn check_parse_ion_headers(
+    is_url: u8,
+    headers: *const u8,
+    headers_len: usize,
+) -> c_int {
+    const FUNCTION: &str = "parse_ion";
+    run(FUNCTION, || {
+        let headers = read_headers(FUNCTION, headers, headers_len)?;
+        check_headers(FUNCTION, &headers, is_url != 0, "source")
     })
 }
 
@@ -654,7 +678,7 @@ pub unsafe extern "C" fn plan_eic(
     clear_buf(out);
     run_on_file(FUNCTION, handle, |file| {
         let options = get_eic_options(from, to, ppm_tolerance, mz_tolerance, time_unit);
-        crate::files::check_eic_request(FUNCTION, mz, &options)?;
+        check_eic_request(FUNCTION, mz, &options)?;
         let window = options.get_window();
         if let FileSource::Lazy(ion) | FileSource::Remote(ion) = &mut file.source {
             let ranges =
@@ -777,14 +801,14 @@ pub unsafe extern "C" fn get_scans_with_arrays(
     clear_buf(out);
     run_on_file(FUNCTION, handle, |file| {
         let query = get_scan_query(rt_kind, rt_from, rt_to, mz_kind, mz_from, mz_to)?;
-        crate::files::check_scan_query(FUNCTION, query)?;
+        check_scan_query(FUNCTION, query)?;
         let accessions = read_accessions(accessions, array_count)?;
         let options = GetScansOptions {
             level,
             time_unit: get_time_unit(time_unit),
             ..Default::default()
         };
-        let found = crate::files::read_scans_with_arrays(file, query, &options, accessions);
+        let found = read_scans_with_arrays(file, query, &options, accessions);
         write_buf(
             out,
             build_scan_arrays_bridge(found).ok_or_else(|| {
@@ -824,12 +848,12 @@ pub unsafe extern "C" fn plan_scans_with_arrays(
     clear_buf(out);
     run_on_file(FUNCTION, handle, |file| {
         let query = get_scan_query(rt_kind, rt_from, rt_to, mz_kind, mz_from, mz_to)?;
-        crate::files::check_scan_query(FUNCTION, query)?;
+        check_scan_query(FUNCTION, query)?;
         let arrays = ByteRangesOptions {
             arrays: read_accessions(accessions, array_count)?.to_vec(),
         };
         if let FileSource::Lazy(ion) | FileSource::Remote(ion) = &mut file.source {
-            let ranges = crate::utilities::get_scans::plan_scan_ranges(
+            let ranges = plan_scan_ranges(
                 ion.as_mut(),
                 query,
                 get_time_unit(time_unit),
@@ -870,9 +894,9 @@ pub unsafe extern "C" fn plan_scans(
     clear_buf(out);
     run_on_file(FUNCTION, handle, |file| {
         let query = get_scan_query(rt_kind, rt_from, rt_to, mz_kind, mz_from, mz_to)?;
-        crate::files::check_scan_query(FUNCTION, query)?;
+        check_scan_query(FUNCTION, query)?;
         if let FileSource::Lazy(ion) | FileSource::Remote(ion) = &mut file.source {
-            let ranges = crate::utilities::get_scans::plan_scan_ranges(
+            let ranges = plan_scan_ranges(
                 ion.as_mut(),
                 query,
                 get_time_unit(time_unit),
@@ -1158,7 +1182,7 @@ pub unsafe extern "C" fn plan_find_targets(
                 ..Default::default()
             })
             .collect();
-        crate::targets::check_targets(FUNCTION, &targets)?;
+        check_targets(FUNCTION, &targets)?;
         if let FileSource::Lazy(ion) | FileSource::Remote(ion) = &mut file.source {
             let ranges =
                 plan_targets_ranges(ion, &targets, window.from, window.to, eic.in_minutes())
@@ -1349,7 +1373,7 @@ fn read_feature(
     function: &'static str,
     index: usize,
     values: &[f64],
-) -> Result<crate::Feature, QuantionError> {
+) -> Result<Feature, QuantionError> {
     let n_points = values[6];
     if !(n_points >= 0.0 && n_points.fract() == 0.0) {
         return Err(QuantionError::invalid(
@@ -1358,7 +1382,7 @@ fn read_feature(
             format!("must be a count, got {n_points}"),
         ));
     }
-    Ok(crate::Feature {
+    Ok(Feature {
         mz: values[0],
         rt: values[1],
         from: values[2],
@@ -1406,7 +1430,7 @@ pub unsafe extern "C" fn deisotope_features(
         let has_frequency = features.iter().any(|feature| feature.frequency.is_some());
         let found = crate::deisotope_features(
             features,
-            crate::DeisotopeFeaturesOptions {
+            DeisotopeFeaturesOptions {
                 rt_tolerance,
                 mz_tolerance,
             },
@@ -1463,10 +1487,10 @@ pub unsafe extern "C" fn match_features(
         let eic = get_eic_options(from, to, ppm_tolerance, mz_tolerance, time_unit);
         let features =
             get_feature_options(eic, grid_start, grid_end, grid_step_size, options, threads);
-        let options = crate::MatchFeaturesOptions {
+        let options = MatchFeaturesOptions {
             eic: features.eic,
             grid: features.grid,
-            grouping: crate::GroupingOptions {
+            grouping: GroupingOptions {
                 ppm_tolerance: grouping_ppm_tolerance,
                 mz_tolerance: grouping_mz_tolerance,
                 rt_tolerance: grouping_rt_tolerance,

@@ -959,7 +959,7 @@ SEXP C_parse_ion(SEXP data, SEXP max_cache_size)
 {
   check_bound();
   ParsedFile *handle = NULL;
-  check_code(parse_bin((const uint8_t *)RAW(data), (size_t)XLENGTH(data), (size_t)asReal(max_cache_size), &handle));
+  check_code(parse_ion_bytes((const uint8_t *)RAW(data), (size_t)XLENGTH(data), (size_t)asReal(max_cache_size), &handle));
   return wrap_sample(handle, R_NilValue);
 }
 
@@ -1011,16 +1011,13 @@ SEXP C_store_add(SEXP store_pointer, SEXP offset, SEXP bytes)
   return R_NilValue;
 }
 
-SEXP C_write_ion(SEXP file, SEXP out_path, SEXP overwrite, SEXP level, SEXP f32_compress, SEXP block_size,
-                 SEXP mz_window, SEXP headers)
+static uint8_t *pack_headers(SEXP headers, size_t *headers_size)
 {
-  check_bound();
-  ParsedFile *handle = get_sample(file);
-  size_t headers_size = 0;
+  *headers_size = 0;
   R_xlen_t header_count = XLENGTH(headers);
   for (R_xlen_t index = 0; index < header_count; index++)
-    headers_size += strlen(Rf_translateCharUTF8(STRING_ELT(headers, index))) + 1;
-  uint8_t *header_bytes = (uint8_t *)R_alloc(headers_size > 0 ? headers_size : 1, 1);
+    *headers_size += strlen(Rf_translateCharUTF8(STRING_ELT(headers, index))) + 1;
+  uint8_t *header_bytes = (uint8_t *)R_alloc(*headers_size > 0 ? *headers_size : 1, 1);
   size_t cursor = 0;
   for (R_xlen_t index = 0; index < header_count; index++)
   {
@@ -1030,6 +1027,25 @@ SEXP C_write_ion(SEXP file, SEXP out_path, SEXP overwrite, SEXP level, SEXP f32_
     header_bytes[cursor + length] = 0;
     cursor += length + 1;
   }
+  return header_bytes;
+}
+
+SEXP C_check_parse_ion_headers(SEXP is_url, SEXP headers)
+{
+  check_bound();
+  size_t headers_size = 0;
+  uint8_t *header_bytes = pack_headers(headers, &headers_size);
+  check_code(check_parse_ion_headers((uint8_t)asLogical(is_url), header_bytes, headers_size));
+  return R_NilValue;
+}
+
+SEXP C_write_ion(SEXP file, SEXP out_path, SEXP overwrite, SEXP level, SEXP f32_compress, SEXP block_size,
+                 SEXP mz_window, SEXP headers)
+{
+  check_bound();
+  ParsedFile *handle = get_sample(file);
+  size_t headers_size = 0;
+  uint8_t *header_bytes = pack_headers(headers, &headers_size);
   Buf out = (Buf){0};
   check_code(write_ion(handle, get_text_or_null(out_path), (uint8_t)asLogical(overwrite), (uint8_t)asInteger(level),
                        (uint8_t)asLogical(f32_compress), (uint32_t)asReal(block_size), (uint32_t)asReal(mz_window),

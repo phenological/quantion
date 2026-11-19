@@ -115,7 +115,7 @@ export interface Transition {
 /**
  * Header · Inputs
  *
- * One HTTP header sent with an upload in write_ion, for example a token. Values are never printed. A line break, or the names Host, Content-Length or Transfer-Encoding, give an invalid_argument error.
+ * One HTTP header sent with every remote read in parse_ion or with an upload in write_ion, for example a token. Values are never printed. A line break, or the names Host, Content-Length or Transfer-Encoding, give an invalid_argument error.
  *
  * Fields:
  * - `name`: Name of the header, such as Authorization.
@@ -459,10 +459,12 @@ export interface ScanArray {
  *
  * Fields:
  * - `maxCacheSize`: Maximum memory, in bytes, kept for the parts of the file already read. 0 = no limit. Set it to limit memory on large or remote files. Default `0`.
+ * - `headers`: Extra HTTP headers for every remote read, such as a token. Only used with a URL. Default `[]`.
  * @see {@link https://phenological.github.io/quantion/?language=js#ParseIonOptions | Documentation}
  */
 export interface ParseIonOptions {
   maxCacheSize?: number;
+  headers?: Header[];
 }
 
 /**

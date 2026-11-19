@@ -1,3 +1,4 @@
+import type { HttpClient } from "./httpClient";
 import type {
   DataXY,
   Feature,
@@ -126,7 +127,12 @@ export interface Backend {
   parseMzmlBytes(data: Uint8Array): FileHandle;
   parseMzmlPath(path: string): FileHandle;
   parseIonPath(path: string, cacheSize: number): MaybePromise<FileHandle>;
-  parseIonRemote(url: URL, cacheSize: number): Promise<FileHandle>;
+  parseIonRemote(
+    url: URL,
+    cacheSize: number,
+    client: HttpClient,
+  ): Promise<FileHandle>;
+  checkParseIonHeaders(isUrl: boolean, headers: Uint8Array): void;
   parseIonBuffer(
     bytes: Uint8Array,
     cacheSize: number,

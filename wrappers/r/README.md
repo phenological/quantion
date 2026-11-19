@@ -8,7 +8,7 @@ R bindings for quantion, a toolkit for LC-MS data processing.
 remotes::install_github("phenological/quantion", subdir = "wrappers/r")
 ```
 
-The install builds the native library from its Rust source, so it needs `cargo` and `rustc` (1.88 or newer).
+The install downloads the prebuilt native library for your platform from the matching GitHub release. If `cargo` and `rustc` (1.88 or newer) are installed, it builds the library from source instead.
 
 ## Quick start
 
@@ -25,7 +25,7 @@ print(peak)
 
 ## MCP server
 
-Apps that support MCP (e.g. Claude Code or Codex) can use the Quant·ion functions as tools with `quantion-mcp`. It runs locally and reads only the folders you allow. Setup: [mcp](https://github.com/phenological/quantion/tree/main/mcp).
+Apps that support MCP (e.g. Claude Code or Codex) can use the Quant·ion functions as tools with `quantion-mcp`. It runs locally and reads only the allowed folders. Setup: [mcp](https://github.com/phenological/quantion/tree/main/mcp).
 
 ## Documentation
 

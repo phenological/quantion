@@ -11,7 +11,7 @@ use crate::{
     AnnotateFeaturesOptions, ErrorKind, FeatureAnnotation, ParseIonOptions, Polarity,
     QuantionError, SampleFile, annotate_features,
     annotations::annotate_with_library,
-    parse_ion,
+    load_model, parse_ion,
     sample_file::FileSource,
     utilities::{find_features::Feature, ion::write_mzml_to_ion, spectrum_model::SpectrumModel},
 };
@@ -443,7 +443,7 @@ fn annotate_in_memory(
     library: SampleFile,
     polarity: Polarity,
 ) -> Result<Vec<FeatureAnnotation>, QuantionError> {
-    let model = crate::load_model(format!("{FOLDER}/model.onnx").as_str()).expect("model file");
+    let model = load_model(format!("{FOLDER}/model.onnx").as_str()).expect("model file");
     let model = SpectrumModel::read(&model).expect("model");
     let mut library = library;
     let mut sample = sample;

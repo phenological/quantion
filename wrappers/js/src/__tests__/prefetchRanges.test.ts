@@ -1,4 +1,4 @@
-import { describe, test, expect, beforeEach } from "@jest/globals";
+import { describe, test, expect, beforeEach, afterEach } from "@jest/globals";
 import {
   coalesceRanges,
   fetchRange,
@@ -8,6 +8,7 @@ import {
   splitByteRanges,
   type ByteRangeResult,
 } from "../utilities/remoteSource";
+import { HttpClient } from "../utilities/httpClient";
 
 const BOUNDARY = "QUANTION";
 
@@ -199,7 +200,8 @@ describe("prefetchRanges", () => {
     const data = sample(8192);
     const { fetcher } = serve(data, "multipart");
     globalThis.fetch = (async (url: string, init: any) => {
-      if ((init.headers.Range as string).includes(",")) throw new TypeError("Failed to fetch");
+      if ((init.headers.Range as string).includes(","))
+        throw new TypeError("Failed to fetch");
       return fetcher(url, init);
     }) as any;
 
@@ -216,9 +218,14 @@ describe("prefetchRanges", () => {
       throw new TypeError("Failed to fetch");
     }) as any;
 
-    const reading = fetchRange("https://x.test/files/f.ion?key=SECRET", { offset: 0n, length: 16n } as ByteRangeResult);
+    const reading = fetchRange("https://x.test/files/f.ion?key=SECRET", {
+      offset: 0n,
+      length: 16n,
+    } as ByteRangeResult);
 
-    await expect(reading).rejects.toThrow("no answer from https://x.test/files/f.ion?… (Failed to fetch)");
+    await expect(reading).rejects.toThrow(
+      "no answer from https://x.test/files/f.ion?… (Failed to fetch)",
+    );
     await expect(reading).rejects.not.toThrow("SECRET");
   });
 
@@ -234,6 +241,32 @@ describe("prefetchRanges", () => {
     expect(parts).not.toBeNull();
     expect(parts!.map((part) => part.offset)).toEqual([2048n, 0n]);
     expect(parts![1].bytes).toEqual(data.subarray(0, 512));
+  });
+});
+
+describe("remote source headers", () => {
+  const original = globalThis.fetch;
+  afterEach(() => {
+    globalThis.fetch = original;
+  });
+
+  test("every range request carries the source headers", async () => {
+    const data = sample(64 * 1024);
+    const { fetcher } = serve(data, "multipart");
+    globalThis.fetch = fetcher as any;
+    const source = newRemoteSource(
+      "https://example.com/file.ion",
+      new HttpClient([{ name: "Authorization", value: "Bearer test-token" }]),
+    );
+    source.total = BigInt(data.length);
+
+    await prefetchRanges(source, spread(8));
+    await prefetchRanges(source, [{ offset: 60000n, length: 16n }]);
+
+    expect(fetcher.mock.calls.length).toBeGreaterThan(1);
+    for (const [, init] of fetcher.mock.calls as any[]) {
+      expect(init.headers.Authorization).toBe("Bearer test-token");
+    }
   });
 });
 

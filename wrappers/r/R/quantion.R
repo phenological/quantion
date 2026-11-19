@@ -119,10 +119,38 @@ header <- function(name, value) {
   .as_options("quantion_header", list(name = name, value = value))
 }
 
-parse_ion_options <- function(max_cache_size = 0) {
+parse_ion_options <- function(max_cache_size = 0, headers = list()) {
   .as_options("parse_ion_options", list(
-    max_cache_size = .check_number("parse_ion_options", "max_cache_size", max_cache_size)
+    max_cache_size = .check_number("parse_ion_options", "max_cache_size", max_cache_size),
+    headers = .check_headers("parse_ion_options", headers)
   ))
+}
+
+.check_headers <- function(function_name, headers) {
+  if (inherits(headers, "quantion_header")) headers <- list(headers)
+  if (!is.list(headers)) .invalid(function_name, "headers", "must be a list of header()")
+  for (index in seq_along(headers)) {
+    if (!inherits(headers[[index]], "quantion_header"))
+      .invalid(function_name, sprintf("headers[[%d]]", index), "must be built with header()")
+  }
+  headers
+}
+
+.pack_headers <- function(headers) {
+  as.character(unlist(lapply(headers, function(item) c(item$name, item$value)), use.names = FALSE))
+}
+
+.http_client <- function(headers = list()) {
+  fields <- vapply(headers, function(item) item$value, character(1))
+  names(fields) <- vapply(headers, function(item) trimws(item$name), character(1))
+  list(
+    get_range = function(url, offset, span) .fetch_range(url, offset, span, fields),
+    put = function(url, bytes) {
+      handle <- curl::new_handle(customrequest = "PUT", postfields = bytes)
+      if (length(fields)) curl::handle_setheaders(handle, .list = as.list(fields))
+      curl::curl_fetch_memory(url, handle = handle)
+    }
+  )
 }
 
 .LARGEST_U32 <- 4294967295
@@ -138,12 +166,7 @@ write_ion_options <- function(out = NULL, overwrite = FALSE, level = 12L, f32_co
                               block_size = 8L, mz_window = 20L) {
   function_name <- "write_ion_options"
   if (!is.null(out)) out <- .check_text(function_name, "out", out)
-  if (inherits(headers, "quantion_header")) headers <- list(headers)
-  if (!is.list(headers)) .invalid(function_name, "headers", "must be a list of header()")
-  for (index in seq_along(headers)) {
-    if (!inherits(headers[[index]], "quantion_header"))
-      .invalid(function_name, sprintf("headers[[%d]]", index), "must be built with header()")
-  }
+  headers <- .check_headers(function_name, headers)
   .as_options("write_ion_options", list(
     out = out,
     overwrite = .check_flag(function_name, "overwrite", overwrite),
@@ -414,9 +437,11 @@ parse_ion <- function(source, options = parse_ion_options()) {
   function_name <- "parse_ion"
   options <- .check_options(function_name, "options", options, "parse_ion_options", "parse_ion_options")
   cache <- options$max_cache_size
+  is_url <- !is.raw(source) && .is_url(.check_text(function_name, "source", source))
+  .Call("C_check_parse_ion_headers", is_url, .pack_headers(options$headers), PACKAGE = "quantion")
   if (is.raw(source)) return(.as_sample(.Call("C_parse_ion", source, cache, PACKAGE = "quantion")))
   source <- .check_text(function_name, "source", source)
-  if (.is_url(source)) return(.parse_ion_remote(source, cache))
+  if (is_url) return(.parse_ion_remote(source, cache, .http_client(options$headers)))
   .as_sample(.Call("C_parse_ion_path", path.expand(source), cache, PACKAGE = "quantion"))
 }
 
@@ -436,25 +461,19 @@ write_ion <- function(file, options = write_ion_options()) {
   file <- .check_sample(function_name, file)
   options <- .check_options(function_name, "options", options, "write_ion_options", "write_ion_options")
   out <- .get_out(options$out)
-  headers <- as.character(unlist(lapply(options$headers, function(item) c(item$name, item$value)), use.names = FALSE))
+  headers <- .pack_headers(options$headers)
   bytes <- .Call("C_write_ion", file, out, options$overwrite, as.integer(options$level),
                  options$f32_compress, options$block_size, options$mz_window, headers, PACKAGE = "quantion")
   if (!is.null(out) && .is_url(out)) {
-    .upload_ion(out, options$headers, bytes)
+    .upload_ion(out, .http_client(options$headers), bytes)
     return(invisible(NULL))
   }
   if (is.null(out)) bytes else invisible(NULL)
 }
 
-.upload_ion <- function(url, headers, bytes) {
-  handle <- curl::new_handle(customrequest = "PUT", postfields = bytes)
-  if (length(headers)) {
-    fields <- vapply(headers, function(item) item$value, character(1))
-    names(fields) <- vapply(headers, function(item) trimws(item$name), character(1))
-    curl::handle_setheaders(handle, .list = as.list(fields))
-  }
+.upload_ion <- function(url, client, bytes) {
   response <- tryCatch(
-    curl::curl_fetch_memory(url, handle = handle),
+    client$put(url, bytes),
     error = function(error) .signal_error("upload_failed", "write_ion", NULL, paste("PUT failed:", conditionMessage(error)))
   )
   if (response$status_code >= 400)
@@ -839,13 +858,13 @@ calibrate <- function(warp, anchor_samples, target_lists) {
         ids, as.numeric(combined("mz", TRUE)), as.numeric(combined("rt", TRUE)), PACKAGE = "quantion")
 }
 
-.fetch_range <- function(url, offset, span) {
+.fetch_range <- function(url, offset, span, headers = character()) {
   destination <- tempfile()
   on.exit(unlink(destination), add = TRUE)
   last <- offset + span - 1
   status <- tryCatch(
     utils::download.file(url, destination, method = "libcurl", quiet = TRUE, mode = "wb",
-                         headers = c(Range = sprintf("bytes=%.0f-%.0f", offset, last))),
+                         headers = c(headers, Range = sprintf("bytes=%.0f-%.0f", offset, last))),
     error = function(error) conditionMessage(error)
   )
   if (!identical(status, 0L))
@@ -905,7 +924,7 @@ calibrate <- function(warp, anchor_samples, target_lists) {
     offset <- spans[row, 1]
     span <- spans[row, 2]
     if (.already_held(source, offset, span)) next
-    bytes <- .fetch_range(source$url, offset, span)
+    bytes <- source$client$get_range(source$url, offset, span)
     .Call("C_store_add", source$store, offset, bytes, PACKAGE = "quantion")
     source$held[[length(source$held) + 1]] <- c(offset, length(bytes))
     fetched <- fetched + length(bytes)
@@ -914,14 +933,15 @@ calibrate <- function(warp, anchor_samples, target_lists) {
   invisible(NULL)
 }
 
-.parse_ion_remote <- function(url, max_cache_size = 0) {
+.parse_ion_remote <- function(url, max_cache_size = 0, client = .http_client()) {
   source <- new.env(parent = emptyenv())
   source$url <- url
+  source$client <- client
   source$store <- .Call("C_store_new", PACKAGE = "quantion")
   source$held <- list()
   source$total <- 0
 
-  header <- .fetch_range(url, 0, 1024)
+  header <- client$get_range(url, 0, 1024)
   .Call("C_store_add", source$store, 0, header, PACKAGE = "quantion")
   source$held[[1]] <- c(0, length(header))
 

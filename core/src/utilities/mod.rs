@@ -51,6 +51,12 @@ pub mod get_scans;
 
 pub mod structs;
 
+#[cfg(all(
+    feature = "http",
+    not(all(target_arch = "wasm32", not(target_os = "wasi")))
+))]
+pub(crate) mod http;
+
 pub mod cheminfo;
 
 pub mod math;

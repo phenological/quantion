@@ -168,6 +168,7 @@ typeddict NoiseLevel total=True
     width: int
 
 typeddict ParseIonOptions total=False
+    headers?: List[Header]
     max_cache_size?: int
 
 typeddict Peak total=True

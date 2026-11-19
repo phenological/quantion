@@ -2,6 +2,13 @@ use std::path::{Path, PathBuf};
 
 use ionic::{IonError, IonReader, IonResult, ReadOptions};
 
+use crate::Header;
+#[cfg(all(
+    feature = "http",
+    not(all(target_arch = "wasm32", not(target_os = "wasi")))
+))]
+use crate::utilities::http::HttpClient;
+
 /// What `parse_ion` can open. Build it with `.into()` from a path, a URL
 /// string, or bytes, and `parse_ion` picks the matching reader.
 #[derive(Debug, Clone)]
@@ -84,7 +91,7 @@ impl From<&Vec<u8>> for IonInput {
 /// Open an ion file from a path, a URL, or bytes.
 ///
 /// - Path: memory-maps the file, like `parse_ion_path`.
-/// - Bytes: reads from memory, like `parse_bin`.
+/// - Bytes: reads from memory, like `parse_ion_bytes`.
 /// - URL: fetches only the byte ranges it needs with HTTP `Range` requests.
 ///   Needs the `http` feature, and the server must answer `206 Partial Content`.
 pub fn parse_ion(input: impl Into<IonInput>, options: &ReadOptions) -> IonResult<IonReader> {
@@ -98,6 +105,14 @@ pub fn parse_ion(input: impl Into<IonInput>, options: &ReadOptions) -> IonResult
 pub(crate) fn parse_ion_with_prefetch(
     input: IonInput,
     options: &ReadOptions,
+    #[cfg_attr(
+        not(all(
+            feature = "http",
+            not(all(target_arch = "wasm32", not(target_os = "wasi")))
+        )),
+        allow(unused_variables)
+    )]
+    headers: Vec<Header>,
 ) -> IonResult<(IonReader, Option<std::sync::Arc<dyn PrefetchRanges>>)> {
     match input {
         #[cfg(all(
@@ -105,7 +120,7 @@ pub(crate) fn parse_ion_with_prefetch(
             not(all(target_arch = "wasm32", not(target_os = "wasi")))
         ))]
         IonInput::Url(url) => {
-            open_remote_ion(&url, options).map(|(reader, cache)| (reader, Some(cache)))
+            open_remote_ion(&url, options, headers).map(|(reader, cache)| (reader, Some(cache)))
         }
         other => parse_ion(other, options).map(|reader| (reader, None)),
     }
@@ -133,7 +148,7 @@ fn open_path(_path: &Path, _options: &ReadOptions) -> IonResult<IonReader> {
     not(all(target_arch = "wasm32", not(target_os = "wasi")))
 ))]
 fn open_url(url: &str, options: &ReadOptions) -> IonResult<IonReader> {
-    open_remote_ion(url, options).map(|(reader, _)| reader)
+    open_remote_ion(url, options, Vec::new()).map(|(reader, _)| reader)
 }
 
 pub(crate) trait PrefetchRanges: Send + Sync {
@@ -147,12 +162,13 @@ pub(crate) trait PrefetchRanges: Send + Sync {
 pub(crate) fn open_remote_ion(
     url: &str,
     options: &ReadOptions,
+    headers: Vec<Header>,
 ) -> IonResult<(IonReader, std::sync::Arc<dyn PrefetchRanges>)> {
     use std::sync::Arc;
 
     use ionic::source::{CallbackSource, ReadBytes};
 
-    let cache = Arc::new(RangeCache::new(url));
+    let cache = Arc::new(RangeCache::new(url, headers));
     let reading = cache.clone();
     let source = CallbackSource::new(move |range| reading.read(range));
     let reader = IonReader::new(Arc::new(source) as Arc<dyn ReadBytes>, options)?;
@@ -164,7 +180,7 @@ pub(crate) fn open_remote_ion(
     not(all(target_arch = "wasm32", not(target_os = "wasi")))
 ))]
 pub(crate) struct RangeCache {
-    agent: ureq::Agent,
+    client: HttpClient,
     url: String,
     held: std::sync::Mutex<Vec<(ionic::source::ByteRange, std::sync::Arc<[u8]>)>>,
     pub(crate) request_count: std::sync::atomic::AtomicUsize,
@@ -175,9 +191,9 @@ pub(crate) struct RangeCache {
     not(all(target_arch = "wasm32", not(target_os = "wasi")))
 ))]
 impl RangeCache {
-    fn new(url: &str) -> Self {
+    fn new(url: &str, headers: Vec<Header>) -> Self {
         Self {
-            agent: ureq::Agent::new_with_defaults(),
+            client: HttpClient::new(headers),
             url: url.to_string(),
             held: std::sync::Mutex::new(Vec::new()),
             request_count: std::sync::atomic::AtomicUsize::new(0),
@@ -187,7 +203,7 @@ impl RangeCache {
     fn fetch(&self, range: ionic::source::ByteRange) -> IonResult<Vec<u8>> {
         self.request_count
             .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-        fetch_range(&self.agent, &self.url, range)
+        self.client.get_range(&self.url, range)
     }
 
     fn read(&self, range: ionic::source::ByteRange) -> IonResult<Vec<u8>> {
@@ -232,38 +248,6 @@ impl PrefetchRanges for RangeCache {
         *held = fetched;
         Ok(())
     }
-}
-
-#[cfg(all(
-    feature = "http",
-    not(all(target_arch = "wasm32", not(target_os = "wasi")))
-))]
-fn fetch_range(
-    agent: &ureq::Agent,
-    url: &str,
-    range: ionic::source::ByteRange,
-) -> IonResult<Vec<u8>> {
-    if range.length == 0 {
-        return Ok(Vec::new());
-    }
-    let last = range.offset + range.length - 1;
-    let mut response = agent
-        .get(url)
-        .header("Range", format!("bytes={}-{}", range.offset, last))
-        .call()
-        .map_err(|error| IonError::from(format!("parse_ion: GET {url} failed: {error}")))?;
-    if response.status().as_u16() != 206 {
-        return Err(IonError::from(format!(
-            "parse_ion: {url} answered {} instead of 206; the server must support Range requests",
-            response.status()
-        )));
-    }
-    response
-        .body_mut()
-        .with_config()
-        .limit(range.length + 1)
-        .read_to_vec()
-        .map_err(|error| IonError::from(format!("parse_ion: reading {url} failed: {error}")))
 }
 
 #[cfg(all(

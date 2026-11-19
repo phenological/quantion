@@ -9,7 +9,7 @@ parse_ion(source, options = parse_ion_options())
 }
 \arguments{
   \item{source}{Where the file is. It can be a local path, an http(s) URL, or the file's bytes. Type: \code{character | raw}.}
-  \item{options}{Settings from \code{\link{parse_ion_options}()}: \code{max_cache_size = 0}.
+  \item{options}{Settings from \code{\link{parse_ion_options}()}: \code{max_cache_size = 0}, \code{headers}.
     \href{https://phenological.github.io/quantion/?language=r#ParseIonOptions}{ParseIonOptions documentation}
   }
 }

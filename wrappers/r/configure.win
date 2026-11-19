@@ -1,9 +1,14 @@
 #!/bin/sh
 set -e
 
-if [ -f ../../core/Cargo.toml ] && [ -f ../../scripts/stage-r-rust.sh ]; then
+has_cargo() {
+  command -v cargo >/dev/null 2>&1 || [ -x "$USERPROFILE/.cargo/bin/cargo.exe" ]
+}
+
+if has_cargo && [ -f ../../core/Cargo.toml ] && [ -f ../../scripts/stage-r-rust.sh ]; then
   sh ../../scripts/stage-r-rust.sh .
-elif [ ! -f src/rust/Cargo.toml ]; then
-  echo "quantion: src/rust is missing; run scripts/stage-r-rust.sh on this package first"
-  exit 1
+elif has_cargo && [ -f src/rust/Cargo.toml ]; then
+  :
+else
+  "${R_HOME}/bin${R_ARCH_BIN}/Rscript.exe" tools/download-library.R
 fi

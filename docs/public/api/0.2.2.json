@@ -167,7 +167,7 @@
       "languages": {
         "rust": {
           "signature": "pub fn parse_ion(input: impl Into<IonInput>, options: ParseIonOptions) -> Result<SampleFile, QuantionError>",
-          "example": "use quantion::{ParseIonOptions, parse_ion};\n\nlet url = \"https://raw.githubusercontent.com/phenological/ion-files/main/data/aa_p21_LTR_20_b1_w20.ion\";\nlet file = parse_ion(url, ParseIonOptions::default())?;\nlet cached = parse_ion(url, ParseIonOptions { max_cache_size: 64_000_000 })?;\nprintln!(\"opened {url}\");\n\ndrop(file);\ndrop(cached);",
+          "example": "use quantion::{ParseIonOptions, parse_ion};\n\nlet url = \"https://raw.githubusercontent.com/phenological/ion-files/main/data/aa_p21_LTR_20_b1_w20.ion\";\nlet file = parse_ion(url, ParseIonOptions::default())?;\nlet cached = parse_ion(url, ParseIonOptions { max_cache_size: 64_000_000, ..Default::default() })?;\nprintln!(\"opened {url}\");\n\ndrop(file);\ndrop(cached);",
           "warning": "The sample is freed when it goes out of scope, so nothing else is needed in normal use. When processing many samples, drop each one after using it, with drop(file), so its memory is freed right away instead of piling up."
         },
         "python": {
@@ -1893,8 +1893,7 @@
         },
         "r": {
           "signature": "match_features(directory, options = match_features_options())",
-          "example": "library(quantion)\n\nfeatures <- match_features(\"samples/\", options = match_features_options(\n  grouping = grouping_options(min_frequency = 0.5),\n  threads  = 8L\n))\nprint(features)",
-          "exampleRuns": false
+          "example": "library(quantion)\n\nfolder <- file.path(tempdir(), \"samples\")\ndir.create(folder, showWarnings = FALSE)\nurl <- \"https://raw.githubusercontent.com/phenological/ion-files/main/data/aa_p21_LTR_20_b1_w20.ion\"\nutils::download.file(url, file.path(folder, \"sample.ion\"), mode = \"wb\", quiet = TRUE)\nfeatures <- match_features(folder, options = match_features_options(\n  eic      = calculate_eic_options(from = 2.3, to = 2.45),\n  grid     = grid_options(start = 255, end = 265),\n  grouping = grouping_options(min_frequency = 0.5),\n  threads  = 1L\n))\nprint(features)"
         }
       }
     },
@@ -2094,8 +2093,7 @@
         },
         "r": {
           "signature": "annotate_features(files, features, options = annotate_features_options())",
-          "example": "library(quantion)\n\nurl <- \"https://raw.githubusercontent.com/phenological/ion-files/main/data/aa_p21_LTR_20_b1_w20.ion\"\nfile <- parse_ion(url)\nfeatures <- find_features(file, find_features_options(\n  eic  = calculate_eic_options(from = 2.3, to = 2.45),\n  grid = grid_options(start = 255, end = 265)\n))\nannotations <- annotate_features(list(file), features, annotate_features_options(matches = 3L))\nprint(annotations[, c(\"mz\", \"rt\", \"label\", \"id\", \"database\", \"frequency\", \"score\")])",
-          "exampleRuns": false
+          "example": "library(quantion)\n\nurl <- \"https://raw.githubusercontent.com/phenological/ion-files/main/data/aa_p21_LTR_20_b1_w20.ion\"\nfile <- parse_ion(url)\nfeatures <- find_features(file, find_features_options(\n  eic  = calculate_eic_options(from = 2.3, to = 2.45),\n  grid = grid_options(start = 255, end = 265)\n))\nannotations <- annotate_features(list(file), features, annotate_features_options(matches = 3L))\nprint(annotations[, c(\"mz\", \"rt\", \"label\", \"id\", \"database\", \"frequency\", \"score\")])"
         }
       }
     },
@@ -2828,7 +2826,7 @@
       "name": "Header",
       "group": "Inputs",
       "kind": "type",
-      "summary": "One HTTP header sent with an upload in write_ion, for example a token. Values are never printed. A line break, or the names Host, Content-Length or Transfer-Encoding, give an invalid_argument error.",
+      "summary": "One HTTP header sent with every remote read in parse_ion or with an upload in write_ion, for example a token. Values are never printed. A line break, or the names Host, Content-Length or Transfer-Encoding, give an invalid_argument error.",
       "fields": [
         {
           "meaning": "Name of the header, such as Authorization.",
@@ -5346,20 +5344,45 @@
               "default": "0"
             }
           }
+        },
+        {
+          "meaning": "Extra HTTP headers for every remote read, such as a token. Only used with a URL.",
+          "languages": {
+            "rust": {
+              "name": "headers",
+              "type": "Vec<Header>",
+              "default": "empty"
+            },
+            "python": {
+              "name": "headers",
+              "type": "list[Header]",
+              "default": "[]"
+            },
+            "js": {
+              "name": "headers",
+              "type": "Header[]",
+              "default": "[]"
+            },
+            "r": {
+              "name": "headers",
+              "type": "list of header()",
+              "default": "list()"
+            }
+          }
         }
       ],
       "languages": {
         "rust": {
-          "signature": "pub struct ParseIonOptions {\n    pub max_cache_size: usize,\n}"
+          "signature": "pub struct ParseIonOptions {\n    pub max_cache_size: usize,\n    pub headers: Vec<Header>,\n}"
         },
         "python": {
-          "signature": "class ParseIonOptions(TypedDict, total=False):\n    max_cache_size: int"
+          "signature": "class ParseIonOptions(TypedDict, total=False):\n    max_cache_size: int\n    headers: list[Header]"
         },
         "js": {
-          "signature": "export interface ParseIonOptions {\n  maxCacheSize?: number;\n}"
+          "signature": "export interface ParseIonOptions {\n  maxCacheSize?: number;\n  headers?: Header[];\n}"
         },
         "r": {
-          "signature": "parse_ion_options(max_cache_size = 0)"
+          "signature": "parse_ion_options(max_cache_size = 0, headers = list())"
         }
       }
     },

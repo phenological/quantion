@@ -1,10 +1,13 @@
 use ionic::{IonReader, ReadOptions};
 
-use crate::utilities::{
-    calculate_eic::{EicReader, ScanTime},
-    load_model::{ModelError, load_model},
-    structs::{FromTo, Target},
-    warp_model::{WarpError, WarpModel, load_warp, resample_eic},
+use crate::{
+    Feature, GridOptions, MatchFeaturesOptions, match_features,
+    utilities::{
+        calculate_eic::{EicReader, ScanTime},
+        load_model::{ModelError, load_model},
+        structs::{FromTo, Target},
+        warp_model::{WarpError, WarpModel, load_warp, resample_eic},
+    },
 };
 
 const MODEL_PATH: &str = "tests/fixtures/shift_model.onnx";
@@ -359,7 +362,7 @@ fn copy_into_folder(tag: &str, files: &[&str]) -> std::path::PathBuf {
     folder
 }
 
-fn get_sorted_masses(features: &[crate::Feature]) -> Vec<f64> {
+fn get_sorted_masses(features: &[Feature]) -> Vec<f64> {
     let mut masses: Vec<f64> = features.iter().map(|feature| feature.mz).collect();
     masses.sort_by(f64::total_cmp);
     masses
@@ -368,18 +371,18 @@ fn get_sorted_masses(features: &[crate::Feature]) -> Vec<f64> {
 #[test]
 fn match_features_with_a_warp_keeps_the_masses_of_identical_samples() {
     let folder = copy_into_folder("identical", &[COVERING_FILE, COVERING_FILE]);
-    let options = crate::MatchFeaturesOptions {
-        grid: crate::GridOptions {
+    let options = MatchFeaturesOptions {
+        grid: GridOptions {
             start: 80.0,
             end: 100.0,
             ..Default::default()
         },
         ..Default::default()
     };
-    let without_warp = crate::match_features(&folder, options.clone()).expect("without warp");
-    let with_warp = crate::match_features(
+    let without_warp = match_features(&folder, options.clone()).expect("without warp");
+    let with_warp = match_features(
         &folder,
-        crate::MatchFeaturesOptions {
+        MatchFeaturesOptions {
             warp: Some(get_warp()),
             ..options
         },

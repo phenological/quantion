@@ -15,13 +15,21 @@ use ionic::{
 };
 
 use crate::{
+    IonInput, ParseIonOptions, QuantionError, Scan,
+    error::{check_not_negative, check_positive},
+    files::ScanParam,
+    parse_ion,
     sample_file::{FileSource, SampleFile},
     utilities::{
         bridge::*,
         calculate_eic::{EicReader, FastError},
+        find_features::Feature,
         find_noise_level::find_noise_level as find_noise_level_rs,
         fit_peak::PeakParameters,
+        get_scans::ScanArrays,
         ion::{ScanSource, ScanSummary},
+        ion_image::{ImageSession, IonImage, image_session_begin, plan_ion_image_ranges},
+        structs::Peak,
     },
 };
 
@@ -44,9 +52,9 @@ mod warp;
 
 use public::fail;
 
-fn check_image_request(mz: f64, tolerance: f64) -> Result<(), crate::QuantionError> {
-    crate::error::check_positive("get_ion_image", "mz", mz)?;
-    crate::error::check_not_negative("get_ion_image", "tolerance", tolerance)
+fn check_image_request(mz: f64, tolerance: f64) -> Result<(), QuantionError> {
+    check_positive("get_ion_image", "mz", mz)?;
+    check_not_negative("get_ion_image", "tolerance", tolerance)
 }
 
 const OK: c_int = 0;
@@ -310,7 +318,7 @@ impl ScanSource for ParsedFile {
         self.file.load_array(index, accession, values)
     }
 
-    fn load_metadata(&mut self, index: usize) -> ionic::IonResult<Vec<crate::files::ScanParam>> {
+    fn load_metadata(&mut self, index: usize) -> ionic::IonResult<Vec<ScanParam>> {
         self.file.load_metadata(index)
     }
 }
@@ -402,7 +410,7 @@ pub unsafe extern "C" fn parse_ion_url(
 /// `dest` must be a valid writable pointer to `*mut ParsedFile`.
 /// On success, `*dest` must be freed with `free_mzml`.
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn parse_bin(
+pub unsafe extern "C" fn parse_ion_bytes(
     data_ptr: *const u8,
     data_len: usize,
     max_cache_size: usize,
@@ -412,12 +420,18 @@ pub unsafe extern "C" fn parse_bin(
         return fail(ERR_INVALID_ARGS, "parse_ion");
     }
     let bytes = unsafe { std::slice::from_raw_parts(data_ptr, data_len) }.to_vec();
-    open_ion(crate::IonInput::Bytes(bytes), max_cache_size, dest)
+    open_ion(IonInput::Bytes(bytes), max_cache_size, dest)
 }
 
-fn open_ion(input: crate::IonInput, max_cache_size: usize, dest: *mut *mut ParsedFile) -> c_int {
+fn open_ion(input: IonInput, max_cache_size: usize, dest: *mut *mut ParsedFile) -> c_int {
     public::run("parse_ion", || {
-        let file = crate::parse_ion(input, crate::ParseIonOptions { max_cache_size })?;
+        let file = parse_ion(
+            input,
+            ParseIonOptions {
+                max_cache_size,
+                ..Default::default()
+            },
+        )?;
         unsafe { *dest = Box::into_raw(Box::new(ParsedFile::from_file(file))) };
         Ok(())
     })
@@ -434,14 +448,14 @@ pub unsafe extern "C" fn parse_ion_path(
         return fail(ERR_INVALID_ARGS, "parse_ion");
     }
     let Ok(path) = unsafe { CStr::from_ptr(path_ptr) }.to_str() else {
-        return public::remember(crate::QuantionError::invalid(
+        return public::remember(QuantionError::invalid(
             "parse_ion",
             "source",
             "must be valid UTF-8 text",
         ));
     };
     open_ion(
-        crate::IonInput::Path(std::path::PathBuf::from(path)),
+        IonInput::Path(std::path::PathBuf::from(path)),
         max_cache_size,
         dest,
     )
@@ -540,18 +554,10 @@ pub unsafe extern "C" fn plan_image(
     match catch_unwind(AssertUnwindSafe(|| -> Result<(), c_int> {
         let file = unsafe { &mut *h };
         let ranges = match file.source_mut() {
-            FileSource::Lazy(ion) => crate::utilities::ion_image::plan_ion_image_ranges(
-                ion.as_mut(),
-                target,
-                tolerance,
-                level,
-            ),
-            FileSource::Remote(ion) => crate::utilities::ion_image::plan_ion_image_ranges(
-                ion.as_mut(),
-                target,
-                tolerance,
-                level,
-            ),
+            FileSource::Lazy(ion) => plan_ion_image_ranges(ion.as_mut(), target, tolerance, level),
+            FileSource::Remote(ion) => {
+                plan_ion_image_ranges(ion.as_mut(), target, tolerance, level)
+            }
             FileSource::Full(_) => Err(FastError::UnsupportedBackend),
         }
         .map_err(fast_error_to_code)?;
@@ -594,8 +600,7 @@ pub unsafe extern "C" fn image_begin(
             FileSource::Lazy(ion) => EicReader::Ion(ion.as_mut()),
             FileSource::Remote(ion) => EicReader::Ion(ion.as_mut()),
         };
-        let session =
-            crate::utilities::ion_image::image_session_begin(&mut reader, target, tolerance, level);
+        let session = image_session_begin(&mut reader, target, tolerance, level);
         let pointer = Box::into_raw(Box::new(session)) as usize;
         unsafe { *out_session = pointer };
         Ok(())
@@ -611,7 +616,7 @@ pub unsafe extern "C" fn image_begin(
 
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn image_scan_count(
-    session: *mut crate::utilities::ion_image::ImageSession,
+    session: *mut ImageSession,
     out_count: *mut usize,
 ) -> c_int {
     if session.is_null() || out_count.is_null() {
@@ -629,7 +634,7 @@ pub unsafe extern "C" fn image_scan_count(
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn image_ranges(
     h: *mut ParsedFile,
-    session: *mut crate::utilities::ion_image::ImageSession,
+    session: *mut ImageSession,
     from: usize,
     count: usize,
     out: *mut Buf,
@@ -671,7 +676,7 @@ pub unsafe extern "C" fn image_ranges(
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn image_fold(
     h: *mut ParsedFile,
-    session: *mut crate::utilities::ion_image::ImageSession,
+    session: *mut ImageSession,
     from: usize,
     count: usize,
 ) -> c_int {
@@ -706,10 +711,7 @@ pub unsafe extern "C" fn image_fold(
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn image_finish(
-    session: *mut crate::utilities::ion_image::ImageSession,
-    out: *mut Buf,
-) -> c_int {
+pub unsafe extern "C" fn image_finish(session: *mut ImageSession, out: *mut Buf) -> c_int {
     if session.is_null() || out.is_null() {
         return fail(ERR_INVALID_ARGS, "get_ion_image");
     }
@@ -735,7 +737,7 @@ pub unsafe extern "C" fn image_finish(
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn image_free(session: *mut crate::utilities::ion_image::ImageSession) {
+pub unsafe extern "C" fn image_free(session: *mut ImageSession) {
     if !session.is_null() {
         let _ = catch_unwind(AssertUnwindSafe(|| {
             drop(unsafe { Box::from_raw(session) });
@@ -743,9 +745,7 @@ pub unsafe extern "C" fn image_free(session: *mut crate::utilities::ion_image::I
     }
 }
 
-fn build_scan_arrays_bridge(
-    found: Vec<crate::utilities::get_scans::ScanArrays>,
-) -> Option<Box<[u8]>> {
+fn build_scan_arrays_bridge(found: Vec<ScanArrays>) -> Option<Box<[u8]>> {
     let scan_count = found.len() as u64;
     let array_count: usize = found.iter().map(|scan| scan.arrays.len()).sum();
     let value_count: u64 = found
@@ -753,9 +753,9 @@ fn build_scan_arrays_bridge(
         .flat_map(|scan| &scan.arrays)
         .map(|values| values.len() as u64)
         .sum();
-    let scans: Vec<crate::Scan> = found
+    let scans: Vec<Scan> = found
         .iter()
-        .map(|scan| crate::Scan::from(scan.scan.clone()))
+        .map(|scan| Scan::from(scan.scan.clone()))
         .collect();
 
     let mut builder = BridgeBuilder::new(QUANTION_PAYLOAD_SCANS, scan_count);
@@ -798,7 +798,7 @@ fn build_scan_arrays_bridge(
     Some(bridge.into_bytes())
 }
 
-fn write_scan_details(bridge: &mut Bridge, position: u64, scan: &crate::Scan) {
+fn write_scan_details(bridge: &mut Bridge, position: u64, scan: &Scan) {
     let details = [
         (QUANTION_SECTION_SCAN_INDEX, scan.index as f64),
         (QUANTION_SECTION_RT, scan.rt),
@@ -817,7 +817,7 @@ fn write_scan_details(bridge: &mut Bridge, position: u64, scan: &crate::Scan) {
     }
 }
 
-fn build_scans_bridge(scans: &[crate::Scan]) -> Option<Box<[u8]>> {
+fn build_scans_bridge(scans: &[Scan]) -> Option<Box<[u8]>> {
     let scan_count = scans.len() as u64;
     let mut total_points: u64 = 0;
     for scan in scans {
@@ -857,7 +857,7 @@ fn build_scans_bridge(scans: &[crate::Scan]) -> Option<Box<[u8]>> {
     Some(bridge.into_bytes())
 }
 
-fn build_image_bridge(image: &crate::utilities::ion_image::IonImage) -> Option<Box<[u8]>> {
+fn build_image_bridge(image: &IonImage) -> Option<Box<[u8]>> {
     let cell_count = image.data.len() as u64;
     let mut builder = BridgeBuilder::new(QUANTION_PAYLOAD_ION_IMAGE, cell_count);
     builder.add_section(QUANTION_SECTION_IMAGE_SHAPE, QUANTION_ELEMENT_U32, 6);
@@ -927,7 +927,7 @@ fn count_as_u32(value: usize) -> u32 {
     u32::try_from(value).unwrap_or(u32::MAX)
 }
 
-fn build_peaks_bridge(peaks: &[crate::utilities::structs::Peak]) -> Option<Box<[u8]>> {
+fn build_peaks_bridge(peaks: &[Peak]) -> Option<Box<[u8]>> {
     let from: Vec<f64> = peaks.iter().map(|peak| peak.from).collect();
     let to: Vec<f64> = peaks.iter().map(|peak| peak.to).collect();
     let rt: Vec<f64> = peaks.iter().map(|peak| peak.rt).collect();
@@ -1010,9 +1010,7 @@ fn build_fit_bridge(params: &Option<PeakParameters>) -> Option<Box<[u8]>> {
     )
 }
 
-fn build_features_bridge(
-    features: &[crate::utilities::find_features::Feature],
-) -> Option<Box<[u8]>> {
+fn build_features_bridge(features: &[Feature]) -> Option<Box<[u8]>> {
     let mz: Vec<f64> = features.iter().map(|item| item.mz).collect();
     let rt: Vec<f64> = features.iter().map(|item| item.rt).collect();
     let from: Vec<f64> = features.iter().map(|item| item.from).collect();
@@ -1060,9 +1058,7 @@ fn build_features_bridge(
     )
 }
 
-fn build_consensus_bridge(
-    features: &[crate::utilities::find_features::Feature],
-) -> Option<Box<[u8]>> {
+fn build_consensus_bridge(features: &[Feature]) -> Option<Box<[u8]>> {
     let mz: Vec<f64> = features.iter().map(|item| item.mz).collect();
     let rt: Vec<f64> = features.iter().map(|item| item.rt).collect();
     let from: Vec<f64> = features.iter().map(|item| item.from).collect();
@@ -1147,11 +1143,11 @@ fn clear_buf(out: *mut Buf) {
     };
 }
 
-fn session_is_broken(session: *const crate::utilities::ion_image::ImageSession) -> bool {
+fn session_is_broken(session: *const ImageSession) -> bool {
     !session.is_null() && unsafe { (*session).is_broken() }
 }
 
-fn mark_session_broken(session: *mut crate::utilities::ion_image::ImageSession) {
+fn mark_session_broken(session: *mut ImageSession) {
     if !session.is_null() {
         unsafe { (*session).mark_broken() };
     }

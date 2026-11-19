@@ -2,8 +2,9 @@ use helpers::load_chromatograms;
 
 use super::helpers;
 use crate::utilities::{
-    fit_peak::{PeakSeed, PeakShape, draw_peak, fit_peak},
+    fit_peak::{PeakParameters, PeakSeed, PeakShape, draw_peak, draw_peaks, fit_peak},
     functions::{emg_fn, gaussian_fn, sigma_from_fwhm},
+    math::{erfc_approx, erfcx_approx},
     structs::DataXY,
 };
 
@@ -134,26 +135,26 @@ fn emg_matches_the_direct_formula_near_the_center() {
 #[test]
 fn erfcx_matches_its_definition() {
     for x in linspace(0.0, 20.0, 201) {
-        let expected = (x * x).exp() * crate::utilities::math::erfc_approx(x);
-        let actual = crate::utilities::math::erfcx_approx(x);
+        let expected = (x * x).exp() * erfc_approx(x);
+        let actual = erfcx_approx(x);
         assert!(
             (expected - actual).abs() <= 1e-12 * expected.max(1.0),
             "x {x}: {expected} vs {actual}"
         );
     }
-    assert!(crate::utilities::math::erfcx_approx(1e6).is_finite());
+    assert!(erfcx_approx(1e6).is_finite());
 }
 
 #[test]
 fn draw_peaks_has_no_nan_far_from_the_peak() {
-    let peaks = [crate::utilities::fit_peak::PeakParameters {
+    let peaks = [PeakParameters {
         height: 164_309.66,
         center: 2.3794,
         fwhm: 0.02387,
         tail: 0.002507,
         r2: 0.98,
     }];
-    let drawn = crate::utilities::fit_peak::draw_peaks(&peaks, 0.0, 5.0, 1000);
+    let drawn = draw_peaks(&peaks, 0.0, 5.0, 1000);
     for (x, y) in drawn.x.iter().zip(drawn.y.iter()) {
         assert!(y.is_finite(), "y at x {x} is {y}");
     }
@@ -207,14 +208,14 @@ fn emg_fit_reports_the_apex_as_height_and_center() {
 
 #[test]
 fn gaussian_is_unchanged() {
-    let params = crate::utilities::fit_peak::PeakParameters {
+    let params = PeakParameters {
         height: 500.0,
         center: 3.0,
         fwhm: 0.1,
         tail: 0.0,
         r2: 0.0,
     };
-    let drawn = crate::utilities::fit_peak::draw_peaks(&[params], 2.5, 3.5, 1001);
+    let drawn = draw_peaks(&[params], 2.5, 3.5, 1001);
     let middle = drawn.y[500];
     assert!((middle - 500.0).abs() < 1e-9, "middle {middle}");
 }

@@ -18,8 +18,8 @@ use crate::{
     traces::FindPeaksOptions,
     utilities::{
         calculate_eic::{
-            EicReader, MS1_LEVEL, SpectrumKind, get_scan_times, get_spectrum_kind, lower_bound,
-            mz_tolerance_for, read_mz_window, summed_intensity_in_window, upper_bound,
+            EicReader, FastError, MS1_LEVEL, SpectrumKind, get_scan_times, get_spectrum_kind,
+            lower_bound, mz_tolerance_for, read_mz_window, summed_intensity_in_window, upper_bound,
         },
         find_features::{Feature, FeatureError, FeatureSettings, MzTolerance, find_features},
         find_masses::find_masses,
@@ -55,24 +55,12 @@ use memmap2::Mmap;
 #[derive(Debug)]
 pub enum AlignmentError {
     Io(Error),
-    Parse {
-        path: String,
-        source: String,
-    },
+    Parse { path: String, source: String },
     UnsupportedFormat(String),
     NoFiles,
-    FeatureDetection {
-        path: String,
-        source: FeatureError,
-    },
-    FastPath {
-        path: String,
-        source: crate::utilities::calculate_eic::FastError,
-    },
-    Warp {
-        path: String,
-        source: WarpError,
-    },
+    FeatureDetection { path: String, source: FeatureError },
+    FastPath { path: String, source: FastError },
+    Warp { path: String, source: WarpError },
 }
 
 impl Display for AlignmentError {
@@ -453,11 +441,7 @@ pub fn match_features(
         options.threads,
     );
     let datasets = load_sample_files(directory)?;
-    let datasets = detect_features_per_sample(
-        datasets,
-        options.eic.get_window(),
-        &features,
-    )?;
+    let datasets = detect_features_per_sample(datasets, options.eic.get_window(), &features)?;
     align_samples(datasets, options)
 }
 

@@ -108,6 +108,7 @@ impl From<PathBuf> for IonOutput
 impl From<String> for IonOutput
 
 pub struct ParseIonOptions
+    pub headers: Vec<Header>
     pub max_cache_size: usize
 
 pub struct Scan

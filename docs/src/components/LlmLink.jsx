@@ -68,7 +68,7 @@ function McpSetup() {
     <>
       <p>
         Apps that support MCP can also run Quant·ion on your computer with
-        quantion-mcp. It reads only the folders you allow.
+        quantion-mcp. It reads only the allowed folders.
       </p>
       <div className="ask-own-ai-systems" role="group" aria-label="System">
         {Object.entries(SYSTEMS).map(([key, item]) => (

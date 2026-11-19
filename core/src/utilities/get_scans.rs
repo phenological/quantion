@@ -10,7 +10,6 @@ use crate::utilities::{
     ion::{ScanSource, ScanSummary},
     structs::{FromTo, Position, ScanQuery, SpectrumSummary},
 };
-
 #[derive(Clone, Debug)]
 pub struct CentroidScan {
     pub index: usize,
@@ -325,6 +324,7 @@ fn ranges_for_first_scan_with_data(
 #[cfg(test)]
 mod test {
     use super::*;
+    use crate::files::ScanParam;
 
     fn get_rts(scans: &[CentroidScan]) -> Vec<f64> {
         scans.iter().map(|scan| scan.rt).collect()
@@ -361,10 +361,7 @@ mod test {
             false
         }
 
-        fn load_metadata(
-            &mut self,
-            index: usize,
-        ) -> ionic::IonResult<Vec<crate::files::ScanParam>> {
+        fn load_metadata(&mut self, index: usize) -> ionic::IonResult<Vec<ScanParam>> {
             Err(ionic::IonError::OutOfRange {
                 index,
                 count: self.scans.len() as u64,

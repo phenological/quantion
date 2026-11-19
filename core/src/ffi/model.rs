@@ -10,13 +10,17 @@ use super::{
     public::{fail, remember},
     write_buf,
 };
-use crate::utilities::{
-    bridge::{
-        Column, QUANTION_PAYLOAD_MODEL_METADATA, QUANTION_SECTION_MODEL_METADATA_KEY_BYTES,
-        QUANTION_SECTION_MODEL_METADATA_KEY_STARTS, QUANTION_SECTION_MODEL_METADATA_VALUE_BYTES,
-        QUANTION_SECTION_MODEL_METADATA_VALUE_STARTS, build_record_bridge,
+use crate::{
+    files::read_error,
+    utilities::{
+        bridge::{
+            Column, QUANTION_PAYLOAD_MODEL_METADATA, QUANTION_SECTION_MODEL_METADATA_KEY_BYTES,
+            QUANTION_SECTION_MODEL_METADATA_KEY_STARTS,
+            QUANTION_SECTION_MODEL_METADATA_VALUE_BYTES,
+            QUANTION_SECTION_MODEL_METADATA_VALUE_STARTS, build_record_bridge,
+        },
+        load_model::{Model, ModelInput, load_model},
     },
-    load_model::{Model, ModelInput, load_model},
 };
 
 pub struct ModelHandle {
@@ -111,7 +115,7 @@ fn write_model(out: *mut *mut ModelHandle, message: *mut Buf, input: ModelInput)
         }
         Ok(Err(error)) => {
             write_buf(message, error.to_string().into_bytes().into_boxed_slice());
-            remember(crate::files::read_error("load_model", error))
+            remember(read_error("load_model", error))
         }
         Err(_) => fail(ERR_PANIC, "load_model"),
     }

@@ -6,6 +6,7 @@ import {
   afterAll,
   beforeEach,
 } from "@jest/globals";
+import { HttpClient } from "../utilities/httpClient";
 import * as http from "http";
 import type { AddressInfo } from "net";
 
@@ -140,7 +141,11 @@ describe.each(modulePaths)(
     });
 
     async function openRemote(): Promise<object> {
-      return backend.parseIonRemote(new URL(`${origin}/file.ion`), 0);
+      return backend.parseIonRemote(
+        new URL(`${origin}/file.ion`),
+        0,
+        new HttpClient(),
+      );
     }
 
     test("the remote store is a weak map, so nothing pins a handle", () => {

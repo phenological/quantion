@@ -42,6 +42,7 @@ class RangeServer:
         self.data = Path(path).read_bytes()
         self.bytes_sent = 0
         self.requests = 0
+        self.tokens = []
         self.server = socketserver.TCPServer(("127.0.0.1", 0), self.build_handler())
         self.port = self.server.server_address[1]
         self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
@@ -54,6 +55,7 @@ class RangeServer:
     def reset(self) -> None:
         self.bytes_sent = 0
         self.requests = 0
+        self.tokens = []
 
     def stop(self) -> None:
         self.server.shutdown()
@@ -65,6 +67,7 @@ class RangeServer:
         class Handler(http.server.BaseHTTPRequestHandler):
             def do_GET(self):
                 counter.requests += 1
+                counter.tokens.append(self.headers.get("Authorization"))
                 wanted = self.headers.get("Range")
                 if wanted:
                     first, last = wanted.split("=")[1].split("-")

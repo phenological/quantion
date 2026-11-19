@@ -79,9 +79,18 @@ mod http {
 
     use super::*;
 
+    #[derive(Default)]
+    struct Counts {
+        sent: AtomicUsize,
+        requests: AtomicUsize,
+        with_token: AtomicUsize,
+    }
+
+    const TOKEN_LINE: &str = "authorization: bearer test-token\r\n";
+
     /// Serves `bytes` with `206 Partial Content` for every `Range` request and
-    /// counts how many bytes it sent.
-    fn serve(bytes: Vec<u8>, sent: Arc<AtomicUsize>) -> String {
+    /// counts the bytes sent, the requests, and the requests carrying the token.
+    fn serve(bytes: Vec<u8>, counts: Arc<Counts>) -> String {
         let listener = TcpListener::bind("127.0.0.1:0").expect("bind");
         let address = listener.local_addr().expect("address");
         thread::spawn(move || {
@@ -102,6 +111,9 @@ mod http {
                         }
                         first = false;
                         let lower = line.to_ascii_lowercase();
+                        if lower == TOKEN_LINE {
+                            counts.with_token.fetch_add(1, Ordering::Relaxed);
+                        }
                         if let Some(value) = lower.strip_prefix("range: bytes=") {
                             let (a, b) = value.trim().split_once('-').expect("range");
                             range =
@@ -111,7 +123,8 @@ mod http {
                     let (start, end) = range.expect("request without Range");
                     let end = end.min(bytes.len() - 1);
                     let body = &bytes[start..=end];
-                    sent.fetch_add(body.len(), Ordering::Relaxed);
+                    counts.sent.fetch_add(body.len(), Ordering::Relaxed);
+                    counts.requests.fetch_add(1, Ordering::Relaxed);
                     let head = format!(
                         "HTTP/1.1 206 Partial Content\r\nContent-Length: {}\r\nContent-Range: bytes {start}-{end}/{}\r\n\r\n",
                         body.len(),
@@ -131,16 +144,54 @@ mod http {
     fn url_gives_the_same_contents_as_path() {
         let bytes = std::fs::read(fixture()).expect("read fixture");
         let size = bytes.len();
-        let sent = Arc::new(AtomicUsize::new(0));
-        let url = serve(bytes, sent.clone());
+        let counts = Arc::new(Counts::default());
+        let url = serve(bytes, counts.clone());
         let options = ReadOptions::default();
 
         let from_url = contents(parse_ion(url.as_str(), &options).expect("open url"));
         let from_path = contents(parse_ion(fixture(), &options).expect("open path"));
 
         assert_eq!(from_url, from_path);
-        let sent = sent.load(Ordering::Relaxed);
+        let sent = counts.sent.load(Ordering::Relaxed);
         println!("sent {sent} of {size} bytes");
         assert!(sent > 0);
+        assert_eq!(counts.with_token.load(Ordering::Relaxed), 0);
+    }
+
+    #[test]
+    fn headers_reach_the_server_on_every_request() {
+        use crate::{
+            GetScansOptions, Header, ParseIonOptions, Position, ScanQuery, get_scans, parse_ion,
+        };
+
+        let api_file = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/api/api.ion");
+        let bytes = std::fs::read(api_file).expect("read fixture");
+        let counts = Arc::new(Counts::default());
+        let url = serve(bytes, counts.clone());
+        let options = ParseIonOptions {
+            headers: vec![Header {
+                name: "Authorization".to_string(),
+                value: "Bearer test-token".to_string(),
+            }],
+            ..Default::default()
+        };
+
+        let mut file = parse_ion(url.as_str(), options).expect("open url");
+        let opened = counts.requests.load(Ordering::Relaxed);
+        let scans = get_scans(
+            &mut file,
+            ScanQuery {
+                rt: Position::Closest(2.385),
+                ..Default::default()
+            },
+            GetScansOptions::default(),
+        )
+        .expect("read scans");
+
+        let requests = counts.requests.load(Ordering::Relaxed);
+        assert!(!scans.is_empty());
+        assert!(opened > 0);
+        assert!(requests > opened);
+        assert_eq!(counts.with_token.load(Ordering::Relaxed), requests);
     }
 }
