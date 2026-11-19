@@ -8,7 +8,7 @@ Find every feature in one file without a target list (untargeted). It scans an m
 find_features(file, options = find_features_options())
 }
 \arguments{
-  \item{file}{The sample to read, from parse_ion or parse_mzml. Type: \code{SampleFile}.}
+  \item{file}{The file to read, from parse_ion or parse_mzml. Type: \code{SampleFile}.}
   \item{options}{Settings from \code{\link{find_features_options}()}: \code{eic}, \code{grid}, \code{find_peaks}, \code{threads = 1L}.
     \href{https://phenological.github.io/quantion/?language=r#FindFeaturesOptions}{FindFeaturesOptions documentation}
   }
@@ -31,8 +31,8 @@ if (curl::has_internet()) {
     threads = 2L
   )
 
-  sample <- parse_ion(url)
-  features <- find_features(sample, options = options)
+  file <- parse_ion(url)
+  features <- find_features(file, options = options)
 
   cat(sprintf("\%d features\\n", nrow(features)))
   count <- 3

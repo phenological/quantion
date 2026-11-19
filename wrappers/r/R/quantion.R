@@ -84,7 +84,7 @@
 
 .check_sample <- function(function_name, file) {
   if (!inherits(file, "quantion_sample"))
-    .invalid(function_name, "file", "must be a sample from parse_ion or parse_mzml")
+    .invalid(function_name, "file", "must be a file from parse_ion or parse_mzml")
   file
 }
 
@@ -751,7 +751,7 @@ dispose <- function(object) {
     return(invisible(.Call("C_dispose_model", object, PACKAGE = "quantion")))
   if (inherits(object, "quantion_sample"))
     return(invisible(.Call("C_dispose_sample", object, PACKAGE = "quantion")))
-  .invalid("dispose", "object", "must be a sample, a model or a warp model")
+  .invalid("dispose", "object", "must be a file, a model or a warp model")
 }
 
 load_model <- function(source) {
@@ -835,7 +835,7 @@ calibrate <- function(warp, anchor_samples, target_lists) {
   function_name <- "calibrate"
   warp <- .check_warp(function_name, warp)
   if (!is.list(anchor_samples) || inherits(anchor_samples, "quantion_sample"))
-    .invalid(function_name, "anchor_samples", "must be a list of samples")
+    .invalid(function_name, "anchor_samples", "must be a list of files")
   if (!is.list(target_lists) || is.data.frame(target_lists))
     .invalid(function_name, "target_lists", "must be a list of data.frames")
   for (index in seq_along(anchor_samples)) .check_sample(function_name, anchor_samples[[index]])
@@ -1018,7 +1018,7 @@ annotate_features <- function(files, features, options = annotate_features_optio
   function_name <- "annotate_features"
   options <- .check_options(function_name, "options", options, "annotate_features_options", "annotate_features_options")
   if (!is.list(files) || inherits(files, "quantion_sample"))
-    .invalid(function_name, "files", "must be a list of samples")
+    .invalid(function_name, "files", "must be a list of files")
   for (index in seq_along(files)) .check_sample(function_name, files[[index]])
   features <- .check_table(function_name, features, .ANNOTATION_FEATURE_NAMES, "features")
   mzs <- as.numeric(.get_column(function_name, features, "mz", TRUE, NA, "features"))

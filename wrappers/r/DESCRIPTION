@@ -3,14 +3,14 @@ Type: Package
 Title: Peak Detection and Quantification for Mass Spectrometry Data
 Version: 0.2.7
 Authors@R: c(
-    person("Javier", "Osorio", email = "josoriom93@gmail.com", role = c("aut", "cre", "cph")),
+    person("Javier", "Osorio", email = "javier.osorio@correounivalle.edu.co", role = c("aut", "cre", "cph")),
     person("Julien", "Wist", role = "cph"),
     person("Jorge", "Osorio M.", role = "cph"),
     person("Authors of the dependency Rust crates", role = "ctb",
            comment = "see inst/AUTHORS"))
 Author: Javier Osorio [aut, cre, cph], Julien Wist [cph], Jorge Osorio M. [cph],
     Authors of the dependency Rust crates [ctb] (see inst/AUTHORS)
-Maintainer: Javier Osorio <josoriom93@gmail.com>
+Maintainer: Javier Osorio <javier.osorio@correounivalle.edu.co>
 Description: Reads mzML and ion mass spectrometry files, extracts ion
     chromatograms, finds and integrates chromatographic peaks, detects and
     aligns features across samples, and predicts retention times with an

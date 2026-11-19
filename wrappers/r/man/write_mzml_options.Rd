@@ -18,7 +18,7 @@ An options object for \code{\link{write_mzml}()}.
 \url{https://phenological.github.io/quantion/?language=r#WriteMzmlOptions}
 }
 \examples{
-write_mzml_options(out = "sample.mzML")
+write_mzml_options(out = "file.mzML")
 }
 \seealso{
 \code{\link{write_mzml}()}

@@ -8,7 +8,7 @@ Quantify a list of known compounds (targets) in one file. For each target, it bu
 find_targets(file, targets, options = find_targets_options())
 }
 \arguments{
-  \item{file}{The sample to read, from parse_ion or parse_mzml. Type: \code{SampleFile}.}
+  \item{file}{The file to read, from parse_ion or parse_mzml. Type: \code{SampleFile}.}
   \item{targets}{The compounds to look for, each with id, mz, rt and an optional range. A target without range searches its whole EIC. Type: \code{data.frame of Target}. Each Target has \code{id}, \code{mz}, \code{rt}, \code{range}.
     Example: \code{targets <- data.frame(id = "compound_1", mz = 260.103, rt = 2.383, range = 0.05)}
     \href{https://phenological.github.io/quantion/?language=r#Target}{Target documentation}
@@ -41,8 +41,8 @@ if (curl::has_internet()) {
     threads    = 2L
   )
 
-  sample <- parse_ion(url)
-  peaks <- find_targets(sample, targets, options = options)
+  file <- parse_ion(url)
+  peaks <- find_targets(file, targets, options = options)
 
   for (index in seq_len(nrow(peaks))) {
     peak <- peaks[index, ]

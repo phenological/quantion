@@ -2,14 +2,14 @@
 \alias{predict_rts}
 \title{Predict retention times}
 \description{
-Predict where each target elutes in one sample, to correct retention-time shifts (rt drift) between runs or batches.
+Predict where each target elutes in one file, to correct retention-time shifts (rt drift) between runs or batches.
 }
 \usage{
 predict_rts(warp, file, targets)
 }
 \arguments{
   \item{warp}{The warp model, from load_warp. Type: \code{WarpModel}.}
-  \item{file}{The sample to predict for, from parse_ion or parse_mzml. Type: \code{SampleFile}.}
+  \item{file}{The file to predict for, from parse_ion or parse_mzml. Type: \code{SampleFile}.}
   \item{targets}{Targets with mz and reference rt. id and range are optional and not used. Type: \code{data.frame of Target}. Each Target has \code{id}, \code{mz}, \code{rt}, \code{range}.
     Example: \code{targets <- data.frame(id = "compound_1", mz = 260.103, rt = 2.383, range = 0.05)}
     \href{https://phenological.github.io/quantion/?language=r#Target}{Target documentation}
@@ -30,8 +30,8 @@ if (curl::has_internet()) {
   fixtures <- "https://raw.githubusercontent.com/phenological/quantion/main/core/tests/fixtures"
   model <- load_model(paste0(fixtures, "/shift_model.onnx"))
   warp <- load_warp(model)
-  sample <- parse_ion(url)
-  predicted <- predict_rts(warp, sample, data.frame(id = "compound_1", mz = 260.103, rt = 2.383))
+  file <- parse_ion(url)
+  predicted <- predict_rts(warp, file, data.frame(id = "compound_1", mz = 260.103, rt = 2.383))
   print(predicted)
 }
 }

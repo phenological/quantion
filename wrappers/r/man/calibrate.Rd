@@ -2,15 +2,15 @@
 \alias{calibrate}
 \title{Calibrate reference retention times}
 \description{
-Turn the retention times seen in anchor samples (LTRs or QCs) into reference targets for predict_rts. Each id gets the median rt over the anchor samples.
+Turn the retention times seen in anchor files (LTRs or QCs) into reference targets for predict_rts. Each id gets the median rt over the anchor files.
 }
 \usage{
 calibrate(warp, anchor_samples, target_lists)
 }
 \arguments{
   \item{warp}{The warp model, from load_warp. Type: \code{WarpModel}.}
-  \item{anchor_samples}{The anchor samples (LTRs or QCs), from parse_ion or parse_mzml. Type: \code{list of SampleFile}.}
-  \item{target_lists}{For each anchor sample, the targets seen in it with their observed rt. Type: \code{list of data.frame}.}
+  \item{anchor_samples}{The anchor files (LTRs or QCs), from parse_ion or parse_mzml. Type: \code{list of SampleFile}.}
+  \item{target_lists}{For each anchor file, the targets seen in it with their observed rt. Type: \code{list of data.frame}.}
 }
 \value{
 One target per id, with the median rt. Type: \code{data.frame of Target}. Columns: \code{id}, \code{mz}, \code{rt}, \code{range}.

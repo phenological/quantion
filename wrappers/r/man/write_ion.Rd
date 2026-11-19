@@ -1,14 +1,14 @@
 \name{write_ion}
 \alias{write_ion}
-\title{Write a sample as an Ionic file (.ion)}
+\title{Write a file as an Ionic file (.ion)}
 \description{
-Save a sample as an Ionic file (.ion), for example to convert mzML to .ion. With out, it writes a file to a path or uploads it to a URL with one PUT request. Without out, it returns the bytes.
+Save a file as an Ionic file (.ion), for example to convert mzML to .ion. With out, it writes a file to a path or uploads it to a URL with one PUT request. Without out, it returns the bytes.
 }
 \usage{
 write_ion(file, options = write_ion_options())
 }
 \arguments{
-  \item{file}{The sample to save, from parse_ion or parse_mzml. Type: \code{SampleFile}.}
+  \item{file}{The file to save, from parse_ion or parse_mzml. Type: \code{SampleFile}.}
   \item{options}{Settings from \code{\link{write_ion_options}()}: \code{out = NULL}, \code{overwrite = FALSE}, \code{level = 12L}, \code{f32_compress = FALSE}, \code{block_size = 8L}, \code{mz_window = 20L}, \code{headers}.
     \href{https://phenological.github.io/quantion/?language=r#WriteIonOptions}{WriteIonOptions documentation}
   }
@@ -27,11 +27,11 @@ if (curl::has_internet()) {
   fixtures <- "https://raw.githubusercontent.com/phenological/quantion/main/core/tests/fixtures"
   url <- paste0(fixtures, "/api/api.ion")
   data <- curl::curl_fetch_memory(url)$content
-  sample <- parse_ion(data)
+  file <- parse_ion(data)
 
-  bytes <- write_ion(sample)
+  bytes <- write_ion(file)
 
-  write_ion(sample, options = write_ion_options(out = tempfile(fileext = ".ion")))
+  write_ion(file, options = write_ion_options(out = tempfile(fileext = ".ion")))
   print(length(bytes))
 }
 }

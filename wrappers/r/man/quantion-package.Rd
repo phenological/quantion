@@ -6,9 +6,9 @@
 R wrappers for the \code{quantion} library for LC-MS data processing.
 }
 \details{
-\code{quantion} loads mzML or .ion files, extracts EICs, picks peaks, and detects features across one or many samples.
+\code{quantion} loads mzML or .ion files, extracts EICs, picks peaks, and detects features across one or many files.
 
-A \emph{sample} is a pointer to a parsed mzML held in memory, or to an .ion file read on demand. Its memory is freed by the garbage collector; \code{\link{dispose}()} frees it at once.
+A \emph{file} is a pointer to a parsed mzML held in memory, or to an .ion file read on demand. Its memory is freed by the garbage collector; \code{\link{dispose}()} frees it at once.
 
 Every function with settings takes one \code{options} argument built by a helper named after it, such as \code{\link{find_targets_options}()}. Groups of settings nest through their own helpers: \code{\link{calculate_eic_options}()}, \code{\link{grid_options}()}, \code{\link{grouping_options}()} and \code{\link{find_peaks_options}()}.
 
@@ -17,7 +17,7 @@ Errors are conditions of class \code{quantion_error} with the fields \code{kind}
 \section{Files}{
 \code{\link{parse_ion}()}, \code{\link{parse_mzml}()} - open a file.
 
-\code{\link{write_ion}()}, \code{\link{write_mzml}()} - write a sample.
+\code{\link{write_ion}()}, \code{\link{write_mzml}()} - write a file.
 
 \code{\link{get_scans}()} - read scans by retention time or m/z.
 
@@ -25,7 +25,7 @@ Errors are conditions of class \code{quantion_error} with the fields \code{kind}
 
 \code{\link{get_ion_image}()} - build an ion image.
 
-\code{\link{dispose}()} - free a sample, a model or a warp model.
+\code{\link{dispose}()} - free a file, a model or a warp model.
 }
 \section{Traces}{
 \code{\link{find_peaks}()} - find every peak in a trace.

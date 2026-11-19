@@ -8,7 +8,7 @@ Read the details stored for one scan (attributes, cvParams and userParams), one 
 get_scan_metadata(file, index, options = get_scan_metadata_options())
 }
 \arguments{
-  \item{file}{The sample to read, from parse_ion or parse_mzml. Type: \code{SampleFile}.}
+  \item{file}{The file to read, from parse_ion or parse_mzml. Type: \code{SampleFile}.}
   \item{index}{Position of the scan in the file, from 0. Use the index of a scan from get_scans. Type: \code{numeric(1)}.}
   \item{options}{Settings from \code{\link{get_scan_metadata_options}()}: \code{tags = character(0)}.
     \href{https://phenological.github.io/quantion/?language=r#GetScanMetadataOptions}{GetScanMetadataOptions documentation}

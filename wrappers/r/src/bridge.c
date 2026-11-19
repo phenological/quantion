@@ -842,7 +842,7 @@ static SEXP wrap_sample(ParsedFile *handle, SEXP keep)
 static ParsedFile *get_sample(SEXP pointer)
 {
   if (TYPEOF(pointer) != EXTPTRSXP || R_ExternalPtrTag(pointer) != sample_tag())
-    error("quantion: expected a sample from parse_ion or parse_mzml");
+    error("quantion: expected a file from parse_ion or parse_mzml");
   return (ParsedFile *)R_ExternalPtrAddr(pointer);
 }
 

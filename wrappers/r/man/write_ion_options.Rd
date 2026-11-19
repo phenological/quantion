@@ -24,7 +24,7 @@ An options object for \code{\link{write_ion}()}.
 \url{https://phenological.github.io/quantion/?language=r#WriteIonOptions}
 }
 \examples{
-write_ion_options(out = "sample.ion", level = 12L)
+write_ion_options(out = "file.ion", level = 12L)
 }
 \seealso{
 \code{\link{write_ion}()}

@@ -1292,10 +1292,10 @@ def _read_annotation_features(function: str, features: Sequence[Feature]) -> Tup
 
 def _read_annotation_files(function: str, files: Sequence[SampleFile]) -> List[SampleFile]:
     if not isinstance(files, (list, tuple)):
-        raise _invalid(function, "files", "must be a list of samples")
+        raise _invalid(function, "files", "must be a list of files")
     for index, file in enumerate(files):
         if not isinstance(file, SampleFile):
-            raise _invalid(function, f"files[{index}]", "must be a sample from parse_ion or parse_mzml")
+            raise _invalid(function, f"files[{index}]", "must be a file from parse_ion or parse_mzml")
     return list(files)
 
 

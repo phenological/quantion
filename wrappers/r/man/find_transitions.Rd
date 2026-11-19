@@ -8,7 +8,7 @@ Quantify SRM or MRM transitions in one file. For each transition, it takes the s
 find_transitions(file, targets, options = find_transitions_options())
 }
 \arguments{
-  \item{file}{The sample to read, from parse_ion or parse_mzml. Type: \code{SampleFile}.}
+  \item{file}{The file to read, from parse_ion or parse_mzml. Type: \code{SampleFile}.}
   \item{targets}{The transitions to look for, each with id, precursor, product, rt and range. Type: \code{data.frame of Transition}. Each Transition has \code{id}, \code{precursor}, \code{product}, \code{rt}, \code{range}.
     Example: \code{                          rt = 2.385, range = 0.1)}
     \href{https://phenological.github.io/quantion/?language=r#Transition}{Transition documentation}
@@ -21,7 +21,7 @@ find_transitions(file, targets, options = find_transitions_options())
 One peak per transition, in the same order. A transition with no matching chromatogram gets an empty peak (every field is 0). Type: \code{data.frame of Peak}. Columns: \code{rt}, \code{from}, \code{to}, \code{intensity}, \code{integral}, \code{n_points}.
 }
 \section{Warning}{
-Needs the whole file. A sample opened from a URL gives a remote_file error; open it from a path or bytes.
+Needs the whole file. A file opened from a URL gives a remote_file error; open it from a path or bytes.
 }
 \section{Documentation}{
 \url{https://phenological.github.io/quantion/?language=r#find_transitions}
@@ -34,10 +34,10 @@ if (curl::has_internet()) {
   fixtures <- "https://raw.githubusercontent.com/phenological/quantion/main/core/tests/fixtures"
   url <- paste0(fixtures, "/srm.ion")
   data <- curl::curl_fetch_memory(url)$content
-  sample <- parse_ion(data)
+  file <- parse_ion(data)
   transitions <- data.frame(id = "compound_1", precursor = 89.04768, product = 89.04768,
                             rt = 2.385, range = 0.1)
-  peaks <- find_transitions(sample, transitions, options = find_transitions_options(threads = 2L))
+  peaks <- find_transitions(file, transitions, options = find_transitions_options(threads = 2L))
   print(peaks)
 }
 }

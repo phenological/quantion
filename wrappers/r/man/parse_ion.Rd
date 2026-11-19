@@ -14,10 +14,10 @@ parse_ion(source, options = parse_ion_options())
   }
 }
 \value{
-The opened sample (one file, i.e. one injection). Pass it to calculate_eic, get_scans and the other functions. Type: \code{SampleFile}.
+The opened file (one injection). Pass it to calculate_eic, get_scans and the other functions. Type: \code{SampleFile}.
 }
 \section{Warning}{
-The sample is freed by the library once it is no longer used, so dispose is not needed in normal use. When processing many samples, dispose each one after using it, so its memory is freed right away instead of piling up.
+The file is freed by the library once it is no longer used, so dispose is not needed in normal use. When processing many files, dispose each one after using it, so its memory is freed right away instead of piling up.
 }
 \section{Documentation}{
 \url{https://phenological.github.io/quantion/?language=r#parse_ion}
@@ -28,11 +28,11 @@ if (curl::has_internet()) {
   library(quantion)
 
   url <- "https://raw.githubusercontent.com/phenological/ion-files/main/data/aa_p21_LTR_20_b1_w20.ion"
-  sample <- parse_ion(url)
+  file <- parse_ion(url)
   cached <- parse_ion(url, options = parse_ion_options(max_cache_size = 64e6))
-  print(sample)
+  print(file)
 
-  dispose(sample)
+  dispose(file)
   dispose(cached)
 }
 }

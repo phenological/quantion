@@ -8,7 +8,7 @@ Calculate the extracted ion chromatogram (EIC, also called XIC) of one m/z. For 
 calculate_eic(file, mz, options = calculate_eic_options())
 }
 \arguments{
-  \item{file}{The sample to read, from parse_ion or parse_mzml. Type: \code{SampleFile}.}
+  \item{file}{The file to read, from parse_ion or parse_mzml. Type: \code{SampleFile}.}
   \item{mz}{The m/z of the ion to extract (Da), not the neutral mass of the compound. For example, for the protonated molecule [M+H]+ in positive mode, use M + 1.00728, and for the deprotonated molecule [M-H]- in negative mode, use M - 1.00728, where M is the monoisotopic mass. Type: \code{numeric}.}
   \item{options}{Settings from \code{\link{calculate_eic_options}()}: \code{from = 0}, \code{to = Inf}, \code{ppm_tolerance = 20}, \code{mz_tolerance = 0.005}, \code{time_unit = "MINUTES"}.
     \href{https://phenological.github.io/quantion/?language=r#CalculateEicOptions}{CalculateEicOptions documentation}
@@ -26,9 +26,9 @@ if (curl::has_internet()) {
   library(quantion)
 
   url <- "https://raw.githubusercontent.com/phenological/ion-files/main/data/aa_p21_LTR_20_b1_w20.ion"
-  sample <- parse_ion(url)
+  file <- parse_ion(url)
   options <- calculate_eic_options(from = 2, to = 3, ppm_tolerance = 10)
-  eic <- calculate_eic(sample, 260.103, options = options)
+  eic <- calculate_eic(file, 260.103, options = options)
   print(head(data.frame(rt = eic$x, intensity = eic$y)))
 }
 }

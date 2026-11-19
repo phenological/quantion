@@ -17,8 +17,8 @@ Read an mzML file, calculate the EIC of a target and find its peak.
 ```r
 library(quantion)
 
-sample <- parse_mzml("sample.mzML")
-eic <- calculate_eic(sample, 260.103, options = calculate_eic_options(from = 2, to = 3))
+file <- parse_mzml("file.mzML")
+eic <- calculate_eic(file, 260.103, options = calculate_eic_options(from = 2, to = 3))
 peak <- get_peak(eic$x, eic$y, rt = 2.383, options = get_peak_options(range = 0.05))
 print(peak)
 ```

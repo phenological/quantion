@@ -11,10 +11,10 @@ parse_mzml(source)
   \item{source}{Where the file is. It can be a local path or the file's bytes. Type: \code{character | raw}.}
 }
 \value{
-The opened sample (one file, i.e. one injection). Type: \code{SampleFile}.
+The opened file (one injection). Type: \code{SampleFile}.
 }
 \section{Warning}{
-The sample is freed by the library once it is no longer used, so dispose is not needed in normal use. When processing many samples, dispose each one after using it, so its memory is freed right away instead of piling up.
+The file is freed by the library once it is no longer used, so dispose is not needed in normal use. When processing many files, dispose each one after using it, so its memory is freed right away instead of piling up.
 }
 \section{Documentation}{
 \url{https://phenological.github.io/quantion/?language=r#parse_mzml}
@@ -29,8 +29,8 @@ if (curl::has_internet()) {
   data <- curl::curl_fetch_memory(url)$content
   path <- tempfile(fileext = ".mzML")
   write_mzml(parse_ion(data), options = write_mzml_options(out = path))
-  sample <- parse_mzml(path)
-  print(sample)
+  file <- parse_mzml(path)
+  print(file)
 }
 }
 }
