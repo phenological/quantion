@@ -410,7 +410,7 @@ dependencies = [
 
 [[package]]
 name = "quantion"
-version = "0.2.7"
+version = "0.2.8"
 dependencies = [
  "bytes",
  "cbindgen",
@@ -423,7 +423,7 @@ dependencies = [
 
 [[package]]
 name = "quantion-mcp"
-version = "0.2.7"
+version = "0.2.8"
 dependencies = [
  "quantion",
  "serde_json",
