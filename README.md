@@ -43,4 +43,4 @@ println!("rt {} intensity {}", peak.rt, peak.intensity);
 
 Every function, option and example: [API Documentation](https://phenological.github.io/quantion/)
 
-The full documentation as one text file: https://phenological.github.io/quantion/docs/v0.2.8.txt
+The full documentation as one text file: https://phenological.github.io/quantion/docs/v0.2.9.txt
