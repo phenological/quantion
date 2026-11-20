@@ -26,11 +26,12 @@ if (curl::has_internet()) {
 
   folder <- file.path(tempdir(), "files")
   dir.create(folder, showWarnings = FALSE)
-  url <- "https://raw.githubusercontent.com/phenological/ion-files/main/data/aa_p21_LTR_20_b1_w20.ion"
+  base <- "https://raw.githubusercontent.com/phenological/ion-files/main/data/"
+  url <- paste0(base, "untargeted_hilpos_p011_PQC_31_b1_w20.ion")
   utils::download.file(url, file.path(folder, "file.ion"), mode = "wb", quiet = TRUE)
   features <- match_features(folder, options = match_features_options(
-    eic      = calculate_eic_options(from = 2.3, to = 2.45),
-    grid     = grid_options(start = 255, end = 265),
+    eic      = calculate_eic_options(from = 0.5, to = 1.0),
+    grid     = grid_options(start = 195, end = 196),
     grouping = grouping_options(min_frequency = 0.5),
     threads  = 1L
   ))

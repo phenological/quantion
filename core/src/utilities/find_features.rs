@@ -253,7 +253,9 @@ pub fn plan_features_ranges(
         return Ok(Vec::new());
     }
     let (mz_low, mz_high) = grid_read_window(&grid, options);
-    plan_window_ranges(ion, window.from, window.to, mz_low, mz_high)
+    let mut ranges = plan_window_ranges(ion, window.from, window.to, mz_low, mz_high)?;
+    ranges.extend(ion.spectrum_metadata_byte_ranges(0).map_err(FastError::from)?);
+    Ok(ranges)
 }
 
 pub fn detect_features(

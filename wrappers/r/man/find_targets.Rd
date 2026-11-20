@@ -28,7 +28,8 @@ One peak per target, in the same order as targets. A target with no peak gets an
 if (curl::has_internet()) {
   library(quantion)
 
-  url <- "https://raw.githubusercontent.com/phenological/ion-files/main/data/aa_p21_LTR_20_b1_w20.ion"
+  base <- "https://raw.githubusercontent.com/phenological/ion-files/main/data/"
+  url <- paste0(base, "aa_p21_LTR_20_b1_w20.ion")
   targets <- data.frame(
     id    = c("compound_1", "compound_2", "compound_3"),
     mz    = c(260.1034, 317.1250, 188.0818),

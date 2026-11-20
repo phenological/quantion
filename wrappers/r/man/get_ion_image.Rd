@@ -28,7 +28,8 @@ This is an experimental feature. Only Ionic files (.ion). The file must come fro
 if (curl::has_internet()) {
   library(quantion)
 
-  url <- "https://raw.githubusercontent.com/phenological/ion-files/main/data/aa_p21_LTR_20_b1_w20.ion"
+  base <- "https://raw.githubusercontent.com/phenological/ion-files/main/data/"
+  url <- paste0(base, "aa_p21_LTR_20_b1_w20.ion")
   file <- parse_ion(url)
   image <- get_ion_image(file, 260.103, options = get_ion_image_options(tolerance = 0.05))
   print(c(image$width, image$height))

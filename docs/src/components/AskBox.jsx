@@ -1729,6 +1729,36 @@ function usePanelSize(panel) {
   return { size, startDrag, onKeyDown, reset: () => change(null) };
 }
 
+function isTyping(target) {
+  if (!target) return false;
+  if (target.isContentEditable) return true;
+  return ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName);
+}
+
+function useUnlockKey(key, count) {
+  const [isUnlocked, setIsUnlocked] = useState(false);
+
+  useEffect(() => {
+    if (isUnlocked) return undefined;
+    let presses = 0;
+    function countPress(event) {
+      if (isTyping(event.target)) return;
+      if (event.ctrlKey || event.metaKey || event.altKey) return;
+      if (event.key === 'Shift') return;
+      if (!event.shiftKey || event.key.toLowerCase() !== key) {
+        presses = 0;
+        return;
+      }
+      presses += 1;
+      if (presses >= count) setIsUnlocked(true);
+    }
+    document.addEventListener('keydown', countPress);
+    return () => document.removeEventListener('keydown', countPress);
+  }, [isUnlocked, key, count]);
+
+  return isUnlocked;
+}
+
 export function AskChat() {
   const {
     isOpen,
@@ -1742,6 +1772,7 @@ export function AskChat() {
   const listEnd = useRef(null);
   const panel = useRef(null);
   const resize = usePanelSize(panel);
+  const isShown = useUnlockKey('h', 5);
 
   useEffect(() => {
     if (!isOpen) return undefined;
@@ -1760,6 +1791,7 @@ export function AskChat() {
   }, [messages, isOpen]);
 
   if (!isOpen) {
+    if (!isShown) return null;
     return (
       <button
         type="button"

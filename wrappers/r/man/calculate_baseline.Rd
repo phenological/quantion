@@ -24,7 +24,8 @@ The baseline: one value per point of y. Type: \code{numeric}.
 if (curl::has_internet()) {
   library(quantion)
 
-  url <- "https://raw.githubusercontent.com/phenological/ion-files/main/data/aa_p21_LTR_20_b1_w20.ion"
+  base <- "https://raw.githubusercontent.com/phenological/ion-files/main/data/"
+  url <- paste0(base, "aa_p21_LTR_20_b1_w20.ion")
   file <- parse_ion(url)
   eic <- calculate_eic(file, 260.103, options = calculate_eic_options(from = 2, to = 3))
   baseline <- calculate_baseline(eic$y, options = calculate_baseline_options(lambda = 50))

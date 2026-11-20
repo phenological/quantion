@@ -19,3 +19,21 @@ The features that are not isotopes, sorted by m/z. Type: \code{data.frame of Fea
 \section{Documentation}{
 \url{https://phenological.github.io/quantion/?language=r#deisotope_features}
 }
+\examples{
+\donttest{
+if (curl::has_internet()) {
+  library(quantion)
+
+  base <- "https://raw.githubusercontent.com/phenological/ion-files/main/data/"
+  url <- paste0(base, "untargeted_hilpos_p011_PQC_31_b1_w20.ion")
+  file <- parse_ion(url)
+  features <- find_features(file, options = find_features_options(
+    grid    = grid_options(start = 195, end = 196),
+    threads = 2L
+  ))
+  cleaned <- deisotope_features(features, options = deisotope_features_options(rt_tolerance = 0.02))
+
+  cat(nrow(features), "features,", nrow(cleaned), "without isotopes\\n")
+}
+}
+}

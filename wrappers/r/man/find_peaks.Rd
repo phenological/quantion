@@ -25,7 +25,8 @@ Every peak that passes the filters specified in the function options: the peak t
 if (curl::has_internet()) {
   library(quantion)
 
-  url <- "https://raw.githubusercontent.com/phenological/ion-files/main/data/aa_p21_LTR_20_b1_w20.ion"
+  base <- "https://raw.githubusercontent.com/phenological/ion-files/main/data/"
+  url <- paste0(base, "aa_p21_LTR_20_b1_w20.ion")
   file <- parse_ion(url)
   eic <- calculate_eic(file, 260.103, options = calculate_eic_options(from = 2, to = 3))
   peaks <- find_peaks(eic$x, eic$y, options = find_peaks_options(min_snr = 3))

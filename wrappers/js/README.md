@@ -21,10 +21,6 @@ const peak = getPeak(eic.x, eic.y, 2.383, { range: 0.05 });
 console.log(peak);
 ```
 
-## MCP server
-
-Apps that support MCP (e.g. Claude Code or Codex) can use the Quant·ion functions as tools with `quantion-mcp`. It runs locally and reads only the allowed folders. Setup: [mcp](https://github.com/phenological/quantion/tree/main/mcp).
-
 ## Documentation
 
 Every function, option and example: [API Documentation](https://phenological.github.io/quantion/)

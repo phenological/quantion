@@ -26,7 +26,8 @@ One predicted retention time per target, in the same order. Type: \code{data.fra
 if (curl::has_internet()) {
   library(quantion)
 
-  url <- "https://raw.githubusercontent.com/phenological/ion-files/main/data/aa_p21_LTR_20_b1_w20.ion"
+  base <- "https://raw.githubusercontent.com/phenological/ion-files/main/data/"
+  url <- paste0(base, "aa_p21_LTR_20_b1_w20.ion")
   fixtures <- "https://raw.githubusercontent.com/phenological/quantion/main/core/tests/fixtures"
   model <- load_model(paste0(fixtures, "/shift_model.onnx"))
   warp <- load_warp(model)

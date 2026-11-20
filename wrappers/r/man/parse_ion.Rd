@@ -27,7 +27,8 @@ The file is freed by the library once it is no longer used, so dispose is not ne
 if (curl::has_internet()) {
   library(quantion)
 
-  url <- "https://raw.githubusercontent.com/phenological/ion-files/main/data/aa_p21_LTR_20_b1_w20.ion"
+  base <- "https://raw.githubusercontent.com/phenological/ion-files/main/data/"
+  url <- paste0(base, "aa_p21_LTR_20_b1_w20.ion")
   file <- parse_ion(url)
   cached <- parse_ion(url, options = parse_ion_options(max_cache_size = 64e6))
   print(file)

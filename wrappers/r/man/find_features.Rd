@@ -24,27 +24,17 @@ Every feature found (the feature table), without frequency. Type: \code{data.fra
 if (curl::has_internet()) {
   library(quantion)
 
-  url <- "https://raw.githubusercontent.com/phenological/ion-files/main/data/aa_p21_LTR_20_b1_w20.ion"
+  base <- "https://raw.githubusercontent.com/phenological/ion-files/main/data/"
+  url <- paste0(base, "untargeted_hilpos_p011_PQC_31_b1_w20.ion")
   options <- find_features_options(
-    eic     = calculate_eic_options(from = 2.3, to = 2.45),
-    grid    = grid_options(start = 255, end = 265),
+    eic     = calculate_eic_options(from = 0.5, to = 1.0),
+    grid    = grid_options(start = 195, end = 196),
     threads = 2L
   )
 
   file <- parse_ion(url)
   features <- find_features(file, options = options)
-
-  cat(sprintf("\%d features\\n", nrow(features)))
-  count <- 3
-  if (nrow(features) < count) {
-    count <- nrow(features)
-  }
-  for (index in seq_len(count)) {
-    feature <- features[index, ]
-    line <- sprintf("m/z \%.4f  rt \%.3f  intensity \%.0f",
-                    feature$mz, feature$rt, feature$intensity)
-    cat(line, "\\n", sep = "")
-  }
+  print(features)
 }
 }
 }

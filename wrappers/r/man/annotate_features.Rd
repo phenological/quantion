@@ -28,12 +28,10 @@ This is an experimental feature.
 if (curl::has_internet()) {
   library(quantion)
 
-  url <- "https://raw.githubusercontent.com/phenological/ion-files/main/data/untargeted_hilpos_p011_PQC_31_b1_w20.ion"
+  base <- "https://raw.githubusercontent.com/phenological/ion-files/main/data/"
+  url <- paste0(base, "untargeted_hilpos_p011_PQC_31_b1_w20.ion")
   file <- parse_ion(url)
-  features <- find_features(file, find_features_options(
-    eic  = calculate_eic_options(from = 4.2, to = 5.1),
-    grid = grid_options(start = 110, end = 120)
-  ))
+  features <- data.frame(mz = 195.0876, rt = 0.65)
   annotations <- annotate_features(list(file), features, annotate_features_options(matches = 3L))
   print(annotations[, c("mz", "rt", "label", "id", "database", "frequency", "score")])
 }
