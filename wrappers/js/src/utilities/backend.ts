@@ -46,6 +46,19 @@ export function getScanQueryValues(query: ScanQuerySettings): number[] {
   ];
 }
 
+export interface TransitionQuerySettings {
+  byIndex: number;
+  index: number;
+  precursor: number;
+  product: number;
+}
+
+export function getTransitionQueryValues(
+  query: TransitionQuerySettings,
+): number[] {
+  return [query.byIndex, query.index, query.precursor, query.product];
+}
+
 export interface AnnotationSettings {
   matches: number;
   ppmTolerance: number;
@@ -267,6 +280,14 @@ export interface Backend {
     options: PeakSettings,
     threads: number,
   ): Peak[];
+
+  getTransition(handle: FileHandle, query: TransitionQuerySettings): DataXY;
+
+  getTransitionMetadata(
+    handle: FileHandle,
+    query: TransitionQuerySettings,
+    tags: string[],
+  ): ScanParam[];
 
   findFeatures?(
     handle: FileHandle,

@@ -14,6 +14,7 @@ mod get_peak_isolated_peak_1;
 mod get_peak_joined_isomers;
 mod get_peak_noise_level;
 mod get_peak_position_weight_7;
+mod get_transition;
 mod helpers;
 mod lm;
 mod parse_ion;

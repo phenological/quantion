@@ -177,6 +177,27 @@ async function reportChannel(file, transitions, channel, out) {
     out.push(`${prefix}.intensity = ${number(row.intensity)}`);
     out.push(`${prefix}.area = ${number(row.integral)}`);
   });
+
+  const query = { precursor: channel.mass, product: channel.mass };
+  const trace = quantion.getTransition(transitions, query);
+  out.push(`${name}.get_transition.points = ${trace.x.length}`);
+  out.push(`${name}.get_transition.x.fnv1a = ${digest(trace.x)}`);
+  out.push(`${name}.get_transition.y.fnv1a = ${digest(trace.y)}`);
+  const metadata = quantion.getTransitionMetadata(transitions, query);
+  out.push(`${name}.get_transition_metadata.count = ${metadata.length}`);
+  const windows = quantion.getTransitionMetadata(transitions, query, {
+    tags: ["isolationWindow"],
+  });
+  windows.forEach((row, position) => {
+    out.push(
+      `${name}.get_transition_metadata.isolationWindow.${position} = ${rowText(row)}`,
+    );
+  });
+}
+
+function rowText(row) {
+  const fields = [row.path, row.kind, row.accession, row.name, row.value, row.unit, row.unitAccession];
+  return fields.map((field) => field ?? "NA").join(" | ");
 }
 
 function featureLines(label, rows, out, withPoints) {
@@ -216,8 +237,7 @@ async function main() {
   const rows = await quantion.getScanMetadata(file, lastIndex);
   out.push(`get_scan_metadata.count = ${rows.length}`);
   rows.forEach((row, position) => {
-    const fields = [row.path, row.kind, row.accession, row.name, row.value, row.unit, row.unitAccession];
-    out.push(`get_scan_metadata.${position} = ${fields.map((field) => field ?? "NA").join(" | ")}`);
+    out.push(`get_scan_metadata.${position} = ${rowText(row)}`);
   });
   const scanRows = await quantion.getScanMetadata(file, lastIndex, { tags: ["scan"] });
   out.push(`get_scan_metadata.scan.count = ${scanRows.length}`);

@@ -28,8 +28,43 @@ get_sha256 <- function(path) {
 }
 
 download <- function(url, path) {
+  local_folder <- Sys.getenv("QUANTION_PREBUILT_DIR")
+  if (nzchar(local_folder)) {
+    ok <- file.copy(file.path(local_folder, basename(url)), path, overwrite = TRUE)
+    if (!ok) stop_install("quantion: ", basename(url), " is not in QUANTION_PREBUILT_DIR ", local_folder)
+    return(invisible())
+  }
   ok <- tryCatch(utils::download.file(url, path, mode = "wb", quiet = TRUE) == 0L, error = function(e) FALSE)
-  if (!ok) stop_install("quantion: could not download ", url)
+  if (!ok) stop_install("quantion: could not download ", url, "; if this version is not released yet, install cargo to build it from source")
+}
+
+read_dll_exports <- function(path) {
+  bytes <- readBin(path, "raw", file.info(path)$size)
+  read_unsigned <- function(offset, size) sum(as.numeric(bytes[offset + seq_len(size)]) * 256^(seq_len(size) - 1))
+  header <- read_unsigned(0x3C, 4)
+  if (!identical(bytes[header + 1:4], as.raw(c(0x50, 0x45, 0, 0)))) stop("not a PE file")
+  optional_header <- header + 24
+  if (read_unsigned(optional_header, 2) != 0x20B) stop("not a 64-bit DLL")
+  sections <- optional_header + read_unsigned(header + 20, 2)
+  section_count <- read_unsigned(header + 6, 2)
+  to_offset <- function(rva) {
+    for (index in seq_len(section_count) - 1) {
+      section <- sections + 40 * index
+      start <- read_unsigned(section + 12, 4)
+      if (rva >= start && rva < start + read_unsigned(section + 8, 4)) return(rva - start + read_unsigned(section + 20, 4))
+    }
+    stop("address outside every section")
+  }
+  read_name <- function(offset) {
+    end <- offset
+    while (bytes[end + 1] != as.raw(0)) end <- end + 1
+    rawToChar(bytes[(offset + 1):end])
+  }
+  export_rva <- read_unsigned(optional_header + 112, 4)
+  if (export_rva == 0) stop("no export table")
+  exports <- to_offset(export_rva)
+  names <- to_offset(read_unsigned(exports + 32, 4))
+  vapply(seq_len(read_unsigned(exports + 24, 4)) - 1, function(index) read_name(to_offset(read_unsigned(names + 4 * index, 4))), "")
 }
 
 version <- trimws(read.dcf("DESCRIPTION")[1, "Version"])
@@ -61,14 +96,21 @@ if (platform$extension == "dylib") {
   }
 }
 
-rpath <- switch(platform$extension,
-  dylib = "-Wl,-rpath,@loader_path",
-  so = "-Wl,-rpath,'$$ORIGIN'",
-  dll = ""
-)
-makevars <- if (platform$extension == "dll") "Makevars.win" else "Makevars"
-writeLines(
-  sprintf("PKG_LIBS = -L$(CURDIR)/prebuilt -lquantion %s", rpath),
-  file.path("src", makevars)
-)
+if (platform$extension == "dll") {
+  exports <- tryCatch(read_dll_exports(library_path), error = function(e) stop_install("quantion: could not read the exports of ", asset, ": ", conditionMessage(e)))
+  writeLines(c("LIBRARY libquantion.dll", "EXPORTS", exports), file.path(folder, "libquantion.def"))
+  writeLines(c(
+    "PKG_LIBS = -L$(CURDIR)/prebuilt -lquantion",
+    "",
+    "all: $(SHLIB)",
+    "",
+    "$(SHLIB): prebuilt/libquantion.dll.a",
+    "",
+    "prebuilt/libquantion.dll.a: prebuilt/libquantion.def",
+    "\t$(DLLTOOL) --dllname libquantion.dll --input-def prebuilt/libquantion.def --output-lib prebuilt/libquantion.dll.a"
+  ), file.path("src", "Makevars.win"))
+} else {
+  rpath <- if (platform$extension == "dylib") "-Wl,-rpath,@loader_path" else "-Wl,-rpath,'$$ORIGIN'"
+  writeLines(sprintf("PKG_LIBS = -L$(CURDIR)/prebuilt -lquantion %s", rpath), file.path("src", "Makevars"))
+}
 message("quantion: using the prebuilt ", asset, "; cargo is not needed")

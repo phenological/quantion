@@ -95,6 +95,62 @@ jobs:
           sudo apt-get update && sudo apt-get install -y devscripts
           scripts/build-r-package.sh dist/r
 
+  r-prebuilt:
+    name: R installs without cargo (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            platform: linux-x86_64
+            library: libquantion.so
+            extension: .so
+          - os: macos-latest
+            platform: macos-arm64
+            library: libquantion.dylib
+            extension: .dylib
+          - os: windows-latest
+            platform: windows-x86_64
+            library: libquantion.dll
+            extension: .dll
+
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Use the Rust that ships with the runner
+        run: rustup update stable && rustup default stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: core
+
+      - name: Build the library the release would ship
+        run: |
+          make native
+          version="$(sed -n 's/^version = "\(.*\)"/\1/p' core/Cargo.toml | head -1)"
+          mkdir -p prebuilt
+          cp "artifacts/$version/${{ matrix.platform }}/${{ matrix.library }}" \
+             "prebuilt/libquantion-${{ matrix.platform }}${{ matrix.extension }}"
+          cd prebuilt && sha256sum libquantion-* > SHA256SUMS.txt
+
+      - uses: r-lib/actions/setup-r@v2
+        with:
+          r-version: "release"
+          use-public-rspm: true
+
+      - name: Install the R packages the wrapper declares
+        uses: r-lib/actions/setup-r-dependencies@v2
+        with:
+          working-directory: wrappers/r
+
+      - name: Install the R package from the prebuilt library and run it
+        run: scripts/check-r-prebuilt.sh prebuilt
+
   wasm:
     name: wasm
     runs-on: ubuntu-latest

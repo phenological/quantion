@@ -6,6 +6,7 @@ mod scan_query;
 mod spectrum_summary;
 mod target;
 mod transition;
+mod transition_query;
 
 pub use data_xy::DataXY;
 pub use from_to::FromTo;
@@ -15,3 +16,4 @@ pub use scan_query::{Position, ScanQuery};
 pub use spectrum_summary::SpectrumSummary;
 pub use target::Target;
 pub use transition::Transition;
+pub use transition_query::TransitionQuery;

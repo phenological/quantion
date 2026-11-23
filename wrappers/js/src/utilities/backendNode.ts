@@ -8,6 +8,7 @@ import type {
   AnnotationSettings,
   AnnotationTables,
   Backend,
+  TransitionQuerySettings,
   EicSettings,
   FileHandle,
   GridSettings,
@@ -20,7 +21,7 @@ import type {
   TransitionColumns,
   WarpModelHandle,
 } from "./backend";
-import { getScanQueryValues } from "./backend";
+import { getTransitionQueryValues, getScanQueryValues } from "./backend";
 import type {
   DataXY,
   Feature,
@@ -606,6 +607,30 @@ export class NodeBackend implements Backend {
         threads,
       ),
     ) as unknown as Peak[];
+  }
+
+  getTransition(
+    handle: FileHandle,
+    query: TransitionQuerySettings,
+  ): DataXY {
+    return this.native.getTransition(
+      handle,
+      ...getTransitionQueryValues(query),
+    ) as DataXY;
+  }
+
+  getTransitionMetadata(
+    handle: FileHandle,
+    query: TransitionQuerySettings,
+    tags: string[],
+  ): ScanParam[] {
+    return readScanMetadata(
+      this.native.getTransitionMetadata(
+        handle,
+        ...getTransitionQueryValues(query),
+        tags.join(TAG_SEPARATOR),
+      ),
+    );
   }
 
   async findFeatures(

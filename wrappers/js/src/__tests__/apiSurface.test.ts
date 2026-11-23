@@ -28,6 +28,8 @@ const publicNames = [
   "calculateBaseline",
   "findTargets",
   "findTransitions",
+  "getTransition",
+  "getTransitionMetadata",
   "findFeatures",
   "matchFeatures",
   "loadModel",

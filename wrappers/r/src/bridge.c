@@ -377,9 +377,9 @@ static const record_column MODEL_METADATA_COLUMNS[] = {
     {"key", 83, 84, COLUMN_TEXT}, {"value", 85, 86, COLUMN_TEXT}};
 
 static const record_column SCAN_METADATA_COLUMNS[] = {
-    {"path", 91, 92, COLUMN_TEXT}, {"kind", 93, 94, COLUMN_TEXT},
-    {"accession", 95, 96, COLUMN_OPTIONAL_TEXT, 97}, {"name", 98, 99, COLUMN_TEXT},
-    {"value", 100, 101, COLUMN_OPTIONAL_TEXT, 102}, {"unit", 103, 104, COLUMN_OPTIONAL_TEXT, 105},
+    {"name", 98, 99, COLUMN_TEXT}, {"value", 100, 101, COLUMN_OPTIONAL_TEXT, 102},
+    {"unit", 103, 104, COLUMN_OPTIONAL_TEXT, 105}, {"path", 91, 92, COLUMN_TEXT},
+    {"kind", 93, 94, COLUMN_TEXT}, {"accession", 95, 96, COLUMN_OPTIONAL_TEXT, 97},
     {"unit_accession", 106, 107, COLUMN_OPTIONAL_TEXT, 108}};
 
 static const record_column FEATURE_ANNOTATION_COLUMNS[] = {
@@ -1140,6 +1140,24 @@ SEXP C_calculate_eic(SEXP file, SEXP mz, SEXP eic)
                            get_number(eic, "ppm_tolerance"), get_number(eic, "mz_tolerance"),
                            get_time_unit(list_get(eic, "time_unit")), &x, &y));
   return take_numbers(&x, &y, 0);
+}
+
+SEXP C_get_transition(SEXP file, SEXP by_index, SEXP index, SEXP precursor, SEXP product)
+{
+  check_bound();
+  Buf x = (Buf){0}, y = (Buf){0};
+  check_code(get_transition(get_sample(file), (uint8_t)asLogical(by_index), (uintptr_t)asReal(index),
+                            asReal(precursor), asReal(product), &x, &y));
+  return take_numbers(&x, &y, 0);
+}
+
+SEXP C_get_transition_metadata(SEXP file, SEXP by_index, SEXP index, SEXP precursor, SEXP product, SEXP tags)
+{
+  check_bound();
+  Buf out = (Buf){0};
+  check_code(get_transition_metadata(get_sample(file), (uint8_t)asLogical(by_index), (uintptr_t)asReal(index),
+                                     asReal(precursor), asReal(product), CHAR(STRING_ELT(tags, 0)), &out));
+  return take_records(&out);
 }
 
 SEXP C_plan_eic(SEXP file, SEXP mz, SEXP eic)

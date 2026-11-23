@@ -1,5 +1,5 @@
 use ionic::mzml::structs::{
-    BinaryDataArray, CvParam, IsolationWindow, Precursor, PrecursorList, Product,
+    BinaryDataArray, Chromatogram, CvParam, IsolationWindow, Precursor, PrecursorList, Product,
     ReferenceableParamGroupRef, Scan, ScanList, Spectrum, SpectrumDescription, UserParam,
 };
 
@@ -20,6 +20,19 @@ pub(crate) const SCAN_METADATA_TAGS: [&str; 17] = [
     "selectedIon",
     "activation",
     "productList",
+    "product",
+    "binaryDataArrayList",
+    "binaryDataArray",
+];
+
+pub(crate) const TRANSITION_METADATA_TAGS: [&str; 10] = [
+    "chromatogram",
+    "referenceableParamGroupRef",
+    "precursor",
+    "isolationWindow",
+    "selectedIonList",
+    "selectedIon",
+    "activation",
     "product",
     "binaryDataArrayList",
     "binaryDataArray",
@@ -68,6 +81,47 @@ pub(crate) fn get_scan_params(spectrum: &Spectrum) -> Vec<ScanParam> {
         }
     }
     if let Some(list) = &spectrum.binary_data_array_list {
+        let list_path = format!("{path}/binaryDataArrayList");
+        for (position, array) in list.binary_data_arrays.iter().enumerate() {
+            rows.add_binary_array(&format!("{list_path}/binaryDataArray[{position}]"), array);
+        }
+    }
+    rows.rows
+}
+
+pub(crate) fn get_chromatogram_params(chromatogram: &Chromatogram) -> Vec<ScanParam> {
+    let mut rows = Rows::default();
+    let path = "chromatogram".to_string();
+    let index = chromatogram.index.map(|index| index.to_string());
+    let length = chromatogram
+        .default_array_length
+        .map(|length| length.to_string());
+    rows.add_attributes(
+        &path,
+        &[
+            ("index", index.as_deref()),
+            ("id", Some(chromatogram.id.as_str())),
+            ("nativeID", chromatogram.native_id.as_deref()),
+            ("defaultArrayLength", length.as_deref()),
+            (
+                "dataProcessingRef",
+                chromatogram.data_processing_ref.as_deref(),
+            ),
+        ],
+    );
+    rows.add_params(
+        &path,
+        &chromatogram.referenceable_param_group_refs,
+        &chromatogram.cv_params,
+        &chromatogram.user_params,
+    );
+    if let Some(precursor) = &chromatogram.precursor {
+        rows.add_precursor(&format!("{path}/precursor"), precursor);
+    }
+    if let Some(product) = &chromatogram.product {
+        rows.add_product(&format!("{path}/product"), product);
+    }
+    if let Some(list) = &chromatogram.binary_data_array_list {
         let list_path = format!("{path}/binaryDataArrayList");
         for (position, array) in list.binary_data_arrays.iter().enumerate() {
             rows.add_binary_array(&format!("{list_path}/binaryDataArray[{position}]"), array);

@@ -112,6 +112,8 @@ const FUNCTION_NAMES = [
   "calculate_baseline",
   "find_targets",
   "find_transitions",
+  "get_transition",
+  "get_transition_metadata",
   "find_features",
   "match_features",
   "deisotope_features",

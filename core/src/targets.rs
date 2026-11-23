@@ -4,12 +4,16 @@ use crate::{
         QuantionError, check_finite, check_mz_and_rt, check_not_negative, check_positive,
         check_threads,
     },
-    files::from_fast_error,
-    sample_file::SampleFile,
+    files::{ScanParam, from_fast_error, read_error},
+    sample_file::{FileSource, SampleFile},
     utilities::{
         find_targets::find_targets as read_targets,
-        find_transitions::find_transitions as read_transitions,
-        structs::{Peak, Target, Transition},
+        find_transitions::{
+            find_ion_chromatogram, find_transitions as read_transitions, get_chromatogram,
+            get_ion_transition, get_transition as read_transition,
+        },
+        get_scan_metadata::{TRANSITION_METADATA_TAGS, get_chromatogram_params, get_tag},
+        structs::{DataXY, Peak, Target, Transition, TransitionQuery},
     },
 };
 
@@ -172,4 +176,116 @@ pub fn find_transitions(
         Ok(read_transitions(mzml, targets, options.clone())
             .unwrap_or_else(|| vec![Peak::default(); targets.len()]))
     })
+}
+
+/// **get_transition** · Targeted
+///
+/// Read one stored chromatogram, such as the TIC or an SRM or MRM transition, by its index or by its precursor (Q1) and product (Q3), both within 0.005 m/z. Use it to draw a trace before get_peak or find_peaks.
+///
+/// **Warning:** A sample opened from a URL gives a remote_file error; open it from a path or bytes.
+///
+/// - `file`: The sample to read, from parse_ion or parse_mzml.
+/// - `query`: Which chromatogram: an index counted from 0, or a precursor (Q1) and product (Q3) pair. Each TransitionQuery has `Index`, `Transition`. See [TransitionQuery](https://phenological.github.io/quantion/?language=rust#TransitionQuery).
+///   Example: `let query = TransitionQuery::Transition { precursor: 89.04768, product: 89.04768 };`
+///
+/// Returns: The chromatogram, with x as the retention times in minutes and y as the intensities. Both are empty when no stored chromatogram matches.
+///
+/// [Documentation](https://phenological.github.io/quantion/?language=rust#get_transition)
+pub fn get_transition(
+    file: &mut SampleFile,
+    query: TransitionQuery,
+) -> Result<DataXY, QuantionError> {
+    const FUNCTION: &str = "get_transition";
+    check_transition_query(FUNCTION, query)?;
+    match &mut file.source {
+        FileSource::Full(mzml) => Ok(read_transition(mzml, query)),
+        FileSource::Lazy(ion) => {
+            get_ion_transition(ion, query).map_err(|error| read_error(FUNCTION, error))
+        }
+        FileSource::Remote(_) => Err(QuantionError::remote_file(FUNCTION)),
+    }
+}
+
+fn check_transition_query(
+    function: &'static str,
+    query: TransitionQuery,
+) -> Result<(), QuantionError> {
+    if let TransitionQuery::Transition { precursor, product } = query {
+        check_positive(function, "precursor", precursor)?;
+        check_positive(function, "product", product)?;
+    }
+    Ok(())
+}
+
+/// **GetTransitionMetadataOptions** · Options
+///
+/// Options for get_transition_metadata.
+///
+/// Fields:
+/// - `tags`: Which tags to keep, by name. A row is kept when the last tag of its path matches, so precursor keeps chromatogram/precursor but not its isolationWindow. An empty list keeps every tag. The names are chromatogram, referenceableParamGroupRef, precursor, isolationWindow, selectedIonList, selectedIon, activation, product, binaryDataArrayList and binaryDataArray. Default `[]`.
+///
+/// [Documentation](https://phenological.github.io/quantion/?language=rust#GetTransitionMetadataOptions)
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct GetTransitionMetadataOptions {
+    pub tags: Vec<String>,
+}
+
+impl GetTransitionMetadataOptions {
+    pub(crate) fn check(&self, function: &'static str) -> Result<(), QuantionError> {
+        for tag in &self.tags {
+            if !TRANSITION_METADATA_TAGS.contains(&tag.as_str()) {
+                return Err(QuantionError::invalid(
+                    function,
+                    "tags",
+                    format!(
+                        "must be one of {}, got {tag:?}",
+                        TRANSITION_METADATA_TAGS.join(", ")
+                    ),
+                ));
+            }
+        }
+        Ok(())
+    }
+
+    fn keeps(&self, path: &str) -> bool {
+        self.tags.is_empty() || self.tags.iter().any(|tag| tag == get_tag(path))
+    }
+}
+
+/// **get_transition_metadata** · Targeted
+///
+/// Read the details stored for one chromatogram, such as an SRM or MRM transition (attributes, precursor, product, cvParams and userParams), one row each, parents before children. Find it by its index or by its precursor (Q1) and product (Q3), both within 0.005 m/z.
+///
+/// **Warning:** A sample opened from a URL gives a remote_file error; open it from a path or bytes.
+///
+/// - `file`: The sample to read, from parse_ion or parse_mzml.
+/// - `query`: Which chromatogram: an index counted from 0, or a precursor (Q1) and product (Q3) pair. Each TransitionQuery has `Index`, `Transition`. See [TransitionQuery](https://phenological.github.io/quantion/?language=rust#TransitionQuery).
+///   Example: `let query = TransitionQuery::Transition { precursor: 89.04768, product: 89.04768 };`
+/// - `options`: Optional settings: `tags` = []. See [GetTransitionMetadataOptions](https://phenological.github.io/quantion/?language=rust#GetTransitionMetadataOptions).
+///
+/// Returns: One row per attribute or param, in the order of the mzML tree, with paths from chromatogram down. Empty when no stored chromatogram matches. A field the file does not give is missing (None in Rust and Python, null in JavaScript, NA in R).
+///
+/// [Documentation](https://phenological.github.io/quantion/?language=rust#get_transition_metadata)
+pub fn get_transition_metadata(
+    file: &mut SampleFile,
+    query: TransitionQuery,
+    options: GetTransitionMetadataOptions,
+) -> Result<Vec<ScanParam>, QuantionError> {
+    const FUNCTION: &str = "get_transition_metadata";
+    check_transition_query(FUNCTION, query)?;
+    options.check(FUNCTION)?;
+    let rows = match &mut file.source {
+        FileSource::Full(mzml) => get_chromatogram(mzml, query)
+            .map(get_chromatogram_params)
+            .unwrap_or_default(),
+        FileSource::Lazy(ion) => find_ion_chromatogram(ion, query)
+            .map_err(|error| read_error(FUNCTION, error))?
+            .map(|(_, chrom)| get_chromatogram_params(&chrom))
+            .unwrap_or_default(),
+        FileSource::Remote(_) => return Err(QuantionError::remote_file(FUNCTION)),
+    };
+    Ok(rows
+        .into_iter()
+        .filter(|row| options.keeps(&row.path))
+        .collect())
 }

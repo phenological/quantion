@@ -146,6 +146,22 @@ def report_channel(file, transitions, channel, out):
         out.append(f"{prefix}.intensity = {number(row['intensity'])}")
         out.append(f"{prefix}.area = {number(row['integral'])}")
 
+    query = {"precursor": channel["mass"], "product": channel["mass"]}
+    trace = quantion.get_transition(transitions, query)
+    out.append(f"{name}.get_transition.points = {len(trace['x'])}")
+    out.append(f"{name}.get_transition.x.fnv1a = {digest(list(trace['x']))}")
+    out.append(f"{name}.get_transition.y.fnv1a = {digest(list(trace['y']))}")
+    metadata = quantion.get_transition_metadata(transitions, query)
+    out.append(f"{name}.get_transition_metadata.count = {len(metadata)}")
+    windows = quantion.get_transition_metadata(transitions, query, {"tags": ["isolationWindow"]})
+    for position, row in enumerate(windows):
+        out.append(f"{name}.get_transition_metadata.isolationWindow.{position} = {row_text(row)}")
+
+
+def row_text(row):
+    fields = [row["path"], row["kind"].value, row["accession"], row["name"], row["value"], row["unit"], row["unit_accession"]]
+    return " | ".join("NA" if field is None else field for field in fields)
+
 
 def main():
     directory = sys.argv[1] if len(sys.argv) > 1 else "core/tests/fixtures/api"
@@ -163,8 +179,7 @@ def main():
     rows = quantion.get_scan_metadata(file, scans[-1]["index"])
     out.append(f"get_scan_metadata.count = {len(rows)}")
     for position, row in enumerate(rows):
-        fields = [row["path"], row["kind"].value, row["accession"], row["name"], row["value"], row["unit"], row["unit_accession"]]
-        out.append(f"get_scan_metadata.{position} = {' | '.join('NA' if field is None else field for field in fields)}")
+        out.append(f"get_scan_metadata.{position} = {row_text(row)}")
     scan_rows = quantion.get_scan_metadata(file, scans[-1]["index"], {"tags": ["scan"]})
     out.append(f"get_scan_metadata.scan.count = {len(scan_rows)}")
 

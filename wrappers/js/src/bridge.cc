@@ -117,6 +117,8 @@ typedef int32_t (*fn_find_features)(const MzML *, double, double, double, double
 typedef int32_t (*fn_match_features)(const char *, double, double, double, double, uint8_t, double, double, double, double, double, double, double, const CPeakOptions *, size_t, const WarpModel *, Buf *);
 typedef int32_t (*fn_get_scans)(const MzML *, uint8_t, double, double, uint8_t, double, double, uint8_t, uint8_t, Buf *);
 typedef int32_t (*fn_scan_metadata)(MzML *, size_t, const char *, Buf *);
+typedef int32_t (*fn_get_transition)(MzML *, uint8_t, size_t, double, double, Buf *, Buf *);
+typedef int32_t (*fn_get_transition_metadata)(MzML *, uint8_t, size_t, double, double, const char *, Buf *);
 typedef int32_t (*fn_plan_scan_metadata)(MzML *, size_t, Buf *);
 typedef int32_t (*fn_get_ion_image)(const MzML *, double, double, uint8_t, Buf *);
 typedef void (*fn_free_)(unsigned char *, size_t);
@@ -154,6 +156,8 @@ typedef struct
   fn_find_noise_level find_noise_level;
   fn_find_targets find_targets;
   fn_find_transitions find_transitions;
+  fn_get_transition get_transition;
+  fn_get_transition_metadata get_transition_metadata;
   fn_find_peaks find_peaks;
   fn_calculate_baseline calculate_baseline;
   fn_deisotope_features deisotope_features;
@@ -378,6 +382,10 @@ static int abi_load(const char *path, const char **err)
   if (resolve_required((void **)&ABI.find_targets, "find_targets"))
     goto fail;
   if (resolve_required((void **)&ABI.find_transitions, "find_transitions"))
+    goto fail;
+  if (resolve_required((void **)&ABI.get_transition, "get_transition"))
+    goto fail;
+  if (resolve_required((void **)&ABI.get_transition_metadata, "get_transition_metadata"))
     goto fail;
   if (resolve_required((void **)&ABI.find_peaks, "find_peaks"))
     goto fail;
@@ -896,6 +904,39 @@ static Napi::Value CalculateEic(const Napi::CallbackInfo &info)
   result.Set("x", TakeNumbers(env, x.Out()));
   result.Set("y", TakeNumbers(env, y.Out()));
   return result;
+}
+
+static Napi::Value GetTransition(const Napi::CallbackInfo &info)
+{
+  Napi::Env env = info.Env();
+  MzML *handle = GetHandle(info[0]);
+  if (!handle)
+    return ThrowClosed(env, "get_transition");
+  OwnedBuf x;
+  OwnedBuf y;
+  int32_t rc = ABI.get_transition(handle, Byte(info, 1), Count(info, 2), Number(info, 3), Number(info, 4),
+                                  x.Out(), y.Out());
+  if (rc != 0)
+    return ThrowRc(env, "get_transition", rc);
+  Napi::Object result = Napi::Object::New(env);
+  result.Set("x", TakeNumbers(env, x.Out()));
+  result.Set("y", TakeNumbers(env, y.Out()));
+  return result;
+}
+
+static Napi::Value GetTransitionMetadata(const Napi::CallbackInfo &info)
+{
+  Napi::Env env = info.Env();
+  MzML *handle = GetHandle(info[0]);
+  if (!handle)
+    return ThrowClosed(env, "get_transition_metadata");
+  std::string tags = info[5].As<Napi::String>().Utf8Value();
+  OwnedBuf out;
+  int32_t rc = ABI.get_transition_metadata(handle, Byte(info, 1), Count(info, 2), Number(info, 3), Number(info, 4),
+                                           tags.c_str(), out.Out());
+  if (rc != 0)
+    return ThrowRc(env, "get_transition_metadata", rc);
+  return TakeArrayBuffer(env, out.Out());
 }
 
 static Napi::Value FindNoiseLevel(const Napi::CallbackInfo &info)
@@ -1746,6 +1787,8 @@ static Napi::Object Init(Napi::Env env, Napi::Object exports)
   exports.Set("findNoiseLevel", Napi::Function::New(env, FindNoiseLevel));
   exports.Set("findTargets", Napi::Function::New(env, FindTargets));
   exports.Set("findTransitions", Napi::Function::New(env, FindTransitions));
+  exports.Set("getTransition", Napi::Function::New(env, GetTransition));
+  exports.Set("getTransitionMetadata", Napi::Function::New(env, GetTransitionMetadata));
   exports.Set("findPeaks", Napi::Function::New(env, FindPeaks));
   exports.Set("calculateBaseline", Napi::Function::New(env, CalculateBaseline));
   exports.Set("deisotopeFeatures", Napi::Function::New(env, DeisotopeFeatures));

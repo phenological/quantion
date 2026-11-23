@@ -1,6 +1,7 @@
 import type {
   AnnotationTables,
   Backend,
+  TransitionQuerySettings,
   EicSettings,
   FileHandle,
   PeakColumns,
@@ -41,6 +42,7 @@ import {
   getAccessionNumbers,
   hasDefaultScanArrays,
   readGetScanMetadataOptions,
+  readGetTransitionMetadataOptions,
   readAnnotateFeaturesOptions,
   readGetScansOptions,
   readIonImageOptions,
@@ -59,6 +61,7 @@ import type {
   FileAnnotation,
   CalculateBaselineOptions,
   BinaryInput,
+  TransitionQuery,
   DataXY,
   DrawPeaksOptions,
   CalculateEicOptions,
@@ -71,6 +74,7 @@ import type {
   FromTo,
   GetPeakOptions,
   GetScanMetadataOptions,
+  GetTransitionMetadataOptions,
   GetScansOptions,
   IonImage,
   GetIonImageOptions,
@@ -838,6 +842,92 @@ export function findTransitions(
     settings.findPeaks,
     settings.threads,
   );
+}
+
+function getTransitionQuery(
+  query: unknown,
+  functionName: string,
+): TransitionQuerySettings {
+  if (typeof query === "number") {
+    if (!Number.isSafeInteger(query) || query < 0) {
+      throw invalidArgument(
+        functionName,
+        "query",
+        `must be a whole number 0 or more, got ${String(query)}`,
+      );
+    }
+    return { byIndex: 1, index: query, precursor: NaN, product: NaN };
+  }
+  if (
+    typeof query !== "object" ||
+    query === null ||
+    !("precursor" in query) ||
+    !("product" in query)
+  ) {
+    throw invalidArgument(
+      functionName,
+      "query",
+      "must be an index or { precursor, product }",
+    );
+  }
+  return {
+    byIndex: 0,
+    index: 0,
+    precursor: getNumber(query.precursor, functionName, "query.precursor"),
+    product: getNumber(query.product, functionName, "query.product"),
+  };
+}
+
+/**
+ * getTransition · Targeted
+ *
+ * Read one stored chromatogram, such as the TIC or an SRM or MRM transition, by its index or by its precursor (Q1) and product (Q3), both within 0.005 m/z. Use it to draw a trace before get_peak or find_peaks.
+ *
+ * **Warning:** A sample opened from a URL gives a remote_file error; open it from a path or bytes.
+ *
+ * @param file - The sample to read, from parse_ion or parse_mzml.
+ * @param query - Which chromatogram: an index counted from 0, or a precursor (Q1) and product (Q3) pair. Each TransitionQuery has `query`, `query`. See {@link https://phenological.github.io/quantion/?language=js#TransitionQuery | TransitionQuery}.
+ *   Example: `const query: TransitionQuery = { precursor: 89.04768, product: 89.04768 };`
+ * @returns The chromatogram, with x as the retention times in minutes and y as the intensities. Both are empty when no stored chromatogram matches.
+ * @see {@link https://phenological.github.io/quantion/?language=js#get_transition | Documentation}
+ */
+export function getTransition(
+  file: SampleFile,
+  query: TransitionQuery,
+): DataXY {
+  const handle = getHandle(file, "getTransition");
+  return file._backend.getTransition(
+    handle,
+    getTransitionQuery(query, "getTransition"),
+  );
+}
+
+/**
+ * getTransitionMetadata · Targeted
+ *
+ * Read the details stored for one chromatogram, such as an SRM or MRM transition (attributes, precursor, product, cvParams and userParams), one row each, parents before children. Find it by its index or by its precursor (Q1) and product (Q3), both within 0.005 m/z.
+ *
+ * **Warning:** A sample opened from a URL gives a remote_file error; open it from a path or bytes.
+ *
+ * @param file - The sample to read, from parse_ion or parse_mzml.
+ * @param query - Which chromatogram: an index counted from 0, or a precursor (Q1) and product (Q3) pair. Each TransitionQuery has `query`, `query`. See {@link https://phenological.github.io/quantion/?language=js#TransitionQuery | TransitionQuery}.
+ *   Example: `const query: TransitionQuery = { precursor: 89.04768, product: 89.04768 };`
+ * @param options - Optional settings: `tags` = []. See {@link https://phenological.github.io/quantion/?language=js#GetTransitionMetadataOptions | GetTransitionMetadataOptions}.
+ * @returns One row per attribute or param, in the order of the mzML tree, with paths from chromatogram down. Empty when no stored chromatogram matches. A field the file does not give is missing (None in Rust and Python, null in JavaScript, NA in R).
+ * @see {@link https://phenological.github.io/quantion/?language=js#get_transition_metadata | Documentation}
+ */
+export function getTransitionMetadata(
+  file: SampleFile,
+  query: TransitionQuery,
+  options?: GetTransitionMetadataOptions,
+): ScanParam[] {
+  const handle = getHandle(file, "getTransitionMetadata");
+  const settings = getTransitionQuery(query, "getTransitionMetadata");
+  const { tags } = readGetTransitionMetadataOptions(
+    options,
+    "getTransitionMetadata",
+  );
+  return file._backend.getTransitionMetadata(handle, settings, tags);
 }
 
 /**

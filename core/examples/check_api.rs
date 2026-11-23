@@ -3,10 +3,11 @@ use std::path::Path;
 use quantion::{
     AnnotateFeaturesOptions, CalculateEicOptions, DataXY, DeisotopeFeaturesOptions, Feature,
     FindFeaturesOptions, FindPeaksOptions, FindTargetsOptions, FindTransitionsOptions, FromTo,
-    GetPeakOptions, GetScanMetadataOptions, GridOptions, MatchFeaturesOptions, ParseIonOptions,
-    Peak, Position, SampleFile, ScanQuery, Target, Transition, annotate_features, calculate_eic,
-    deisotope_features, find_features, find_noise_level, find_peaks, find_targets,
-    find_transitions, get_peak, get_scan_metadata, get_scans, load_model, load_warp,
+    GetPeakOptions, GetScanMetadataOptions, GetTransitionMetadataOptions, GridOptions,
+    MatchFeaturesOptions, ParseIonOptions, Peak, Position, SampleFile, ScanParam, ScanQuery,
+    Target, Transition, TransitionQuery, annotate_features, calculate_eic, deisotope_features,
+    find_features, find_noise_level, find_peaks, find_targets, find_transitions, get_peak,
+    get_scan_metadata, get_scans, get_transition, get_transition_metadata, load_model, load_warp,
     match_features, parse_ion,
 };
 
@@ -151,21 +152,7 @@ fn scan_metadata(fixture: &Path, out: &mut Vec<String>) {
     let rows = get_scan_metadata(&mut file, last, Default::default()).expect("get_scan_metadata");
     out.push(format!("get_scan_metadata.count = {}", rows.len()));
     for (position, row) in rows.iter().enumerate() {
-        let kind = format!("{:?}", row.kind);
-        let fields = [
-            Some(row.path.as_str()),
-            Some(kind.as_str()),
-            row.accession.as_deref(),
-            Some(row.name.as_str()),
-            row.value.as_deref(),
-            row.unit.as_deref(),
-            row.unit_accession.as_deref(),
-        ];
-        let text: Vec<&str> = fields.iter().map(|field| field.unwrap_or("NA")).collect();
-        out.push(format!(
-            "get_scan_metadata.{position} = {}",
-            text.join(" | ")
-        ));
+        out.push(format!("get_scan_metadata.{position} = {}", row_text(row)));
     }
     let options = GetScanMetadataOptions {
         tags: vec!["scan".to_string()],
@@ -175,6 +162,21 @@ fn scan_metadata(fixture: &Path, out: &mut Vec<String>) {
         "get_scan_metadata.scan.count = {}",
         scan_rows.len()
     ));
+}
+
+fn row_text(row: &ScanParam) -> String {
+    let kind = format!("{:?}", row.kind);
+    let fields = [
+        Some(row.path.as_str()),
+        Some(kind.as_str()),
+        row.accession.as_deref(),
+        Some(row.name.as_str()),
+        row.value.as_deref(),
+        row.unit.as_deref(),
+        row.unit_accession.as_deref(),
+    ];
+    let text: Vec<&str> = fields.iter().map(|field| field.unwrap_or("NA")).collect();
+    text.join(" | ")
 }
 
 fn extract_eic(fixture: &Path, channel: &Channel) -> DataXY {
@@ -236,8 +238,8 @@ fn report_transitions(fixture: &Path, channel: &Channel, prefix: &str, out: &mut
         find_peaks: chrom_peak_options(channel),
         threads: THREADS,
     };
-    let rows = find_transitions(&mut open(&folder.join("srm.ion")), &targets, options)
-        .expect("find_transitions");
+    let mut transitions = open(&folder.join("srm.ion"));
+    let rows = find_transitions(&mut transitions, &targets, options).expect("find_transitions");
     for ((id, _), peak) in channel.targets.iter().zip(&rows) {
         let name = format!("{prefix}.{id}");
         out.push(format!("{name}.rt = {}", number(peak.rt)));
@@ -245,6 +247,41 @@ fn report_transitions(fixture: &Path, channel: &Channel, prefix: &str, out: &mut
         out.push(format!("{name}.to = {}", number(peak.to)));
         out.push(format!("{name}.intensity = {}", number(peak.intensity)));
         out.push(format!("{name}.area = {}", number(peak.integral)));
+    }
+    stored_transition(&mut transitions, channel, out);
+}
+
+fn stored_transition(file: &mut SampleFile, channel: &Channel, out: &mut Vec<String>) {
+    let name = channel.name;
+    let query = TransitionQuery::Transition {
+        precursor: channel.mass,
+        product: channel.mass,
+    };
+    let trace = get_transition(file, query).expect("get_transition");
+    out.push(format!("{name}.get_transition.points = {}", trace.x.len()));
+    out.push(format!(
+        "{name}.get_transition.x.fnv1a = {}",
+        digest(&trace.x)
+    ));
+    out.push(format!(
+        "{name}.get_transition.y.fnv1a = {}",
+        digest(&trace.y)
+    ));
+    let rows =
+        get_transition_metadata(file, query, Default::default()).expect("get_transition_metadata");
+    out.push(format!(
+        "{name}.get_transition_metadata.count = {}",
+        rows.len()
+    ));
+    let options = GetTransitionMetadataOptions {
+        tags: vec!["isolationWindow".to_string()],
+    };
+    let windows = get_transition_metadata(file, query, options).expect("get_transition_metadata");
+    for (position, row) in windows.iter().enumerate() {
+        out.push(format!(
+            "{name}.get_transition_metadata.isolationWindow.{position} = {}",
+            row_text(row)
+        ));
     }
 }
 

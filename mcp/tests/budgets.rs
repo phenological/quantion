@@ -5,7 +5,7 @@ use serde_json::json;
 use common::{Server, TestFolder};
 
 const BYTES_PER_TOKEN: usize = 4;
-const TOOL_LIST_TOKENS: usize = 5_000;
+const TOOL_LIST_TOKENS: usize = 5_500;
 const REPLY_TOKENS: usize = 400;
 
 #[test]

@@ -28,6 +28,8 @@ export {
   calculateBaseline,
   findTargets,
   findTransitions,
+  getTransition,
+  getTransitionMetadata,
   findFeatures,
   matchFeatures,
   deisotopeFeatures,
