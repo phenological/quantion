@@ -31,6 +31,7 @@ case "$system" in
       *)             platform="windows-x86_64" ;;
     esac
     library="quantion.dll"
+    export RUSTFLAGS="${RUSTFLAGS:-} -C target-feature=+crt-static"
     ;;
   *)
     echo "unsupported system: $system $machine"
@@ -52,6 +53,11 @@ case "$platform" in
 esac
 rm -f "$target"
 cp "$built" "$target"
+
+if [ "${platform%%-*}" = "windows" ] && grep -qaiE 'vcruntime140|msvcp140|api-ms-win-crt' "$target"; then
+  echo "$target needs the Visual C++ runtime; it must link it statically"
+  exit 1
+fi
 
 rm -f "artifacts/$version/manifest.json"
 
