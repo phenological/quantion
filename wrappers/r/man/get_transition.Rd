@@ -15,7 +15,7 @@ get_transition(file, query)
 The chromatogram, with x as the retention times in minutes and y as the intensities. Both are empty when no stored chromatogram matches. Type: \code{DataXY list}. Fields: \code{x}, \code{y}.
 }
 \section{Warning}{
-Needs the whole file. A sample opened from a URL gives a remote_file error; open it from a path or bytes.
+A sample opened from a URL gives a remote_file error; open it from a path or bytes.
 }
 \section{Documentation}{
 \url{https://phenological.github.io/quantion/?language=r#get_transition}

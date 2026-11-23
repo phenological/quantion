@@ -4,13 +4,13 @@ use crate::{
         QuantionError, check_finite, check_mz_and_rt, check_not_negative, check_positive,
         check_threads,
     },
-    files::{ScanParam, from_fast_error},
-    sample_file::SampleFile,
+    files::{ScanParam, from_fast_error, read_error},
+    sample_file::{FileSource, SampleFile},
     utilities::{
         find_targets::find_targets as read_targets,
         find_transitions::{
-            find_transitions as read_transitions, get_chromatogram,
-            get_transition as read_transition,
+            find_ion_chromatogram, find_transitions as read_transitions, get_chromatogram,
+            get_ion_transition, get_transition as read_transition,
         },
         get_scan_metadata::{TRANSITION_METADATA_TAGS, get_chromatogram_params, get_tag},
         structs::{DataXY, Peak, Target, Transition, TransitionQuery},
@@ -182,7 +182,7 @@ pub fn find_transitions(
 ///
 /// Read one stored chromatogram, such as the TIC or an SRM or MRM transition, by its index or by its precursor (Q1) and product (Q3), both within 0.005 m/z. Use it to draw a trace before get_peak or find_peaks.
 ///
-/// **Warning:** Needs the whole file. A sample opened from a URL gives a remote_file error; open it from a path or bytes.
+/// **Warning:** A sample opened from a URL gives a remote_file error; open it from a path or bytes.
 ///
 /// - `file`: The sample to read, from parse_ion or parse_mzml.
 /// - `query`: Which chromatogram: an index counted from 0, or a precursor (Q1) and product (Q3) pair. Each TransitionQuery has `Index`, `Transition`. See [TransitionQuery](https://phenological.github.io/quantion/?language=rust#TransitionQuery).
@@ -197,7 +197,13 @@ pub fn get_transition(
 ) -> Result<DataXY, QuantionError> {
     const FUNCTION: &str = "get_transition";
     check_transition_query(FUNCTION, query)?;
-    file.with_mzml(FUNCTION, |mzml| Ok(read_transition(mzml, query)))
+    match &mut file.source {
+        FileSource::Full(mzml) => Ok(read_transition(mzml, query)),
+        FileSource::Lazy(ion) => {
+            get_ion_transition(ion, query).map_err(|error| read_error(FUNCTION, error))
+        }
+        FileSource::Remote(_) => Err(QuantionError::remote_file(FUNCTION)),
+    }
 }
 
 fn check_transition_query(
@@ -250,7 +256,7 @@ impl GetTransitionMetadataOptions {
 ///
 /// Read the details stored for one chromatogram, such as an SRM or MRM transition (attributes, precursor, product, cvParams and userParams), one row each, parents before children. Find it by its index or by its precursor (Q1) and product (Q3), both within 0.005 m/z.
 ///
-/// **Warning:** Needs the whole file. A sample opened from a URL gives a remote_file error; open it from a path or bytes.
+/// **Warning:** A sample opened from a URL gives a remote_file error; open it from a path or bytes.
 ///
 /// - `file`: The sample to read, from parse_ion or parse_mzml.
 /// - `query`: Which chromatogram: an index counted from 0, or a precursor (Q1) and product (Q3) pair. Each TransitionQuery has `Index`, `Transition`. See [TransitionQuery](https://phenological.github.io/quantion/?language=rust#TransitionQuery).
@@ -268,13 +274,18 @@ pub fn get_transition_metadata(
     const FUNCTION: &str = "get_transition_metadata";
     check_transition_query(FUNCTION, query)?;
     options.check(FUNCTION)?;
-    file.with_mzml(FUNCTION, |mzml| {
-        let rows = get_chromatogram(mzml, query)
+    let rows = match &mut file.source {
+        FileSource::Full(mzml) => get_chromatogram(mzml, query)
             .map(get_chromatogram_params)
-            .unwrap_or_default();
-        Ok(rows
-            .into_iter()
-            .filter(|row| options.keeps(&row.path))
-            .collect())
-    })
+            .unwrap_or_default(),
+        FileSource::Lazy(ion) => find_ion_chromatogram(ion, query)
+            .map_err(|error| read_error(FUNCTION, error))?
+            .map(|(_, chrom)| get_chromatogram_params(&chrom))
+            .unwrap_or_default(),
+        FileSource::Remote(_) => return Err(QuantionError::remote_file(FUNCTION)),
+    };
+    Ok(rows
+        .into_iter()
+        .filter(|row| options.keeps(&row.path))
+        .collect())
 }

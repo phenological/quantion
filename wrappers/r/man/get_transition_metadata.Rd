@@ -18,7 +18,7 @@ get_transition_metadata(file, query, options = get_transition_metadata_options()
 One row per attribute or param, in the order of the mzML tree, with paths from chromatogram down. Empty when no stored chromatogram matches. A field the file does not give is missing (None in Rust and Python, null in JavaScript, NA in R). Type: \code{data.frame of ScanParam}. Columns: \code{path}, \code{kind}, \code{accession}, \code{name}, \code{value}, \code{unit}, \code{unit_accession}.
 }
 \section{Warning}{
-Needs the whole file. A sample opened from a URL gives a remote_file error; open it from a path or bytes.
+A sample opened from a URL gives a remote_file error; open it from a path or bytes.
 }
 \section{Documentation}{
 \url{https://phenological.github.io/quantion/?language=r#get_transition_metadata}

@@ -95,6 +95,13 @@ jobs:
           sudo apt-get update && sudo apt-get install -y devscripts
           scripts/build-r-package.sh dist/r
 
+  released-api:
+    name: a released version keeps its API
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: make check-released-api
+
   r-prebuilt:
     name: R installs without cargo (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
@@ -121,9 +128,6 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-
-      - name: A released version keeps its API
-        run: make check-released-api
 
       - name: Use the Rust that ships with the runner
         run: rustup update stable && rustup default stable

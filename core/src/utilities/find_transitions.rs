@@ -1,5 +1,8 @@
-use ionic::mzml::structs::{
-    BinaryDataArray, BinaryDataArrayList, Chromatogram, IsolationWindow, MzML, NumericArray,
+use ionic::{
+    ArrayKind, IonReader, IonResult,
+    mzml::structs::{
+        BinaryDataArray, BinaryDataArrayList, Chromatogram, IsolationWindow, MzML, NumericArray,
+    },
 };
 #[cfg(not(all(target_arch = "wasm32", not(target_os = "wasi"))))]
 use rayon::{ThreadPoolBuilder, prelude::*};
@@ -85,23 +88,64 @@ pub fn get_transition(mzml: &MzML, query: TransitionQuery) -> DataXY {
     }
 }
 
+pub fn find_ion_chromatogram(
+    ion: &mut IonReader,
+    query: TransitionQuery,
+) -> IonResult<Option<(usize, Chromatogram)>> {
+    let count = ion.chromatogram_count() as usize;
+    match query {
+        TransitionQuery::Index(index) if index < count => {
+            Ok(Some((index, ion.chromatogram_metadata_at(index)?)))
+        }
+        TransitionQuery::Index(_) => Ok(None),
+        TransitionQuery::Transition { precursor, product } => {
+            for index in 0..count {
+                let chrom = ion.chromatogram_metadata_at(index)?;
+                if is_transition(&chrom, precursor, product) {
+                    return Ok(Some((index, chrom)));
+                }
+            }
+            Ok(None)
+        }
+    }
+}
+
+pub fn get_ion_transition(ion: &mut IonReader, query: TransitionQuery) -> IonResult<DataXY> {
+    let Some((index, _)) = find_ion_chromatogram(ion, query)? else {
+        return Ok(DataXY::default());
+    };
+    let mut x = ion.chromatogram_array(index, ArrayKind::Time)?;
+    let mut y = ion.chromatogram_array(index, ArrayKind::Intensity)?;
+    let n = x.len().min(y.len());
+    x.truncate(n);
+    y.truncate(n);
+    Ok(DataXY {
+        x,
+        y: y.into_iter().map(|value| f64::from(value as f32)).collect(),
+    })
+}
+
 fn find_chromatogram(
     chroms: &[Chromatogram],
     wanted_precursor: f64,
     wanted_product: f64,
 ) -> Option<&Chromatogram> {
-    chroms.iter().find(|chrom| {
-        let precursor = chrom
-            .precursor
-            .as_ref()
-            .and_then(|precursor| precursor.isolation_window.as_ref());
-        let product = chrom
-            .product
-            .as_ref()
-            .and_then(|product| product.isolation_window.as_ref());
-        is_near(get_isolation_target(precursor), wanted_precursor)
-            && is_near(get_isolation_target(product), wanted_product)
-    })
+    chroms
+        .iter()
+        .find(|chrom| is_transition(chrom, wanted_precursor, wanted_product))
+}
+
+fn is_transition(chrom: &Chromatogram, wanted_precursor: f64, wanted_product: f64) -> bool {
+    let precursor = chrom
+        .precursor
+        .as_ref()
+        .and_then(|precursor| precursor.isolation_window.as_ref());
+    let product = chrom
+        .product
+        .as_ref()
+        .and_then(|product| product.isolation_window.as_ref());
+    is_near(get_isolation_target(precursor), wanted_precursor)
+        && is_near(get_isolation_target(product), wanted_product)
 }
 
 fn get_isolation_target(window: Option<&IsolationWindow>) -> Option<f64> {

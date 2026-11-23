@@ -883,7 +883,7 @@ function getTransitionQuery(
  *
  * Read one stored chromatogram, such as the TIC or an SRM or MRM transition, by its index or by its precursor (Q1) and product (Q3), both within 0.005 m/z. Use it to draw a trace before get_peak or find_peaks.
  *
- * **Warning:** Needs the whole file. A sample opened from a URL gives a remote_file error; open it from a path or bytes.
+ * **Warning:** A sample opened from a URL gives a remote_file error; open it from a path or bytes.
  *
  * @param file - The sample to read, from parse_ion or parse_mzml.
  * @param query - Which chromatogram: an index counted from 0, or a precursor (Q1) and product (Q3) pair. Each TransitionQuery has `query`, `query`. See {@link https://phenological.github.io/quantion/?language=js#TransitionQuery | TransitionQuery}.
@@ -907,7 +907,7 @@ export function getTransition(
  *
  * Read the details stored for one chromatogram, such as an SRM or MRM transition (attributes, precursor, product, cvParams and userParams), one row each, parents before children. Find it by its index or by its precursor (Q1) and product (Q3), both within 0.005 m/z.
  *
- * **Warning:** Needs the whole file. A sample opened from a URL gives a remote_file error; open it from a path or bytes.
+ * **Warning:** A sample opened from a URL gives a remote_file error; open it from a path or bytes.
  *
  * @param file - The sample to read, from parse_ion or parse_mzml.
  * @param query - Which chromatogram: an index counted from 0, or a precursor (Q1) and product (Q3) pair. Each TransitionQuery has `query`, `query`. See {@link https://phenological.github.io/quantion/?language=js#TransitionQuery | TransitionQuery}.

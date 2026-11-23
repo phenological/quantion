@@ -1,6 +1,8 @@
+use ionic::mzml::structs::{Chromatogram, IsolationWindow};
+
 use crate::{
     ErrorKind, GetTransitionMetadataOptions, ParseIonOptions, SampleFile, ScanParam, ScanParamKind,
-    TransitionQuery, get_transition, get_transition_metadata, parse_ion,
+    TransitionQuery, get_transition, get_transition_metadata, parse_ion, sample_file::FileSource,
 };
 
 const SRM_FILE: &str = "tests/fixtures/srm.ion";
@@ -164,6 +166,77 @@ fn an_unknown_tag_is_refused() {
         .expect_err("unknown tag");
     assert_eq!(error.kind, ErrorKind::InvalidArgument);
     assert_eq!(error.argument.as_deref(), Some("tags"));
+}
+
+fn open_whole(path: &str) -> SampleFile {
+    let mut lazy = parse_ion(path, ParseIonOptions::default()).expect("open");
+    let FileSource::Lazy(ion) = &mut lazy.source else {
+        panic!("{path} did not open lazily");
+    };
+    SampleFile::new(FileSource::Full(Box::new(ion.to_mzml().expect("to mzml"))))
+}
+
+fn get_isolation_target(window: Option<&IsolationWindow>) -> Option<f64> {
+    window?
+        .cv_params
+        .iter()
+        .find(|param| param.accession.as_deref() == Some("MS:1000827"))?
+        .value
+        .as_deref()?
+        .parse()
+        .ok()
+}
+
+fn get_queries(file: &SampleFile) -> Vec<TransitionQuery> {
+    let FileSource::Full(mzml) = &file.source else {
+        return Vec::new();
+    };
+    let chroms: &[Chromatogram] = mzml
+        .run
+        .chromatogram_list
+        .as_ref()
+        .map(|list| list.chromatograms.as_slice())
+        .unwrap_or_default();
+    let mut queries: Vec<TransitionQuery> =
+        (0..=chroms.len()).map(TransitionQuery::Index).collect();
+    for chrom in chroms {
+        let precursor = chrom
+            .precursor
+            .as_ref()
+            .and_then(|item| item.isolation_window.as_ref());
+        let product = chrom
+            .product
+            .as_ref()
+            .and_then(|item| item.isolation_window.as_ref());
+        if let (Some(precursor), Some(product)) = (
+            get_isolation_target(precursor),
+            get_isolation_target(product),
+        ) {
+            queries.push(by_transition(precursor, product));
+        }
+    }
+    queries
+}
+
+#[test]
+fn a_lazy_file_reads_the_same_as_the_whole_file() {
+    for path in [SRM_FILE, "tests/fixtures/test.ion"] {
+        let mut whole = open_whole(path);
+        let mut lazy = parse_ion(path, ParseIonOptions::default()).expect("open");
+        let queries = get_queries(&whole);
+        assert!(queries.len() > 1, "{path} has no chromatograms");
+        for query in queries {
+            let expected = get_transition(&mut whole, query).expect("whole");
+            let found = get_transition(&mut lazy, query).expect("lazy");
+            assert_eq!(found.x, expected.x, "{path} {query:?} x");
+            assert_eq!(found.y, expected.y, "{path} {query:?} y");
+            let options = GetTransitionMetadataOptions::default();
+            let expected =
+                get_transition_metadata(&mut whole, query, options.clone()).expect("whole");
+            let found = get_transition_metadata(&mut lazy, query, options).expect("lazy");
+            assert_eq!(found, expected, "{path} {query:?} metadata");
+        }
+    }
 }
 
 #[test]
