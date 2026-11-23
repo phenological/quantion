@@ -28,13 +28,27 @@ if ! grep -q "DONE (quantion)" "$work/install.log"; then
 fi
 
 fixture="$root/core/tests/fixtures/srm.ion"
+check="$work/check.R"
+cat > "$check" <<'EOF'
+step <- function(text) {
+  cat("step:", text, "\n", file = stderr())
+  flush(stderr())
+}
+fixture <- commandArgs(trailingOnly = TRUE)[1]
+step("library(quantion)")
+library(quantion)
+step("parse_ion")
+file <- parse_ion(fixture)
+step("get_transition")
+trace <- get_transition(file, 0)
+stopifnot(length(trace$x) > 0)
+step("find_transitions")
+peaks <- find_transitions(file, data.frame(id = "alanine", precursor = 89.04768, product = 89.04768, rt = 2.385, range = 0.1))
+stopifnot(nrow(peaks) == 1, peaks$intensity > 0)
+cat("quantion", as.character(packageVersion("quantion")), "loads and runs from the prebuilt library\n")
+EOF
 if command -v cygpath >/dev/null 2>&1; then
   fixture="$(cygpath -m "$fixture")"
+  check="$(cygpath -m "$check")"
 fi
-R_LIBS="$r_lib" Rscript -e "
-library(quantion)
-file <- parse_ion('$fixture')
-peaks <- find_transitions(file, data.frame(id = 'alanine', precursor = 89.04768, product = 89.04768, rt = 2.385, range = 0.1))
-stopifnot(nrow(peaks) == 1, peaks\$intensity > 0)
-cat('quantion', as.character(packageVersion('quantion')), 'loads and runs from the prebuilt library\n')
-"
+R_LIBS="$r_lib" Rscript "$check" "$fixture"

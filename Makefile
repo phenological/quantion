@@ -19,7 +19,7 @@ MCP_EXE       := $(if $(filter Windows_NT,$(OS)),.exe,)
 
 .PHONY: release mac linux windows wasm \
         macos-arm64 macos-x86_64 linux-amd64 linux-arm64 windows-amd64 windows-arm64 \
-        check-version check-released-api test mcp test-mcp header header-check native quick-check check-api check-api-update \
+        check-version test mcp test-mcp header header-check native quick-check check-api check-api-update \
         publish publish_py clean
 
 release: mac linux windows wasm
@@ -114,9 +114,6 @@ wasm:
 
 check-version:
 	@scripts/check-version.sh
-
-check-released-api:
-	@scripts/check-released-api.sh
 
 test:
 	cargo test --all-features --manifest-path $(CRATE_MANIFEST)

@@ -226,7 +226,7 @@ fn reads_scans_and_their_metadata() {
         .as_array()
         .unwrap()
         .iter()
-        .any(|row| row[3] == "ms level" && row[4] == "1");
+        .any(|row| row[0] == "ms level" && row[1] == "1");
     assert!(has_level, "{metadata}");
 }
 

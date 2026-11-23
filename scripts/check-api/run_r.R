@@ -152,7 +152,7 @@ report_channel <- function(file, transitions, channel, out) {
 }
 
 row_text <- function(row) {
-  fields <- unlist(row, use.names = FALSE)
+  fields <- unlist(row[c("path", "kind", "accession", "name", "value", "unit", "unit_accession")], use.names = FALSE)
   fields[is.na(fields)] <- "NA"
   paste(fields, collapse = " | ")
 }

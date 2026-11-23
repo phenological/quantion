@@ -377,9 +377,9 @@ static const record_column MODEL_METADATA_COLUMNS[] = {
     {"key", 83, 84, COLUMN_TEXT}, {"value", 85, 86, COLUMN_TEXT}};
 
 static const record_column SCAN_METADATA_COLUMNS[] = {
-    {"path", 91, 92, COLUMN_TEXT}, {"kind", 93, 94, COLUMN_TEXT},
-    {"accession", 95, 96, COLUMN_OPTIONAL_TEXT, 97}, {"name", 98, 99, COLUMN_TEXT},
-    {"value", 100, 101, COLUMN_OPTIONAL_TEXT, 102}, {"unit", 103, 104, COLUMN_OPTIONAL_TEXT, 105},
+    {"name", 98, 99, COLUMN_TEXT}, {"value", 100, 101, COLUMN_OPTIONAL_TEXT, 102},
+    {"unit", 103, 104, COLUMN_OPTIONAL_TEXT, 105}, {"path", 91, 92, COLUMN_TEXT},
+    {"kind", 93, 94, COLUMN_TEXT}, {"accession", 95, 96, COLUMN_OPTIONAL_TEXT, 97},
     {"unit_accession", 106, 107, COLUMN_OPTIONAL_TEXT, 108}};
 
 static const record_column FEATURE_ANNOTATION_COLUMNS[] = {

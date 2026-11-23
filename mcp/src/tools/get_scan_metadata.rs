@@ -55,14 +55,14 @@ impl Tool for GetScanMetadata {
     }
 }
 
-fn get_metadata_table(rows: &[ScanParam]) -> Table {
+pub fn get_metadata_table(rows: &[ScanParam]) -> Table {
     let names = [
-        "path",
-        "kind",
-        "accession",
         "name",
         "value",
         "unit",
+        "path",
+        "kind",
+        "accession",
         "unit_accession",
     ];
     let mut table = Table::new(
@@ -76,12 +76,12 @@ fn get_metadata_table(rows: &[ScanParam]) -> Table {
     );
     for row in rows {
         table.add_row(vec![
-            Cell::Text(row.path.clone()),
-            Cell::Text(get_kind_name(row.kind).to_string()),
-            get_text_cell(&row.accession),
             Cell::Text(row.name.clone()),
             get_text_cell(&row.value),
             get_text_cell(&row.unit),
+            Cell::Text(row.path.clone()),
+            Cell::Text(get_kind_name(row.kind).to_string()),
+            get_text_cell(&row.accession),
             get_text_cell(&row.unit_accession),
         ]);
     }

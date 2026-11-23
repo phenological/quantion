@@ -64,8 +64,8 @@ write_library_mzml <- function() {
 }
 
 row <- function(path, kind, accession, name, value, unit = NA_character_, unit_accession = NA_character_) {
-  data.frame(path = path, kind = kind, accession = accession, name = name, value = value,
-             unit = unit, unit_accession = unit_accession, stringsAsFactors = FALSE)
+  data.frame(name = name, value = value, unit = unit, path = path, kind = kind,
+             accession = accession, unit_accession = unit_accession, stringsAsFactors = FALSE)
 }
 
 expected_rows <- function(position) {
@@ -191,7 +191,7 @@ test_that("tags keep only the chosen tags", {
 test_that("a tag that is not there gives no rows", {
   rows <- get_scan_metadata(open_library_files()$ion, 0, only_tags("precursor"))
   expect_identical(nrow(rows), 0L)
-  expect_identical(names(rows), c("path", "kind", "accession", "name", "value", "unit", "unit_accession"))
+  expect_identical(names(rows), c("name", "value", "unit", "path", "kind", "accession", "unit_accession"))
 })
 
 test_that("bad tags are refused", {

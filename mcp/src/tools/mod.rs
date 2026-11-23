@@ -11,6 +11,8 @@ pub mod fit_peak;
 pub mod get_peak;
 pub mod get_scan_metadata;
 pub mod get_scans;
+pub mod get_transition;
+pub mod get_transition_metadata;
 pub mod list_files;
 pub mod match_features;
 pub mod peak_table;
@@ -50,6 +52,8 @@ pub static TOOLS: &[&dyn Tool] = &[
     &write_mzml::WriteMzml,
     &get_scans::GetScans,
     &get_scan_metadata::GetScanMetadata,
+    &get_transition::GetTransition,
+    &get_transition_metadata::GetTransitionMetadata,
     &calculate_eic::CalculateEic,
     &find_peaks::FindPeaks,
     &get_peak::GetPeak,
