@@ -9,7 +9,7 @@ use crate::{
     traces::FindPeaksOptions,
     utilities::{
         get_peak::get_peak,
-        structs::{DataXY, Peak, Roi, Transition},
+        structs::{ChromatogramQuery, DataXY, Peak, Roi, Transition},
     },
 };
 
@@ -37,7 +37,7 @@ pub fn find_transitions(
         if target.range <= 0.0 || !target.rt.is_finite() {
             return Peak::default();
         }
-        let Some(chrom) = find_chromatogram(chroms, target) else {
+        let Some(chrom) = find_chromatogram(chroms, target.precursor, target.product) else {
             return Peak::default();
         };
         let Some((time_values, intensity_values)) = chromatogram_xy(chrom) else {
@@ -62,10 +62,33 @@ pub fn find_transitions(
     }
 }
 
-fn find_chromatogram<'a>(
-    chroms: &'a [Chromatogram],
-    target: &Transition,
-) -> Option<&'a Chromatogram> {
+pub fn get_chromatogram(mzml: &MzML, query: ChromatogramQuery) -> DataXY {
+    let Some(list) = mzml.run.chromatogram_list.as_ref() else {
+        return DataXY::default();
+    };
+    let found = match query {
+        ChromatogramQuery::Index(index) => list.chromatograms.get(index),
+        ChromatogramQuery::Transition { precursor, product } => {
+            find_chromatogram(&list.chromatograms, precursor, product)
+        }
+    };
+    let Some(chrom) = found else {
+        return DataXY::default();
+    };
+    let Some((x, y)) = chromatogram_xy(chrom) else {
+        return DataXY::default();
+    };
+    DataXY {
+        x,
+        y: y.into_iter().map(f64::from).collect(),
+    }
+}
+
+fn find_chromatogram(
+    chroms: &[Chromatogram],
+    wanted_precursor: f64,
+    wanted_product: f64,
+) -> Option<&Chromatogram> {
     chroms.iter().find(|chrom| {
         let precursor = chrom
             .precursor
@@ -75,8 +98,8 @@ fn find_chromatogram<'a>(
             .product
             .as_ref()
             .and_then(|product| product.isolation_window.as_ref());
-        is_near(get_isolation_target(precursor), target.precursor)
-            && is_near(get_isolation_target(product), target.product)
+        is_near(get_isolation_target(precursor), wanted_precursor)
+            && is_near(get_isolation_target(product), wanted_product)
     })
 }
 

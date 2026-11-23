@@ -8,8 +8,10 @@ use crate::{
     sample_file::SampleFile,
     utilities::{
         find_targets::find_targets as read_targets,
-        find_transitions::find_transitions as read_transitions,
-        structs::{Peak, Target, Transition},
+        find_transitions::{
+            find_transitions as read_transitions, get_chromatogram as read_chromatogram,
+        },
+        structs::{ChromatogramQuery, DataXY, Peak, Target, Transition},
     },
 };
 
@@ -172,4 +174,29 @@ pub fn find_transitions(
         Ok(read_transitions(mzml, targets, options.clone())
             .unwrap_or_else(|| vec![Peak::default(); targets.len()]))
     })
+}
+
+/// **get_chromatogram** · Targeted
+///
+/// Read one stored chromatogram, such as the TIC or an SRM or MRM transition, by its index or by its precursor (Q1) and product (Q3), both within 0.005 m/z. Use it to draw a trace before get_peak or find_peaks.
+///
+/// **Warning:** Needs the whole file. A sample opened from a URL gives a remote_file error; open it from a path or bytes.
+///
+/// - `file`: The sample to read, from parse_ion or parse_mzml.
+/// - `query`: Which chromatogram: `Index(usize)`, counted from 0, or `Transition { precursor, product }`. See [ChromatogramQuery](https://phenological.github.io/quantion/?language=rust#ChromatogramQuery).
+///   Example: `ChromatogramQuery::Transition { precursor: 240.1, product: 112.0 }`
+///
+/// Returns: The chromatogram: x = retention times in minutes, y = intensities. Both are empty when no stored chromatogram matches.
+///
+/// [Documentation](https://phenological.github.io/quantion/?language=rust#get_chromatogram)
+pub fn get_chromatogram(
+    file: &mut SampleFile,
+    query: ChromatogramQuery,
+) -> Result<DataXY, QuantionError> {
+    const FUNCTION: &str = "get_chromatogram";
+    if let ChromatogramQuery::Transition { precursor, product } = query {
+        check_positive(FUNCTION, "precursor", precursor)?;
+        check_positive(FUNCTION, "product", product)?;
+    }
+    file.with_mzml(FUNCTION, |mzml| Ok(read_chromatogram(mzml, query)))
 }

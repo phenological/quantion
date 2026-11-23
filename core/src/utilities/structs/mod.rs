@@ -1,3 +1,4 @@
+mod chromatogram_query;
 mod data_xy;
 mod from_to;
 mod peak;
@@ -7,6 +8,7 @@ mod spectrum_summary;
 mod target;
 mod transition;
 
+pub use chromatogram_query::ChromatogramQuery;
 pub use data_xy::DataXY;
 pub use from_to::FromTo;
 pub use peak::Peak;
