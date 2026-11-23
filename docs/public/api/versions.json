@@ -1,6 +1,12 @@
 {
-  "latest": "0.2.9",
+  "latest": "0.2.10",
   "versions": [
+    {
+      "version": "0.2.10",
+      "api": "0.2.2",
+      "date": "2026-11-23",
+      "message": "feat: release v0.2.10"
+    },
     {
       "version": "0.2.9",
       "api": "0.2.2",
