@@ -24,6 +24,8 @@ SEXP C_plan_scan_metadata(SEXP file, SEXP index);
 SEXP C_get_scans_with_arrays(SEXP file, SEXP query, SEXP level, SEXP time_unit, SEXP accessions);
 SEXP C_plan_scans_with_arrays(SEXP file, SEXP query, SEXP level, SEXP time_unit, SEXP accessions);
 SEXP C_calculate_eic(SEXP file, SEXP mz, SEXP eic);
+SEXP C_get_transition(SEXP file, SEXP by_index, SEXP index, SEXP precursor, SEXP product);
+SEXP C_get_transition_metadata(SEXP file, SEXP by_index, SEXP index, SEXP precursor, SEXP product, SEXP tags);
 SEXP C_plan_eic(SEXP file, SEXP mz, SEXP eic);
 SEXP C_get_ion_image(SEXP file, SEXP mz, SEXP tolerance, SEXP level);
 SEXP C_plan_image(SEXP file, SEXP mz, SEXP tolerance, SEXP level);
@@ -75,6 +77,8 @@ static const R_CallMethodDef CallEntries[] = {
     {"C_get_scans_with_arrays", (DL_FUNC)&C_get_scans_with_arrays, 5},
     {"C_plan_scans_with_arrays", (DL_FUNC)&C_plan_scans_with_arrays, 5},
     {"C_calculate_eic", (DL_FUNC)&C_calculate_eic, 3},
+    {"C_get_transition", (DL_FUNC)&C_get_transition, 5},
+    {"C_get_transition_metadata", (DL_FUNC)&C_get_transition_metadata, 6},
     {"C_plan_eic", (DL_FUNC)&C_plan_eic, 3},
     {"C_get_ion_image", (DL_FUNC)&C_get_ion_image, 4},
     {"C_plan_image", (DL_FUNC)&C_plan_image, 4},

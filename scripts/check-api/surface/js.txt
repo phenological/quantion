@@ -161,6 +161,13 @@ interface GetScansOptions
     level?: number | undefined
     timeUnit?: TimeUnit | undefined
 
+function getTransition(file: SampleFile, query: TransitionQuery): DataXY
+
+function getTransitionMetadata(file: SampleFile, query: TransitionQuery, options?: GetTransitionMetadataOptions): ScanParam[]
+
+interface GetTransitionMetadataOptions
+    tags?: string[] | undefined
+
 interface GridOptions
     end?: number | undefined
     start?: number | undefined
@@ -313,6 +320,8 @@ interface Transition
     product: number
     range: number
     rt: number
+
+type TransitionQuery = TransitionQuery
 
 class WarpModel
     calibrate: (anchorSamples: SampleFile[], targetLists: Target[][]) => Promise<Target[]>
@@ -502,6 +511,13 @@ interface GetScansOptions
     level?: number | undefined
     timeUnit?: TimeUnit | undefined
 
+function getTransition(file: SampleFile, query: TransitionQuery): DataXY
+
+function getTransitionMetadata(file: SampleFile, query: TransitionQuery, options?: GetTransitionMetadataOptions): ScanParam[]
+
+interface GetTransitionMetadataOptions
+    tags?: string[] | undefined
+
 interface GridOptions
     end?: number | undefined
     start?: number | undefined
@@ -654,6 +670,8 @@ interface Transition
     product: number
     range: number
     rt: number
+
+type TransitionQuery = TransitionQuery
 
 class WarpModel
     calibrate: (anchorSamples: SampleFile[], targetLists: Target[][]) => Promise<Target[]>

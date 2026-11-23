@@ -547,6 +547,7 @@ const rustTypeFiles = [
   "core/src/utilities/structs/scan_query.rs",
   "core/src/utilities/structs/target.rs",
   "core/src/utilities/structs/transition.rs",
+  "core/src/utilities/structs/transition_query.rs",
   "core/src/utilities/find_features.rs",
   "core/src/utilities/find_noise_level.rs",
   "core/src/utilities/fit_peak.rs",

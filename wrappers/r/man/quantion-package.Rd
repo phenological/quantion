@@ -39,6 +39,8 @@ Errors are conditions of class \code{quantion_error} with the fields \code{kind}
 \section{Targets and features}{
 \code{\link{find_targets}()}, \code{\link{find_transitions}()} - targeted peaks.
 
+\code{\link{get_transition}()}, \code{\link{get_transition_metadata}()} - stored chromatograms and their params.
+
 \code{\link{find_features}()}, \code{\link{match_features}()} - untargeted features.
 }
 \section{Models}{

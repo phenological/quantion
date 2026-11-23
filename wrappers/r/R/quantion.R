@@ -248,16 +248,28 @@ get_scans_options <- function(level = 1L, time_unit = "MINUTES",
   "activation", "productList", "product", "binaryDataArrayList", "binaryDataArray"
 )
 
-.check_scan_metadata_tags <- function(function_name, tags) {
-  if (!is.character(tags) || anyNA(tags) || !all(tags %in% .SCAN_METADATA_TAGS))
-    .invalid(function_name, "tags", sprintf("must be tag names from: %s", paste(.SCAN_METADATA_TAGS, collapse = ", ")))
+.TRANSITION_METADATA_TAGS <- c(
+  "chromatogram", "referenceableParamGroupRef", "precursor", "isolationWindow", "selectedIonList",
+  "selectedIon", "activation", "product", "binaryDataArrayList", "binaryDataArray"
+)
+
+.check_tags <- function(function_name, tags, names) {
+  if (!is.character(tags) || anyNA(tags) || !all(tags %in% names))
+    .invalid(function_name, "tags", sprintf("must be tag names from: %s", paste(names, collapse = ", ")))
   tags
 }
 
 get_scan_metadata_options <- function(tags = character(0)) {
   function_name <- "get_scan_metadata_options"
   .as_options("get_scan_metadata_options", list(
-    tags = .check_scan_metadata_tags(function_name, tags)
+    tags = .check_tags(function_name, tags, .SCAN_METADATA_TAGS)
+  ))
+}
+
+get_transition_metadata_options <- function(tags = character(0)) {
+  function_name <- "get_transition_metadata_options"
+  .as_options("get_transition_metadata_options", list(
+    tags = .check_tags(function_name, tags, .TRANSITION_METADATA_TAGS)
   ))
 }
 
@@ -575,6 +587,41 @@ calculate_eic <- function(file, mz, options = calculate_eic_options()) {
   source <- .remote_source(file)
   if (!is.null(source)) .prefetch(source, .Call("C_plan_eic", file, mz, options, PACKAGE = "quantion"))
   .Call("C_calculate_eic", file, mz, options, PACKAGE = "quantion")
+}
+
+.read_transition_query <- function(function_name, query) {
+  if (is.numeric(query) && length(query) == 1 && is.null(names(query))) {
+    if (!is.finite(query) || query < 0 || query != floor(query))
+      .invalid(function_name, "query", "must be a whole number 0 or more")
+    if (query > .LARGEST_WHOLE_NUMBER)
+      .invalid(function_name, "query", sprintf("must be less than the chromatogram count, got %.0f", query))
+    return(list(by_index = TRUE, index = as.numeric(query), precursor = NaN, product = NaN))
+  }
+  if (!(is.list(query) || is.numeric(query)) || !all(c("precursor", "product") %in% names(query)))
+    .invalid(function_name, "query", "must be an index or list(precursor = , product = )")
+  list(
+    by_index = FALSE,
+    index = 0,
+    precursor = .check_number(function_name, "query$precursor", query[["precursor"]]),
+    product = .check_number(function_name, "query$product", query[["product"]])
+  )
+}
+
+get_transition <- function(file, query) {
+  function_name <- "get_transition"
+  file <- .check_sample(function_name, file)
+  query <- .read_transition_query(function_name, query)
+  .Call("C_get_transition", file, query$by_index, query$index, query$precursor, query$product, PACKAGE = "quantion")
+}
+
+get_transition_metadata <- function(file, query, options = get_transition_metadata_options()) {
+  function_name <- "get_transition_metadata"
+  file <- .check_sample(function_name, file)
+  query <- .read_transition_query(function_name, query)
+  options <- .check_options(function_name, "options", options, "get_transition_metadata_options", "get_transition_metadata_options")
+  tags <- paste(options$tags, collapse = "\x1f")
+  .Call("C_get_transition_metadata", file, query$by_index, query$index, query$precursor, query$product, tags,
+        PACKAGE = "quantion")
 }
 
 get_ion_image <- function(file, mz, options = get_ion_image_options()) {

@@ -10,6 +10,7 @@ import type {
   FitPeakOptions,
   GetPeakOptions,
   GetScanMetadataOptions,
+  GetTransitionMetadataOptions,
   GetScansOptions,
   ScanArray,
   GridOptions,
@@ -571,10 +572,24 @@ export const SCAN_METADATA_TAGS = [
   "binaryDataArray",
 ] as const;
 
-export function readGetScanMetadataOptions(
+export const TRANSITION_METADATA_TAGS = [
+  "chromatogram",
+  "referenceableParamGroupRef",
+  "precursor",
+  "isolationWindow",
+  "selectedIonList",
+  "selectedIon",
+  "activation",
+  "product",
+  "binaryDataArrayList",
+  "binaryDataArray",
+] as const;
+
+function readTagOptions(
   value: unknown,
   functionName: string,
-): Complete<GetScanMetadataOptions> {
+  names: readonly string[],
+): { tags: string[] } {
   const given = getObject(value, functionName, "");
   checkKeys(given, ["tags"], functionName, "");
   const tags = given.tags === undefined ? [] : given.tags;
@@ -586,15 +601,29 @@ export function readGetScanMetadataOptions(
     );
   }
   for (const tag of tags) {
-    if (!(SCAN_METADATA_TAGS as readonly unknown[]).includes(tag)) {
+    if (!(names as readonly unknown[]).includes(tag)) {
       throw invalidArgument(
         functionName,
         "tags",
-        `must be one of ${SCAN_METADATA_TAGS.join(", ")}, got ${describe(tag)}`,
+        `must be one of ${names.join(", ")}, got ${describe(tag)}`,
       );
     }
   }
   return { tags: tags as string[] };
+}
+
+export function readGetScanMetadataOptions(
+  value: unknown,
+  functionName: string,
+): Complete<GetScanMetadataOptions> {
+  return readTagOptions(value, functionName, SCAN_METADATA_TAGS);
+}
+
+export function readGetTransitionMetadataOptions(
+  value: unknown,
+  functionName: string,
+): Complete<GetTransitionMetadataOptions> {
+  return readTagOptions(value, functionName, TRANSITION_METADATA_TAGS);
 }
 
 export function readParseIonOptions(

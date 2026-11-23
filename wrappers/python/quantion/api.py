@@ -26,6 +26,7 @@ from quantion._options import (
     DEFAULT_SCAN_ARRAYS,
     read_scan_arrays,
     read_scan_metadata_tags,
+    read_transition_metadata_tags,
     BASELINE,
     DEISOTOPE_FEATURES,
     DRAW_PEAKS,
@@ -37,6 +38,7 @@ from quantion._options import (
     FIT_PEAK,
     GET_PEAK,
     GET_SCAN_METADATA,
+    GET_TRANSITION_METADATA,
     GET_SCANS,
     ION_IMAGE,
     MATCH_FEATURES,
@@ -70,6 +72,7 @@ from quantion._types import (
     FromTo,
     GetPeakOptions,
     GetScanMetadataOptions,
+    GetTransitionMetadataOptions,
     GetScansOptions,
     IonImage,
     GetIonImageOptions,
@@ -559,6 +562,85 @@ def calculate_eic(file: SampleFile, mz: float, options: Optional[CalculateEicOpt
         c_double(ppm_tolerance), c_double(mz_tolerance), c_uint8(time_unit),
         ctypes.byref(x_buffer), ctypes.byref(y_buffer)))
     return {"x": buf_to_f64(abi, x_buffer), "y": buf_to_f64(abi, y_buffer)}
+
+
+def get_transition(file: SampleFile, query: Any) -> DataXY:
+    """get_transition · Targeted
+
+    Read one stored chromatogram, such as the TIC or an SRM or MRM transition, by its index or by its precursor (Q1) and product (Q3), both within 0.005 m/z. Use it to draw a trace before get_peak or find_peaks.
+
+    Warning:
+        Needs the whole file. A sample opened from a URL gives a remote_file error; open it from a path or bytes.
+
+    Args:
+        file: The sample to read, from parse_ion or parse_mzml.
+        query: Which chromatogram: an index counted from 0, or a precursor (Q1) and product (Q3) pair. Each TransitionQuery has query, query. See TransitionQuery: https://phenological.github.io/quantion/?language=python#TransitionQuery
+            Example: query = {"precursor": 89.04768, "product": 89.04768}
+
+    Returns:
+        The chromatogram, with x as the retention times in minutes and y as the intensities. Both are empty when no stored chromatogram matches.
+
+    Documentation: https://phenological.github.io/quantion/?language=python#get_transition
+    """
+    function = "get_transition"
+    by_index, index, precursor, product = _read_transition_query(function, query)
+    abi = file._abi
+    x_buffer, y_buffer = _Buf(), _Buf()
+    _check(abi, function, abi.get_transition(
+        file.handle, c_uint8(by_index), c_size_t(index), c_double(precursor), c_double(product),
+        ctypes.byref(x_buffer), ctypes.byref(y_buffer)))
+    return {"x": buf_to_f64(abi, x_buffer), "y": buf_to_f64(abi, y_buffer)}
+
+
+def _read_transition_query(function: str, query: Any):
+    if isinstance(query, Mapping):
+        if "precursor" not in query or "product" not in query:
+            raise _invalid(function, "query", "must be an index or {'precursor': ..., 'product': ...}")
+        precursor = get_number(function, "query.precursor", query["precursor"])
+        product = get_number(function, "query.product", query["product"])
+        return 0, 0, precursor, product
+    if isinstance(query, (str, bool)) or query is None:
+        raise _invalid(function, "query", "must be an index or {'precursor': ..., 'product': ...}")
+    index = get_count(function, "query", query)
+    if index > _LARGEST_SIZE:
+        raise _invalid(function, "query", f"must be less than the chromatogram count, got {query!r}")
+    return 1, index, math.nan, math.nan
+
+
+def get_transition_metadata(
+    file: SampleFile, query: Any, options: Optional[GetTransitionMetadataOptions] = None
+) -> List[ScanParam]:
+    """get_transition_metadata · Targeted
+
+    Read the details stored for one chromatogram, such as an SRM or MRM transition (attributes, precursor, product, cvParams and userParams), one row each, parents before children. Find it by its index or by its precursor (Q1) and product (Q3), both within 0.005 m/z.
+
+    Warning:
+        Needs the whole file. A sample opened from a URL gives a remote_file error; open it from a path or bytes.
+
+    Args:
+        file: The sample to read, from parse_ion or parse_mzml.
+        query: Which chromatogram: an index counted from 0, or a precursor (Q1) and product (Q3) pair. Each TransitionQuery has query, query. See TransitionQuery: https://phenological.github.io/quantion/?language=python#TransitionQuery
+            Example: query = {"precursor": 89.04768, "product": 89.04768}
+        options: Optional settings: tags = []. See GetTransitionMetadataOptions: https://phenological.github.io/quantion/?language=python#GetTransitionMetadataOptions
+
+    Returns:
+        One row per attribute or param, in the order of the mzML tree, with paths from chromatogram down. Empty when no stored chromatogram matches. A field the file does not give is missing (None in Rust and Python, null in JavaScript, NA in R).
+
+    Documentation: https://phenological.github.io/quantion/?language=python#get_transition_metadata
+    """
+    function = "get_transition_metadata"
+    by_index, index, precursor, product = _read_transition_query(function, query)
+    settings = read_options(function, options, GET_TRANSITION_METADATA)
+    tags = ctypes.c_char_p(read_transition_metadata_tags(function, settings["tags"]))
+    abi = file._abi
+    buffer = _Buf()
+    _check(abi, function, abi.get_transition_metadata(
+        file.handle, c_uint8(by_index), c_size_t(index), c_double(precursor), c_double(product),
+        tags, ctypes.byref(buffer)))
+    rows = buf_to_records(abi, buffer)
+    for row in rows:
+        row["kind"] = ScanParamKind(row["kind"])
+    return rows
 
 
 def get_ion_image(file: SampleFile, mz: float, options: Optional[GetIonImageOptions] = None) -> IonImage:

@@ -429,6 +429,19 @@ class GetScanMetadataOptions(TypedDict, total=False):
     tags: List[str]
 
 
+class GetTransitionMetadataOptions(TypedDict, total=False):
+    """GetTransitionMetadataOptions · Options
+
+    Options for get_transition_metadata.
+
+    Fields:
+        tags: Which tags to keep, by name. A row is kept when the last tag of its path matches, so precursor keeps chromatogram/precursor but not its isolationWindow. An empty list keeps every tag. The names are chromatogram, referenceableParamGroupRef, precursor, isolationWindow, selectedIonList, selectedIon, activation, product, binaryDataArrayList and binaryDataArray. Default [].
+
+    Documentation: https://phenological.github.io/quantion/?language=python#GetTransitionMetadataOptions
+    """
+    tags: List[str]
+
+
 class GetScansOptions(TypedDict, total=False):
     """GetScansOptions · Options
 
@@ -675,7 +688,7 @@ class PredictedRt(TypedDict):
 class ScanParamKind(str, Enum):
     """ScanParamKind · Enums
 
-    What a row from get_scan_metadata holds.
+    What a row from get_scan_metadata or get_transition_metadata holds.
 
     Fields:
         ATTRIBUTE: An attribute of the tag, such as id or defaultArrayLength.
@@ -692,10 +705,10 @@ class ScanParamKind(str, Enum):
 class ScanParam(TypedDict):
     """ScanParam · Results
 
-    One row from get_scan_metadata. It is an attribute, a cvParam or a userParam of one tag in a spectrum.
+    One row from get_scan_metadata or get_transition_metadata. It is an attribute, a cvParam or a userParam of one tag in a spectrum or a chromatogram.
 
     Fields:
-        path: Where the tag sits, from spectrum down. Repeated tags carry their position from 0, such as spectrum/precursorList/precursor[0]/selectedIonList/selectedIon[0].
+        path: Where the tag sits, from spectrum or chromatogram down. Repeated tags carry their position from 0, such as spectrum/precursorList/precursor[0]/selectedIonList/selectedIon[0].
         kind: What the row holds, ATTRIBUTE, CV or USER. See ScanParamKind.
         accession: Accession of a cvParam, such as MS:1000511. Missing for attributes and userParams.
         name: Name of the attribute or param, such as ms level.

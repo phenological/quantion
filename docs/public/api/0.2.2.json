@@ -1719,6 +1719,203 @@
       }
     },
     {
+      "name": "get_transition",
+      "group": "Targeted",
+      "kind": "function",
+      "summary": "Read one stored chromatogram, such as the TIC or an SRM or MRM transition, by its index or by its precursor (Q1) and product (Q3), both within 0.005 m/z. Use it to draw a trace before get_peak or find_peaks.",
+      "warning": "Needs the whole file. A sample opened from a URL gives a remote_file error; open it from a path or bytes.",
+      "arguments": [
+        {
+          "meaning": "The sample to read, from parse_ion or parse_mzml.",
+          "languages": {
+            "rust": {
+              "name": "file",
+              "type": "&mut SampleFile",
+              "default": "—"
+            },
+            "python": {
+              "name": "file",
+              "type": "SampleFile",
+              "default": "—"
+            },
+            "js": {
+              "name": "file",
+              "type": "SampleFile",
+              "default": "—"
+            },
+            "r": {
+              "name": "file",
+              "type": "SampleFile",
+              "default": "—"
+            }
+          }
+        },
+        {
+          "meaning": "Which chromatogram: an index counted from 0, or a precursor (Q1) and product (Q3) pair.",
+          "languages": {
+            "rust": {
+              "name": "query",
+              "type": "TransitionQuery",
+              "default": "—"
+            },
+            "python": {
+              "name": "query",
+              "type": "int | TransitionQuery",
+              "default": "—"
+            },
+            "js": {
+              "name": "query",
+              "type": "TransitionQuery",
+              "default": "—"
+            },
+            "r": {
+              "name": "query",
+              "type": "numeric(1) | list(precursor, product)",
+              "default": "—"
+            }
+          }
+        }
+      ],
+      "returns": {
+        "meaning": "The chromatogram, with x as the retention times in minutes and y as the intensities. Both are empty when no stored chromatogram matches.",
+        "languages": {
+          "rust": "Result<DataXY, QuantionError>",
+          "python": "DataXY",
+          "js": "DataXY",
+          "r": "DataXY list"
+        }
+      },
+      "languages": {
+        "rust": {
+          "signature": "pub fn get_transition(file: &mut SampleFile, query: TransitionQuery) -> Result<DataXY, QuantionError>",
+          "example": "use quantion::{ParseIonOptions, TransitionQuery, get_transition, parse_ion};\n\nlet url = \"https://raw.githubusercontent.com/phenological/quantion/main/core/tests/fixtures/srm.ion\";\nlet data = ureq::get(url).call()?.body_mut().read_to_vec()?;\nlet mut file = parse_ion(data, ParseIonOptions::default())?;\nlet first = get_transition(&mut file, TransitionQuery::Index(0))?;\nlet alanine = get_transition(&mut file, TransitionQuery::Transition { precursor: 89.04768, product: 89.04768 })?;\nprintln!(\"{} {}\", first.x.len(), alanine.y.len());"
+        },
+        "python": {
+          "signature": "def get_transition(file, query: int | TransitionQuery) -> DataXY",
+          "example": "from urllib.request import urlopen\nfrom quantion import get_transition, parse_ion\n\nurl = \"https://raw.githubusercontent.com/phenological/quantion/main/core/tests/fixtures/srm.ion\"\nfile = parse_ion(urlopen(url).read())\nfirst = get_transition(file, 0)\nalanine = get_transition(file, {\"precursor\": 89.04768, \"product\": 89.04768})\nprint(len(first[\"x\"]), len(alanine[\"y\"]))"
+        },
+        "js": {
+          "signature": "function getTransition(file: SampleFile, query: TransitionQuery): DataXY",
+          "example": "import { getTransition, parseIon } from \"quantion\";\n\nconst url = \"https://raw.githubusercontent.com/phenological/quantion/main/core/tests/fixtures/srm.ion\";\nconst response = await fetch(url);\nconst file = await parseIon(new Uint8Array(await response.arrayBuffer()));\nconst first = getTransition(file, 0);\nconst alanine = getTransition(file, { precursor: 89.04768, product: 89.04768 });\nconsole.log(first.x.length, alanine.y.length);"
+        },
+        "r": {
+          "signature": "get_transition(file, query)",
+          "example": "library(quantion)\n\nurl <- \"https://raw.githubusercontent.com/phenological/quantion/main/core/tests/fixtures/srm.ion\"\nsample <- parse_ion(curl::curl_fetch_memory(url)$content)\nfirst <- get_transition(sample, 0)\nalanine <- get_transition(sample, list(precursor = 89.04768, product = 89.04768))\nprint(c(length(first$x), length(alanine$y)))"
+        }
+      }
+    },
+    {
+      "name": "get_transition_metadata",
+      "group": "Targeted",
+      "kind": "function",
+      "summary": "Read the details stored for one chromatogram, such as an SRM or MRM transition (attributes, precursor, product, cvParams and userParams), one row each, parents before children. Find it by its index or by its precursor (Q1) and product (Q3), both within 0.005 m/z.",
+      "warning": "Needs the whole file. A sample opened from a URL gives a remote_file error; open it from a path or bytes.",
+      "arguments": [
+        {
+          "meaning": "The sample to read, from parse_ion or parse_mzml.",
+          "languages": {
+            "rust": {
+              "name": "file",
+              "type": "&mut SampleFile",
+              "default": "—"
+            },
+            "python": {
+              "name": "file",
+              "type": "SampleFile",
+              "default": "—"
+            },
+            "js": {
+              "name": "file",
+              "type": "SampleFile",
+              "default": "—"
+            },
+            "r": {
+              "name": "file",
+              "type": "SampleFile",
+              "default": "—"
+            }
+          }
+        },
+        {
+          "meaning": "Which chromatogram: an index counted from 0, or a precursor (Q1) and product (Q3) pair.",
+          "languages": {
+            "rust": {
+              "name": "query",
+              "type": "TransitionQuery",
+              "default": "—"
+            },
+            "python": {
+              "name": "query",
+              "type": "int | TransitionQuery",
+              "default": "—"
+            },
+            "js": {
+              "name": "query",
+              "type": "TransitionQuery",
+              "default": "—"
+            },
+            "r": {
+              "name": "query",
+              "type": "numeric(1) | list(precursor, product)",
+              "default": "—"
+            }
+          }
+        },
+        {
+          "meaning": "Optional settings. Every field and default is listed in GetTransitionMetadataOptions.",
+          "languages": {
+            "rust": {
+              "name": "options",
+              "type": "GetTransitionMetadataOptions",
+              "default": "default"
+            },
+            "python": {
+              "name": "options",
+              "type": "GetTransitionMetadataOptions | None",
+              "default": "None"
+            },
+            "js": {
+              "name": "options",
+              "type": "GetTransitionMetadataOptions",
+              "default": "default"
+            },
+            "r": {
+              "name": "options",
+              "type": "GetTransitionMetadataOptions",
+              "default": "get_transition_metadata_options()"
+            }
+          }
+        }
+      ],
+      "returns": {
+        "meaning": "One row per attribute or param, in the order of the mzML tree, with paths from chromatogram down. Empty when no stored chromatogram matches. A field the file does not give is missing (None in Rust and Python, null in JavaScript, NA in R).",
+        "languages": {
+          "rust": "Result<Vec<ScanParam>, QuantionError>",
+          "python": "list[ScanParam]",
+          "js": "ScanParam[]",
+          "r": "data.frame of ScanParam"
+        }
+      },
+      "languages": {
+        "rust": {
+          "signature": "pub fn get_transition_metadata(file: &mut SampleFile, query: TransitionQuery, options: GetTransitionMetadataOptions) -> Result<Vec<ScanParam>, QuantionError>",
+          "example": "use quantion::{GetTransitionMetadataOptions, ParseIonOptions, TransitionQuery, get_transition_metadata, parse_ion};\n\nlet url = \"https://raw.githubusercontent.com/phenological/quantion/main/core/tests/fixtures/srm.ion\";\nlet data = ureq::get(url).call()?.body_mut().read_to_vec()?;\nlet mut file = parse_ion(data, ParseIonOptions::default())?;\nlet rows = get_transition_metadata(&mut file, TransitionQuery::Index(0), GetTransitionMetadataOptions::default())?;\nlet windows = get_transition_metadata(\n    &mut file,\n    TransitionQuery::Transition { precursor: 89.04768, product: 89.04768 },\n    GetTransitionMetadataOptions { tags: vec![\"isolationWindow\".into()] },\n)?;\nprintln!(\"{rows:?} {windows:?}\");"
+        },
+        "python": {
+          "signature": "def get_transition_metadata(file, query: int | TransitionQuery, options: GetTransitionMetadataOptions | None = None) -> list[ScanParam]",
+          "example": "from urllib.request import urlopen\nfrom quantion import get_transition_metadata, parse_ion\n\nurl = \"https://raw.githubusercontent.com/phenological/quantion/main/core/tests/fixtures/srm.ion\"\nfile = parse_ion(urlopen(url).read())\nrows = get_transition_metadata(file, 0)\nwindows = get_transition_metadata(file, {\"precursor\": 89.04768, \"product\": 89.04768}, {\"tags\": [\"isolationWindow\"]})\nprint(rows, windows)"
+        },
+        "js": {
+          "signature": "function getTransitionMetadata(file: SampleFile, query: TransitionQuery, options?: GetTransitionMetadataOptions): ScanParam[]",
+          "example": "import { getTransitionMetadata, parseIon } from \"quantion\";\n\nconst url = \"https://raw.githubusercontent.com/phenological/quantion/main/core/tests/fixtures/srm.ion\";\nconst response = await fetch(url);\nconst file = await parseIon(new Uint8Array(await response.arrayBuffer()));\nconst rows = getTransitionMetadata(file, 0);\nconst windows = getTransitionMetadata(file, { precursor: 89.04768, product: 89.04768 }, { tags: [\"isolationWindow\"] });\nconsole.log(rows, windows);"
+        },
+        "r": {
+          "signature": "get_transition_metadata(file, query, options = get_transition_metadata_options())",
+          "example": "library(quantion)\n\nurl <- \"https://raw.githubusercontent.com/phenological/quantion/main/core/tests/fixtures/srm.ion\"\nsample <- parse_ion(curl::curl_fetch_memory(url)$content)\nrows <- get_transition_metadata(sample, 0)\nwindows <- get_transition_metadata(sample, list(precursor = 89.04768, product = 89.04768),\n                                   options = get_transition_metadata_options(tags = \"isolationWindow\"))\nprint(rows)\nprint(windows)"
+        }
+      }
+    },
+    {
       "name": "find_features",
       "group": "Untargeted",
       "kind": "function",
@@ -2815,6 +3012,74 @@
       }
     },
     {
+      "name": "TransitionQuery",
+      "group": "Inputs",
+      "kind": "type",
+      "summary": "Which stored chromatogram get_transition and get_transition_metadata read: one index, or one precursor (Q1) and product (Q3) pair.",
+      "fields": [
+        {
+          "meaning": "The chromatogram at this position in the file, counted from 0.",
+          "languages": {
+            "rust": {
+              "name": "Index",
+              "type": "usize"
+            },
+            "python": {
+              "name": "query",
+              "type": "int"
+            },
+            "js": {
+              "name": "query",
+              "type": "number"
+            },
+            "r": {
+              "name": "query",
+              "type": "numeric(1)"
+            }
+          }
+        },
+        {
+          "meaning": "The chromatogram whose precursor (Q1) and product (Q3) are both within 0.005 m/z.",
+          "languages": {
+            "rust": {
+              "name": "Transition",
+              "type": "{ precursor: f64, product: f64 }"
+            },
+            "python": {
+              "name": "query",
+              "type": "{\"precursor\": float, \"product\": float}"
+            },
+            "js": {
+              "name": "query",
+              "type": "{ precursor: number; product: number }"
+            },
+            "r": {
+              "name": "query",
+              "type": "list(precursor = , product = )"
+            }
+          }
+        }
+      ],
+      "languages": {
+        "rust": {
+          "signature": "pub enum TransitionQuery {\n    Index(usize),\n    Transition { precursor: f64, product: f64 },\n}",
+          "example": "use quantion::TransitionQuery;\n\nlet query = TransitionQuery::Transition { precursor: 89.04768, product: 89.04768 };"
+        },
+        "python": {
+          "signature": "int | {\"precursor\": float, \"product\": float}",
+          "example": "query = {\"precursor\": 89.04768, \"product\": 89.04768}"
+        },
+        "js": {
+          "signature": "export type TransitionQuery = number | { precursor: number; product: number };",
+          "example": "import type { TransitionQuery } from \"quantion\";\n\nconst query: TransitionQuery = { precursor: 89.04768, product: 89.04768 };"
+        },
+        "r": {
+          "signature": "numeric(1) | list(precursor = , product = )",
+          "example": "query <- list(precursor = 89.04768, product = 89.04768)"
+        }
+      }
+    },
+    {
       "name": "Header",
       "group": "Inputs",
       "kind": "type",
@@ -3230,7 +3495,7 @@
       "name": "ScanParamKind",
       "group": "Enums",
       "kind": "type",
-      "summary": "What a row from get_scan_metadata holds.",
+      "summary": "What a row from get_scan_metadata or get_transition_metadata holds.",
       "fields": [
         {
           "meaning": "An attribute of the tag, such as id or defaultArrayLength.",
@@ -5138,6 +5403,53 @@
         },
         "r": {
           "signature": "get_scan_metadata_options(tags = character(0))"
+        }
+      }
+    },
+    {
+      "name": "GetTransitionMetadataOptions",
+      "group": "Options",
+      "kind": "type",
+      "summary": "Options for get_transition_metadata.",
+      "fields": [
+        {
+          "meaning": "Which tags to keep, by name. A row is kept when the last tag of its path matches, so precursor keeps chromatogram/precursor but not its isolationWindow. An empty list keeps every tag. The names are chromatogram, referenceableParamGroupRef, precursor, isolationWindow, selectedIonList, selectedIon, activation, product, binaryDataArrayList and binaryDataArray.",
+          "languages": {
+            "rust": {
+              "name": "tags",
+              "type": "Vec<String>",
+              "default": "[]"
+            },
+            "python": {
+              "name": "tags",
+              "type": "list[str]",
+              "default": "[]"
+            },
+            "js": {
+              "name": "tags",
+              "type": "string[]",
+              "default": "[]"
+            },
+            "r": {
+              "name": "tags",
+              "type": "character",
+              "default": "character(0)"
+            }
+          }
+        }
+      ],
+      "languages": {
+        "rust": {
+          "signature": "pub struct GetTransitionMetadataOptions {\n    pub tags: Vec<String>,\n}"
+        },
+        "python": {
+          "signature": "class GetTransitionMetadataOptions(TypedDict, total=False):\n    tags: list[str]"
+        },
+        "js": {
+          "signature": "export interface GetTransitionMetadataOptions {\n  tags?: string[];\n}"
+        },
+        "r": {
+          "signature": "get_transition_metadata_options(tags = character(0))"
         }
       }
     },
@@ -7190,10 +7502,10 @@
       "name": "ScanParam",
       "group": "Results",
       "kind": "type",
-      "summary": "One row from get_scan_metadata. It is an attribute, a cvParam or a userParam of one tag in a spectrum.",
+      "summary": "One row from get_scan_metadata or get_transition_metadata. It is an attribute, a cvParam or a userParam of one tag in a spectrum or a chromatogram.",
       "fields": [
         {
-          "meaning": "Where the tag sits, from spectrum down. Repeated tags carry their position from 0, such as spectrum/precursorList/precursor[0]/selectedIonList/selectedIon[0].",
+          "meaning": "Where the tag sits, from spectrum or chromatogram down. Repeated tags carry their position from 0, such as spectrum/precursorList/precursor[0]/selectedIonList/selectedIon[0].",
           "languages": {
             "rust": {
               "name": "path",

@@ -11,6 +11,8 @@ from quantion.api import (
     get_scans,
     get_scan_metadata,
     calculate_eic,
+    get_transition,
+    get_transition_metadata,
     get_ion_image,
     find_peaks,
     get_peak,
@@ -57,6 +59,7 @@ from quantion._types import (
     DeisotopeFeaturesOptions,
     MatchFeaturesOptions,
     GetScanMetadataOptions,
+    GetTransitionMetadataOptions,
     GetScansOptions,
     ScanArray,
     ParseIonOptions,
@@ -90,6 +93,8 @@ __all__ = [
     "get_scans",
     "get_scan_metadata",
     "calculate_eic",
+    "get_transition",
+    "get_transition_metadata",
     "get_ion_image",
     "find_peaks",
     "get_peak",
@@ -126,6 +131,7 @@ __all__ = [
     "DeisotopeFeaturesOptions",
     "MatchFeaturesOptions",
     "GetScanMetadataOptions",
+    "GetTransitionMetadataOptions",
     "AnnotateFeaturesOptions",
     "CompoundMatch",
     "FeatureAnnotation",
@@ -176,6 +182,12 @@ class Quantion:
 
     def calculate_eic(self, file: SampleFile, mz: float, options=None):
         return calculate_eic(file, mz, options)
+
+    def get_transition(self, file: SampleFile, query):
+        return get_transition(file, query)
+
+    def get_transition_metadata(self, file: SampleFile, query, options=None):
+        return get_transition_metadata(file, query, options)
 
     def get_ion_image(self, file: SampleFile, mz: float, options=None):
         return get_ion_image(file, mz, options)

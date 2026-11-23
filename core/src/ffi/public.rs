@@ -15,10 +15,10 @@ use super::{
 use crate::{
     CalculateEicOptions, DataXY, DeisotopeFeaturesOptions, ErrorKind, Feature, FindFeaturesOptions,
     FindPeaksOptions, FindTargetsOptions, FindTransitionsOptions, FitPeakOptions, FromTo,
-    GetIonImageOptions, GetPeakOptions, GetScanMetadataOptions, GetScansOptions, GridOptions,
-    GroupingOptions, Header, MatchFeaturesOptions, PeakParameters, PeakShape, Position,
-    QuantionError, SampleFile, ScanParam, ScanQuery, Target, TimeUnit, Transition, WriteIonOptions,
-    WriteMzmlOptions,
+    GetIonImageOptions, GetPeakOptions, GetScanMetadataOptions, GetScansOptions,
+    GetTransitionMetadataOptions, GridOptions, GroupingOptions, Header, MatchFeaturesOptions,
+    PeakParameters, PeakShape, Position, QuantionError, SampleFile, ScanParam, ScanQuery, Target,
+    TimeUnit, Transition, WriteIonOptions, WriteMzmlOptions,
     files::{
         IonOutput, check_eic_request, check_headers, check_scan_query, encode_ion, from_fast_error,
         read_scans_with_arrays, scan_metadata_error,
@@ -649,6 +649,88 @@ pub unsafe extern "C" fn calculate_eic(
         let eic = crate::calculate_eic(file, mz, options)?;
         write_buf(out_x, f64_to_u8(&eic.x));
         write_buf(out_y, f64_to_u8(&eic.y));
+        Ok(())
+    })
+}
+
+/// Read one stored chromatogram. `by_index` is 1 to read the chromatogram at `index`, 0 to read the one that matches `precursor` and `product`.
+///
+/// # Safety
+/// `handle` must be a valid `ParsedFile`. `out_x` and `out_y` must be valid writable `Buf`s.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn get_transition(
+    handle: *mut ParsedFile,
+    by_index: u8,
+    index: usize,
+    precursor: f64,
+    product: f64,
+    out_x: *mut Buf,
+    out_y: *mut Buf,
+) -> c_int {
+    const FUNCTION: &str = "get_transition";
+    if out_x.is_null() || out_y.is_null() {
+        return remember(QuantionError::internal(
+            FUNCTION,
+            "the output buffer is null",
+        ));
+    }
+    clear_buf(out_x);
+    clear_buf(out_y);
+    run_on_file(FUNCTION, handle, |file| {
+        let query = if by_index == 1 {
+            crate::TransitionQuery::Index(index)
+        } else {
+            crate::TransitionQuery::Transition { precursor, product }
+        };
+        let trace = crate::get_transition(file, query)?;
+        write_buf(out_x, f64_to_u8(&trace.x));
+        write_buf(out_y, f64_to_u8(&trace.y));
+        Ok(())
+    })
+}
+
+/// Read the attributes, cvParams and userParams of one stored chromatogram, one row each. `by_index` is 1 to read the chromatogram at `index`, 0 to read the one that matches `precursor` and `product`. `tags` holds tag names split by the unit separator 0x1F; null or empty keeps every tag.
+///
+/// # Safety
+/// `handle` must be a valid `ParsedFile`. `tags` must be null or NUL-terminated text. `out` must be a valid writable `Buf`.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn get_transition_metadata(
+    handle: *mut ParsedFile,
+    by_index: u8,
+    index: usize,
+    precursor: f64,
+    product: f64,
+    tags: *const core::ffi::c_char,
+    out: *mut Buf,
+) -> c_int {
+    const FUNCTION: &str = "get_transition_metadata";
+    if out.is_null() {
+        return remember(QuantionError::internal(
+            FUNCTION,
+            "the output buffer is null",
+        ));
+    }
+    clear_buf(out);
+    let tags = match read_text(FUNCTION, "tags", tags) {
+        Ok(text) => text.unwrap_or_default(),
+        Err(error) => return remember(error),
+    };
+    run_on_file(FUNCTION, handle, |file| {
+        let query = if by_index == 1 {
+            crate::TransitionQuery::Index(index)
+        } else {
+            crate::TransitionQuery::Transition { precursor, product }
+        };
+        let tags = tags
+            .split(FIELD_SEPARATOR)
+            .filter(|tag| !tag.is_empty())
+            .map(str::to_string)
+            .collect();
+        let rows =
+            crate::get_transition_metadata(file, query, GetTransitionMetadataOptions { tags })?;
+        let bytes = build_scan_metadata_bridge(&rows)
+            .ok_or_else(|| QuantionError::internal(FUNCTION, "the metadata could not be packed"))?;
+        write_buf(out, bytes);
         Ok(())
     })
 }

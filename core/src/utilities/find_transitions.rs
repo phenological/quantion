@@ -9,7 +9,7 @@ use crate::{
     traces::FindPeaksOptions,
     utilities::{
         get_peak::get_peak,
-        structs::{ChromatogramQuery, DataXY, Peak, Roi, Transition},
+        structs::{DataXY, Peak, Roi, Transition, TransitionQuery},
     },
 };
 
@@ -62,17 +62,18 @@ pub fn find_transitions(
     }
 }
 
-pub fn get_chromatogram(mzml: &MzML, query: ChromatogramQuery) -> DataXY {
-    let Some(list) = mzml.run.chromatogram_list.as_ref() else {
-        return DataXY::default();
-    };
-    let found = match query {
-        ChromatogramQuery::Index(index) => list.chromatograms.get(index),
-        ChromatogramQuery::Transition { precursor, product } => {
+pub fn get_chromatogram(mzml: &MzML, query: TransitionQuery) -> Option<&Chromatogram> {
+    let list = mzml.run.chromatogram_list.as_ref()?;
+    match query {
+        TransitionQuery::Index(index) => list.chromatograms.get(index),
+        TransitionQuery::Transition { precursor, product } => {
             find_chromatogram(&list.chromatograms, precursor, product)
         }
-    };
-    let Some(chrom) = found else {
+    }
+}
+
+pub fn get_transition(mzml: &MzML, query: TransitionQuery) -> DataXY {
+    let Some(chrom) = get_chromatogram(mzml, query) else {
         return DataXY::default();
     };
     let Some((x, y)) = chromatogram_xy(chrom) else {

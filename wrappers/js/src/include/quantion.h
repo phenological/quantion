@@ -673,6 +673,34 @@ int calculate_eic(struct ParsedFile *handle,
                   struct Buf *out_y);
 
 /**
+ * Read one stored chromatogram. `by_index` is 1 to read the chromatogram at `index`, 0 to read the one that matches `precursor` and `product`.
+ *
+ * # Safety
+ * `handle` must be a valid `ParsedFile`. `out_x` and `out_y` must be valid writable `Buf`s.
+ */
+int get_transition(struct ParsedFile *handle,
+                   uint8_t by_index,
+                   uintptr_t index,
+                   double precursor,
+                   double product,
+                   struct Buf *out_x,
+                   struct Buf *out_y);
+
+/**
+ * Read the attributes, cvParams and userParams of one stored chromatogram, one row each. `by_index` is 1 to read the chromatogram at `index`, 0 to read the one that matches `precursor` and `product`. `tags` holds tag names split by the unit separator 0x1F; null or empty keeps every tag.
+ *
+ * # Safety
+ * `handle` must be a valid `ParsedFile`. `tags` must be null or NUL-terminated text. `out` must be a valid writable `Buf`.
+ */
+int get_transition_metadata(struct ParsedFile *handle,
+                            uint8_t by_index,
+                            uintptr_t index,
+                            double precursor,
+                            double product,
+                            const char *tags,
+                            struct Buf *out);
+
+/**
  * Plan the byte ranges `calculate_eic` reads from an .ion file.
  *
  * # Safety

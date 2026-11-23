@@ -49,6 +49,7 @@ DEFAULT_SCAN_ARRAYS = [
 ]
 GET_SCANS = {"level": 1, "time_unit": "MINUTES", "arrays": DEFAULT_SCAN_ARRAYS}
 GET_SCAN_METADATA = {"tags": []}
+GET_TRANSITION_METADATA = {"tags": []}
 PARSE_ION = {"max_cache_size": 0, "headers": []}
 WRITE_ION = {"out": None, "overwrite": False, "level": 12, "f32_compress": False, "block_size": 8, "mz_window": 20, "headers": []}
 WRITE_MZML = {"out": None, "overwrite": False}
@@ -233,13 +234,25 @@ SCAN_METADATA_TAGS = (
     "scanWindow", "precursorList", "precursor", "isolationWindow", "selectedIonList", "selectedIon",
     "activation", "productList", "product", "binaryDataArrayList", "binaryDataArray",
 )
+TRANSITION_METADATA_TAGS = (
+    "chromatogram", "referenceableParamGroupRef", "precursor", "isolationWindow", "selectedIonList",
+    "selectedIon", "activation", "product", "binaryDataArrayList", "binaryDataArray",
+)
 _TAG_SEPARATOR = "\x1f"
 
 
-def read_scan_metadata_tags(function: str, tags: Any) -> bytes:
+def _read_tags(function: str, tags: Any, names: tuple) -> bytes:
     if not isinstance(tags, (list, tuple)):
         raise _invalid(function, "tags", f"must be a list of tag names, got {tags!r}")
     for tag in tags:
-        if not isinstance(tag, str) or tag not in SCAN_METADATA_TAGS:
-            raise _invalid(function, "tags", f"must be one of {', '.join(SCAN_METADATA_TAGS)}, got {tag!r}")
+        if not isinstance(tag, str) or tag not in names:
+            raise _invalid(function, "tags", f"must be one of {', '.join(names)}, got {tag!r}")
     return _TAG_SEPARATOR.join(tags).encode("utf-8")
+
+
+def read_scan_metadata_tags(function: str, tags: Any) -> bytes:
+    return _read_tags(function, tags, SCAN_METADATA_TAGS)
+
+
+def read_transition_metadata_tags(function: str, tags: Any) -> bytes:
+    return _read_tags(function, tags, TRANSITION_METADATA_TAGS)

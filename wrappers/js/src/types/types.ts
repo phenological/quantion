@@ -158,6 +158,23 @@ export interface MzQuery {
 export type ScanQuery = RtQuery | MzQuery;
 
 /**
+ * TransitionQuery · Inputs
+ *
+ * Which stored chromatogram get_transition and get_transition_metadata read: one index, or one precursor (Q1) and product (Q3) pair.
+ *
+ * Fields:
+ * - `query`: The chromatogram at this position in the file, counted from 0.
+ * - `query`: The chromatogram whose precursor (Q1) and product (Q3) are both within 0.005 m/z.
+ *
+ * @example
+ * ```ts
+ * const query: TransitionQuery = { precursor: 89.04768, product: 89.04768 };
+ * ```
+ * @see {@link https://phenological.github.io/quantion/?language=js#TransitionQuery | Documentation}
+ */
+export type TransitionQuery = number | { precursor: number; product: number };
+
+/**
  * FindPeaksOptions · Options
  *
  * Options for find_peaks. Every field is optional.
@@ -416,6 +433,19 @@ export interface GetScanMetadataOptions {
 }
 
 /**
+ * GetTransitionMetadataOptions · Options
+ *
+ * Options for get_transition_metadata.
+ *
+ * Fields:
+ * - `tags`: Which tags to keep, by name. A row is kept when the last tag of its path matches, so precursor keeps chromatogram/precursor but not its isolationWindow. An empty list keeps every tag. The names are chromatogram, referenceableParamGroupRef, precursor, isolationWindow, selectedIonList, selectedIon, activation, product, binaryDataArrayList and binaryDataArray. Default `[]`.
+ * @see {@link https://phenological.github.io/quantion/?language=js#GetTransitionMetadataOptions | Documentation}
+ */
+export interface GetTransitionMetadataOptions {
+  tags?: string[];
+}
+
+/**
  * GetScansOptions · Options
  *
  * Options for get_scans, including the MS level and which arrays to read.
@@ -648,7 +678,7 @@ export interface PredictedRt {
 /**
  * ScanParamKind · Enums
  *
- * What a row from get_scan_metadata holds.
+ * What a row from get_scan_metadata or get_transition_metadata holds.
  *
  * Fields:
  * - `ATTRIBUTE`: An attribute of the tag, such as id or defaultArrayLength.
@@ -666,10 +696,10 @@ export type ScanParamKind = (typeof ScanParamKind)[keyof typeof ScanParamKind];
 /**
  * ScanParam · Results
  *
- * One row from get_scan_metadata. It is an attribute, a cvParam or a userParam of one tag in a spectrum.
+ * One row from get_scan_metadata or get_transition_metadata. It is an attribute, a cvParam or a userParam of one tag in a spectrum or a chromatogram.
  *
  * Fields:
- * - `path`: Where the tag sits, from spectrum down. Repeated tags carry their position from 0, such as spectrum/precursorList/precursor[0]/selectedIonList/selectedIon[0].
+ * - `path`: Where the tag sits, from spectrum or chromatogram down. Repeated tags carry their position from 0, such as spectrum/precursorList/precursor[0]/selectedIonList/selectedIon[0].
  * - `kind`: What the row holds, ATTRIBUTE, CV or USER. See ScanParamKind.
  * - `accession`: Accession of a cvParam, such as MS:1000511. Missing for attributes and userParams.
  * - `name`: Name of the attribute or param, such as ms level.

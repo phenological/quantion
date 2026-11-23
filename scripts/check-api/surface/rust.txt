@@ -203,9 +203,16 @@ pub struct FindTransitionsOptions
     pub threads: usize
 impl Default for FindTransitionsOptions: find_peaks: FindPeaksOptions::default(), threads: 1
 
+pub struct GetTransitionMetadataOptions
+    pub tags: Vec<String>
+
 pub fn find_targets(file: &mut SampleFile, targets: &[Target], options: FindTargetsOptions) -> Result<Vec<Peak>, QuantionError>
 
 pub fn find_transitions(file: &mut SampleFile, targets: &[Transition], options: FindTransitionsOptions) -> Result<Vec<Peak>, QuantionError>
+
+pub fn get_transition(file: &mut SampleFile, query: TransitionQuery) -> Result<DataXY, QuantionError>
+
+pub fn get_transition_metadata(file: &mut SampleFile, query: TransitionQuery, options: GetTransitionMetadataOptions) -> Result<Vec<ScanParam>, QuantionError>
 
 pub struct CalculateBaselineOptions
     pub lambda: f64
@@ -404,6 +411,10 @@ pub struct Transition
     pub product: f64
     pub rt: f64
     pub range: f64
+
+pub enum TransitionQuery
+    Index(usize)
+    Transition { precursor: f64, product: f64 }
 
 pub struct PredictedRt
     pub rt: f64

@@ -11,6 +11,7 @@ import type {
   AnnotationTables,
   Backend,
   ByteRangeResult,
+  TransitionQuerySettings,
   EicSettings,
   FileHandle,
   GridSettings,
@@ -22,7 +23,7 @@ import type {
   TransitionColumns,
   WarpModelHandle,
 } from "./backend";
-import { getScanQueryValues } from "./backend";
+import { getTransitionQueryValues, getScanQueryValues } from "./backend";
 import type {
   DataXY,
   Feature,
@@ -1014,6 +1015,52 @@ class WasmApi {
     return this.takeRecords<Peak>(this.firstSlot);
   }
 
+  getTransition(handle: number, query: TransitionQuerySettings): DataXY {
+    if (query.index > LARGEST_WASM_SIZE) {
+      throw invalidArgument(
+        "getTransition",
+        "query",
+        `must be at most ${LARGEST_WASM_SIZE} in the WebAssembly build, got ${query.index}`,
+      );
+    }
+    this.run(
+      "get_transition",
+      handle,
+      ...getTransitionQueryValues(query),
+      this.firstSlot,
+      this.secondSlot,
+    );
+    return {
+      x: this.takeNumbers(this.firstSlot),
+      y: this.takeNumbers(this.secondSlot),
+    };
+  }
+
+  getTransitionMetadata(
+    handle: number,
+    query: TransitionQuerySettings,
+    tags: string[],
+  ): ScanParam[] {
+    if (query.index > LARGEST_WASM_SIZE) {
+      throw invalidArgument(
+        "getTransitionMetadata",
+        "query",
+        `must be at most ${LARGEST_WASM_SIZE} in the WebAssembly build, got ${query.index}`,
+      );
+    }
+    const text = new TextEncoder().encode(`${tags.join(TAG_SEPARATOR)}\0`);
+    this.withMemory([text], ([tagsPointer]) => {
+      this.run(
+        "get_transition_metadata",
+        handle,
+        ...getTransitionQueryValues(query),
+        tagsPointer,
+        this.firstSlot,
+      );
+    });
+    return readScanMetadata(this.heap.readBridgeFromSlot(this.firstSlot));
+  }
+
   async findFeatures(
     handle: number,
     eic: EicSettings,
@@ -1426,6 +1473,21 @@ export class WasmBackend implements Backend {
       options,
       threads,
     );
+  }
+
+  getTransition(
+    handle: FileHandle,
+    query: TransitionQuerySettings,
+  ): DataXY {
+    return this.getApi().getTransition(handle as number, query);
+  }
+
+  getTransitionMetadata(
+    handle: FileHandle,
+    query: TransitionQuerySettings,
+    tags: string[],
+  ): ScanParam[] {
+    return this.getApi().getTransitionMetadata(handle as number, query, tags);
   }
 
   findFeatures(

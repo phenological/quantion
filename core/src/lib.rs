@@ -29,7 +29,8 @@ pub use files::{
 pub use models::{load_model, load_warp};
 pub use sample_file::{MzmlInput, SampleFile};
 pub use targets::{
-    FindTargetsOptions, FindTransitionsOptions, find_targets, find_transitions, get_chromatogram,
+    FindTargetsOptions, FindTransitionsOptions, GetTransitionMetadataOptions, find_targets,
+    find_transitions, get_transition, get_transition_metadata,
 };
 pub use traces::{
     CalculateBaselineOptions, DrawPeaksOptions, FindPeaksOptions, FitPeakOptions, GetPeakOptions,
@@ -45,6 +46,6 @@ pub use utilities::{
     load_model::{Model, ModelInput},
     parse_ion::IonInput,
     polarity::Polarity,
-    structs::{ChromatogramQuery, DataXY, FromTo, Peak, Position, ScanQuery, Target, Transition},
+    structs::{DataXY, FromTo, Peak, Position, ScanQuery, Target, Transition, TransitionQuery},
     warp_model::{PredictedRt, WarpModel},
 };

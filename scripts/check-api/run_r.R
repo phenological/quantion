@@ -133,7 +133,28 @@ report_channel <- function(file, transitions, channel, out) {
       sprintf("%s.intensity = %s", prefix, number(row$intensity)),
       sprintf("%s.area = %s", prefix, number(row$integral)))
   }
+
+  query <- list(precursor = channel$mass, product = channel$mass)
+  trace <- get_transition(transitions, query)
+  out <- c(out,
+    sprintf("%s.get_transition.points = %d", name, length(trace$x)),
+    sprintf("%s.get_transition.x.fnv1a = %s", name, fnv1a(as.numeric(trace$x))),
+    sprintf("%s.get_transition.y.fnv1a = %s", name, fnv1a(as.numeric(trace$y))))
+  metadata <- get_transition_metadata(transitions, query)
+  out <- c(out, sprintf("%s.get_transition_metadata.count = %d", name, nrow(metadata)))
+  windows <- get_transition_metadata(transitions, query,
+                                     get_transition_metadata_options(tags = "isolationWindow"))
+  for (position in seq_len(nrow(windows))) {
+    out <- c(out, sprintf("%s.get_transition_metadata.isolationWindow.%d = %s",
+                          name, position - 1, row_text(windows[position, ])))
+  }
   out
+}
+
+row_text <- function(row) {
+  fields <- unlist(row, use.names = FALSE)
+  fields[is.na(fields)] <- "NA"
+  paste(fields, collapse = " | ")
 }
 
 feature_lines <- function(label, rows, out, with_points) {
@@ -173,9 +194,7 @@ main <- function() {
   rows <- get_scan_metadata(file, last_index)
   out <- c(out, sprintf("get_scan_metadata.count = %d", nrow(rows)))
   for (position in seq_len(nrow(rows))) {
-    fields <- unlist(rows[position, ], use.names = FALSE)
-    fields[is.na(fields)] <- "NA"
-    out <- c(out, sprintf("get_scan_metadata.%d = %s", position - 1, paste(fields, collapse = " | ")))
+    out <- c(out, sprintf("get_scan_metadata.%d = %s", position - 1, row_text(rows[position, ])))
   }
   scan_rows <- get_scan_metadata(file, last_index, get_scan_metadata_options(tags = "scan"))
   out <- c(out, sprintf("get_scan_metadata.scan.count = %d", nrow(scan_rows)))

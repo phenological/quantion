@@ -1142,6 +1142,24 @@ SEXP C_calculate_eic(SEXP file, SEXP mz, SEXP eic)
   return take_numbers(&x, &y, 0);
 }
 
+SEXP C_get_transition(SEXP file, SEXP by_index, SEXP index, SEXP precursor, SEXP product)
+{
+  check_bound();
+  Buf x = (Buf){0}, y = (Buf){0};
+  check_code(get_transition(get_sample(file), (uint8_t)asLogical(by_index), (uintptr_t)asReal(index),
+                            asReal(precursor), asReal(product), &x, &y));
+  return take_numbers(&x, &y, 0);
+}
+
+SEXP C_get_transition_metadata(SEXP file, SEXP by_index, SEXP index, SEXP precursor, SEXP product, SEXP tags)
+{
+  check_bound();
+  Buf out = (Buf){0};
+  check_code(get_transition_metadata(get_sample(file), (uint8_t)asLogical(by_index), (uintptr_t)asReal(index),
+                                     asReal(precursor), asReal(product), CHAR(STRING_ELT(tags, 0)), &out));
+  return take_records(&out);
+}
+
 SEXP C_plan_eic(SEXP file, SEXP mz, SEXP eic)
 {
   check_bound();

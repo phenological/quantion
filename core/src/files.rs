@@ -80,7 +80,7 @@ pub struct Scan {
 
 /// **ScanParamKind** · Enums
 ///
-/// What a row from get_scan_metadata holds.
+/// What a row from get_scan_metadata or get_transition_metadata holds.
 ///
 /// Fields:
 /// - `ATTRIBUTE`: An attribute of the tag, such as id or defaultArrayLength.
@@ -108,10 +108,10 @@ impl ScanParamKind {
 
 /// **ScanParam** · Results
 ///
-/// One row from get_scan_metadata. It is an attribute, a cvParam or a userParam of one tag in a spectrum.
+/// One row from get_scan_metadata or get_transition_metadata. It is an attribute, a cvParam or a userParam of one tag in a spectrum or a chromatogram.
 ///
 /// Fields:
-/// - `path`: Where the tag sits, from spectrum down. Repeated tags carry their position from 0, such as spectrum/precursorList/precursor\[0\]/selectedIonList/selectedIon\[0\].
+/// - `path`: Where the tag sits, from spectrum or chromatogram down. Repeated tags carry their position from 0, such as spectrum/precursorList/precursor\[0\]/selectedIonList/selectedIon\[0\].
 /// - `kind`: What the row holds, ATTRIBUTE, CV or USER. See ScanParamKind.
 /// - `accession`: Accession of a cvParam, such as MS:1000511. Missing for attributes and userParams. Optional.
 /// - `name`: Name of the attribute or param, such as ms level.
